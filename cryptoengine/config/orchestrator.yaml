@@ -1,0 +1,190 @@
+# ============================================================
+# Strategy Orchestrator Configuration
+# ============================================================
+
+orchestrator:
+  version: "1.0"
+  # How often the orchestrator evaluates market regime and rebalances (seconds)
+  evaluation_interval_seconds: 300
+  # Portfolio snapshot interval (seconds)
+  portfolio_snapshot_interval_seconds: 900
+  # Minimum time between weight changes (seconds) — prevents thrashing
+  min_rebalance_interval_seconds: 900
+
+# ── Regime Detection ─────────────────────────────────────────
+regime_detection:
+  # Primary timeframe for regime classification
+  primary_timeframe: 4h
+  # Secondary timeframes for confirmation
+  secondary_timeframes:
+    - 1h
+    - 1d
+
+  # Indicators used for regime classification
+  indicators:
+    # ADX for trend strength
+    adx:
+      period: 14
+      trending_threshold: 25
+      strong_trend_threshold: 40
+
+    # Bollinger Band width for volatility regime
+    bollinger:
+      period: 20
+      std_dev: 2.0
+      narrow_threshold: 0.03   # ranging
+      wide_threshold: 0.08     # volatile
+
+    # Moving average alignment for trend direction
+    moving_averages:
+      fast: 20
+      medium: 50
+      slow: 200
+      type: ema
+
+    # ATR for volatility measurement
+    atr:
+      period: 14
+      high_vol_percentile: 75
+      low_vol_percentile: 25
+
+    # Volume profile
+    volume:
+      lookback_periods: 20
+      spike_threshold: 2.0  # multiple of average
+
+  # Regime classification confidence threshold (0.0 - 1.0)
+  min_confidence: 0.5
+  # Smoothing: number of consecutive signals before regime change
+  confirmation_periods: 2
+
+# ── Weight Matrix ─────────────────────────────────────────────
+# Rows = market regime, Columns = strategy allocation weight.
+# Each row must sum to 1.0.
+weights:
+  ranging:
+    funding_arb: 0.25
+    grid_trading: 0.40
+    adaptive_dca: 0.15
+    cash_reserve: 0.20
+
+  trending_up:
+    funding_arb: 0.15
+    grid_trading: 0.05
+    adaptive_dca: 0.50
+    cash_reserve: 0.30
+
+  trending_down:
+    funding_arb: 0.20
+    grid_trading: 0.05
+    adaptive_dca: 0.10
+    cash_reserve: 0.65
+
+  volatile:
+    funding_arb: 0.10
+    grid_trading: 0.05
+    adaptive_dca: 0.05
+    cash_reserve: 0.80
+
+# ── Weight Transition ─────────────────────────────────────────
+transition:
+  # Gradually shift weights over N steps to avoid sudden rebalancing
+  steps: 5
+  # Time between transition steps (seconds)
+  step_interval_seconds: 60
+  # Maximum weight change per step (percentage points)
+  max_step_change: 0.10
+  # EMA smoothing factor for weight transitions (0-1, lower = smoother)
+  ema_alpha: 0.3
+  # Minimum weight change to trigger reallocation
+  min_weight_change: 0.02
+
+# ── Kill Switch ───────────────────────────────────────────────
+kill_switch:
+  enabled: true
+
+  # Portfolio drawdown thresholds
+  max_daily_drawdown_pct: 5.0
+  max_weekly_drawdown_pct: 10.0
+  max_monthly_drawdown_pct: 15.0
+
+  # Single-day loss limit (USD)
+  daily_loss_limit_usd: 1_000
+
+  # Market-wide circuit breaker: halt if BTC drops this much in given window
+  btc_crash_pct: 15.0
+  btc_crash_window_hours: 24
+
+  # Halt if exchange API errors exceed threshold in window
+  max_api_errors: 50
+  api_error_window_minutes: 10
+
+  # Halt if execution latency exceeds threshold (milliseconds)
+  max_execution_latency_ms: 5_000
+
+  # Actions on kill switch activation
+  actions:
+    - close_all_positions
+    - cancel_all_orders
+    - notify_telegram
+    - log_critical
+
+  # Manual re-enable required after kill switch trips
+  require_manual_reset: true
+
+  # Cooldown before strategies can be re-enabled (minutes)
+  cooldown_minutes: 60
+
+# ── Portfolio Risk ────────────────────────────────────────────
+risk:
+  # Maximum total leverage across all strategies
+  max_total_leverage: 5.0
+  # Maximum single strategy allocation (percentage)
+  max_single_strategy_pct: 50.0
+  # Minimum cash reserve (percentage)
+  min_cash_reserve_pct: 5.0
+  # Sharpe ratio calculation window (days)
+  sharpe_window_days: 30
+  # Risk-free rate for Sharpe calculation (annualized)
+  risk_free_rate: 0.05
+
+# ── LLM Advisor Integration ──────────────────────────────────
+llm_advisor:
+  enabled: true
+  # Minimum confidence to apply LLM weight adjustments
+  min_confidence: 0.5
+  # Maximum weight adjustment from LLM (percentage points)
+  max_adjustment: 0.15
+  # Redis channel for LLM advisories
+  redis_channel: "llm:advisory"
+
+# ── ML Regime Model ──────────────────────────────────────────
+regime_ml:
+  enabled: true
+  retrain_interval_hours: 6
+  training_lookback_days: 30
+  # Dissimilarity index threshold
+  di_threshold: 2.5
+  # Number of std deviations for outlier detection
+  di_std_multiplier: 2.0
+  # Minimum training samples
+  min_training_samples: 500
+  # Model features
+  features:
+    - adx_14
+    - rsi_14
+    - bb_width_20
+    - atr_14
+    - volume_sma_ratio
+    - close_sma_ratio_20
+    - close_sma_ratio_50
+    - macd_histogram
+    - obv_slope
+    - funding_rate
+
+# ── Notifications ─────────────────────────────────────────────
+notifications:
+  on_regime_change: true
+  on_rebalance: true
+  on_kill_switch: true
+  status_report_interval_hours: 6

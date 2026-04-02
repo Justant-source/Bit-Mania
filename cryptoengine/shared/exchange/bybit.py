@@ -1,0 +1,285 @@
+"""Bybit futures connector built on ccxt.pro (async WebSocket + REST)."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import AsyncIterator
+from datetime import datetime, timezone
+from typing import Any
+
+import ccxt.pro as ccxtpro
+
+from shared.exchange.base import ExchangeConnector
+from shared.models.market import (
+    FundingRate,
+    OHLCV,
+    OrderBook,
+    OrderBookLevel,
+)
+from shared.models.order import OrderRequest, OrderResult
+from shared.models.position import Position
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_RATE_LIMIT = 50  # ms between REST calls
+
+
+class BybitConnector(ExchangeConnector):
+    """Full async Bybit linear-perpetual connector."""
+
+    exchange_id: str = "bybit"
+
+    def __init__(
+        self,
+        api_key: str = "",
+        api_secret: str = "",
+        testnet: bool = False,
+        rate_limit: int = _DEFAULT_RATE_LIMIT,
+    ) -> None:
+        opts: dict[str, Any] = {
+            "apiKey": api_key,
+            "secret": api_secret,
+            "enableRateLimit": True,
+            "rateLimit": rate_limit,
+            "options": {
+                "defaultType": "swap",
+                "defaultSubType": "linear",
+                "adjustForTimeDifference": True,
+            },
+        }
+        if testnet:
+            opts["sandbox"] = True
+
+        self._exchange: ccxtpro.bybit = ccxtpro.bybit(opts)
+        self._connected = False
+        self._rate_limiter = asyncio.Semaphore(10)
+
+    # ── lifecycle ────────────────────────────────────────────────────────
+
+    async def connect(self) -> None:
+        if self._connected:
+            return
+        await self._exchange.load_markets()
+        self._connected = True
+        logger.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
+
+    async def disconnect(self) -> None:
+        if not self._connected:
+            return
+        await self._exchange.close()
+        self._connected = False
+        logger.info("bybit connector closed")
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    def _ensure_connected(self) -> None:
+        if not self._connected:
+            raise RuntimeError("BybitConnector is not connected — call connect() first")
+
+    # ── market data ─────────────────────────────────────────────────────
+
+    async def get_ticker(self, symbol: str) -> dict[str, Any]:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            ticker = await self._exchange.fetch_ticker(symbol)
+        return ticker
+
+    async def get_orderbook(self, symbol: str, limit: int = 25) -> OrderBook:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            raw = await self._exchange.fetch_order_book(symbol, limit)
+        return OrderBook(
+            exchange=self.exchange_id,
+            symbol=symbol,
+            bids=[OrderBookLevel(price=p, quantity=q) for p, q in raw["bids"]],
+            asks=[OrderBookLevel(price=p, quantity=q) for p, q in raw["asks"]],
+            timestamp=datetime.fromtimestamp(
+                raw["timestamp"] / 1000, tz=timezone.utc
+            )
+            if raw.get("timestamp")
+            else datetime.now(tz=timezone.utc),
+        )
+
+    async def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1m",
+        since: int | None = None,
+        limit: int = 100,
+    ) -> list[OHLCV]:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            raw = await self._exchange.fetch_ohlcv(
+                symbol, timeframe, since=since, limit=limit
+            )
+        return [
+            OHLCV(
+                exchange=self.exchange_id,
+                symbol=symbol,
+                timeframe=timeframe,
+                open=c[1],
+                high=c[2],
+                low=c[3],
+                close=c[4],
+                volume=c[5],
+                timestamp=datetime.fromtimestamp(c[0] / 1000, tz=timezone.utc),
+            )
+            for c in raw
+        ]
+
+    async def get_funding_rate(self, symbol: str) -> FundingRate:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            raw = await self._exchange.fetch_funding_rate(symbol)
+        return FundingRate(
+            exchange=self.exchange_id,
+            symbol=symbol,
+            rate=raw["fundingRate"],
+            predicted_rate=raw.get("nextFundingRate"),
+            next_funding_time=datetime.fromtimestamp(
+                raw["fundingDatetime"]
+                if isinstance(raw.get("fundingDatetime"), (int, float))
+                else raw.get("fundingTimestamp", 0) / 1000,
+                tz=timezone.utc,
+            ),
+            collected_at=datetime.now(tz=timezone.utc),
+        )
+
+    # ── trading ──────────────────────────────────────────────────────────
+
+    async def place_order(self, order: OrderRequest) -> OrderResult:
+        self._ensure_connected()
+        params: dict[str, Any] = {}
+        if order.post_only:
+            params["postOnly"] = True
+        if order.reduce_only:
+            params["reduceOnly"] = True
+        if order.stop_loss is not None:
+            params["stopLoss"] = {"triggerPrice": order.stop_loss}
+        if order.take_profit is not None:
+            params["takeProfit"] = {"triggerPrice": order.take_profit}
+
+        try:
+            async with self._rate_limiter:
+                result = await self._exchange.create_order(
+                    symbol=order.symbol,
+                    type=order.order_type.replace("_", ""),
+                    side=order.side,
+                    amount=order.quantity,
+                    price=order.price,
+                    params=params,
+                )
+            status_map: dict[str, str] = {
+                "open": "new",
+                "closed": "filled",
+                "canceled": "cancelled",
+                "expired": "expired",
+                "rejected": "rejected",
+            }
+            return OrderResult(
+                request_id=order.request_id,
+                order_id=result["id"],
+                status=status_map.get(result["status"], "new"),
+                filled_qty=result.get("filled", 0.0) or 0.0,
+                filled_price=result.get("average"),
+                fee=result.get("fee", {}).get("cost", 0.0) or 0.0,
+                fee_currency=result.get("fee", {}).get("currency", "USDT") or "USDT",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+        except Exception as exc:
+            logger.exception("order placement failed: %s", exc)
+            return OrderResult(
+                request_id=order.request_id,
+                order_id="",
+                status="rejected",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+
+    async def cancel_order(self, order_id: str, symbol: str) -> bool:
+        self._ensure_connected()
+        try:
+            async with self._rate_limiter:
+                await self._exchange.cancel_order(order_id, symbol)
+            return True
+        except Exception as exc:
+            logger.warning("cancel_order failed for %s: %s", order_id, exc)
+            return False
+
+    # ── account ──────────────────────────────────────────────────────────
+
+    async def get_position(self, symbol: str) -> Position | None:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            positions = await self._exchange.fetch_positions([symbol])
+        for pos in positions:
+            size = float(pos.get("contracts", 0) or 0)
+            if size == 0:
+                continue
+            return Position(
+                exchange=self.exchange_id,
+                symbol=symbol,
+                side="long" if pos["side"] == "long" else "short",
+                size=size,
+                entry_price=float(pos.get("entryPrice", 0) or 0),
+                unrealized_pnl=float(pos.get("unrealizedPnl", 0) or 0),
+                leverage=float(pos.get("leverage", 1) or 1),
+                liquidation_price=float(pos["liquidationPrice"])
+                if pos.get("liquidationPrice")
+                else None,
+                margin_used=float(pos.get("initialMargin", 0) or 0),
+            )
+        return None
+
+    async def get_balance(self) -> dict[str, float]:
+        self._ensure_connected()
+        async with self._rate_limiter:
+            bal = await self._exchange.fetch_balance()
+        return {
+            "total": float(bal.get("total", {}).get("USDT", 0) or 0),
+            "free": float(bal.get("free", {}).get("USDT", 0) or 0),
+            "used": float(bal.get("used", {}).get("USDT", 0) or 0),
+        }
+
+    # ── websocket streams ────────────────────────────────────────────────
+
+    async def subscribe_ticker(self, symbol: str) -> AsyncIterator[dict[str, Any]]:
+        self._ensure_connected()
+        while True:
+            try:
+                ticker = await self._exchange.watch_ticker(symbol)
+                yield ticker
+            except Exception as exc:
+                logger.warning("ticker ws error for %s: %s — reconnecting", symbol, exc)
+                await asyncio.sleep(1)
+
+    async def subscribe_orderbook(self, symbol: str) -> AsyncIterator[OrderBook]:
+        self._ensure_connected()
+        while True:
+            try:
+                raw = await self._exchange.watch_order_book(symbol)
+                yield OrderBook(
+                    exchange=self.exchange_id,
+                    symbol=symbol,
+                    bids=[OrderBookLevel(price=p, quantity=q) for p, q in raw["bids"]],
+                    asks=[OrderBookLevel(price=p, quantity=q) for p, q in raw["asks"]],
+                    timestamp=datetime.fromtimestamp(
+                        raw["timestamp"] / 1000, tz=timezone.utc
+                    )
+                    if raw.get("timestamp")
+                    else datetime.now(tz=timezone.utc),
+                )
+            except Exception as exc:
+                logger.warning("orderbook ws error for %s: %s — reconnecting", symbol, exc)
+                await asyncio.sleep(1)
+
+    async def subscribe_trades(self, symbol: str) -> AsyncIterator[dict[str, Any]]:
+        self._ensure_connected()
+        while True:
+            try:
+                trades = await self._exchange.watch_trades(symbol)
+                for trade in trades:
+                    yield trade
+            except Exception as exc:
+                logger.warning("trades ws error for %s: %s — reconnecting", symbol, exc)
+                await asyncio.sleep(1)

@@ -1,0 +1,44 @@
+# ============================================================
+# Binance Exchange Configuration (Placeholder)
+# ============================================================
+# Status: NOT YET IMPLEMENTED
+# This configuration is prepared for future Binance integration,
+# primarily for cross-exchange funding rate arbitrage.
+
+exchange:
+  name: binance
+  enabled: false
+
+  connection:
+    mainnet_url: https://fapi.binance.com
+    testnet_url: https://testnet.binancefuture.com
+    mainnet_ws: wss://fstream.binance.com/ws
+    testnet_ws: wss://stream.binancefuture.com/ws
+    use_testnet: true
+
+  rate_limits:
+    rest_requests_per_minute: 1200
+    order_requests_per_second: 10
+    backoff_base_ms: 1000
+    backoff_max_ms: 30000
+    backoff_multiplier: 2.0
+
+  websocket:
+    ping_interval_seconds: 20
+    auto_reconnect: true
+    max_reconnect_attempts: 50
+    reconnect_delay_seconds: 5
+
+  trading:
+    margin_mode: CROSS
+    default_leverage: 1
+    order_timeout_seconds: 30
+    min_order_value_usd: 5
+
+  pairs:
+    BTCUSDT:
+      min_qty: 0.001
+      qty_step: 0.001
+    ETHUSDT:
+      min_qty: 0.001
+      qty_step: 0.001

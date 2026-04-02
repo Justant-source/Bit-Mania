@@ -1,0 +1,88 @@
+# ============================================================
+# Telegram Bot Configuration
+# ============================================================
+
+telegram:
+  # Bot token and chat ID are loaded from environment variables:
+  #   TELEGRAM_BOT_TOKEN
+  #   TELEGRAM_CHAT_ID
+
+  # ── Message Settings ────────────────────────────────────────
+  messages:
+    # Parse mode for messages: HTML | MarkdownV2
+    parse_mode: HTML
+    # Disable link previews in messages
+    disable_web_preview: true
+    # Rate limit: max messages per minute
+    max_messages_per_minute: 30
+    # Batch multiple alerts into one message if they arrive within (seconds)
+    batch_window_seconds: 5
+    # Maximum message length before splitting
+    max_message_length: 4096
+
+  # ── Notification Categories ─────────────────────────────────
+  notifications:
+    # Trade execution alerts
+    trades:
+      enabled: true
+      # Minimum trade size to report (USD)
+      min_trade_size_usd: 50
+      # Include PnL in close notifications
+      include_pnl: true
+
+    # Position updates
+    positions:
+      enabled: true
+      # Report every N minutes (0 = only on change)
+      interval_minutes: 0
+
+    # Portfolio summary
+    portfolio:
+      enabled: true
+      # Scheduled summary times (UTC)
+      schedule_utc:
+        - "08:00"
+        - "20:00"
+
+    # Risk alerts (always enabled)
+    risk:
+      enabled: true
+      # Alert on drawdown exceeding (percentage)
+      drawdown_alert_pct: 3.0
+      # Alert on liquidation proximity (percentage from liq price)
+      liquidation_proximity_pct: 20.0
+
+    # System alerts (always enabled)
+    system:
+      enabled: true
+      # Alert on service restarts
+      on_restart: true
+      # Alert on error spikes
+      error_spike_threshold: 10
+      error_spike_window_minutes: 5
+
+    # Strategy regime changes
+    regime:
+      enabled: true
+
+    # Kill switch activation
+    kill_switch:
+      enabled: true
+      # Send with urgent notification sound
+      urgent: true
+
+  # ── Bot Commands ────────────────────────────────────────────
+  commands:
+    # /status  — Current portfolio status
+    # /pnl     — Today's PnL summary
+    # /positions — Open positions
+    # /balance — Account balance
+    # /regime  — Current market regime
+    # /stop    — Emergency stop all strategies
+    # /start   — Resume strategies
+    # /report  — Generate performance report
+    enabled: true
+    # Restrict commands to authorized chat IDs only
+    restrict_to_chat_id: true
+    # Command timeout (seconds)
+    command_timeout_seconds: 30

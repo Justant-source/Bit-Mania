@@ -1,0 +1,123 @@
+version: "3.9"
+
+# Development overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  market-data:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+      ENVIRONMENT: testnet
+    volumes:
+      - ./services/market-data/src:/app/src:ro
+    ports:
+      - "5678:5678"   # debugpy
+
+  strategy-orchestrator:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/orchestrator/src:/app/src:ro
+    ports:
+      - "5679:5678"   # debugpy
+
+  execution-engine:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/execution/src:/app/src:ro
+    ports:
+      - "5680:5678"   # debugpy
+
+  funding-arb:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/strategies/funding-arb/src:/app/src:ro
+    ports:
+      - "5681:5678"   # debugpy
+
+  grid-trading:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/strategies/grid-trading/src:/app/src:ro
+    ports:
+      - "5682:5678"   # debugpy
+
+  adaptive-dca:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/strategies/adaptive-dca/src:/app/src:ro
+    ports:
+      - "5683:5678"   # debugpy
+
+  llm-advisor:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/llm-advisor/src:/app/src:ro
+    ports:
+      - "5684:5678"   # debugpy
+
+  telegram-bot:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/telegram-bot/src:/app/src:ro
+    ports:
+      - "5685:5678"   # debugpy
+
+  dashboard:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/dashboard/src:/app/src:ro
+      - ./services/dashboard/public:/app/public:ro
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "5686:5678"   # debugpy
+
+  grafana:
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+
+  backtester:
+    build:
+      target: development
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/backtester/src:/app/src:ro
+    ports:
+      - "5687:5678"   # debugpy

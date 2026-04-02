@@ -1,0 +1,109 @@
+# ============================================================
+# Bybit Exchange Configuration
+# ============================================================
+
+exchange:
+  name: bybit
+  enabled: true
+
+  # ── Connection ──────────────────────────────────────────────
+  connection:
+    # REST API endpoints
+    mainnet_url: https://api.bybit.com
+    testnet_url: https://api-testnet.bybit.com
+    # WebSocket endpoints
+    mainnet_ws_public: wss://stream.bybit.com/v5/public/linear
+    mainnet_ws_private: wss://stream.bybit.com/v5/private
+    testnet_ws_public: wss://stream-testnet.bybit.com/v5/public/linear
+    testnet_ws_private: wss://stream-testnet.bybit.com/v5/private
+    # Use testnet by default (overridden by BYBIT_TESTNET env var)
+    use_testnet: true
+
+  # ── Rate Limits ─────────────────────────────────────────────
+  rate_limits:
+    # Requests per second for REST API
+    rest_requests_per_second: 10
+    # Order placement rate limit per second
+    order_requests_per_second: 10
+    # Burst allowance (short spikes above the limit)
+    burst_multiplier: 2.0
+    # Backoff strategy on 429 responses
+    backoff_base_ms: 1000
+    backoff_max_ms: 30000
+    backoff_multiplier: 2.0
+
+  # ── WebSocket ───────────────────────────────────────────────
+  websocket:
+    # Ping interval to keep connection alive (seconds)
+    ping_interval_seconds: 20
+    # Reconnect on disconnect
+    auto_reconnect: true
+    # Maximum reconnection attempts before alerting
+    max_reconnect_attempts: 50
+    # Delay between reconnection attempts (seconds)
+    reconnect_delay_seconds: 5
+    # Subscriptions
+    public_topics:
+      - orderbook.50.BTCUSDT
+      - orderbook.50.ETHUSDT
+      - tickers.BTCUSDT
+      - tickers.ETHUSDT
+      - kline.1.BTCUSDT
+      - kline.5.BTCUSDT
+      - kline.15.BTCUSDT
+      - kline.60.BTCUSDT
+      - kline.240.BTCUSDT
+      - kline.D.BTCUSDT
+    private_topics:
+      - position
+      - execution
+      - order
+      - wallet
+
+  # ── Trading Parameters ─────────────────────────────────────
+  trading:
+    # Account type: UNIFIED | CONTRACT
+    account_type: UNIFIED
+    # Default margin mode: ISOLATED | CROSS
+    margin_mode: CROSS
+    # Category for API calls: linear (USDT perps) | inverse | spot
+    category: linear
+    # Default leverage (can be overridden per strategy)
+    default_leverage: 1
+    # Order timeout before cancellation (seconds)
+    order_timeout_seconds: 30
+    # Minimum order value (USD)
+    min_order_value_usd: 5
+
+  # ── Supported Pairs ────────────────────────────────────────
+  pairs:
+    BTCUSDT:
+      min_qty: 0.001
+      qty_step: 0.001
+      min_price: 0.50
+      price_step: 0.50
+      max_leverage: 100
+    ETHUSDT:
+      min_qty: 0.01
+      qty_step: 0.01
+      min_price: 0.01
+      price_step: 0.01
+      max_leverage: 75
+    SOLUSDT:
+      min_qty: 0.1
+      qty_step: 0.1
+      min_price: 0.001
+      price_step: 0.001
+      max_leverage: 50
+    BNBUSDT:
+      min_qty: 0.01
+      qty_step: 0.01
+      min_price: 0.01
+      price_step: 0.01
+      max_leverage: 50
+    XRPUSDT:
+      min_qty: 1
+      qty_step: 1
+      min_price: 0.0001
+      price_step: 0.0001
+      max_leverage: 50

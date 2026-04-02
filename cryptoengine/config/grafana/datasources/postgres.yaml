@@ -1,0 +1,26 @@
+# ============================================================
+# Grafana Datasource Provisioning — PostgreSQL
+# ============================================================
+
+apiVersion: 1
+
+datasources:
+  - name: CryptoEngine PostgreSQL
+    type: postgres
+    uid: cryptoengine-postgres
+    access: proxy
+    url: postgres:5432
+    user: cryptoengine
+    database: cryptoengine
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1600  # PostgreSQL 16
+      timescaledb: false
+    secureJsonData:
+      password: $DB_PASSWORD
+    editable: false
+    version: 1

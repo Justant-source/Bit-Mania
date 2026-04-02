@@ -1,0 +1,95 @@
+# ============================================================
+# Grid Trading Strategy Configuration
+# ============================================================
+
+strategy:
+  name: grid_trading
+  version: "1.0"
+  enabled: true
+  description: >
+    Places a grid of limit orders above and below the current price,
+    profiting from mean-reversion in ranging markets. Automatically
+    adjusts grid spacing and activation based on volatility regime.
+
+# ── Grid Parameters ──────────────────────────────────────────
+grid:
+  # Grid type: arithmetic (equal spacing) | geometric (percentage spacing)
+  type: geometric
+  # Number of grid levels above the mid-price
+  levels_above: 10
+  # Number of grid levels below the mid-price
+  levels_below: 10
+  # Spacing between grid levels (percentage for geometric, USD for arithmetic)
+  spacing_pct: 0.5
+  # Minimum spacing clamp to avoid dust orders (percentage)
+  min_spacing_pct: 0.2
+  # Maximum spacing clamp (percentage)
+  max_spacing_pct: 2.0
+  # Order size per grid level (USD)
+  order_size_usd: 200
+  # Allowed pairs for grid trading
+  pairs:
+    - BTCUSDT
+    - ETHUSDT
+  # Recalculate grid center every N minutes
+  rebalance_interval_minutes: 60
+  # Shift grid center if price moves beyond this percentage of total range
+  rebalance_trigger_pct: 30.0
+  # Use trailing grid: shift grid in direction of trend
+  trailing_enabled: false
+  trailing_step_pct: 0.3
+
+# ── Activation Conditions ────────────────────────────────────
+activation:
+  # Only activate grid when market regime is "ranging"
+  required_regime: ranging
+  # Minimum confidence score from regime detector (0.0 - 1.0)
+  min_regime_confidence: 0.6
+  # ATR period for volatility assessment
+  atr_period: 14
+  # ATR multiplier to set grid boundaries
+  atr_multiplier: 2.0
+  # Bollinger Band width threshold — grid activates below this
+  max_bb_width: 0.06
+  # Minimum 24h volume (USD) for grid pair
+  min_24h_volume_usd: 50_000_000
+  # Deactivate grid if price breaks above/below grid range
+  auto_deactivate_on_breakout: true
+  # Breakout buffer beyond grid edge before deactivation (percentage)
+  breakout_buffer_pct: 1.0
+
+# ── Safety Mechanisms ─────────────────────────────────────────
+safety:
+  # Maximum open orders across all grid instances
+  max_open_orders: 40
+  # Maximum concurrent grid instances
+  max_concurrent_grids: 2
+  # Cancel all grid orders if unrealized PnL drops below (USD)
+  emergency_cancel_loss_usd: -500
+  # Pause grid if spread widens beyond this (percentage)
+  max_spread_pct: 0.15
+  # Minimum time between order fills to avoid rapid-fire (seconds)
+  min_fill_interval_seconds: 5
+  # Anti-manipulation: halt if fill price deviates from expected by more than
+  max_fill_deviation_pct: 0.5
+  # Stale order timeout — cancel and replace if unfilled after (minutes)
+  stale_order_timeout_minutes: 120
+
+# ── Risk Management ──────────────────────────────────────────
+risk:
+  # Maximum total equity allocated to grid trading (percentage)
+  max_portfolio_allocation_pct: 30.0
+  # Maximum leverage for grid positions
+  max_leverage: 2
+  # Maximum drawdown before auto-shutdown (percentage)
+  max_drawdown_pct: 4.0
+  # Drawdown lookback window in hours
+  drawdown_window_hours: 168
+  # Daily loss limit (USD)
+  daily_loss_limit_usd: 300
+  # Profit target per grid cycle (USD) — reset grid after reaching
+  profit_target_per_cycle_usd: 500
+  # Circuit breaker: consecutive grid failures before disabling
+  circuit_breaker_failures: 5
+  # Circuit breaker cooldown (minutes)
+  circuit_breaker_cooldown_minutes: 240

@@ -1,0 +1,47 @@
+# ============================================================
+# OKX Exchange Configuration (Placeholder)
+# ============================================================
+# Status: NOT YET IMPLEMENTED
+# This configuration is prepared for future OKX integration,
+# primarily for cross-exchange funding rate arbitrage.
+
+exchange:
+  name: okx
+  enabled: false
+
+  connection:
+    mainnet_url: https://www.okx.com
+    testnet_url: https://www.okx.com  # OKX uses demo trading flag
+    mainnet_ws_public: wss://ws.okx.com:8443/ws/v5/public
+    mainnet_ws_private: wss://ws.okx.com:8443/ws/v5/private
+    use_testnet: true
+
+  rate_limits:
+    rest_requests_per_second: 20
+    order_requests_per_second: 60
+    backoff_base_ms: 500
+    backoff_max_ms: 30000
+    backoff_multiplier: 2.0
+
+  websocket:
+    ping_interval_seconds: 25
+    auto_reconnect: true
+    max_reconnect_attempts: 50
+    reconnect_delay_seconds: 5
+
+  trading:
+    # OKX account modes: cash | cross | isolated | portfolio
+    margin_mode: cross
+    default_leverage: 1
+    order_timeout_seconds: 30
+    min_order_value_usd: 5
+    # OKX instrument type: SWAP (perpetual) | FUTURES | SPOT
+    instrument_type: SWAP
+
+  pairs:
+    BTC-USDT-SWAP:
+      min_qty: 0.01
+      qty_step: 0.01
+    ETH-USDT-SWAP:
+      min_qty: 0.1
+      qty_step: 0.1

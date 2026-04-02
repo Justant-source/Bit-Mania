@@ -1,0 +1,248 @@
+version: "3.9"
+
+x-common-env: &common-env
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_NAME: cryptoengine
+  DB_USER: cryptoengine
+  DB_PASSWORD: ${DB_PASSWORD}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  ENVIRONMENT: ${ENVIRONMENT:-testnet}
+
+services:
+  # ── Data Layer ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: cryptoengine
+      POSTGRES_USER: cryptoengine
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cryptoengine -d cryptoengine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "6379:6379"
+
+  # ── Core Services ───────────────────────────────────────────
+  market-data:
+    build:
+      context: ./services/market-data
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
+      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+      COINGLASS_API_KEY: ${COINGLASS_API_KEY}
+    volumes:
+      - ./config:/app/config:ro
+
+  strategy-orchestrator:
+    build:
+      context: ./services/orchestrator
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      market-data:
+        condition: service_started
+    environment:
+      <<: *common-env
+    volumes:
+      - ./config:/app/config:ro
+
+  execution-engine:
+    build:
+      context: ./services/execution
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
+      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+    volumes:
+      - ./config:/app/config:ro
+
+  # ── Strategy Services ───────────────────────────────────────
+  funding-arb:
+    build:
+      context: ./services/strategies/funding-arb
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      market-data:
+        condition: service_started
+    environment:
+      <<: *common-env
+    volumes:
+      - ./config:/app/config:ro
+
+  grid-trading:
+    build:
+      context: ./services/strategies/grid-trading
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      market-data:
+        condition: service_started
+    environment:
+      <<: *common-env
+    volumes:
+      - ./config:/app/config:ro
+
+  adaptive-dca:
+    build:
+      context: ./services/strategies/adaptive-dca
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      market-data:
+        condition: service_started
+    environment:
+      <<: *common-env
+    volumes:
+      - ./config:/app/config:ro
+
+  # ── Intelligence & Reporting ────────────────────────────────
+  llm-advisor:
+    build:
+      context: ./services/llm-advisor
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      CLAUDE_CODE_PATH: ${CLAUDE_CODE_PATH:-/usr/local/bin/claude}
+    volumes:
+      - ./config:/app/config:ro
+      - /tmp/claude-code:/tmp/claude-code
+
+  telegram-bot:
+    build:
+      context: ./services/telegram-bot
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./config:/app/config:ro
+
+  # ── Dashboard & Monitoring ──────────────────────────────────
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DASHBOARD_INTERNAL_PORT: ${DASHBOARD_INTERNAL_PORT:-3000}
+      DASHBOARD_PUBLIC_PORT: ${DASHBOARD_PUBLIC_PORT:-3001}
+    ports:
+      - "${DASHBOARD_INTERNAL_PORT:-3000}:3000"
+      - "${DASHBOARD_PUBLIC_PORT:-3001}:3001"
+    volumes:
+      - ./config:/app/config:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3002:3000"
+
+  # ── Backtesting (on-demand) ─────────────────────────────────
+  backtester:
+    build:
+      context: ./services/backtester
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+    volumes:
+      - ./config:/app/config:ro
+      - ./backtest-results:/app/results
+    profiles:
+      - backtest
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  grafana-data:
+    driver: local

@@ -1,0 +1,114 @@
+# ============================================================
+# Funding Rate Arbitrage Strategy Configuration
+# ============================================================
+
+strategy:
+  name: funding_arb
+  version: "1.0"
+  enabled: true
+  description: >
+    Captures funding rate differentials between perpetual futures
+    and spot/other derivatives. Opens delta-neutral positions when
+    the annualized funding rate exceeds the entry threshold.
+
+# ── Entry Criteria ────────────────────────────────────────────
+entry:
+  # Minimum annualized funding rate to trigger entry (percentage)
+  min_funding_rate_annualized: 15.0
+  # Number of consecutive funding intervals the rate must exceed threshold
+  consecutive_intervals: 3
+  # Funding interval in hours (Bybit = 8h)
+  funding_interval_hours: 8
+  # Only enter if predicted next funding aligns with current direction
+  require_predicted_alignment: true
+  # Minimum open interest (USD) — avoid illiquid contracts
+  min_open_interest_usd: 5_000_000
+  # Maximum spread between bid/ask to enter (percentage)
+  max_entry_spread_pct: 0.05
+  # Allowed trading pairs
+  pairs:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - BNBUSDT
+    - XRPUSDT
+
+# ── Position Sizing ──────────────────────────────────────────
+position:
+  # Sizing mode: fixed_usd | pct_equity | kelly
+  sizing_mode: pct_equity
+  # Percentage of total equity per position
+  pct_equity: 5.0
+  # Hard cap per single position (USD)
+  max_position_usd: 10_000
+  # Minimum position size (USD)
+  min_position_usd: 100
+  # Maximum leverage allowed
+  max_leverage: 3
+  # Maximum number of concurrent funding arb positions
+  max_concurrent_positions: 5
+  # Target delta-neutral ratio (1.0 = perfectly hedged)
+  hedge_ratio: 1.0
+  # Acceptable hedge drift before rebalancing (percentage)
+  hedge_drift_tolerance_pct: 2.0
+
+# ── Exit Criteria ─────────────────────────────────────────────
+exit:
+  # Exit when annualized rate drops below this threshold
+  min_funding_rate_annualized: 5.0
+  # Maximum holding period in hours before forced exit
+  max_holding_hours: 720  # 30 days
+  # Take profit: cumulative funding earned as pct of position
+  take_profit_pct: 3.0
+  # Stop loss: maximum unrealized loss as pct of position
+  stop_loss_pct: 2.0
+  # Exit if funding rate flips direction
+  exit_on_rate_flip: true
+  # Cooldown after exit before re-entering same pair (minutes)
+  cooldown_minutes: 60
+
+# ── Risk Management ──────────────────────────────────────────
+risk:
+  # Maximum total portfolio allocation to funding arb (percentage)
+  max_portfolio_allocation_pct: 25.0
+  # Maximum drawdown before strategy auto-disables (percentage)
+  max_drawdown_pct: 5.0
+  # Drawdown lookback window in hours
+  drawdown_window_hours: 168  # 7 days
+  # Correlation limit with other active strategies
+  max_strategy_correlation: 0.7
+  # Circuit breaker: halt if N consecutive losses
+  circuit_breaker_consecutive_losses: 3
+  # Circuit breaker cooldown (minutes)
+  circuit_breaker_cooldown_minutes: 360
+
+# ── Cross-Exchange Settings ──────────────────────────────────
+cross_exchange:
+  enabled: false
+  # Hedge venue when cross-exchange arb is active
+  hedge_exchange: binance
+  # Minimum funding rate differential between exchanges
+  min_rate_differential_annualized: 10.0
+  # Transfer time buffer (minutes) — accounts for withdrawal delays
+  transfer_buffer_minutes: 30
+  # Maximum capital allocated to cross-exchange positions
+  max_cross_exchange_usd: 5_000
+
+# ── Slippage & Execution ─────────────────────────────────────
+slippage:
+  # Expected slippage on entry (percentage)
+  expected_entry_slippage_pct: 0.03
+  # Expected slippage on exit (percentage)
+  expected_exit_slippage_pct: 0.03
+  # Maximum acceptable slippage before aborting (percentage)
+  max_slippage_pct: 0.10
+  # Order type for entry: limit | market
+  entry_order_type: limit
+  # Order type for exit: limit | market
+  exit_order_type: limit
+  # Limit order timeout before switching to market (seconds)
+  limit_order_timeout_seconds: 30
+  # Use TWAP for large positions above this threshold (USD)
+  twap_threshold_usd: 5_000
+  # TWAP execution window (seconds)
+  twap_duration_seconds: 300
