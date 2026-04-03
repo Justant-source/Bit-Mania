@@ -112,3 +112,22 @@ class RedisClient:
 
     async def cache_exists(self, key: str) -> bool:
         return bool(await self.client.exists(key))
+
+
+# ── module-level singleton helpers ──────────────────────────────────────
+
+_default_client: RedisClient | None = None
+
+
+def get_redis() -> RedisClient:
+    global _default_client
+    if _default_client is None:
+        _default_client = RedisClient()
+    return _default_client
+
+
+async def close_redis() -> None:
+    global _default_client
+    if _default_client is not None:
+        await _default_client.disconnect()
+        _default_client = None

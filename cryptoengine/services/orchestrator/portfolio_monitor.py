@@ -100,8 +100,12 @@ class PortfolioMonitor:
     async def evaluate(self) -> PortfolioState:
         """Collect strategy states and compute portfolio metrics."""
         strategies = await self._collect_strategy_states()
-        total_equity = sum(s.get("allocated_capital", 0.0) for s in strategies)
         unrealized_pnl = sum(s.get("current_pnl", 0.0) for s in strategies)
+
+        # Prefer actual wallet balance published by execution-engine
+        total_equity = await self._get_wallet_balance()
+        if total_equity == 0.0:
+            total_equity = sum(s.get("allocated_capital", 0.0) for s in strategies)
         realized_today = await self._get_realized_pnl_today()
 
         total_equity = max(total_equity, 0.0)
@@ -140,6 +144,17 @@ class PortfolioMonitor:
         await self._cache_state(state)
 
         return state
+
+    async def _get_wallet_balance(self) -> float:
+        """Read actual wallet balance published by execution-engine."""
+        try:
+            raw = await self._redis.get("cache:wallet_balance")
+            if raw:
+                data = json.loads(raw)
+                return float(data.get("total", 0.0))
+        except Exception:
+            pass
+        return 0.0
 
     async def _collect_strategy_states(self) -> list[dict[str, Any]]:
         """Read strategy status from Redis."""

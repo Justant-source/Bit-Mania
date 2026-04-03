@@ -2,11 +2,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY services/dashboard/package.json services/dashboard/package-lock.json* ./
 RUN npm install
 
-COPY tsconfig.json ./
-COPY src/ ./src/
+COPY services/dashboard/tsconfig.json ./
+COPY services/dashboard/src/ ./src/
 
 RUN npm run build
 

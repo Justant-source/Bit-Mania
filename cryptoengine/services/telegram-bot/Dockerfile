@@ -7,12 +7,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/telegram-bot/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY services/telegram-bot .
 
 # Make shared package available
-COPY --from=shared /app/shared /app/shared
+COPY shared /app/shared
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "main.py"]

@@ -58,6 +58,18 @@ def load_config(
 
     Environment variables in values are expanded (``${VAR:-fallback}``).
     """
+    # If name is an absolute path or contains path separators, treat it directly
+    name_path = Path(name)
+    if name_path.is_absolute() or "/" in name:
+        for candidate in [name_path, Path(str(name_path).rstrip(".yaml").rstrip(".yml"))]:
+            if candidate.is_file():
+                raw_text = candidate.read_text(encoding="utf-8")
+                parsed = yaml.safe_load(raw_text) or {}
+                return _walk(parsed)  # type: ignore[return-value]
+        raise FileNotFoundError(
+            f"No config file found for name='{name}' in {base}"
+        )
+
     base = Path(config_dir) if config_dir else _CONFIG_DIR
 
     for suffix in (".yaml", ".yml"):

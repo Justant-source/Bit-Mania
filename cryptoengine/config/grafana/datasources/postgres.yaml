@@ -21,6 +21,6 @@ datasources:
       postgresVersion: 1600  # PostgreSQL 16
       timescaledb: false
     secureJsonData:
-      password: $DB_PASSWORD
+      password: ***REMOVED***
     editable: false
     version: 1
