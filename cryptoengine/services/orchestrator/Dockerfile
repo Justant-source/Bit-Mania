@@ -6,11 +6,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends build-essential libgomp1 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/orchestrator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ../../shared /app/shared
-COPY . /app/services/orchestrator
+COPY shared /app/shared
+COPY services/orchestrator /app/services/orchestrator
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

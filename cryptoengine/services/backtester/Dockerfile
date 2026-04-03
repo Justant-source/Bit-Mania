@@ -6,15 +6,19 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/backtester/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy backtester service files
+COPY services/backtester /app
 
 # Make shared package available
-COPY --from=shared /app/shared /app/shared
+COPY shared /app/shared
 
 # Results directory
 RUN mkdir -p /app/results
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "main.py"]

@@ -13,6 +13,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import logging
+
 import asyncpg
 import pandas as pd
 import structlog
@@ -45,7 +47,7 @@ def _configure_logging() -> None:
             else structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, LOG_LEVEL, structlog.INFO)  # type: ignore[arg-type]
+            getattr(logging, LOG_LEVEL, logging.INFO)  # type: ignore[arg-type]
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),

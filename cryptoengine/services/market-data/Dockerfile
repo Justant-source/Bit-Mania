@@ -14,11 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/market-data/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ../../shared /app/shared
-COPY . /app/
+COPY shared /app/shared
+COPY services/market-data /app/
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

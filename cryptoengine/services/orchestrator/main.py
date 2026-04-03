@@ -12,6 +12,7 @@ import signal
 import sys
 from typing import Any
 
+import logging
 import structlog
 import yaml
 
@@ -56,7 +57,7 @@ def _configure_logging() -> None:
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, log_level, structlog.INFO)
+            getattr(logging, log_level, logging.INFO)
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),

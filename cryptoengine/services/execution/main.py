@@ -12,10 +12,12 @@ import signal
 
 import asyncpg
 import redis.asyncio as aioredis
+import logging
 import structlog
 
 from engine import ExecutionEngine
 from position_tracker import PositionTracker
+from shared.exchange.factory import exchange_factory
 
 log = structlog.get_logger(__name__)
 
@@ -48,7 +50,7 @@ def _configure_logging() -> None:
             structlog.dev.ConsoleRenderer() if LOG_LEVEL == "DEBUG" else structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, LOG_LEVEL, structlog.INFO)  # type: ignore[arg-type]
+            getattr(logging, LOG_LEVEL, logging.INFO)  # type: ignore[arg-type]
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
@@ -133,6 +135,27 @@ async def main() -> None:
         db_pool=db_pool,
     )
     await position_tracker.sync_from_exchange()
+
+    # --- Publish wallet balance to Redis for orchestrator ---
+    try:
+        connector = exchange_factory(
+            EXCHANGE,
+            api_key=BYBIT_API_KEY,
+            api_secret=BYBIT_API_SECRET,
+            testnet=BYBIT_TESTNET,
+        )
+        await connector.connect()
+        balance = await connector.get_balance()
+        import json as _json
+        await redis_client.setex(
+            "cache:wallet_balance",
+            300,  # 5분 TTL
+            _json.dumps(balance),
+        )
+        log.info("wallet_balance_published", total_usdt=balance.get("total", 0))
+        await connector.disconnect()
+    except Exception:
+        log.exception("wallet_balance_publish_failed")
 
     # --- Execution engine ---
     engine = ExecutionEngine(

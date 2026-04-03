@@ -15,6 +15,7 @@ import sys
 
 import asyncpg
 import redis.asyncio as aioredis
+import logging
 import structlog
 
 from collector import MarketDataCollector
@@ -54,7 +55,7 @@ def _configure_logging() -> None:
             structlog.dev.ConsoleRenderer() if LOG_LEVEL == "DEBUG" else structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(structlog, LOG_LEVEL, structlog.INFO)  # type: ignore[arg-type]
+            getattr(logging, LOG_LEVEL, logging.INFO)  # type: ignore[arg-type]
         ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),

@@ -1,5 +1,3 @@
-version: "3.9"
-
 x-common-env: &common-env
   DB_HOST: postgres
   DB_PORT: 5432
@@ -48,8 +46,8 @@ services:
   # ── Core Services ───────────────────────────────────────────
   market-data:
     build:
-      context: ./services/market-data
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/market-data/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -67,8 +65,8 @@ services:
 
   strategy-orchestrator:
     build:
-      context: ./services/orchestrator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -84,8 +82,8 @@ services:
 
   execution-engine:
     build:
-      context: ./services/execution
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/execution/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -103,8 +101,8 @@ services:
   # ── Strategy Services ───────────────────────────────────────
   funding-arb:
     build:
-      context: ./services/strategies/funding-arb
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/strategies/funding-arb/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -120,8 +118,8 @@ services:
 
   grid-trading:
     build:
-      context: ./services/strategies/grid-trading
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/strategies/grid-trading/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -137,8 +135,8 @@ services:
 
   adaptive-dca:
     build:
-      context: ./services/strategies/adaptive-dca
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/strategies/adaptive-dca/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -155,8 +153,8 @@ services:
   # ── Intelligence & Reporting ────────────────────────────────
   llm-advisor:
     build:
-      context: ./services/llm-advisor
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/llm-advisor/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -170,8 +168,8 @@ services:
 
   telegram-bot:
     build:
-      context: ./services/telegram-bot
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/telegram-bot/Dockerfile
     restart: always
     depends_on:
       redis:
@@ -188,8 +186,8 @@ services:
   # ── Dashboard & Monitoring ──────────────────────────────────
   dashboard:
     build:
-      context: ./services/dashboard
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/dashboard/Dockerfile
     restart: always
     depends_on:
       postgres:
@@ -226,13 +224,17 @@ services:
   # ── Backtesting (on-demand) ─────────────────────────────────
   backtester:
     build:
-      context: ./services/backtester
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/backtester/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       <<: *common-env
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
+      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+      PYTHONPATH: /app
     volumes:
       - ./config:/app/config:ro
       - ./backtest-results:/app/results

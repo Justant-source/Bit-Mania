@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -129,7 +130,12 @@ class MarketDataCollector:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("ws_unexpected_error")
+                exc_type, exc_val, _ = sys.exc_info()
+                log.error(
+                    "ws_unexpected_error",
+                    exc=str(exc_val),
+                    exc_type=exc_type.__name__ if exc_type else "Unknown",
+                )
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(self._reconnect_delay * 2, MAX_RECONNECT_DELAY)
 
@@ -137,8 +143,8 @@ class MarketDataCollector:
         """Send subscription messages to Bybit V5 public WS."""
         topics: list[str] = []
 
-        # Orderbook depth-25, 100ms push
-        topics.append(f"orderbook.25.{self.symbol}")
+        # Orderbook depth-1, 100ms push (testnet supports depth 1, not 25)
+        topics.append(f"orderbook.1.{self.symbol}")
 
         # Public trades
         topics.append(f"publicTrade.{self.symbol}")
@@ -204,59 +210,62 @@ class MarketDataCollector:
         await self.redis.publish(channel, json.dumps(ob))
 
     async def _on_trades(self, trades: list[dict[str, Any]]) -> None:
-        """Publish each trade and persist to DB."""
+        """Publish each trade tick to Redis (no DB — trades table is for strategy executions)."""
         channel = f"market:trades:{self.exchange}:{self.symbol}"
 
-        rows: list[tuple] = []
         for t in trades:
+            try:
+                price = float(t["p"])
+                qty = float(t["v"])
+                side = t["S"].lower()
+                ts_ms = int(t["T"])
+            except (KeyError, ValueError, TypeError) as exc:
+                log.warning("trades_parse_error", exc=str(exc), raw=str(t)[:200])
+                continue
             trade_msg = {
                 "exchange": self.exchange,
                 "symbol": self.symbol,
-                "price": float(t["p"]),
-                "quantity": float(t["v"]),
-                "side": t["S"].lower(),
-                "ts": int(t["T"]),
+                "price": price,
+                "quantity": qty,
+                "side": side,
+                "ts": ts_ms,
             }
             await self.redis.publish(channel, json.dumps(trade_msg))
-            rows.append((
-                self.exchange,
-                self.symbol,
-                float(t["p"]),
-                float(t["v"]),
-                t["S"].lower(),
-                datetime.fromtimestamp(int(t["T"]) / 1000, tz=timezone.utc),
-            ))
-
-        if rows:
-            async with self.db_pool.acquire() as conn:
-                await conn.executemany(
-                    """
-                    INSERT INTO trades (exchange, symbol, price, quantity, side, ts)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    """,
-                    rows,
-                )
 
     async def _on_kline(self, topic: str, candles: list[dict[str, Any]]) -> None:
         """Publish OHLCV candles and persist closed bars."""
         # topic format: kline.{interval}.{symbol}
         parts = topic.split(".")
+        if len(parts) < 2:
+            log.warning("kline_invalid_topic", topic=topic)
+            return
         bybit_tf = parts[1]
         tf = TF_MAP.get(bybit_tf, bybit_tf)
         channel = f"market:ohlcv:{self.exchange}:{self.symbol}:{tf}"
 
         for c in candles:
+            try:
+                open_ = float(c["open"])
+                high = float(c["high"])
+                low = float(c["low"])
+                close = float(c["close"])
+                volume = float(c["volume"])
+                ts_ms = int(c["start"])
+            except (KeyError, ValueError, TypeError) as exc:
+                log.warning("kline_parse_error", exc=str(exc), raw=str(c)[:200])
+                continue
+            confirmed = c.get("confirm", False)
             ohlcv = {
                 "exchange": self.exchange,
                 "symbol": self.symbol,
                 "timeframe": tf,
-                "open": float(c["open"]),
-                "high": float(c["high"]),
-                "low": float(c["low"]),
-                "close": float(c["close"]),
-                "volume": float(c["volume"]),
-                "ts": int(c["start"]),
-                "confirmed": c.get("confirm", False),
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+                "ts": ts_ms,
+                "confirmed": confirmed,
             }
             await self.redis.publish(channel, json.dumps(ohlcv))
 
@@ -272,8 +281,8 @@ class MarketDataCollector:
             })
 
             # Persist only confirmed (closed) candles
-            if c.get("confirm", False):
-                ts_dt = datetime.fromtimestamp(int(c["start"]) / 1000, tz=timezone.utc)
+            if confirmed:
+                ts_dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
                 async with self.db_pool.acquire() as conn:
                     await conn.execute(
                         """
@@ -287,11 +296,11 @@ class MarketDataCollector:
                         self.symbol,
                         tf,
                         ts_dt,
-                        float(c["open"]),
-                        float(c["high"]),
-                        float(c["low"]),
-                        float(c["close"]),
-                        float(c["volume"]),
+                        open_,
+                        high,
+                        low,
+                        close,
+                        volume,
                     )
 
     async def _on_ticker(self, payload: dict[str, Any]) -> None:
