@@ -2,6 +2,8 @@
 
 Schedules periodic analysis every 4 hours and subscribes to the
 llm:request Redis channel for on-demand analysis requests.
+Full analysis reports are persisted to the ``llm_reports`` table
+for dashboard browsing.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import logging
 import os
 import signal
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -22,6 +25,7 @@ from services.llm_advisor.claude_bridge import ClaudeCodeBridge
 from services.llm_advisor.model_manager import ModelManager
 from services.llm_advisor.reflection import DailyReflection
 from services.llm_advisor.vision_chart import ChartAnalyzer
+from shared.db.connection import create_pool, close_pool, get_pool
 
 log = structlog.get_logger(__name__)
 
@@ -92,6 +96,14 @@ class LLMAdvisorService:
         await self._redis.ping()
         log.info("llm_advisor_redis_connected")
 
+        # Database pool for persisting reports
+        db_url = os.getenv(
+            "DATABASE_URL",
+            "postgresql://cryptoengine:cryptoengine@localhost:5432/cryptoengine",
+        )
+        await create_pool(dsn=db_url)
+        log.info("llm_advisor_db_connected")
+
         self._analysis_graph = TradingAnalysisGraph(
             self._model_manager, self._chart_analyzer
         )
@@ -121,6 +133,7 @@ class LLMAdvisorService:
                     pass
         if self._redis:
             await self._redis.aclose()
+        await close_pool()
         log.info("llm_advisor_stopped")
 
     async def _scheduled_analysis_loop(self) -> None:
@@ -163,7 +176,7 @@ class LLMAdvisorService:
     async def _run_analysis(
         self, trigger: str, request: dict[str, Any] | None = None
     ) -> None:
-        """Execute the full analysis pipeline and publish advisory."""
+        """Execute the full analysis pipeline, persist report, and publish advisory."""
         log.info("analysis_started", trigger=trigger)
 
         # Gather market context from Redis
@@ -180,10 +193,13 @@ class LLMAdvisorService:
             log.warning("analysis_produced_no_result")
             return
 
+        rating = result.get("rating", "hold")
+        confidence = result.get("confidence", 0.0)
+
         # Publish advisory to orchestrator
         advisory = {
-            "rating": result.get("rating", "hold"),
-            "confidence": result.get("confidence", 0.0),
+            "rating": rating,
+            "confidence": confidence,
             "weight_adjustments": result.get("weight_adjustments", {}),
             "reasoning": result.get("reasoning", ""),
             "regime_assessment": result.get("regime_assessment", ""),
@@ -195,11 +211,87 @@ class LLMAdvisorService:
             "llm:latest_advisory", json.dumps(advisory), ex=28800  # 8 hours
         )
 
+        # Persist full report to DB
+        await self._save_report(trigger, result, context)
+
         log.info(
             "analysis_complete",
             rating=advisory["rating"],
             confidence=advisory["confidence"],
         )
+
+    async def _save_report(
+        self,
+        trigger: str,
+        result: dict[str, Any],
+        context: dict[str, Any],
+    ) -> None:
+        """Save the full analysis report to the llm_reports table."""
+        try:
+            pool = get_pool()
+        except RuntimeError:
+            log.warning("db_pool_not_available_skipping_report_save")
+            return
+
+        rating = result.get("rating", "hold")
+        confidence = result.get("confidence", 0.0)
+        regime = result.get("regime_assessment", "")
+        reasoning = result.get("reasoning", "")
+
+        # Extract BTC price from context
+        btc_price = None
+        ticker = context.get("btc_price")
+        if isinstance(ticker, dict):
+            btc_price = ticker.get("last") or ticker.get("close")
+        elif isinstance(ticker, (int, float)):
+            btc_price = ticker
+
+        # Build title
+        utc_now = datetime.now(timezone.utc)
+        title = f"[{rating.upper()}] {regime or 'N/A'} — {utc_now:%Y-%m-%d %H:%M} UTC"
+
+        def _summarise(d: dict | Any) -> str | None:
+            if not d:
+                return None
+            if isinstance(d, str):
+                return d
+            return json.dumps(d, ensure_ascii=False, default=str)
+
+        try:
+            await pool.execute(
+                """
+                INSERT INTO llm_reports (
+                    title, trigger, rating, confidence, regime, symbol,
+                    btc_price, technical_summary, sentiment_summary,
+                    bull_summary, bear_summary, debate_conclusion,
+                    risk_assessment, reasoning, weight_adjustments, risk_flags
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6,
+                    $7, $8, $9,
+                    $10, $11, $12,
+                    $13, $14, $15, $16
+                )
+                """,
+                title,
+                trigger,
+                rating,
+                confidence,
+                regime or None,
+                "BTCUSDT",
+                btc_price,
+                _summarise(result.get("_technical_report")),
+                _summarise(result.get("_sentiment_report")),
+                _summarise(result.get("_bull_argument")),
+                _summarise(result.get("_bear_argument")),
+                _summarise(result.get("_debate_conclusion")),
+                _summarise(result.get("_risk_assessment")),
+                reasoning or None,
+                json.dumps(result.get("weight_adjustments", {})),
+                json.dumps(result.get("risk_flags", [])),
+            )
+            log.info("llm_report_saved", title=title)
+        except Exception:
+            log.exception("llm_report_save_error")
 
     async def _gather_market_context(self) -> dict[str, Any]:
         """Collect market data from Redis for analysis context."""

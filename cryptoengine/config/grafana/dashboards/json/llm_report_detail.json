@@ -1,0 +1,570 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "LLM 분석 리포트 상세 — 개별 분석 결과 전문",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "icon": "arrow-left",
+      "tags": [],
+      "title": "목록으로 돌아가기",
+      "type": "link",
+      "url": "/d/cryptoengine-llm-reports/llm-리포트-목록"
+    },
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "라이브 대시보드",
+      "type": "link",
+      "url": "/d/cryptoengine-live/라이브-트레이딩-성과"
+    }
+  ],
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "options": {
+                "strong_buy": { "color": "dark-green", "text": "STRONG BUY" },
+                "buy": { "color": "green", "text": "BUY" },
+                "hold": { "color": "yellow", "text": "HOLD" },
+                "sell": { "color": "orange", "text": "SELL" },
+                "strong_sell": { "color": "red", "text": "STRONG SELL" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rating FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Rating",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 0.7 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT confidence FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Confidence",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT regime FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Regime",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT btc_price FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "BTC Price",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_char(created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') AS \"분석 시각\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "분석 시각 (KST)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 4 },
+      "id": 10,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT '## ' || title || E'\\n\\n' || COALESCE(reasoning, '(no reasoning)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "종합 판단 (Reasoning)",
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": { "source": "content" }
+        }
+      ],
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+      "id": 20,
+      "title": "분석 세부 섹션",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 21,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(technical_summary, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Technical Analysis",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 22,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(sentiment_summary, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Sentiment Analysis",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "id": 23,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(bull_summary, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Bull Case",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "id": 24,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(bear_summary, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Bear Case",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "id": 25,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(debate_conclusion, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Debate Conclusion",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "id": 26,
+      "options": {
+        "content": "",
+        "mode": "markdown"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(risk_assessment, '(no data)') AS \"content\" FROM llm_reports WHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "Risk Assessment",
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "id": 30,
+      "title": "추천 가중치 & 리스크 플래그",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 36 },
+      "id": 31,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT key AS \"Strategy\", value::text AS \"Weight Adjustment\"\nFROM llm_reports, jsonb_each(COALESCE(weight_adjustments, '{}'::jsonb))\nWHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "추천 가중치 조정",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 36 },
+      "id": 32,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT value::text AS \"Risk Flag\"\nFROM llm_reports, jsonb_array_elements(COALESCE(risk_flags, '[]'::jsonb))\nWHERE id = ${report_id}",
+          "refId": "A"
+        }
+      ],
+      "title": "리스크 플래그",
+      "type": "table"
+    }
+  ],
+  "refresh": false,
+  "schemaVersion": 38,
+  "tags": ["llm", "report-detail", "cryptoengine"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "1", "value": "1" },
+        "hide": 0,
+        "label": "Report ID",
+        "name": "report_id",
+        "options": [],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": { "hidden": true },
+  "timezone": "Asia/Seoul",
+  "title": "LLM 리포트 상세",
+  "uid": "cryptoengine-llm-detail",
+  "version": 1
+}

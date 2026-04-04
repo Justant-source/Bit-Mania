@@ -199,3 +199,32 @@ CREATE TABLE IF NOT EXISTS dca_purchases (
 );
 
 CREATE INDEX IF NOT EXISTS idx_dca_purchased ON dca_purchases(purchased_at);
+
+-- ──────────────── llm_reports ────────────────
+-- LLM 분석 리포트 전문 저장 (대시보드에서 리스트/상세 조회)
+CREATE TABLE IF NOT EXISTS llm_reports (
+    id                BIGSERIAL PRIMARY KEY,
+    title             VARCHAR(200) NOT NULL,
+    trigger           VARCHAR(30) NOT NULL DEFAULT 'scheduled',  -- scheduled, on_demand
+    rating            VARCHAR(20) NOT NULL,                       -- strong_buy, buy, hold, sell, strong_sell
+    confidence        DECIMAL(5, 3),
+    regime            VARCHAR(20),
+    symbol            VARCHAR(20) DEFAULT 'BTCUSDT',
+    btc_price         DECIMAL(20, 2),
+    -- 분석 요약 섹션
+    technical_summary TEXT,
+    sentiment_summary TEXT,
+    bull_summary      TEXT,
+    bear_summary      TEXT,
+    debate_conclusion TEXT,
+    risk_assessment   TEXT,
+    reasoning         TEXT,
+    -- 추천 액션
+    weight_adjustments JSONB,
+    risk_flags         JSONB,
+    -- 메타
+    created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_reports_created ON llm_reports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_reports_symbol ON llm_reports(symbol, created_at DESC);
