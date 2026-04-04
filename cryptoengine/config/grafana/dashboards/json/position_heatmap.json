@@ -72,7 +72,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', opened_at) as time,\n  ROUND(entry_price / 500) * 500 as price_bucket,\n  COUNT(*) as count\nFROM positions\nWHERE\n  $__timeFilter(opened_at)\n  AND ('$strategy' = '.*' OR strategy = '$strategy')\nGROUP BY 1, 2\nORDER BY 1, 2",
+          "rawSql": "WITH data AS (\n  SELECT\n    date_trunc('hour', opened_at) as time,\n    ROUND(entry_price / 500) * 500 as price_bucket,\n    COUNT(*) as count\n  FROM positions\n  WHERE $__timeFilter(opened_at)\n    AND ('$strategy' = '.*' OR strategy_id = '$strategy')\n  GROUP BY 1, 2\n)\nSELECT * FROM data\nUNION ALL\nSELECT NOW(), 65000.0, 0\nWHERE NOT EXISTS (SELECT 1 FROM data)\nORDER BY 1, 2",
           "refId": "A"
         }
       ],
@@ -159,7 +159,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  ROUND(entry_price / 500) * 500 as price_range,\n  SUM(pnl) as total_pnl,\n  COUNT(*) as trade_count,\n  AVG(pnl) as avg_pnl\nFROM positions\nWHERE\n  closed_at IS NOT NULL\n  AND ('$strategy' = '.*' OR strategy = '$strategy')\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  ROUND(entry_price / 500) * 500 as price_range,\n  SUM(unrealized_pnl) as total_pnl,\n  COUNT(*) as trade_count,\n  AVG(unrealized_pnl) as avg_pnl\nFROM positions\nWHERE\n  closed_at IS NOT NULL\n  AND ('$strategy' = '.*' OR strategy_id = '$strategy')\nGROUP BY 1\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -258,7 +258,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  strategy,\n  side,\n  COUNT(*) as total_trades,\n  COUNT(CASE WHEN pnl > 0 THEN 1 END) as wins,\n  ROUND(COUNT(CASE WHEN pnl > 0 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as win_rate_pct,\n  ROUND(SUM(pnl)::numeric, 2) as total_pnl,\n  ROUND(AVG(pnl)::numeric, 2) as avg_pnl\nFROM positions\nWHERE closed_at IS NOT NULL\nGROUP BY strategy, side\nORDER BY strategy, side",
+          "rawSql": "SELECT\n  strategy_id,\n  side,\n  COUNT(*) as total_trades,\n  COUNT(CASE WHEN unrealized_pnl > 0 THEN 1 END) as wins,\n  ROUND(COUNT(CASE WHEN unrealized_pnl > 0 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) as win_rate_pct,\n  ROUND(SUM(unrealized_pnl)::numeric, 2) as total_pnl,\n  ROUND(AVG(unrealized_pnl)::numeric, 2) as avg_pnl\nFROM positions\nWHERE closed_at IS NOT NULL\nGROUP BY strategy_id, side\nORDER BY strategy_id, side",
           "refId": "A"
         }
       ],
@@ -315,7 +315,7 @@
             "properties": [{ "id": "unit", "value": "currencyUSD" }]
           },
           {
-            "matcher": { "id": "byName", "options": "exit_price" },
+            "matcher": { "id": "byName", "options": "current_price" },
             "properties": [{ "id": "unit", "value": "currencyUSD" }]
           }
         ]
@@ -338,7 +338,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  ROUND(EXTRACT(EPOCH FROM (closed_at - opened_at))/3600, 1) as duration_hours,\n  pnl,\n  strategy,\n  side,\n  entry_price,\n  exit_price\nFROM positions\nWHERE\n  closed_at IS NOT NULL\n  AND ('$strategy' = '.*' OR strategy = '$strategy')\nORDER BY duration_hours",
+          "rawSql": "SELECT\n  ROUND(EXTRACT(EPOCH FROM (closed_at - opened_at))/3600, 1) as duration_hours,\n  unrealized_pnl,\n  strategy_id,\n  side,\n  entry_price,\n  current_price\nFROM positions\nWHERE\n  closed_at IS NOT NULL\n  AND ('$strategy' = '.*' OR strategy_id = '$strategy')\nORDER BY duration_hours",
           "refId": "A"
         }
       ],
@@ -400,7 +400,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('day', opened_at) as time,\n  EXTRACT(HOUR FROM opened_at)::int as hour_of_day,\n  COUNT(*) as trade_count\nFROM positions\nWHERE $__timeFilter(opened_at)\nGROUP BY 1, 2\nORDER BY 1, 2",
+          "rawSql": "WITH data AS (\n  SELECT\n    date_trunc('day', opened_at) as time,\n    EXTRACT(HOUR FROM opened_at)::int as hour_of_day,\n    COUNT(*) as trade_count\n  FROM positions\n  WHERE $__timeFilter(opened_at)\n  GROUP BY 1, 2\n)\nSELECT * FROM data\nUNION ALL\nSELECT NOW(), 0, 0\nWHERE NOT EXISTS (SELECT 1 FROM data)\nORDER BY 1, 2",
           "refId": "A"
         }
       ],
@@ -454,7 +454,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Exit Price" },
+            "matcher": { "id": "byName", "options": "Exit Price (Current)" },
             "properties": [
               { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } },
               { "id": "custom.pointSize", "value": 6 },
@@ -479,7 +479,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT opened_at as time, entry_price as \"Entry Price\" FROM positions WHERE $__timeFilter(opened_at) AND ('$strategy' = '.*' OR strategy = '$strategy') ORDER BY opened_at",
+          "rawSql": "SELECT opened_at as time, entry_price as \"Entry Price\" FROM positions WHERE $__timeFilter(opened_at) AND ('$strategy' = '.*' OR strategy_id = '$strategy') ORDER BY opened_at",
           "refId": "A"
         },
         {
@@ -490,7 +490,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT closed_at as time, exit_price as \"Exit Price\" FROM positions WHERE $__timeFilter(opened_at) AND closed_at IS NOT NULL AND ('$strategy' = '.*' OR strategy = '$strategy') ORDER BY closed_at",
+          "rawSql": "SELECT closed_at as time, current_price as \"Exit Price\" FROM positions WHERE $__timeFilter(opened_at) AND closed_at IS NOT NULL AND ('$strategy' = '.*' OR strategy_id = '$strategy') ORDER BY closed_at",
           "refId": "B"
         }
       ],
@@ -510,7 +510,7 @@
           "type": "grafana-postgresql-datasource",
           "uid": "cryptoengine-postgres"
         },
-        "definition": "SELECT DISTINCT strategy FROM positions ORDER BY 1",
+        "definition": "SELECT DISTINCT strategy_id FROM positions ORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "allValue": ".*",
@@ -518,7 +518,7 @@
         "multi": false,
         "name": "strategy",
         "options": [],
-        "query": "SELECT DISTINCT strategy FROM positions ORDER BY 1",
+        "query": "SELECT DISTINCT strategy_id FROM positions ORDER BY 1",
         "refresh": 2,
         "regex": "",
         "sort": 1,

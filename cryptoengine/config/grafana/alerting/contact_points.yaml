@@ -8,7 +8,7 @@ contactPoints:
         type: telegram
         settings:
           bottoken: "${TELEGRAM_BOT_TOKEN}"
-          chatid: "${TELEGRAM_CHAT_ID}"
+          chatid: "6873494912"
           message: |
             🚨 *CryptoEngine Alert*
             {{ range .Alerts }}

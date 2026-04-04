@@ -80,11 +80,11 @@
           "mappings": [
             {
               "options": {
-                "strong_buy": { "color": "dark-green", "text": "STRONG BUY" },
-                "buy": { "color": "green", "text": "BUY" },
-                "hold": { "color": "yellow", "text": "HOLD" },
-                "sell": { "color": "orange", "text": "SELL" },
-                "strong_sell": { "color": "red", "text": "STRONG SELL" }
+                "1": {"color": "red",         "index": 4, "text": "STRONG SELL"},
+                "2": {"color": "orange",       "index": 3, "text": "SELL"},
+                "3": {"color": "yellow",       "index": 2, "text": "HOLD"},
+                "4": {"color": "light-green",  "index": 1, "text": "BUY"},
+                "5": {"color": "green",        "index": 0, "text": "STRONG BUY"}
               },
               "type": "value"
             }
@@ -115,7 +115,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT rating AS \"Latest Rating\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE rating WHEN 'strong_buy' THEN 5 WHEN 'buy' THEN 4 WHEN 'hold' THEN 3 WHEN 'sell' THEN 2 WHEN 'strong_sell' THEN 1 ELSE 3 END AS rating_score FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -173,7 +173,17 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "mappings": [],
+          "mappings": [
+            {
+              "options": {
+                "0": {"color": "red",    "index": 3, "text": "VOLATILE"},
+                "1": {"color": "orange", "index": 2, "text": "TRENDING DOWN"},
+                "2": {"color": "blue",   "index": 1, "text": "RANGING"},
+                "3": {"color": "green",  "index": 0, "text": "TRENDING UP"}
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [{ "color": "blue", "value": null }]
@@ -184,7 +194,7 @@
       "gridPos": { "h": 3, "w": 6, "x": 18, "y": 0 },
       "id": 13,
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
@@ -200,7 +210,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT regime AS \"Regime\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE regime WHEN 'trending_up' THEN 3 WHEN 'ranging' THEN 2 WHEN 'trending_down' THEN 1 WHEN 'volatile' THEN 0 ELSE 2 END AS regime_score FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],

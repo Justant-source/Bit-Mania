@@ -162,6 +162,8 @@ services:
     environment:
       <<: *common-env
       CLAUDE_CODE_PATH: ${CLAUDE_CODE_PATH:-/usr/local/bin/claude}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DATABASE_URL: postgresql://cryptoengine:${DB_PASSWORD}@postgres:5432/cryptoengine
     volumes:
       - ./config:/app/config:ro
       - /tmp/claude-code:/tmp/claude-code
@@ -235,12 +237,10 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/host/root'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /:/host/root:ro,rslave
     expose:
       - "9100"
 
