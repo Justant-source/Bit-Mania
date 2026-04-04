@@ -677,6 +677,327 @@
       ],
       "title": "Walk-Forward: 학습 vs 검증 Sharpe 비교",
       "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":140},
+      "id": 300,
+      "title": "Test A — 3년 Walk-Forward (180d/90d)",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"test_sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"test_return_pct"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":10}]}}]},
+          {"matcher":{"id":"byName","options":"consistency_ratio"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0.5},{"color":"green","value":0.7}]}}]},
+          {"matcher":{"id":"byName","options":"sharpe_alert"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}}]}
+        ]
+      },
+      "gridPos": {"h":12,"w":24,"x":0,"y":141},
+      "id": 301,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":false,"displayName":"strategy"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy, window_id, test_sharpe, test_return_pct, test_max_drawdown_pct, consistency_ratio, sharpe_alert FROM walk_forward_results ORDER BY strategy, window_id",
+        "refId": "A"
+      }],
+      "title": "Walk-Forward 윈도우별 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":9,"w":12,"x":0,"y":153},
+      "id": 302,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy, AVG(test_sharpe) as avg_sharpe FROM walk_forward_results GROUP BY strategy ORDER BY strategy",
+        "refId": "A"
+      }],
+      "title": "전략별 집계 Sharpe",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0.5},{"color":"green","value":0.7}]},"unit":"percentunit"},
+        "overrides": []
+      },
+      "gridPos": {"h":9,"w":6,"x":12,"y":153},
+      "id": 303,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/.*/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT AVG(consistency_ratio) AS \"funding_arb 일관성\" FROM walk_forward_results WHERE strategy='funding_arb'",
+        "refId": "A"
+      }],
+      "title": "funding_arb 일관성",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":9,"w":6,"x":18,"y":153},
+      "id": 304,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/.*/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT aggregate_sharpe AS \"funding_arb 집계 Sharpe\" FROM walk_forward_results WHERE strategy='funding_arb' ORDER BY created_at DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "title": "funding_arb 집계 Sharpe",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":162},
+      "id": 310,
+      "title": "Test B — Funding Arb 변형 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"sharpe_ratio"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"total_return"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":20}]}}]},
+          {"matcher":{"id":"byName","options":"win_rate"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":60}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":14,"x":0,"y":163},
+      "id": 311,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"sharpe_ratio"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, trade_count, win_rate FROM strategy_variant_results WHERE test_name='test_b_funding_arb_variants' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Funding Arb 변형 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":10,"x":14,"y":163},
+      "id": 312,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, trade_count, win_rate FROM strategy_variant_results WHERE test_name='test_b_funding_arb_variants' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Funding Arb Sharpe 비교",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":171},
+      "id": 320,
+      "title": "Test C — DCA 필터 변형 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"sharpe_ratio"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":0.5}]}}]},
+          {"matcher":{"id":"byName","options":"total_return"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":10}]}}]},
+          {"matcher":{"id":"byName","options":"win_rate"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":50},{"color":"green","value":60}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":14,"x":0,"y":172},
+      "id": 321,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"sharpe_ratio"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, win_rate FROM strategy_variant_results WHERE test_name='test_c_dca_variants' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "DCA 필터 변형 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":10,"x":14,"y":172},
+      "id": 322,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, win_rate FROM strategy_variant_results WHERE test_name='test_c_dca_variants' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "DCA 변형 Sharpe 비교",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":180},
+      "id": 330,
+      "title": "Test D — 그리드 대체 전략 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"sharpe_ratio"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":-0.5},{"color":"green","value":0}]}}]},
+          {"matcher":{"id":"byName","options":"total_return"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":-10},{"color":"green","value":0}]}}]},
+          {"matcher":{"id":"byName","options":"win_rate"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":40},{"color":"green","value":55}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":14,"x":0,"y":181},
+      "id": 331,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"sharpe_ratio"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, win_rate FROM strategy_variant_results WHERE test_name='test_d_grid_replacement' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "그리드 대체 전략 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":10,"x":14,"y":181},
+      "id": 332,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown, win_rate FROM strategy_variant_results WHERE test_name='test_d_grid_replacement' ORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "그리드 대체 전략 Sharpe 비교",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":189},
+      "id": 340,
+      "title": "Test E — 가중치 민감도 분석",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"sharpe_ratio"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"total_return"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":20}]}}]},
+          {"matcher":{"id":"byName","options":"max_drawdown"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":-20},{"color":"red","value":-50}]}}]}
+        ]
+      },
+      "gridPos": {"h":10,"w":14,"x":0,"y":190},
+      "id": 341,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":false,"displayName":"variant_name"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown FROM strategy_variant_results WHERE test_name='test_e_weight_sensitivity' ORDER BY variant_name",
+        "refId": "A"
+      }],
+      "title": "가중치 민감도 분석 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":0,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":2,"drawStyle":"line","pointSize":5,"showPoints":"always"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":10,"w":10,"x":14,"y":190},
+      "id": 342,
+      "options": {"legend":{"calcs":["mean","last"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant_name, total_return, sharpe_ratio, max_drawdown FROM strategy_variant_results WHERE test_name='test_e_weight_sensitivity' ORDER BY variant_name",
+        "refId": "A"
+      }],
+      "title": "레짐별 Sharpe vs 가중치",
+      "type": "barchart"
     }
 
   ],
@@ -689,5 +1010,5 @@
   "timezone": "Asia/Seoul",
   "title": "백테스트 결과 — 종합 분석",
   "uid": "cryptoengine-backtest",
-  "version": 4
+  "version": 5
 }
