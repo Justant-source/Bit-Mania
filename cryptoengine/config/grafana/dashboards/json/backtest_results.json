@@ -441,6 +441,242 @@
       }],
       "title": "BTC/USDT 4시간봉 가격 (2025-10-01 ~ 2026-03-31)",
       "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":86},
+      "id": 200,
+      "title": "🎯 Stage 2: 레짐 판별 정확도 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"정확도(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0.5},{"color":"green","value":0.7}]}}]},
+          {"matcher":{"id":"byName","options":"종합점수"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0.4},{"color":"green","value":0.6}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":24,"x":0,"y":87},
+      "id": 201,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"종합점수"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  method AS \"판별 방법\",\n  COALESCE(timeframe, 'multi-TF') AS \"타임프레임\",\n  round(accuracy::numeric, 3) AS \"정확도(%)\",\n  round(transition_rate::numeric, 4) AS \"전환빈도\",\n  round(false_transition_rate::numeric, 4) AS \"가짜전환율\",\n  round(composite_score::numeric, 3) AS \"종합점수\",\n  created_at AS \"실행시각\"\nFROM regime_accuracy_results\nORDER BY composite_score DESC NULLS LAST",
+        "refId": "A"
+      }],
+      "title": "Stage 2: 레짐 판별 방법별 정확도 (종합점수 기준 정렬)",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":12,"x":0,"y":95},
+      "id": 202,
+      "options": {"bucketOffset":0,"fillOpacity":80,"gradientMode":"none","legend":{"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT method AS \"method\", round(accuracy::numeric,3) AS \"정확도\"\nFROM regime_accuracy_results\nORDER BY accuracy DESC",
+        "refId": "A"
+      }],
+      "title": "방법별 레짐 판별 정확도",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":12,"x":12,"y":95},
+      "id": 203,
+      "options": {"bucketOffset":0,"fillOpacity":80,"gradientMode":"none","legend":{"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT method AS \"method\", round(transition_rate::numeric,4) AS \"전환빈도\"\nFROM regime_accuracy_results\nORDER BY transition_rate ASC",
+        "refId": "A"
+      }],
+      "title": "방법별 레짐 전환 빈도 (낮을수록 좋음)",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":103},
+      "id": 210,
+      "title": "⚖️ Stage 3: 가중치 매트릭스 최적화",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":10}]}}]},
+          {"matcher":{"id":"byName","options":"종합점수"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":0.5}]}}]}
+        ]
+      },
+      "gridPos": {"h":10,"w":24,"x":0,"y":104},
+      "id": 211,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"종합점수"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  variant AS \"변형\",\n  COALESCE(regime, 'overall') AS \"레짐\",\n  round(funding_arb_weight::numeric,2) AS \"펀딩비\",\n  round(grid_weight::numeric,2) AS \"그리드\",\n  round(dca_weight::numeric,2) AS \"DCA\",\n  round(cash_weight::numeric,2) AS \"현금\",\n  round(sharpe_ratio::numeric,3) AS \"Sharpe\",\n  round(max_drawdown_pct::numeric,2) AS \"MDD(%)\",\n  round(total_return_pct::numeric,2) AS \"수익률(%)\",\n  round(pct_positive_months::numeric,3) AS \"양수월비율\",\n  round(composite_score::numeric,3) AS \"종합점수\"\nFROM weight_optimization_results\nORDER BY regime, composite_score DESC NULLS LAST",
+        "refId": "A"
+      }],
+      "title": "Stage 3: 가중치 변형별 성과 비교",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":12,"x":0,"y":114},
+      "id": 212,
+      "options": {"bucketOffset":0,"fillOpacity":80,"gradientMode":"none","legend":{"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant AS \"variant\", round(sharpe_ratio::numeric,3) AS \"Sharpe\"\nFROM weight_optimization_results\nWHERE regime = 'overall' OR regime IS NULL\nORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "가중치 변형별 Sharpe Ratio 비교",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"percent"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":12,"x":12,"y":114},
+      "id": 213,
+      "options": {"bucketOffset":0,"fillOpacity":80,"gradientMode":"none","legend":{"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT variant AS \"variant\", round(max_drawdown_pct::numeric,2) AS \"MDD(%)\"\nFROM weight_optimization_results\nWHERE regime = 'overall' OR regime IS NULL\nORDER BY max_drawdown_pct ASC",
+        "refId": "A"
+      }],
+      "title": "가중치 변형별 최대낙폭(MDD) 비교 (낮을수록 좋음)",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":122},
+      "id": 220,
+      "title": "🔄 Stage 4: Walk-Forward 검증",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"학습Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"검증Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":1.5}]}}]},
+          {"matcher":{"id":"byName","options":"검증수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":3}]}}]}
+        ]
+      },
+      "gridPos": {"h":10,"w":24,"x":0,"y":123},
+      "id": 221,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":false,"displayName":"윈도우"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  strategy AS \"전략\",\n  window_id AS \"윈도우\",\n  to_char(train_start,'YYYY-MM-DD') AS \"학습시작\",\n  to_char(train_end,'YYYY-MM-DD') AS \"학습종료\",\n  to_char(test_start,'YYYY-MM-DD') AS \"검증시작\",\n  to_char(test_end,'YYYY-MM-DD') AS \"검증종료\",\n  round(train_sharpe::numeric,3) AS \"학습Sharpe\",\n  round(test_sharpe::numeric,3) AS \"검증Sharpe\",\n  round(train_return_pct::numeric,2) AS \"학습수익률(%)\",\n  round(test_return_pct::numeric,2) AS \"검증수익률(%)\",\n  round(train_max_drawdown_pct::numeric,2) AS \"학습MDD(%)\",\n  round(test_max_drawdown_pct::numeric,2) AS \"검증MDD(%)\",\n  test_total_trades AS \"검증거래수\"\nFROM walk_forward_results\nWHERE window_id >= 0\nORDER BY strategy, window_id",
+        "refId": "A"
+      }],
+      "title": "Stage 4: Walk-Forward 윈도우별 학습/검증 결과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
+          "mappings": [],
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null}]}
+        },
+        "overrides": [
+          {"matcher":{"id":"byName","options":"집계Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":1.5}]}}]},
+          {"matcher":{"id":"byName","options":"일관성비율"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0.5},{"color":"green","value":0.7}]}}]},
+          {"matcher":{"id":"byName","options":"경보"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}}]}
+        ]
+      },
+      "gridPos": {"h":6,"w":12,"x":0,"y":133},
+      "id": 222,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  strategy AS \"전략\",\n  round(aggregate_sharpe::numeric,3) AS \"집계Sharpe\",\n  round(consistency_ratio::numeric,3) AS \"일관성비율\",\n  CASE WHEN sharpe_alert THEN 1 ELSE 0 END AS \"경보\",\n  run_id AS \"실행ID\"\nFROM walk_forward_results\nWHERE window_id = -1\nORDER BY aggregate_sharpe DESC",
+        "refId": "A"
+      }],
+      "title": "Walk-Forward 집계 결과 (OOS 평균)",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":0,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":2,"drawStyle":"line","pointSize":5,"showPoints":"always"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":6,"w":12,"x":12,"y":133},
+      "id": 223,
+      "options": {"legend":{"calcs":["mean","last"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"none"}},
+      "targets": [
+        {
+          "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+          "editorMode": "code", "format": "table", "rawQuery": true,
+          "rawSql": "SELECT\n  strategy || '_train' AS \"metric\",\n  window_id AS \"window\",\n  round(train_sharpe::numeric,3) AS \"value\"\nFROM walk_forward_results\nWHERE window_id >= 0\nUNION ALL\nSELECT\n  strategy || '_test' AS \"metric\",\n  window_id AS \"window\",\n  round(test_sharpe::numeric,3) AS \"value\"\nFROM walk_forward_results\nWHERE window_id >= 0\nORDER BY window",
+          "refId": "A"
+        }
+      ],
+      "title": "Walk-Forward: 학습 vs 검증 Sharpe 비교",
+      "type": "barchart"
     }
 
   ],
@@ -453,5 +689,5 @@
   "timezone": "Asia/Seoul",
   "title": "백테스트 결과 — 종합 분석",
   "uid": "cryptoengine-backtest",
-  "version": 3
+  "version": 4
 }

@@ -13,12 +13,12 @@ orchestrator:
 
 # ── Regime Detection ─────────────────────────────────────────
 regime_detection:
-  # Primary timeframe for regime classification
-  primary_timeframe: 4h
-  # Secondary timeframes for confirmation
-  secondary_timeframes:
+  # Stage 2 최우수 레짐 감지 방법
+  method: multi_consensus
+  timeframes:
+    - 15m
     - 1h
-    - 1d
+    - 4h
 
   # Indicators used for regime classification
   indicators:
@@ -62,29 +62,30 @@ regime_detection:
 # Rows = market regime, Columns = strategy allocation weight.
 # Each row must sum to 1.0.
 weights:
+  # Stage 3 그리드 서치 최적값 (2026-04-05 백테스트 결과 반영)
   ranging:
-    funding_arb: 0.25
-    grid_trading: 0.40
-    adaptive_dca: 0.15
-    cash_reserve: 0.20
+    funding_arb: 0.50
+    grid_trading: 0.00
+    adaptive_dca: 0.00
+    cash_reserve: 0.50
 
   trending_up:
-    funding_arb: 0.15
-    grid_trading: 0.05
-    adaptive_dca: 0.50
-    cash_reserve: 0.30
+    funding_arb: 0.00
+    grid_trading: 0.00
+    adaptive_dca: 0.50    # 상승장 DCA 지배적
+    cash_reserve: 0.50
 
   trending_down:
-    funding_arb: 0.20
-    grid_trading: 0.05
-    adaptive_dca: 0.10
-    cash_reserve: 0.65
+    funding_arb: 0.20     # Cash 100% → 0.20으로 완화 (과적합 방지)
+    grid_trading: 0.00
+    adaptive_dca: 0.00
+    cash_reserve: 0.80
 
   volatile:
-    funding_arb: 0.10
-    grid_trading: 0.05
-    adaptive_dca: 0.05
-    cash_reserve: 0.80
+    funding_arb: 0.50
+    grid_trading: 0.00
+    adaptive_dca: 0.00
+    cash_reserve: 0.50
 
 # ── Weight Transition ─────────────────────────────────────────
 transition:
