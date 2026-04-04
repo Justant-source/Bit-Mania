@@ -81,13 +81,21 @@ class TradingAnalysisGraph:
     async def run(self, market_data: dict[str, Any]) -> dict[str, Any] | None:
         """Execute the full analysis pipeline.
 
-        Returns the ``final_decision`` dict or ``None`` on failure.
+        Returns the ``final_decision`` dict (enriched with intermediate
+        reports) or ``None`` on failure.
         """
         initial_state: TradingAnalysisState = {"market_data": market_data}
         try:
             final_state = await self._graph.ainvoke(initial_state)
             decision = final_state.get("final_decision")
             if decision:
+                # Attach intermediate reports so the caller can persist them
+                decision["_technical_report"] = final_state.get("technical_report", {})
+                decision["_sentiment_report"] = final_state.get("sentiment_report", {})
+                decision["_bull_argument"] = final_state.get("bull_argument", {})
+                decision["_bear_argument"] = final_state.get("bear_argument", {})
+                decision["_debate_conclusion"] = final_state.get("debate_conclusion", {})
+                decision["_risk_assessment"] = final_state.get("risk_assessment", {})
                 log.info(
                     "analysis_graph_complete",
                     rating=decision.get("rating"),

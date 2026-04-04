@@ -138,9 +138,11 @@ export function createInternalRouter(pool: Pool, redis: Redis): Router {
       const result = await pool.query(
         `
         SELECT
-          id, analysis_type, prompt_summary, response_summary,
-          confidence, recommended_action, created_at
-        FROM llm_analyses
+          id, rating, confidence, regime, reasoning,
+          weight_adjustment, bull_summary, bear_summary,
+          risk_flags, actual_outcome, accuracy_score,
+          created_at, evaluated_at
+        FROM llm_judgments
         ORDER BY created_at DESC
         LIMIT $1
         `,
@@ -151,6 +153,82 @@ export function createInternalRouter(pool: Pool, redis: Redis): Router {
     } catch (err) {
       console.error("[internal] /llm error:", err);
       return res.status(500).json({ error: "Failed to fetch LLM analyses" });
+    }
+  });
+
+  // ── GET /llm-reports ──────────────────────────────────────
+  // List of LLM analysis reports (summary only)
+
+  router.get("/llm-reports", async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt((req.query.limit as string) || "50", 10);
+      const offset = parseInt((req.query.offset as string) || "0", 10);
+      const symbol = (req.query.symbol as string) || null;
+
+      let query = `
+        SELECT id, title, trigger, rating, confidence, regime,
+               symbol, btc_price, created_at
+        FROM llm_reports
+      `;
+      const params: any[] = [];
+
+      if (symbol) {
+        params.push(symbol);
+        query += ` WHERE symbol = $${params.length}`;
+      }
+
+      params.push(limit);
+      query += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+
+      params.push(offset);
+      query += ` OFFSET $${params.length}`;
+
+      const result = await pool.query(query, params);
+
+      // Total count for pagination
+      let countQuery = "SELECT count(*)::int AS total FROM llm_reports";
+      const countParams: any[] = [];
+      if (symbol) {
+        countParams.push(symbol);
+        countQuery += ` WHERE symbol = $1`;
+      }
+      const countResult = await pool.query(countQuery, countParams);
+
+      return res.json({
+        reports: result.rows,
+        total: countResult.rows[0]?.total ?? 0,
+        limit,
+        offset,
+      });
+    } catch (err) {
+      console.error("[internal] /llm-reports error:", err);
+      return res.status(500).json({ error: "Failed to fetch LLM reports" });
+    }
+  });
+
+  // ── GET /llm-reports/:id ──────────────────────────────────
+  // Full detail of a single LLM report
+
+  router.get("/llm-reports/:id", async (req: Request, res: Response) => {
+    try {
+      const reportId = parseInt(req.params.id, 10);
+      if (isNaN(reportId)) {
+        return res.status(400).json({ error: "Invalid report ID" });
+      }
+
+      const result = await pool.query(
+        `SELECT * FROM llm_reports WHERE id = $1`,
+        [reportId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Report not found" });
+      }
+
+      return res.json({ report: result.rows[0] });
+    } catch (err) {
+      console.error("[internal] /llm-reports/:id error:", err);
+      return res.status(500).json({ error: "Failed to fetch LLM report" });
     }
   });
 
