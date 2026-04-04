@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -26,6 +27,10 @@ from shared.models.strategy import StrategyCommand, StrategyStatus
 from shared.redis_client import RedisClient
 
 logger = structlog.get_logger()
+
+
+class OrderSubmitRateLimitError(Exception):
+    """Raised when an order submission exceeds the configured rate limit."""
 
 
 class BaseStrategy(ABC):
@@ -52,6 +57,12 @@ class BaseStrategy(ABC):
 
         # Tick interval in seconds
         self.tick_interval: float = config.get("tick_interval", 5.0)
+
+        # Order rate-limit settings (read from config)
+        self._max_orders_per_second: int = int(config.get("max_orders_per_second", 2))
+        self._max_orders_per_minute: int = int(config.get("max_orders_per_minute", 30))
+        # Sliding-window timestamps of past submitted orders
+        self._order_timestamps: list[float] = []
 
         # Redis client — connected lazily in run()
         self._redis = RedisClient()
@@ -110,18 +121,30 @@ class BaseStrategy(ABC):
         try:
             while True:
                 # --- drain pending commands ---
-                while True:
-                    msg = await pubsub.get_message(
-                        ignore_subscribe_messages=True, timeout=0.01
-                    )
-                    if msg is None:
-                        break
-                    if msg["type"] == "message":
-                        try:
-                            cmd = StrategyCommand.model_validate_json(msg["data"])
-                            await self._handle_command(cmd)
-                        except Exception:
-                            self._log.exception("command_parse_error", raw=msg["data"])
+                try:
+                    while True:
+                        msg = await pubsub.get_message(
+                            ignore_subscribe_messages=True, timeout=0.01
+                        )
+                        if msg is None:
+                            break
+                        if msg["type"] == "message":
+                            try:
+                                cmd = StrategyCommand.model_validate_json(msg["data"])
+                                await self._handle_command(cmd)
+                            except Exception:
+                                self._log.exception("command_parse_error", raw=msg["data"])
+                except Exception:
+                    # pubsub may have broken — attempt reconnect & resubscribe
+                    self._log.warning("pubsub_read_error — attempting reconnect")
+                    try:
+                        await pubsub.close()
+                    except Exception:
+                        pass
+                    await self._reconnect_and_sync()
+                    pubsub = self._redis.client.pubsub()
+                    await pubsub.subscribe(command_channel)
+                    self._log.info("pubsub_resubscribed", channel=command_channel)
 
                 # --- tick ---
                 if self.is_running and not self.is_paused:
@@ -172,8 +195,54 @@ class BaseStrategy(ABC):
 
     # ── order submission ────────────────────────────────────────────────
 
+    async def _check_order_rate_limit(self) -> None:
+        """Enforce sliding-window rate limits before accepting an order.
+
+        Raises :class:`OrderSubmitRateLimitError` if either the per-second or
+        per-minute limit would be exceeded.  On success, records the current
+        timestamp so future calls can account for this order.
+        """
+        now = time.monotonic()
+
+        # Drop timestamps older than 1 minute
+        cutoff_1min = now - 60.0
+        self._order_timestamps = [ts for ts in self._order_timestamps if ts >= cutoff_1min]
+
+        # Per-minute check
+        if len(self._order_timestamps) >= self._max_orders_per_minute:
+            self._log.warning(
+                "order_rate_limit_per_minute",
+                count=len(self._order_timestamps),
+                limit=self._max_orders_per_minute,
+            )
+            raise OrderSubmitRateLimitError(
+                f"Per-minute order limit reached "
+                f"({len(self._order_timestamps)}/{self._max_orders_per_minute})"
+            )
+
+        # Per-second check
+        cutoff_1sec = now - 1.0
+        recent = sum(1 for ts in self._order_timestamps if ts >= cutoff_1sec)
+        if recent >= self._max_orders_per_second:
+            self._log.warning(
+                "order_rate_limit_per_second",
+                recent=recent,
+                limit=self._max_orders_per_second,
+            )
+            raise OrderSubmitRateLimitError(
+                f"Per-second order limit reached ({recent}/{self._max_orders_per_second})"
+            )
+
+        # Record this submission attempt
+        self._order_timestamps.append(now)
+
     async def submit_order(self, order: OrderRequest) -> None:
-        """Publish an order request to the execution service via Redis."""
+        """Publish an order request to the execution service via Redis.
+
+        Raises :class:`OrderSubmitRateLimitError` if the configured rate limits
+        (``max_orders_per_second`` / ``max_orders_per_minute``) are exceeded.
+        """
+        await self._check_order_rate_limit()
         await self._redis.publish("order:request", order.model_dump_json())
         self._log.info(
             "order_submitted",
@@ -229,6 +298,37 @@ class BaseStrategy(ABC):
 
     # ── internal helpers ────────────────────────────────────────────────
 
+    async def _reconnect_and_sync(self) -> None:
+        """Reconnect to Redis and re-apply the last known orchestrator command.
+
+        Called automatically when a pubsub read error is detected in the main
+        loop.  After reconnection it reads the last command snapshot from
+        ``strategy:command_last:{strategy_id}`` (if the orchestrator publishes
+        one) and re-handles it so the strategy does not drift from its intended
+        state.
+        """
+        self._log.info("redis_reconnect_sync_start")
+        try:
+            await self._redis.ensure_connected()
+        except Exception:
+            self._log.exception("redis_reconnect_failed")
+            return
+
+        self._log.info("redis_reconnect_success")
+
+        # Re-apply the last command snapshot published by the orchestrator
+        snapshot_key = f"strategy:command_last:{self.strategy_id}"
+        try:
+            raw = await self._redis.get(snapshot_key)
+            if raw:
+                cmd = StrategyCommand.model_validate_json(raw)
+                self._log.info("state_sync_from_snapshot", action=cmd.action)
+                await self._handle_command(cmd)
+            else:
+                self._log.info("no_command_snapshot_found", key=snapshot_key)
+        except Exception:
+            self._log.exception("state_sync_error")
+
     async def _publish_status(self) -> None:
         """Publish heartbeat status to Redis and upsert to strategy_states DB."""
         try:
@@ -236,7 +336,7 @@ class BaseStrategy(ABC):
             await self._redis.set(
                 f"strategy:status:{self.strategy_id}",
                 status.model_dump_json(),
-                ttl=30,  # 30s TTL — acts as a liveness probe
+                ttl=90,  # 90s TTL — 워치독(60s 주기)이 두 사이클 놓쳐도 감지 가능
             )
         except Exception:
             self._log.exception("status_publish_error")

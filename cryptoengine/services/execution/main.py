@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pathlib
 import signal
 
 import asyncpg
@@ -139,6 +140,28 @@ async def main() -> None:
     # --- Publish wallet balance to Redis for orchestrator (periodic) ---
     import json as _json
 
+    async def _heartbeat_publisher(shutdown: asyncio.Event) -> None:
+        """30초마다 Redis에 서비스 하트비트 발행. TTL=300초(5분)."""
+        service_name = "execution-engine"
+        while not shutdown.is_set():
+            try:
+                await redis_client.setex(
+                    f"heartbeat:{service_name}",
+                    300,  # 5분 TTL
+                    _json.dumps({
+                        "service": service_name,
+                        "ts": asyncio.get_event_loop().time(),
+                        "status": "alive",
+                    })
+                )
+                pathlib.Path("/tmp/heartbeat_ok").touch()
+            except Exception:
+                log.warning("heartbeat_publish_failed", service=service_name)
+            try:
+                await asyncio.wait_for(shutdown.wait(), timeout=30)
+            except asyncio.TimeoutError:
+                pass
+
     async def _balance_publisher(shutdown: asyncio.Event) -> None:
         """Refresh wallet balance in Redis every 60 s so orchestrator never sees 0."""
         while not shutdown.is_set():
@@ -208,6 +231,7 @@ async def main() -> None:
         asyncio.create_task(engine.run(shutdown_event), name="execution_engine"),
         asyncio.create_task(position_tracker.run(shutdown_event), name="position_tracker"),
         asyncio.create_task(_balance_publisher(shutdown_event), name="balance_publisher"),
+        asyncio.create_task(_heartbeat_publisher(shutdown_event), name="heartbeat_publisher"),
     ]
 
     log.info("execution_tasks_launched", count=len(tasks))

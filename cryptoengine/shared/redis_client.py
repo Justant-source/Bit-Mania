@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -53,11 +54,62 @@ class RedisClient:
             raise RuntimeError("RedisClient not connected — call connect() first")
         return self._redis
 
+    # ── health & reconnection ────────────────────────────────────────────
+
+    @property
+    def is_healthy(self) -> bool:
+        """Return True if the client appears connected (non-blocking check)."""
+        return self._redis is not None
+
+    async def ensure_connected(self) -> None:
+        """Ensure Redis is connected; retry up to 3 times with exponential back-off.
+
+        Back-off schedule: 1 s, 2 s, 4 s before giving up.
+        Raises the last ``ConnectionError`` if all retries are exhausted.
+        """
+        if self._redis is not None:
+            try:
+                await self._redis.ping()
+                return
+            except Exception:
+                logger.warning("redis ping failed — attempting reconnect")
+                await self._reset_connection()
+
+        last_exc: Exception = ConnectionError("Redis unavailable")
+        for attempt, delay in enumerate([1, 2, 4], start=1):
+            try:
+                self._redis = aioredis.from_url(self._url, decode_responses=self._decode)
+                await self._redis.ping()
+                logger.info("redis reconnected (attempt %d)", attempt)
+                return
+            except Exception as exc:
+                last_exc = exc
+                logger.warning("redis reconnect attempt %d failed: %s", attempt, exc)
+                await self._reset_connection()
+                if attempt < 3:
+                    await asyncio.sleep(delay)
+
+        raise ConnectionError(f"Redis reconnect failed after 3 attempts: {last_exc}") from last_exc
+
+    async def _reset_connection(self) -> None:
+        """Silently close and discard the current client object."""
+        if self._redis is not None:
+            try:
+                await self._redis.aclose()
+            except Exception:
+                pass
+            self._redis = None
+
     # ── pub / sub ────────────────────────────────────────────────────────
 
     async def publish(self, channel: str, message: Any) -> int:
         payload = json.dumps(message) if not isinstance(message, str) else message
-        return await self.client.publish(channel, payload)
+        try:
+            return await self.client.publish(channel, payload)
+        except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
+            logger.warning("redis publish failed (%s) — reconnecting", exc)
+            await self.ensure_connected()
+            return await self.client.publish(channel, payload)
 
     async def subscribe(self, *channels: str) -> AsyncIterator[dict[str, Any]]:
         """Yield messages from one or more channels (blocking iterator)."""
@@ -79,7 +131,12 @@ class RedisClient:
     # ── key / value ──────────────────────────────────────────────────────
 
     async def get(self, key: str) -> str | None:
-        return await self.client.get(key)
+        try:
+            return await self.client.get(key)
+        except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
+            logger.warning("redis get failed (%s) — reconnecting", exc)
+            await self.ensure_connected()
+            return await self.client.get(key)
 
     async def set(
         self,
@@ -88,15 +145,23 @@ class RedisClient:
         ttl: int | None = None,
     ) -> None:
         payload = json.dumps(value) if not isinstance(value, (str, bytes)) else value
-        if ttl is not None:
-            await self.client.setex(key, ttl, payload)
-        else:
-            await self.client.set(key, payload)
+        try:
+            if ttl is not None:
+                await self.client.setex(key, ttl, payload)
+            else:
+                await self.client.set(key, payload)
+        except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
+            logger.warning("redis set failed (%s) — reconnecting", exc)
+            await self.ensure_connected()
+            if ttl is not None:
+                await self.client.setex(key, ttl, payload)
+            else:
+                await self.client.set(key, payload)
 
     # ── cache helpers ────────────────────────────────────────────────────
 
     async def cache_get(self, key: str) -> Any | None:
-        raw = await self.client.get(key)
+        raw = await self.get(key)
         if raw is None:
             return None
         try:

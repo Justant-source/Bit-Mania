@@ -9,7 +9,9 @@ Initialises Redis, PostgreSQL, and launches:
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import os
+import pathlib
 import signal
 import sys
 
@@ -167,11 +169,34 @@ async def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _signal_handler)
 
+    async def _heartbeat_publisher(shutdown: asyncio.Event) -> None:
+        """30초마다 Redis에 서비스 하트비트 발행. TTL=300초(5분)."""
+        service_name = "market-data"
+        while not shutdown.is_set():
+            try:
+                await redis_client.setex(
+                    f"heartbeat:{service_name}",
+                    300,  # 5분 TTL
+                    _json.dumps({
+                        "service": service_name,
+                        "ts": asyncio.get_event_loop().time(),
+                        "status": "alive",
+                    })
+                )
+                pathlib.Path("/tmp/heartbeat_ok").touch()
+            except Exception:
+                log.warning("heartbeat_publish_failed", service=service_name)
+            try:
+                await asyncio.wait_for(shutdown.wait(), timeout=30)
+            except asyncio.TimeoutError:
+                pass
+
     # --- Launch tasks ---
     tasks = [
         asyncio.create_task(collector.run(shutdown_event), name="collector"),
         asyncio.create_task(regime_detector.run(shutdown_event), name="regime_detector"),
         asyncio.create_task(funding.run(shutdown_event), name="funding_monitor"),
+        asyncio.create_task(_heartbeat_publisher(shutdown_event), name="heartbeat_publisher"),
     ]
 
     log.info("all_tasks_launched", count=len(tasks))
