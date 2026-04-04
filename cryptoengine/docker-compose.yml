@@ -210,10 +210,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      prometheus:
+        condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,redis-datasource
       GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
       GF_UNIFIED_ALERTING_ENABLED: "true"
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
@@ -225,6 +227,51 @@ services:
       - ./config/grafana/alerting:/etc/grafana/provisioning/alerting:ro
     ports:
       - "3002:3000"
+
+  # ── Observability Stack ─────────────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.8.0
+    restart: always
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host/root'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+    expose:
+      - "9100"
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    expose:
+      - "9121"
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: always
+    depends_on:
+      - redis-exporter
+      - node-exporter
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
 
   # ── Backtesting (on-demand) ─────────────────────────────────
   backtester:
@@ -252,4 +299,6 @@ volumes:
   redisdata:
     driver: local
   grafana-data:
+    driver: local
+  prometheus-data:
     driver: local
