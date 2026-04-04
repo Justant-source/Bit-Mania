@@ -37,7 +37,11 @@ LEVERAGE = 2.0
 POSITION_RATIO = 0.50          # 총 자본의 50%
 ENTRY_THRESHOLD = 0.0001       # 0.01%
 EXIT_THRESHOLD = 0.00005       # 0.005%
-TRADING_FEE = 0.00055          # Bybit taker fee (0.055%)
+SPOT_FEE_RATE = 0.0001         # Bybit 현물 taker 0.01%
+PERP_FEE_RATE = 0.00055        # Bybit 선물 taker 0.055%
+ENTRY_FEE_RATE = SPOT_FEE_RATE + PERP_FEE_RATE   # 0.00065 (진입 편도)
+EXIT_FEE_RATE = SPOT_FEE_RATE + PERP_FEE_RATE    # 0.00065 (청산 편도)
+ROUND_TRIP_FEE = ENTRY_FEE_RATE + EXIT_FEE_RATE  # 0.0013 (왕복 총비용)
 RESULTS_DIR = Path(os.getenv("RESULTS_DIR", "/app/results"))
 
 DB_DSN = (
@@ -168,7 +172,7 @@ def run_backtest(ohlcv: pd.DataFrame, funding: pd.DataFrame) -> dict:
                 # 노셔널 = 현재 자본의 POSITION_RATIO
                 # 수수료: 선물 진입 + 현물 매수 (양쪽 모두 taker)
                 position_notional = capital * POSITION_RATIO
-                fee = position_notional * TRADING_FEE * 2  # 선물 + 현물
+                fee = position_notional * ENTRY_FEE_RATE * 2  # 선물 + 현물
                 capital -= fee
                 entry_funding_sum = 0.0
                 in_position = True
@@ -183,7 +187,7 @@ def run_backtest(ohlcv: pd.DataFrame, funding: pd.DataFrame) -> dict:
 
             # 청산 조건
             if rate < EXIT_THRESHOLD:
-                fee = position_notional * TRADING_FEE * 2  # 선물 청산 + 현물 매도
+                fee = position_notional * EXIT_FEE_RATE * 2  # 선물 청산 + 현물 매도
                 capital -= fee
                 trade_pnl = entry_funding_sum - fee
                 if trade_pnl > 0:
@@ -209,7 +213,7 @@ def run_backtest(ohlcv: pd.DataFrame, funding: pd.DataFrame) -> dict:
 
     # 미청산 포지션 마감
     if in_position and capital > 0:
-        fee = position_notional * TRADING_FEE * 2
+        fee = position_notional * EXIT_FEE_RATE * 2
         capital -= fee
         if entry_funding_sum > fee:
             wins += 1

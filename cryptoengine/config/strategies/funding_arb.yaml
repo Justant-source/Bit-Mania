@@ -94,6 +94,11 @@ cross_exchange:
   # Maximum capital allocated to cross-exchange positions
   max_cross_exchange_usd: 5_000
 
+# ── Fee Rates ────────────────────────────────────────────────
+fees:
+  spot_fee_rate: 0.0001    # 0.01%  Bybit spot taker
+  perp_fee_rate: 0.00055   # 0.055% Bybit perpetual taker
+
 # ── Slippage & Execution ─────────────────────────────────────
 slippage:
   # Expected slippage on entry (percentage)

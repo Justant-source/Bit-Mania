@@ -91,7 +91,7 @@ def position_size_calculator(
     risk_per_trade: float,
     entry_price: float,
     stop_loss_price: float,
-    fee_rate: float = 0.0006,
+    fee_rate: float = 0.00055,
 ) -> float:
     """Calculate position size (in base units) given fixed-fractional risk.
 

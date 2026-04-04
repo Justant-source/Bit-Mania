@@ -76,18 +76,19 @@ CREATE TABLE IF NOT EXISTS backtest_results (
 # ── 데이터 로드 ────────────────────────────────────────────────────────────────
 
 async def _load_ohlcv(
-    pool: asyncpg.Pool, symbol: str, start: datetime, end: datetime
+    pool: asyncpg.Pool, symbol: str, start: datetime, end: datetime,
+    timeframe: str = "1h",
 ) -> pd.DataFrame:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT timestamp, open, high, low, close, volume
             FROM ohlcv_history
-            WHERE exchange = 'bybit' AND symbol = $1 AND timeframe = '1h'
+            WHERE exchange = 'bybit' AND symbol = $1 AND timeframe = $4
               AND timestamp >= $2 AND timestamp < $3
             ORDER BY timestamp ASC
             """,
-            symbol, start, end,
+            symbol, start, end, timeframe,
         )
     if not rows:
         return pd.DataFrame()
@@ -379,8 +380,8 @@ async def main(args: argparse.Namespace) -> None:
     print("[INFO] DB 연결 중...")
     pool = await asyncpg.create_pool(dsn=DB_DSN, min_size=2, max_size=5)
 
-    print(f"[INFO] 데이터 로드 중... ({args.symbol}, {args.start} ~ {args.end})")
-    ohlcv = await _load_ohlcv(pool, args.symbol, start, end)
+    print(f"[INFO] 데이터 로드 중... ({args.symbol}, {args.start} ~ {args.end}, {args.timeframe})")
+    ohlcv = await _load_ohlcv(pool, args.symbol, start, end, timeframe=args.timeframe)
 
     if ohlcv.empty:
         print("[ERROR] OHLCV 데이터 없음. seed_historical.py를 먼저 실행하세요.")
@@ -416,6 +417,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--symbol", default="BTCUSDT")
     parser.add_argument("--start", required=True, help="YYYY-MM-DD")
     parser.add_argument("--end", required=True, help="YYYY-MM-DD")
+    parser.add_argument(
+        "--timeframe", default="1h", choices=["15m", "1h", "4h"],
+        help="OHLCV 타임프레임 (기본값: 1h)",
+    )
     return parser.parse_args()
 
 
