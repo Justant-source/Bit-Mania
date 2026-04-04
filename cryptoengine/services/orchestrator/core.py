@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -78,6 +79,19 @@ class StrategyOrchestrator:
         self._running = False
         self._task: asyncio.Task[None] | None = None
         self._llm_advisory_task: asyncio.Task[None] | None = None
+        self._watchdog_task: asyncio.Task[None] | None = None
+        self._heartbeat_timeout_seconds: float = 300.0  # 5분
+        self._monitored_services: list[str] = [
+            "execution-engine",
+            "market-data",
+            "funding-arb",
+            "grid-trading",
+            "adaptive-dca",
+        ]
+
+        self._config_path: str = os.environ.get("CONFIG_PATH", "/app/config/orchestrator.yaml")
+        self._config_mtime: float = 0.0
+        self._config_reload_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Initialize connections and begin the orchestration loop."""
@@ -101,12 +115,25 @@ class StrategyOrchestrator:
         self._llm_advisory_task = asyncio.create_task(
             self._subscribe_llm_advisory(), name="llm-advisory-sub"
         )
+        self._config_mtime = self._get_config_mtime()
+        self._config_reload_task = asyncio.create_task(
+            self._config_reload_loop(), name="config-reload-watcher"
+        )
+        self._watchdog_task = asyncio.create_task(
+            self._watchdog_loop(), name="service-watchdog"
+        )
         log.info("orchestrator_started", interval=self._loop_interval)
 
     async def stop(self) -> None:
         """Gracefully shut down the orchestrator."""
         self._running = False
-        for task in (self._task, self._llm_advisory_task):
+        if self._config_reload_task and not self._config_reload_task.done():
+            self._config_reload_task.cancel()
+            try:
+                await self._config_reload_task
+            except asyncio.CancelledError:
+                pass
+        for task in (self._task, self._llm_advisory_task, self._watchdog_task):
             if task and not task.done():
                 task.cancel()
                 try:
@@ -422,3 +449,216 @@ class StrategyOrchestrator:
         await self._redis.set(
             "orchestrator:state", json.dumps(state), ex=600
         )
+
+    async def _watchdog_loop(self) -> None:
+        """모니터링 서비스들의 하트비트를 60초마다 체크.
+
+        5분(300초) 이상 하트비트 없는 서비스 감지 시 kill switch 발동.
+        전략 서비스는 strategy:status:{id} 키 (TTL=90s) 존재 여부로 확인.
+        """
+        check_interval = 60.0  # 1분마다 체크
+
+        # 전략 서비스 ID → Redis 키 매핑
+        strategy_key_map: dict[str, str] = {
+            "funding-arb": "strategy:status:funding-arb",
+            "grid-trading": "strategy:status:grid-trading",
+            "adaptive-dca": "strategy:status:adaptive-dca",
+        }
+        # 인프라 서비스: heartbeat:{service} 키 사용
+        infra_services = ["execution-engine", "market-data"]
+
+        while self._running:
+            try:
+                await asyncio.sleep(check_interval)
+                if not self._running:
+                    break
+
+                assert self._redis is not None
+                dead_services: list[str] = []
+
+                # 인프라 서비스 하트비트 확인
+                for service in infra_services:
+                    key = f"heartbeat:{service}"
+                    try:
+                        raw = await self._redis.get(key)
+                        if raw is None:
+                            dead_services.append(service)
+                            log.warning(
+                                "heartbeat_missing",
+                                service=service,
+                                timeout_seconds=self._heartbeat_timeout_seconds,
+                            )
+                        else:
+                            log.debug("heartbeat_ok", service=service)
+                    except Exception:
+                        log.warning("heartbeat_check_failed", service=service)
+
+                # 전략 서비스 상태 키 확인
+                for service, key in strategy_key_map.items():
+                    try:
+                        raw = await self._redis.get(key)
+                        if raw is None:
+                            dead_services.append(service)
+                            log.warning(
+                                "heartbeat_missing",
+                                service=service,
+                                timeout_seconds=90,
+                            )
+                        else:
+                            log.debug("heartbeat_ok", service=service)
+                    except Exception:
+                        log.warning("heartbeat_check_failed", service=service)
+
+                # 핵심 서비스(execution-engine)가 죽은 경우 kill switch 발동
+                critical_dead = [s for s in dead_services if s == "execution-engine"]
+                if critical_dead:
+                    log.critical(
+                        "dead_mans_switch_triggered",
+                        dead_services=critical_dead,
+                        action="triggering_kill_switch",
+                    )
+                    self._kill_switch = KillSwitchState(
+                        triggered=True,
+                        reason=f"Dead man's switch: services not responding: {critical_dead}",
+                        triggered_at=datetime.now(timezone.utc),
+                    )
+                    await self._execute_kill_switch()
+
+                    # Telegram 알림 발행
+                    await self._redis.publish(
+                        "telegram:notification",
+                        json.dumps({
+                            "level": "critical",
+                            "message": f"Dead Man's Switch triggered! Services down: {critical_dead}. All positions closed.",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                    )
+
+                elif dead_services:
+                    # 비핵심 서비스 경고만
+                    log.warning(
+                        "non_critical_services_missing_heartbeat",
+                        dead_services=dead_services,
+                    )
+                    await self._redis.set(
+                        "system:service_health",
+                        json.dumps({
+                            "status": "degraded",
+                            "dead_services": dead_services,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }),
+                        ex=120,
+                    )
+                else:
+                    # 모든 서비스 정상
+                    await self._redis.set(
+                        "system:service_health",
+                        json.dumps({
+                            "status": "healthy",
+                            "services": self._monitored_services,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }),
+                        ex=120,
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                log.exception("watchdog_loop_error")
+
+    # ------------------------------------------------------------------
+    # Config hot-reload (7.5 개선사항)
+    # ------------------------------------------------------------------
+
+    def _get_config_mtime(self) -> float:
+        """config 파일의 최종 수정 시각 반환. 파일 없으면 0.0."""
+        try:
+            return os.path.getmtime(self._config_path)
+        except OSError:
+            return 0.0
+
+    async def _config_reload_loop(self) -> None:
+        """30초마다 config 파일 수정 시각 폴링. 변경 감지 시 kill_switch 설정 핫 리로드."""
+        check_interval = 30.0
+
+        while self._running:
+            try:
+                await asyncio.sleep(check_interval)
+                if not self._running:
+                    break
+
+                current_mtime = self._get_config_mtime()
+                if current_mtime == 0.0 or current_mtime <= self._config_mtime:
+                    continue  # 변경 없음
+
+                # 파일 변경 감지!
+                log.info("config_change_detected", path=self._config_path, mtime=current_mtime)
+                await self._reload_kill_switch_config()
+                self._config_mtime = current_mtime
+
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                log.exception("config_reload_loop_error")
+
+    async def _reload_kill_switch_config(self) -> None:
+        """orchestrator.yaml에서 kill_switch 섹션만 리로드.
+
+        재시작 없이 임계값 변경 가능. 변경 사항은 즉시 다음 _orchestration_cycle에 반영됨.
+        """
+        try:
+            import yaml
+
+            with open(self._config_path) as f:
+                new_config = yaml.safe_load(f)
+
+            new_ks = new_config.get("kill_switch", {})
+            old_ks = self._kill_switch_config.copy()
+
+            if new_ks == old_ks:
+                log.debug("config_reload_no_changes_in_kill_switch")
+                return
+
+            # 변경된 키 목록 로깅
+            changed_keys = [
+                k
+                for k in set(list(new_ks.keys()) + list(old_ks.keys()))
+                if new_ks.get(k) != old_ks.get(k)
+            ]
+
+            self._kill_switch_config = new_ks
+            log.info(
+                "kill_switch_config_reloaded",
+                changed_keys=changed_keys,
+                new_values={k: new_ks.get(k) for k in changed_keys},
+                old_values={k: old_ks.get(k) for k in changed_keys},
+            )
+
+            # Redis에 감사 로그 발행
+            if self._redis:
+                await self._redis.publish(
+                    "system:config_reload",
+                    json.dumps(
+                        {
+                            "section": "kill_switch",
+                            "changed_keys": changed_keys,
+                            "new_values": {k: new_ks.get(k) for k in changed_keys},
+                            "old_values": {k: old_ks.get(k) for k in changed_keys},
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                    ),
+                )
+                log.info("config_reload_audit_published")
+
+            # orchestrator 설정도 동시에 리로드 (loop_interval 등)
+            new_orch = new_config.get("orchestrator", {})
+            if new_orch.get("loop_interval_seconds") != self._orch_config.get(
+                "loop_interval_seconds"
+            ):
+                self._loop_interval = new_orch.get("loop_interval_seconds", self._loop_interval)
+                self._orch_config = new_orch
+                log.info("orchestrator_loop_interval_reloaded", new_interval=self._loop_interval)
+
+        except FileNotFoundError:
+            log.warning("config_reload_file_not_found", path=self._config_path)
+        except Exception:
+            log.exception("config_reload_failed", path=self._config_path)

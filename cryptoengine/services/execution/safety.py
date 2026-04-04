@@ -5,12 +5,16 @@ Responsibilities:
   - Slippage buffer enforcement (spot 0.1%, perp 0.1%, max 0.5%)
   - Network health check: block orders if last API response > 30s
   - Rate limit tracking: block if approaching exchange rate limits
+  - Redis health tracking: fail-closed when Redis is unavailable
+  - Local memory cache fallback (TTL=60s) when Redis is temporarily unreachable
   - All methods async; structured logging via structlog
 """
 
 from __future__ import annotations
 
+import json
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 import asyncpg
@@ -39,12 +43,54 @@ NETWORK_TIMEOUT_THRESHOLD: float = 30.0  # seconds
 DEFAULT_RATE_LIMIT_PER_MINUTE: int = 120  # exchange-specific; Bybit default ~120
 RATE_LIMIT_BLOCK_THRESHOLD: float = 0.90  # block at 90% of limit
 
+# Local cache TTL
+LOCAL_CACHE_TTL: float = 60.0  # seconds
+
+# Redis health thresholds
+REDIS_FAILURE_THRESHOLD: int = 3  # consecutive failures before marking unhealthy
+
+
+# ---------------------------------------------------------------------------
+# Local memory cache
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _LocalCache:
+    """TTL-based local memory cache as Redis fallback."""
+
+    _store: dict[str, tuple[Any, float]] = field(default_factory=dict)
+
+    def get(self, key: str, ttl: float = LOCAL_CACHE_TTL) -> Any | None:
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        value, ts = entry
+        if time.monotonic() - ts > ttl:
+            del self._store[key]
+            return None
+        return value
+
+    def set(self, key: str, value: Any) -> None:
+        self._store[key] = (value, time.monotonic())
+
 
 class SafetyGuard:
     """Pre-trade safety validation layer.
 
     Instantiated by ``ExecutionEngine``; each call to ``check_order``
     runs all safety checks and returns ``(passed, reason)``.
+
+    Redis Fail-Closed Policy
+    ------------------------
+    - ConnectionError / TimeoutError from Redis: ``_redis_failure_count``
+      increments. After ``_redis_failure_threshold`` consecutive failures
+      ``_redis_healthy`` is set to False and **all new orders are blocked**.
+    - Cache-miss (key not in Redis): treated as "data not yet available" —
+      existing permissive behaviour is retained (warn and allow).
+    - Local cache fallback: the last successfully fetched price / equity /
+      margin values are stored in ``_local_cache`` with TTL=60 s.  When
+      Redis has a connection error but the local cache is still fresh, the
+      cached value is used transparently.
     """
 
     def __init__(
@@ -74,6 +120,68 @@ class SafetyGuard:
         # Rate limit tracking: rolling window of call timestamps
         self._api_call_timestamps: list[float] = []
 
+        # Redis health tracking
+        self._local_cache = _LocalCache()
+        self._redis_healthy: bool = True
+        self._redis_failure_count: int = 0
+        self._redis_failure_threshold: int = REDIS_FAILURE_THRESHOLD
+
+    # ------------------------------------------------------------------
+    # Redis health
+    # ------------------------------------------------------------------
+
+    async def _check_redis_health(self) -> bool:
+        """Ping Redis to confirm connectivity.
+
+        On success: resets failure counter and marks healthy.
+        On failure: increments counter and marks unhealthy once threshold
+        is reached.
+        """
+        try:
+            await self._redis.ping()
+            self._redis_healthy = True
+            self._redis_failure_count = 0
+            log.info("redis_health_restored")
+            return True
+        except Exception as exc:
+            self._redis_failure_count += 1
+            if self._redis_failure_count >= self._redis_failure_threshold:
+                if self._redis_healthy:
+                    log.error(
+                        "redis_marked_unhealthy",
+                        failure_count=self._redis_failure_count,
+                        error=str(exc),
+                    )
+                self._redis_healthy = False
+            return False
+
+    def _record_redis_success(self) -> None:
+        """Decrement failure counter on a successful Redis operation."""
+        if self._redis_failure_count > 0:
+            self._redis_failure_count = max(0, self._redis_failure_count - 1)
+        if not self._redis_healthy and self._redis_failure_count == 0:
+            self._redis_healthy = True
+
+    def _record_redis_connection_error(self, context: str, error: Exception) -> None:
+        """Increment failure counter and potentially mark Redis unhealthy."""
+        self._redis_failure_count += 1
+        if self._redis_failure_count >= self._redis_failure_threshold:
+            if self._redis_healthy:
+                log.error(
+                    "redis_marked_unhealthy",
+                    context=context,
+                    failure_count=self._redis_failure_count,
+                    error=str(error),
+                )
+            self._redis_healthy = False
+        else:
+            log.warning(
+                "redis_connection_error",
+                context=context,
+                failure_count=self._redis_failure_count,
+                error=str(error),
+            )
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
@@ -86,6 +194,22 @@ class SafetyGuard:
         (passed, reason) -- ``passed`` is True if the order is safe to
         execute; ``reason`` explains why it was blocked when False.
         """
+        # 0. Redis connectivity check (fail-closed)
+        if not self._redis_healthy:
+            # Attempt a ping to see if Redis has recovered
+            redis_ok = await self._check_redis_health()
+            if not redis_ok:
+                reason = (
+                    "redis_unavailable: orders blocked until Redis connectivity "
+                    "restored (fail-closed)"
+                )
+                log.error(
+                    "safety_redis_fail_closed",
+                    request_id=payload.get("request_id"),
+                    reason=reason,
+                )
+                return False, reason
+
         # 1. Max order size
         passed, reason = await self._check_max_order_size(payload)
         if not passed:
@@ -377,48 +501,116 @@ class SafetyGuard:
         return quantity
 
     async def _get_last_market_price(self, symbol: str) -> float | None:
-        """Read last ticker price from Redis cache."""
+        """Read last ticker price from Redis cache.
+
+        On success: stores result in local cache and returns the price.
+        On ConnectionError/TimeoutError: increments failure counter,
+          attempts local cache fallback, returns cached value or None.
+        On other exceptions (e.g. JSON decode, key missing): returns None
+          and retains existing permissive behaviour.
+        """
         key = f"cache:ticker:{self._exchange_id}:{symbol}"
+        cache_key = f"local:ticker:{symbol}"
         try:
             raw = await self._redis.get(key)
             if raw is not None:
-                data = __import__("json").loads(raw)
+                data = json.loads(raw)
                 if isinstance(data, dict):
-                    return float(data.get("last", 0) or 0)
-                return float(data)
+                    price = float(data.get("last", 0) or 0)
+                else:
+                    price = float(data)
+                if price > 0:
+                    self._local_cache.set(cache_key, price)
+                    self._record_redis_success()
+                return price if price > 0 else None
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            self._record_redis_connection_error("market_price", exc)
+            cached = self._local_cache.get(cache_key)
+            if cached is not None:
+                log.info(
+                    "using_local_cache_market_price",
+                    symbol=symbol,
+                    price=cached,
+                    failure_count=self._redis_failure_count,
+                )
+            return cached
         except Exception:
             log.debug("market_price_lookup_failed", symbol=symbol)
         return None
 
     async def _get_cached_equity(self) -> float:
-        """Read total equity from Redis cache."""
+        """Read total equity from Redis cache.
+
+        On success: stores result in local cache and returns equity.
+        On ConnectionError/TimeoutError: attempts local cache fallback.
+        Returns 0.0 only when neither Redis nor local cache has data.
+        """
         key = f"cache:balance:{self._exchange_id}"
+        cache_key = "local:equity"
         try:
             raw = await self._redis.get(key)
             if raw is not None:
-                data = __import__("json").loads(raw)
+                data = json.loads(raw)
                 if isinstance(data, dict):
-                    return float(data.get("total", 0) or 0)
+                    equity = float(data.get("total", 0) or 0)
+                    self._local_cache.set(cache_key, equity)
+                    self._record_redis_success()
+                    return equity
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            self._record_redis_connection_error("equity", exc)
+            cached = self._local_cache.get(cache_key)
+            if cached is not None:
+                log.info(
+                    "using_local_cache_equity",
+                    equity=cached,
+                    failure_count=self._redis_failure_count,
+                )
+                return cached
         except Exception:
             log.debug("equity_lookup_failed")
         return 0.0
 
     async def _get_free_margin(self) -> float | None:
-        """Read free (available) margin from Redis cache."""
+        """Read free (available) margin from Redis cache.
+
+        On success: stores result in local cache and returns margin.
+        On ConnectionError/TimeoutError: attempts local cache fallback.
+        Returns None when neither Redis nor local cache has data.
+        """
         key = f"cache:balance:{self._exchange_id}"
+        cache_key = "local:free_margin"
         try:
             raw = await self._redis.get(key)
             if raw is not None:
-                data = __import__("json").loads(raw)
+                data = json.loads(raw)
                 if isinstance(data, dict):
-                    return float(data.get("free", 0) or 0)
+                    margin = float(data.get("free", 0) or 0)
+                    self._local_cache.set(cache_key, margin)
+                    self._record_redis_success()
+                    return margin
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            self._record_redis_connection_error("free_margin", exc)
+            cached = self._local_cache.get(cache_key)
+            if cached is not None:
+                log.info(
+                    "using_local_cache_free_margin",
+                    free_margin=cached,
+                    failure_count=self._redis_failure_count,
+                )
+                return cached
         except Exception:
             log.debug("free_margin_lookup_failed")
         return None
 
     async def _get_total_position_notional(self) -> float:
-        """Sum notional of all cached open positions."""
+        """Sum notional of all cached open positions.
+
+        On ConnectionError/TimeoutError: returns last locally cached total
+        (if available within TTL) or 0.0 to avoid blocking the leverage
+        check when Redis is temporarily unreachable.
+        """
         pattern = f"cache:position:{self._exchange_id}:*"
+        cache_key = "local:position_notional"
         total = 0.0
         try:
             cursor = b"0"
@@ -429,12 +621,24 @@ class SafetyGuard:
                 for key in keys:
                     raw = await self._redis.get(key)
                     if raw:
-                        data = __import__("json").loads(raw)
+                        data = json.loads(raw)
                         size = float(data.get("size", 0) or 0)
                         entry = float(data.get("entry_price", 0) or 0)
                         total += size * entry
                 if cursor == 0 or cursor == b"0":
                     break
+            self._local_cache.set(cache_key, total)
+            self._record_redis_success()
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            self._record_redis_connection_error("position_notional", exc)
+            cached = self._local_cache.get(cache_key)
+            if cached is not None:
+                log.info(
+                    "using_local_cache_position_notional",
+                    notional=cached,
+                    failure_count=self._redis_failure_count,
+                )
+                return cached
         except Exception:
             log.debug("position_notional_scan_failed")
         return total
