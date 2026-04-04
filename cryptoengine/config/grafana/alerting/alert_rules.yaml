@@ -12,6 +12,9 @@ groups:
         condition: C
         data:
           - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: cryptoengine-postgres
             model:
               datasource:
@@ -25,6 +28,9 @@ groups:
                 FROM funding_rate_history
                 WHERE collected_at >= NOW() - INTERVAL '1 hour'
           - refId: B
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: "-100"
             model:
               type: reduce
@@ -32,6 +38,9 @@ groups:
               reducer: last
               conditions: []
           - refId: C
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: "-100"
             model:
               type: threshold
@@ -60,6 +69,9 @@ groups:
         condition: C
         data:
           - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
             datasourceUid: cryptoengine-postgres
             model:
               datasource:
@@ -70,12 +82,17 @@ groups:
               rawQuery: true
               rawSql: >-
                 SELECT
-                  (1 - CAST(last(total_equity, snapshot_at) AS FLOAT)
-                     / NULLIF(CAST(first(total_equity, snapshot_at) AS FLOAT), 0))
-                  AS value
+                  COALESCE(
+                    (1 - CAST(MAX(total_equity) FILTER (WHERE snapshot_at = (SELECT MAX(snapshot_at) FROM portfolio_snapshots)) AS FLOAT)
+                       / NULLIF(CAST(MIN(total_equity) FILTER (WHERE snapshot_at = (SELECT MIN(snapshot_at) FROM portfolio_snapshots WHERE snapshot_at >= NOW() - INTERVAL '15 minutes')) AS FLOAT), 0)),
+                    0
+                  ) AS value
                 FROM portfolio_snapshots
                 WHERE snapshot_at >= NOW() - INTERVAL '15 minutes'
           - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
             datasourceUid: "-100"
             model:
               type: reduce
@@ -83,6 +100,9 @@ groups:
               reducer: last
               conditions: []
           - refId: C
+            relativeTimeRange:
+              from: 900
+              to: 0
             datasourceUid: "-100"
             model:
               type: threshold
@@ -103,7 +123,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "자산이 15분 내 {{ $value | printf \"%.1f\" }}% 감소했습니다"
+          summary: "자산이 15분 내 감소했습니다"
 
       # ── Rule 3: 데이터 수집 중단 (OHLCV Gap) ─────────────────────────────
       - uid: alert-ohlcv-gap
@@ -111,6 +131,9 @@ groups:
         condition: C
         data:
           - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: cryptoengine-postgres
             model:
               datasource:
@@ -124,6 +147,9 @@ groups:
                 FROM ohlcv_history
                 WHERE symbol = 'BTCUSDT'
           - refId: B
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: "-100"
             model:
               type: reduce
@@ -131,6 +157,9 @@ groups:
               reducer: last
               conditions: []
           - refId: C
+            relativeTimeRange:
+              from: 3600
+              to: 0
             datasourceUid: "-100"
             model:
               type: threshold
@@ -159,6 +188,9 @@ groups:
         condition: C
         data:
           - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
             datasourceUid: cryptoengine-postgres
             model:
               datasource:
@@ -172,6 +204,9 @@ groups:
                 FROM kill_switch_events
                 WHERE triggered_at >= NOW() - INTERVAL '5 minutes'
           - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
             datasourceUid: "-100"
             model:
               type: reduce
@@ -179,6 +214,9 @@ groups:
               reducer: last
               conditions: []
           - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
             datasourceUid: "-100"
             model:
               type: threshold
@@ -207,6 +245,9 @@ groups:
         condition: C
         data:
           - refId: A
+            relativeTimeRange:
+              from: 259200
+              to: 0
             datasourceUid: cryptoengine-postgres
             model:
               datasource:
@@ -219,8 +260,11 @@ groups:
                 SELECT COUNT(*) AS value
                 FROM daily_reports
                 WHERE date >= CURRENT_DATE - INTERVAL '3 days'
-                  AND sharpe_ratio < 1.0
+                  AND max_drawdown > 0.1
           - refId: B
+            relativeTimeRange:
+              from: 259200
+              to: 0
             datasourceUid: "-100"
             model:
               type: reduce
@@ -228,6 +272,9 @@ groups:
               reducer: last
               conditions: []
           - refId: C
+            relativeTimeRange:
+              from: 259200
+              to: 0
             datasourceUid: "-100"
             model:
               type: threshold
@@ -248,4 +295,4 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Sharpe Ratio가 3일 연속 1.0 미만입니다"
+          summary: "최대 낙폭이 3일 연속 10% 초과"

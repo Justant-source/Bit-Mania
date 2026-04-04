@@ -1,12 +1,14 @@
-"""Claude Code CLI bridge for LLM invocations.
+"""LLM bridge: Anthropic SDK primary, rule-based fallback.
 
-Calls the Claude Code CLI as a subprocess and parses JSON output.
+Uses the Anthropic Python SDK when ANTHROPIC_API_KEY is available.
+Falls back to a deterministic rule-based analysis so dashboards always
+have data even without an API key.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
+import os
 import time
 from typing import Any
 
@@ -27,7 +29,7 @@ _SYSTEM_PROMPT = (
 
 
 class ClaudeCodeBridge:
-    """Invoke Claude Code CLI and return parsed responses."""
+    """Invoke LLM analysis via Anthropic SDK or fall back to rule-based analysis."""
 
     def __init__(
         self,
@@ -38,10 +40,17 @@ class ClaudeCodeBridge:
         self._cli_path = cli_path
         self._timeout = timeout
         self._max_retries = max_retries
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+        self._api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        self._client: Any = None
+        if self._api_key:
+            try:
+                import anthropic
+                self._client = anthropic.AsyncAnthropic(api_key=self._api_key)
+                log.info("claude_bridge_using_anthropic_sdk")
+            except ImportError:
+                log.warning("anthropic_package_not_installed_using_fallback")
+        else:
+            log.warning("anthropic_api_key_missing_using_rule_based_fallback")
 
     async def invoke(
         self,
@@ -50,116 +59,120 @@ class ClaudeCodeBridge:
         *,
         timeout: int | None = None,
     ) -> dict[str, Any] | None:
-        """Build a prompt, call Claude Code, and return parsed JSON.
+        """Invoke LLM analysis. Returns a dict or None on failure."""
+        if self._client:
+            result = await self._invoke_sdk(task, context, timeout or self._timeout)
+            if result is not None:
+                return result
+            log.warning("sdk_failed_falling_back_to_rule_based")
 
-        Returns ``None`` on unrecoverable failure so that callers can
-        continue without LLM output.
-        """
+        return self._rule_based_analysis(context or {})
+
+    async def _invoke_sdk(
+        self,
+        task: str,
+        context: dict[str, Any] | None,
+        timeout: int,
+    ) -> dict[str, Any] | None:
+        """Call Anthropic API via SDK."""
+        import asyncio
+        import anthropic
+
         prompt = self._build_prompt(task, context)
-        effective_timeout = timeout or self._timeout
-
-        last_error: Exception | None = None
         for attempt in range(1, self._max_retries + 1):
             try:
-                raw = await self._call_cli(prompt, effective_timeout)
+                msg = await asyncio.wait_for(
+                    self._client.messages.create(
+                        model="claude-opus-4-6",
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}],
+                    ),
+                    timeout=timeout,
+                )
+                raw = msg.content[0].text if msg.content else ""
                 return self._parse_response(raw)
             except asyncio.TimeoutError:
-                last_error = TimeoutError(
-                    f"Claude Code timed out after {effective_timeout}s"
-                )
-                log.warning(
-                    "claude_bridge_timeout",
-                    attempt=attempt,
-                    timeout=effective_timeout,
-                )
-            except _TransientError as exc:
-                last_error = exc
-                log.warning(
-                    "claude_bridge_transient_error",
-                    attempt=attempt,
-                    error=str(exc),
-                )
+                log.warning("sdk_timeout", attempt=attempt)
+            except anthropic.RateLimitError:
+                log.warning("sdk_rate_limit", attempt=attempt)
+            except anthropic.APIError as exc:
+                log.error("sdk_api_error", error=str(exc))
+                return None
             except Exception as exc:
-                log.error("claude_bridge_fatal_error", error=str(exc))
+                log.error("sdk_unexpected_error", error=str(exc))
                 return None
 
             if attempt < self._max_retries:
-                backoff = _RETRY_BACKOFF_BASE ** attempt
-                await asyncio.sleep(backoff)
-
-        log.error(
-            "claude_bridge_all_retries_exhausted",
-            retries=self._max_retries,
-            last_error=str(last_error),
-        )
+                import asyncio as _asyncio
+                await _asyncio.sleep(_RETRY_BACKOFF_BASE ** attempt)
         return None
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+    def _rule_based_analysis(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Generate rule-based analysis from market context."""
+        regime = context.get("regime", "ranging")
+        funding_rate = float(context.get("funding_rate", 0.0001))
+        btc_price = float(context.get("btc_price", 65000) if not isinstance(context.get("btc_price"), dict) else context["btc_price"].get("last", 65000))
+        oi_change = float(context.get("oi_change_pct", 0.0))
+
+        # Determine rating based on regime and funding rate
+        if regime in ("trending_up",) and funding_rate < 0.0003:
+            rating, confidence = "buy", 0.65
+        elif regime in ("trending_down",) or funding_rate > 0.001:
+            rating, confidence = "sell", 0.60
+        elif funding_rate > 0.0005:
+            rating, confidence = "hold", 0.70
+        else:
+            rating, confidence = "hold", 0.55
+
+        risk_flags = []
+        if funding_rate > 0.001:
+            risk_flags.append("high_funding_rate")
+        if abs(oi_change) > 5:
+            risk_flags.append("significant_oi_change")
+
+        return {
+            "rating": rating,
+            "confidence": confidence,
+            "regime_assessment": regime,
+            "reasoning": (
+                f"Rule-based analysis: regime={regime}, "
+                f"funding_rate={funding_rate:.4%}, btc_price=${btc_price:,.0f}. "
+                f"Note: Enable ANTHROPIC_API_KEY for full AI analysis."
+            ),
+            "technical_summary": f"BTC at ${btc_price:,.0f}. Market regime: {regime}.",
+            "sentiment_summary": f"Funding rate {funding_rate:.4%} suggests {'cautious' if funding_rate > 0.0005 else 'neutral'} sentiment.",
+            "bull_summary": "Potential upside if funding normalises and regime shifts trending_up.",
+            "bear_summary": f"Downside risk if regime remains {regime} with elevated funding.",
+            "debate_conclusion": f"Neutral stance recommended given current {regime} regime.",
+            "risk_assessment": "Risk managed via kill switch and 2x leverage cap.",
+            "weight_adjustments": {
+                "funding_arb": 0.5 if funding_rate > 0.0002 else 0.3,
+                "grid_trading": 0.3 if regime == "ranging" else 0.1,
+                "adaptive_dca": 0.2,
+            },
+            "risk_flags": risk_flags,
+            "source": "rule_based_fallback",
+        }
 
     @staticmethod
     def _build_prompt(task: str, context: dict[str, Any] | None) -> str:
-        """Construct the full prompt sent to Claude Code."""
         parts: list[str] = [_SYSTEM_PROMPT, "", f"### Task\n{task}"]
         if context:
             parts.append(
                 f"\n### Market Context\n```json\n"
                 f"{json.dumps(context, indent=2, default=str)}\n```"
             )
-        parts.append(
-            "\nRespond with a single JSON object. No markdown, no commentary."
-        )
+        parts.append("\nRespond with a single JSON object. No markdown, no commentary.")
         return "\n".join(parts)
-
-    async def _call_cli(self, prompt: str, timeout: int) -> str:
-        """Execute the Claude Code CLI and return raw stdout."""
-        cmd = [self._cli_path, "-p", prompt, "--output-format", "json"]
-        t0 = time.monotonic()
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.communicate()
-            raise
-
-        elapsed = time.monotonic() - t0
-        log.debug("claude_cli_completed", elapsed_s=round(elapsed, 2))
-
-        if proc.returncode != 0:
-            err_msg = (stderr or b"").decode(errors="replace").strip()
-            if _is_transient(err_msg):
-                raise _TransientError(err_msg)
-            raise RuntimeError(f"Claude Code exited {proc.returncode}: {err_msg}")
-
-        return (stdout or b"").decode(errors="replace")
 
     @staticmethod
     def _parse_response(raw: str) -> dict[str, Any]:
-        """Extract a JSON dict from Claude Code's JSON-mode output.
-
-        Claude Code ``--output-format json`` wraps the assistant message
-        inside a JSON envelope.  We try the full payload first, then fall
-        back to extracting the ``result`` or ``content`` field, and
-        finally attempt to find an embedded JSON object.
-        """
         try:
             envelope = json.loads(raw)
         except json.JSONDecodeError:
             pass
         else:
-            # Direct dict output (simple case)
             if isinstance(envelope, dict):
-                # Claude Code JSON envelope typically has a "result" key
                 for key in ("result", "content", "text"):
                     if key in envelope:
                         inner = envelope[key]
@@ -172,10 +185,8 @@ class ClaudeCodeBridge:
                                     return parsed
                             except json.JSONDecodeError:
                                 pass
-                # If envelope itself looks like the answer, return it
                 return envelope
 
-        # Last resort: find first { … } block
         start = raw.find("{")
         end = raw.rfind("}")
         if start != -1 and end != -1 and end > start:
@@ -184,28 +195,4 @@ class ClaudeCodeBridge:
             except json.JSONDecodeError:
                 pass
 
-        raise ValueError("Could not extract JSON from Claude Code output")
-
-
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-class _TransientError(Exception):
-    """Raised for errors that are likely transient and worth retrying."""
-
-
-def _is_transient(error_text: str) -> bool:
-    """Heuristic: decide if an error is transient."""
-    transient_markers = (
-        "rate limit",
-        "overloaded",
-        "timeout",
-        "503",
-        "502",
-        "429",
-        "temporarily unavailable",
-        "connection reset",
-    )
-    lower = error_text.lower()
-    return any(marker in lower for marker in transient_markers)
+        raise ValueError("Could not extract JSON from response")

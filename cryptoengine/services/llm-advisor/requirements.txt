@@ -1,3 +1,5 @@
+anthropic>=0.40.0,<1.0
+asyncpg>=0.29,<1
 redis[hiredis]>=5.0.0,<6.0
 pydantic>=2.6.0,<3.0
 structlog>=24.1.0,<25.0

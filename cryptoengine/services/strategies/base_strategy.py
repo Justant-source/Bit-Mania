@@ -13,9 +13,12 @@ abstract lifecycle hooks.  The base class owns:
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
+import asyncpg
 import structlog
 
 from shared.models.order import OrderRequest
@@ -53,10 +56,18 @@ class BaseStrategy(ABC):
         # Redis client — connected lazily in run()
         self._redis = RedisClient()
 
+        # DB pool — connected lazily in run()
+        self._db_pool: asyncpg.Pool | None = None
+
         # Composable controllers (Hummingbot V2 style)
         self._controllers: dict[str, Any] = {}
 
         self._log = logger.bind(strategy_id=strategy_id)
+
+    @property
+    def _db_strategy_id(self) -> str:
+        """Normalise strategy_id for DB: strip numeric suffix, replace hyphens."""
+        return re.sub(r"-\d+$", "", self.strategy_id).replace("-", "_")
 
     # ── composable controllers ──────────────────────────────────────────
 
@@ -73,6 +84,23 @@ class BaseStrategy(ABC):
     async def run(self) -> None:
         """Main event loop: subscribe to Redis commands and tick."""
         await self._redis.connect()
+
+        # Initialise DB pool
+        db_host = os.environ.get("DB_HOST", "postgres")
+        db_port = os.environ.get("DB_PORT", "5432")
+        db_name = os.environ.get("DB_NAME", "cryptoengine")
+        db_user = os.environ.get("DB_USER", "cryptoengine")
+        db_pass = os.environ.get("DB_PASSWORD", "cryptoengine")
+        db_url = os.environ.get(
+            "DATABASE_URL",
+            f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}",
+        )
+        try:
+            self._db_pool = await asyncpg.create_pool(db_url, min_size=1, max_size=3)
+            self._log.info("db_pool_created")
+        except Exception:
+            self._log.exception("db_pool_create_failed")
+
         command_channel = f"strategy:command:{self.strategy_id}"
 
         pubsub = self._redis.client.pubsub()
@@ -112,6 +140,8 @@ class BaseStrategy(ABC):
             await pubsub.unsubscribe(command_channel)
             await pubsub.close()
             await self._redis.disconnect()
+            if self._db_pool:
+                await self._db_pool.close()
 
     # ── abstract hooks ──────────────────────────────────────────────────
 
@@ -200,7 +230,7 @@ class BaseStrategy(ABC):
     # ── internal helpers ────────────────────────────────────────────────
 
     async def _publish_status(self) -> None:
-        """Publish heartbeat status to Redis."""
+        """Publish heartbeat status to Redis and upsert to strategy_states DB."""
         try:
             status = await self.get_status()
             await self._redis.set(
@@ -210,3 +240,28 @@ class BaseStrategy(ABC):
             )
         except Exception:
             self._log.exception("status_publish_error")
+            return
+
+        if self._db_pool:
+            try:
+                async with self._db_pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        INSERT INTO strategy_states
+                            (strategy_id, is_running, allocated_capital, current_pnl, position_count, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, NOW())
+                        ON CONFLICT (strategy_id) DO UPDATE SET
+                            is_running = EXCLUDED.is_running,
+                            allocated_capital = EXCLUDED.allocated_capital,
+                            current_pnl = EXCLUDED.current_pnl,
+                            position_count = EXCLUDED.position_count,
+                            updated_at = NOW()
+                        """,
+                        self._db_strategy_id,
+                        self.is_running,
+                        self.allocated_capital,
+                        self.current_pnl,
+                        self.position_count,
+                    )
+            except Exception:
+                self._log.exception("strategy_state_db_write_error")

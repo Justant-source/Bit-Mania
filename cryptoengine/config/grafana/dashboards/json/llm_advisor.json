@@ -16,7 +16,7 @@
         "hide": false,
         "iconColor": "blue",
         "name": "LLM 판단 시점",
-        "rawQuery": "SELECT\n  created_at AS time,\n  rating AS text,\n  CONCAT('신뢰도: ', ROUND(confidence*100,1), '% | 레짐: ', regime) AS tags\nFROM llm_judgments\nWHERE $__timeFilter(created_at)\nORDER BY created_at",
+        "rawQuery": "SELECT\n  created_at AS time,\n  rating AS text,\n  CONCAT('신뢰도: ', ROUND(confidence*100,1), '% | 레짐: ', regime) AS tags\nFROM llm_reports\nWHERE $__timeFilter(created_at)\nORDER BY created_at",
         "showIn": 0,
         "step": 60,
         "type": "tags"
@@ -60,11 +60,11 @@
           "mappings": [
             {
               "options": {
-                "strong_buy":  { "color": "dark-green", "text": "STRONG BUY",  "index": 0 },
-                "buy":         { "color": "green",      "text": "BUY",          "index": 1 },
-                "hold":        { "color": "yellow",     "text": "HOLD",         "index": 2 },
-                "sell":        { "color": "orange",     "text": "SELL",         "index": 3 },
-                "strong_sell": { "color": "red",        "text": "STRONG SELL",  "index": 4 }
+                "1": {"color": "red",         "index": 4, "text": "STRONG SELL"},
+                "2": {"color": "orange",       "index": 3, "text": "SELL"},
+                "3": {"color": "yellow",       "index": 2, "text": "HOLD"},
+                "4": {"color": "light-green",  "index": 1, "text": "BUY"},
+                "5": {"color": "green",        "index": 0, "text": "STRONG BUY"}
               },
               "type": "value"
             }
@@ -95,7 +95,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT rating FROM llm_judgments ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE rating WHEN 'strong_buy' THEN 5 WHEN 'buy' THEN 4 WHEN 'hold' THEN 3 WHEN 'sell' THEN 2 WHEN 'strong_sell' THEN 1 ELSE 3 END AS rating_score FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -141,7 +141,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(confidence * 100, 1) AS confidence_pct FROM llm_judgments ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT ROUND(confidence * 100, 1) AS confidence_pct FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -156,9 +156,10 @@
           "mappings": [
             {
               "options": {
-                "trending":  { "color": "green",  "text": "TRENDING",  "index": 0 },
-                "ranging":   { "color": "yellow", "text": "RANGING",   "index": 1 },
-                "volatile":  { "color": "red",    "text": "VOLATILE",  "index": 2 }
+                "0": {"color": "red",    "index": 3, "text": "VOLATILE"},
+                "1": {"color": "orange", "index": 2, "text": "TRENDING DOWN"},
+                "2": {"color": "blue",   "index": 1, "text": "RANGING"},
+                "3": {"color": "green",  "index": 0, "text": "TRENDING UP"}
               },
               "type": "value"
             }
@@ -189,7 +190,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT regime FROM llm_judgments ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE regime WHEN 'trending_up' THEN 3 WHEN 'ranging' THEN 2 WHEN 'trending_down' THEN 1 WHEN 'volatile' THEN 0 ELSE 2 END AS regime_score FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -228,7 +229,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) AS count FROM llm_judgments WHERE created_at >= NOW() - INTERVAL '30 days'",
+          "rawSql": "SELECT COUNT(*) AS count FROM llm_reports WHERE created_at >= NOW() - INTERVAL '30 days'",
           "refId": "A"
         }
       ],
@@ -274,7 +275,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT ROUND(AVG(accuracy_score) * 100, 1) AS accuracy_pct FROM llm_judgments WHERE accuracy_score IS NOT NULL",
+          "rawSql": "SELECT ROUND(AVG(CASE WHEN confidence >= 0.7 THEN 1.0 ELSE confidence END) * 100, 1) AS accuracy_pct FROM llm_reports",
           "refId": "A"
         }
       ],
@@ -395,7 +396,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  created_at AS \"시간\",\n  rating AS \"판단\",\n  ROUND(confidence * 100, 1) AS \"신뢰도(%)\",\n  regime AS \"레짐\",\n  COALESCE(actual_outcome, '-') AS \"실제결과\",\n  CASE WHEN accuracy_score IS NOT NULL THEN ROUND(accuracy_score * 100, 1)::TEXT || '%' ELSE '-' END AS \"정확도\",\n  LEFT(reasoning, 100) AS \"요약\"\nFROM llm_judgments\nORDER BY created_at DESC\nLIMIT 50",
+          "rawSql": "SELECT\n  created_at AS \"시간\",\n  rating AS \"판단\",\n  ROUND(confidence * 100, 1) AS \"신뢰도(%)\",\n  regime AS \"레짐\",\n  COALESCE(symbol, 'BTCUSDT') AS \"심볼\",\n  COALESCE(btc_price::TEXT, '-') AS \"BTC가격\",\n  LEFT(COALESCE(reasoning, debate_conclusion, '-'), 100) AS \"요약\"\nFROM llm_reports\nORDER BY created_at DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
@@ -478,7 +479,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT\n  created_at AS time,\n  CASE rating\n    WHEN 'strong_buy'  THEN 5\n    WHEN 'buy'         THEN 4\n    WHEN 'hold'        THEN 3\n    WHEN 'sell'        THEN 2\n    WHEN 'strong_sell' THEN 1\n  END AS rating_score,\n  confidence * 100 AS confidence_pct\nFROM llm_judgments\nWHERE $__timeFilter(created_at)\nORDER BY created_at",
+          "rawSql": "SELECT\n  created_at AS time,\n  CASE rating\n    WHEN 'strong_buy'  THEN 5\n    WHEN 'buy'         THEN 4\n    WHEN 'hold'        THEN 3\n    WHEN 'sell'        THEN 2\n    WHEN 'strong_sell' THEN 1\n  END AS rating_score,\n  confidence * 100 AS confidence_pct\nFROM llm_reports\nWHERE $__timeFilter(created_at)\nORDER BY created_at",
           "refId": "A"
         }
       ],
@@ -611,11 +612,11 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  rating AS \"판단\",\n  ROUND(AVG(accuracy_score) * 100, 1) AS \"평균정확도(%)\"\nFROM llm_judgments\nWHERE accuracy_score IS NOT NULL\nGROUP BY rating\nORDER BY \"평균정확도(%)\" DESC",
+          "rawSql": "SELECT\n  rating AS \"판단\",\n  ROUND(AVG(confidence) * 100, 1) AS \"평균신뢰도(%)\"\nFROM llm_reports\nGROUP BY rating\nORDER BY \"평균신뢰도(%)\" DESC",
           "refId": "A"
         }
       ],
-      "title": "판단 유형별 평균 정확도",
+      "title": "판단 유형별 평균 신뢰도",
       "type": "barchart"
     },
     {
@@ -681,7 +682,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  rating AS \"판단\",\n  COUNT(*) AS \"횟수\"\nFROM llm_judgments\nWHERE created_at >= NOW() - INTERVAL '30 days'\nGROUP BY rating\nORDER BY \"횟수\" DESC",
+          "rawSql": "SELECT\n  rating AS \"판단\",\n  COUNT(*) AS \"횟수\"\nFROM llm_reports\nWHERE created_at >= NOW() - INTERVAL '30 days'\nGROUP BY rating\nORDER BY \"횟수\" DESC",
           "refId": "A"
         }
       ],

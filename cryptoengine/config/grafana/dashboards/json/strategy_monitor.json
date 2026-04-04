@@ -57,8 +57,8 @@
           "mappings": [
             {
               "options": {
-                "false": { "color": "red", "index": 1, "text": "STOPPED" },
-                "true": { "color": "green", "index": 0, "text": "RUNNING" }
+                "0": { "color": "red", "index": 1, "text": "STOPPED" },
+                "1": { "color": "green", "index": 0, "text": "RUNNING" }
               },
               "type": "value"
             }
@@ -90,7 +90,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT is_running::text, updated_at FROM strategy_states WHERE strategy_id = 'funding_arb' ORDER BY updated_at DESC LIMIT 1",
+          "rawSql": "SELECT is_running::int AS status FROM strategy_states WHERE strategy_id = 'funding_arb' ORDER BY updated_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -108,8 +108,8 @@
           "mappings": [
             {
               "options": {
-                "false": { "color": "red", "index": 1, "text": "STOPPED" },
-                "true": { "color": "green", "index": 0, "text": "RUNNING" }
+                "0": { "color": "red", "index": 1, "text": "STOPPED" },
+                "1": { "color": "green", "index": 0, "text": "RUNNING" }
               },
               "type": "value"
             }
@@ -141,7 +141,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT is_running::text, updated_at FROM strategy_states WHERE strategy_id = 'grid_trading' ORDER BY updated_at DESC LIMIT 1",
+          "rawSql": "SELECT is_running::int AS status FROM strategy_states WHERE strategy_id = 'grid_trading' ORDER BY updated_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -159,8 +159,8 @@
           "mappings": [
             {
               "options": {
-                "false": { "color": "red", "index": 1, "text": "STOPPED" },
-                "true": { "color": "green", "index": 0, "text": "RUNNING" }
+                "0": { "color": "red", "index": 1, "text": "STOPPED" },
+                "1": { "color": "green", "index": 0, "text": "RUNNING" }
               },
               "type": "value"
             }
@@ -192,7 +192,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT is_running::text, updated_at FROM strategy_states WHERE strategy_id = 'adaptive_dca' ORDER BY updated_at DESC LIMIT 1",
+          "rawSql": "SELECT is_running::int AS status FROM strategy_states WHERE strategy_id = 'adaptive_dca' ORDER BY updated_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
