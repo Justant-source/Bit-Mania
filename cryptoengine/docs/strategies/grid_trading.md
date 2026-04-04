@@ -1,8 +1,35 @@
+---
+title: 그리드 트레이딩 전략
+tags:
+  - strategy
+  - auxiliary
+  - grid
+  - ranging-market
+aliases:
+  - Grid Trading
+  - 그리드 전략
+related:
+  - "[[architecture]]"
+  - "[[funding_arb]]"
+  - "[[adaptive_dca]]"
+  - "[[api]]"
+  - "[[runbook]]"
+---
+
 # 그리드 트레이딩 전략
+
+> [!info] 보조 전략
+> **횡보장(Ranging)** 특화 보조 전략. 시장 레짐이 `ranging`일 때 [[architecture#2. Strategy Orchestrator|오케스트레이터]]에 의해 활성화됩니다.
+> 관련 서비스: `services/strategies/grid-trading/`
 
 ## 개요
 
 현재 가격을 기준으로 위아래에 매수/매도 주문 그리드를 배치하여 횡보장에서 지속적으로 수익을 추구하는 전략입니다. 가격이 그리드를 오르내릴 때마다 소규모 차익을 실현합니다.
+
+> [!tip] 다른 전략과의 관계
+> - [[funding_arb|펀딩비 차익거래]]: 핵심 전략 — 펀딩비가 낮은 횡보장에서 그리드가 보완
+> - [[adaptive_dca|적응형 DCA]]: 장기 축적 전략 — 그리드와 병행 가능
+> - 레짐 전환 시 오케스트레이터가 자본 비중 조정 ([[architecture#2. Strategy Orchestrator|가중치 매트릭스]])
 
 ## 수익 구조
 
@@ -60,6 +87,10 @@
 | BB Width | < 0.06 | 볼린저밴드 폭 제한 |
 | 24시간 거래량 | > $50M | 유동성 확보 |
 
+> [!note] 레짐 감지
+> 시장 레짐은 [[architecture#1. Market Data Collector|Market Data Collector]]가 분류하여
+> [[api#`market:regime`|market:regime 채널]]로 배포합니다.
+
 ## 그리드 리밸런싱
 
 - **주기**: 60분마다 중심 가격 재계산
@@ -67,7 +98,7 @@
 - **프로세스**:
   1. 기존 미체결 주문 전량 취소
   2. 새로운 중심 가격 계산
-  3. 새 그리드 주문 배치
+  3. 새 그리드 주문 배치 ([[api#`order:request`|order:request 채널]] 경유)
 
 ## 안전 장치
 
@@ -94,7 +125,7 @@ risk:
 
 - **최대 포트폴리오 비중**: 30%
 - **최대 레버리지**: 2배
-- **최대 낙폭**: 4% 초과 시 자동 종료
+- **최대 낙폭**: 4% 초과 시 자동 종료 → [[architecture#Kill Switch 4단계|Kill Switch L1]] 발동 가능
 - **일일 손실 한도**: $300
 - **사이클당 이익 목표**: $500 도달 시 그리드 리셋
 
@@ -123,6 +154,9 @@ trailing_step_pct: 0.3
 - 실제 체결률 (fill rate) 고려 필요
 - 브레이크아웃 구간의 손실 확인 필수
 
+> [!tip] 백테스트 시스템
+> [[architecture#백테스트 시스템|백테스터]]의 Walk-Forward Analysis로 과적합 방지 가능
+
 ## 최적 환경
 
 | 환경 | 적합도 |
@@ -131,3 +165,11 @@ trailing_step_pct: 0.3
 | 약한 추세 (ADX 15-20) | 양호 |
 | 강한 추세 (ADX > 30) | 부적합 |
 | 고변동 (ATR > 2x 평균) | 부적합 |
+
+> [!seealso] 관련 문서
+> - [[architecture|시스템 아키텍처]] — 전체 서비스 구조
+> - [[api|내부 API]] — Redis 채널 및 메시지 포맷
+> - [[runbook|운영 매뉴얼]] — 인시던트 대응
+> - [[funding_arb|펀딩비 차익거래]] — 핵심 전략
+> - [[adaptive_dca|적응형 DCA]] — 장기 축적 보조 전략
+> - [[changelog|변경 이력]] — 버전별 변경사항

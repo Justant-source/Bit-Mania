@@ -205,7 +205,7 @@ services:
       - ./config:/app/config:ro
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.4.14
     restart: always
     depends_on:
       postgres:
@@ -214,6 +214,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro

@@ -1,8 +1,28 @@
+---
+title: CryptoEngine 내부 API 문서
+tags:
+  - api
+  - redis
+  - pubsub
+  - rest
+  - messaging
+aliases:
+  - API
+  - 내부 API
+  - Redis 채널
+related:
+  - "[[architecture]]"
+  - "[[runbook]]"
+  - "[[strategies/funding_arb]]"
+  - "[[strategies/grid_trading]]"
+  - "[[strategies/adaptive_dca]]"
+---
+
 # CryptoEngine 내부 API 문서
 
-## 개요
-
-CryptoEngine의 내부 통신은 Redis Pub/Sub 채널과 REST API (Dashboard)로 구성됩니다. 이 문서는 서비스 간 메시지 포맷과 Dashboard API 엔드포인트를 설명합니다.
+> [!abstract] 개요
+> 서비스 간 통신은 Redis Pub/Sub 채널과 REST API (Dashboard)로 구성됩니다.
+> 시스템 전체 구조는 [[architecture|아키텍처 문서]] 참조.
 
 ---
 
@@ -11,7 +31,7 @@ CryptoEngine의 내부 통신은 Redis Pub/Sub 채널과 REST API (Dashboard)로
 ### 시장 데이터 채널
 
 #### `market:ohlcv:{exchange}:{symbol}:{timeframe}`
-OHLCV 캔들 데이터 배포.
+OHLCV 캔들 데이터 배포. [[architecture#1. Market Data Collector|Market Data Collector]] → 전략 서비스
 
 ```json
 {
@@ -29,7 +49,7 @@ OHLCV 캔들 데이터 배포.
 ```
 
 #### `market:regime`
-시장 레짐 분류 결과.
+시장 레짐 분류 결과. → [[architecture#2. Strategy Orchestrator|오케스트레이터]]가 수신하여 가중치 조정
 
 ```json
 {
@@ -42,8 +62,13 @@ OHLCV 캔들 데이터 배포.
 }
 ```
 
+> [!note] 레짐별 전략 활성화
+> - `ranging` → [[strategies/grid_trading|그리드 트레이딩]] 활성화
+> - `trending_up/down` → [[strategies/funding_arb|펀딩비 차익거래]] 유지
+> - `volatile` → 전체 전략 축소
+
 #### `market:funding:{symbol}`
-펀딩레이트 업데이트.
+펀딩레이트 업데이트. → [[strategies/funding_arb|펀딩비 전략]]의 핵심 입력
 
 ```json
 {
@@ -58,7 +83,7 @@ OHLCV 캔들 데이터 배포.
 ### 주문 채널
 
 #### `order:request`
-전략 → 실행 엔진 주문 요청.
+전략 → [[architecture#3. Execution Engine|실행 엔진]] 주문 요청.
 
 ```json
 {
@@ -76,6 +101,11 @@ OHLCV 캔들 데이터 배포.
   "take_profit": null
 }
 ```
+
+> [!tip] 주문을 사용하는 전략
+> - [[strategies/funding_arb|펀딩비]]: 현물+선물 동시 주문
+> - [[strategies/grid_trading|그리드]]: 다수의 지정가 주문
+> - [[strategies/adaptive_dca|DCA]]: 시장가/지정가 매수 주문
 
 #### `order:result`
 실행 엔진 → 전략 주문 결과.
@@ -107,7 +137,7 @@ OHLCV 캔들 데이터 배포.
 ### 전략 명령 채널
 
 #### `strategy:{strategy_id}:command`
-오케스트레이터 → 전략 자본 배분 명령.
+[[architecture#2. Strategy Orchestrator|오케스트레이터]] → 전략 자본 배분 명령.
 
 ```json
 {
@@ -123,7 +153,7 @@ OHLCV 캔들 데이터 배포.
 ### 시스템 채널
 
 #### `system:kill_switch`
-Kill Switch 발동 이벤트.
+[[architecture#Kill Switch 4단계|Kill Switch]] 발동 이벤트. 대응 절차: [[runbook#Kill Switch 대응]]
 
 ```json
 {
@@ -135,7 +165,7 @@ Kill Switch 발동 이벤트.
 ```
 
 #### `llm:advisory`
-LLM 어드바이저 가중치 조정 제안.
+[[architecture#5. LLM Advisor|LLM 어드바이저]] 가중치 조정 제안.
 
 ```json
 {
@@ -187,7 +217,6 @@ LLM 분석 요청 (온디맨드).
 #### `GET /api/internal/portfolio`
 현재 포트폴리오 상태 조회.
 
-**응답**:
 ```json
 {
   "total_equity": 10000.0,
@@ -215,7 +244,7 @@ LLM 분석 요청 (온디맨드).
 현재 시장 레짐.
 
 #### `POST /api/internal/kill-switch`
-Kill Switch 수동 발동.
+Kill Switch 수동 발동. [[runbook#Kill Switch 대응|대응 절차 참조]]
 
 ```json
 {
@@ -245,6 +274,9 @@ Kill Switch 해제.
 ---
 
 ## 도메인 모델 (Pydantic v2)
+
+> [!note] 모델 위치
+> `shared/models/` 디렉토리에 정의. [[architecture#디렉토리 구조|디렉토리 구조]] 참조.
 
 ### OrderRequest
 
@@ -312,3 +344,14 @@ class MarketRegime(BaseModel):
 | `execution_failed_after_3_retries` | 3회 재시도 후 실행 실패 | 거래소 상태 확인 |
 | `order_timeout` | 주문 타임아웃 (30초) | 네트워크 확인 |
 | `order_rejected` | 거래소에서 주문 거부 | 잔고/마진 확인 |
+
+> [!tip] 문제 해결
+> 에러 발생 시 [[runbook#문제 해결|운영 매뉴얼 문제 해결]] 섹션 참조
+
+> [!seealso] 관련 문서
+> - [[architecture|시스템 아키텍처]] — 서비스 구조 및 역할
+> - [[runbook|운영 매뉴얼]] — 인시던트 대응 및 문제 해결
+> - [[strategies/funding_arb|펀딩비 차익거래]] — 핵심 전략
+> - [[strategies/grid_trading|그리드 트레이딩]] — 보조 전략
+> - [[strategies/adaptive_dca|적응형 DCA]] — 보조 전략
+> - [[changelog|변경 이력]] — 버전별 변경사항

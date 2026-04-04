@@ -1,3 +1,19 @@
+---
+title: 변경 이력
+tags:
+  - changelog
+  - release
+  - version
+aliases:
+  - Changelog
+  - 릴리스 노트
+related:
+  - "[[architecture]]"
+  - "[[strategies/funding_arb]]"
+  - "[[strategies/grid_trading]]"
+  - "[[strategies/adaptive_dca]]"
+---
+
 # 변경 이력 (Changelog)
 
 이 문서는 CryptoEngine의 주요 변경 사항을 기록합니다.
@@ -11,8 +27,8 @@
 ### 추가 (Added)
 
 #### 핵심 시스템
-- PostgreSQL 16 기반 데이터 저장소 (asyncpg 연결 풀)
-- Redis 7 기반 이벤트 버스 및 캐시 레이어
+- [[architecture#PostgreSQL 16|PostgreSQL 16]] 기반 데이터 저장소 (asyncpg 연결 풀)
+- [[architecture#Redis 7|Redis 7]] 기반 이벤트 버스 및 캐시 레이어
 - Docker Compose 기반 마이크로서비스 배포
 - structlog 기반 구조화된 JSON 로깅 (correlation ID 포함)
 - YAML 설정 로더 (환경변수 치환 지원)
@@ -24,12 +40,12 @@
 - 거래소 팩토리 패턴 (`exchange_factory`)
 
 #### 전략
-- **펀딩 레이트 차익거래**: 델타 중립 포지션 관리, Basis Spread State Machine, 펀딩비 추적
-- **그리드 트레이딩**: 기하급수/등차 그리드, 레짐 기반 활성화, 자동 리밸런싱
-- **적응형 DCA**: Fear & Greed 멀티플라이어, RSI/이동평균/변동성 기반 적응, 이익 실현 래더
+- **[[strategies/funding_arb|펀딩 레이트 차익거래]]**: 델타 중립 포지션 관리, Basis Spread State Machine, 펀딩비 추적
+- **[[strategies/grid_trading|그리드 트레이딩]]**: 기하급수/등차 그리드, 레짐 기반 활성화, 자동 리밸런싱
+- **[[strategies/adaptive_dca|적응형 DCA]]**: Fear & Greed 멀티플라이어, RSI/이동평균/변동성 기반 적응, 이익 실현 래더
 
 #### 오케스트레이터
-- 시장 레짐 기반 가중치 매트릭스
+- [[architecture#2. Strategy Orchestrator|시장 레짐 기반 가중치 매트릭스]]
 - EMA 스무딩 가중치 전환
 - 포트폴리오 모니터링
 - ML 레짐 분류 모델 통합
@@ -37,14 +53,14 @@
 - LLM 어드바이저 가중치 조정 통합
 
 #### 실행 엔진
-- Redis pub/sub 기반 주문 수신
+- [[architecture#3. Execution Engine|Redis pub/sub 기반 주문 수신]]
 - 안전성 검사 (Safety Guard)
 - 동시 주문 제한 (세마포어)
 - 재시도 로직 (지수 백오프, 최대 3회)
 - 멱등성 보장 (request_id 중복 검사)
 
 #### 리스크 관리
-- 4단계 Kill Switch (전략/포트폴리오/시스템/수동)
+- [[architecture#Kill Switch 4단계|4단계 Kill Switch]] (전략/포트폴리오/시스템/수동)
 - 쿨다운 및 자동 복구 메커니즘
 - Sharpe/Sortino 비율 계산
 - 최대 낙폭 추적
@@ -52,28 +68,28 @@
 - 레버리지 검증
 
 #### 시장 데이터
-- 실시간 OHLCV 수집기
+- [[architecture#1. Market Data Collector|실시간 OHLCV 수집기]]
 - 기술적 지표 계산 (ADX, ATR, BB, EMA)
 - 시장 레짐 분류기 (ranging/trending/volatile)
 - Feature Engine (ML 모델용)
 - 펀딩레이트 모니터
 
 #### LLM 어드바이저
-- Claude Code CLI 기반 분석 엔진
+- [[architecture#5. LLM Advisor|Claude Code CLI 기반 분석 엔진]]
 - 다단계 분석 그래프
 - 차트 비전 분석
 - 일일 회고 (Daily Reflection)
 - 신뢰도 기반 가중치 조정
 
 #### 백테스트 시스템
-- FreqtradeBridge (CLI + 내부 이벤트 엔진)
+- [[architecture#백테스트 시스템|FreqtradeBridge]] (CLI + 내부 이벤트 엔진)
 - Walk-Forward Analysis (슬라이딩 윈도우)
 - Monte Carlo 시뮬레이션 (신뢰구간)
 - HTML/Markdown 리포트 생성기
 
 #### 운영 도구
-- Telegram Bot (알림 + 수동 명령)
-- Express.js Dashboard (내부/외부 API)
+- [[architecture#6. Telegram Bot|Telegram Bot]] (알림 + 수동 명령)
+- [[architecture#7. Dashboard|Express.js Dashboard]] (내부/외부 API)
 - Grafana 연동
 - 데이터베이스 초기화 스크립트 (`init_db.py`)
 - 히스토리 데이터 시드 스크립트 (`seed_historical.py`)
@@ -88,11 +104,11 @@
 - 백테스트: 펀딩 차익, 그리드 트레이딩, 복합 전략
 
 #### 문서
-- 시스템 아키텍처 문서
-- 전략별 상세 문서 (펀딩 차익, 그리드 트레이딩, 적응형 DCA)
-- 운영 매뉴얼 (Runbook)
-- 내부 API 문서
-- 변경 이력
+- [[architecture|시스템 아키텍처 문서]]
+- 전략별 상세 문서 ([[strategies/funding_arb|펀딩 차익]], [[strategies/grid_trading|그리드 트레이딩]], [[strategies/adaptive_dca|적응형 DCA]])
+- [[runbook|운영 매뉴얼 (Runbook)]]
+- [[api|내부 API 문서]]
+- 변경 이력 (이 문서)
 
 ---
 

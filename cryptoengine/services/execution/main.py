@@ -136,7 +136,36 @@ async def main() -> None:
     )
     await position_tracker.sync_from_exchange()
 
-    # --- Publish wallet balance to Redis for orchestrator ---
+    # --- Publish wallet balance to Redis for orchestrator (periodic) ---
+    import json as _json
+
+    async def _balance_publisher(shutdown: asyncio.Event) -> None:
+        """Refresh wallet balance in Redis every 60 s so orchestrator never sees 0."""
+        while not shutdown.is_set():
+            try:
+                connector = exchange_factory(
+                    EXCHANGE,
+                    api_key=BYBIT_API_KEY,
+                    api_secret=BYBIT_API_SECRET,
+                    testnet=BYBIT_TESTNET,
+                )
+                await connector.connect()
+                balance = await connector.get_balance()
+                await redis_client.setex(
+                    "cache:wallet_balance",
+                    300,  # 5분 TTL (60초마다 갱신하므로 충분)
+                    _json.dumps(balance),
+                )
+                log.info("wallet_balance_published", total_usdt=balance.get("total", 0))
+                await connector.disconnect()
+            except Exception:
+                log.exception("wallet_balance_publish_failed")
+            try:
+                await asyncio.wait_for(shutdown.wait(), timeout=60)
+            except asyncio.TimeoutError:
+                pass
+
+    # 최초 1회 즉시 실행
     try:
         connector = exchange_factory(
             EXCHANGE,
@@ -146,12 +175,7 @@ async def main() -> None:
         )
         await connector.connect()
         balance = await connector.get_balance()
-        import json as _json
-        await redis_client.setex(
-            "cache:wallet_balance",
-            300,  # 5분 TTL
-            _json.dumps(balance),
-        )
+        await redis_client.setex("cache:wallet_balance", 300, _json.dumps(balance))
         log.info("wallet_balance_published", total_usdt=balance.get("total", 0))
         await connector.disconnect()
     except Exception:
@@ -183,6 +207,7 @@ async def main() -> None:
     tasks = [
         asyncio.create_task(engine.run(shutdown_event), name="execution_engine"),
         asyncio.create_task(position_tracker.run(shutdown_event), name="position_tracker"),
+        asyncio.create_task(_balance_publisher(shutdown_event), name="balance_publisher"),
     ]
 
     log.info("execution_tasks_launched", count=len(tasks))

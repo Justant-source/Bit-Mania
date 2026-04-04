@@ -1,8 +1,36 @@
+---
+title: 적응형 DCA 전략
+tags:
+  - strategy
+  - auxiliary
+  - dca
+  - fear-and-greed
+  - long-term
+aliases:
+  - Adaptive DCA
+  - 적응형 적립식
+related:
+  - "[[architecture]]"
+  - "[[funding_arb]]"
+  - "[[grid_trading]]"
+  - "[[api]]"
+  - "[[runbook]]"
+---
+
 # 적응형 DCA (Dollar-Cost Averaging) 전략
+
+> [!info] 보조 전략
+> **장기 축적** 목적의 보조 전략. 시장 심리 지표에 따라 매수량을 동적으로 조절합니다.
+> 관련 서비스: `services/strategies/adaptive-dca/`
 
 ## 개요
 
 시장 조건에 따라 매수 금액과 간격을 동적으로 조절하는 DCA 전략입니다. 공포 구간에서는 공격적으로 매수하고, 탐욕 구간에서는 보수적으로 운영하여 평균 매입 단가를 최적화합니다.
+
+> [!tip] 다른 전략과의 관계
+> - [[funding_arb|펀딩비 차익거래]]: 핵심 전략 — 방향성 없는 수익, DCA는 방향성(롱) 수익
+> - [[grid_trading|그리드 트레이딩]]: 횡보장 보조 — DCA와 병행하여 다양한 시장 환경 커버
+> - 자본 배분은 [[architecture#2. Strategy Orchestrator|오케스트레이터]]가 레짐에 따라 관리
 
 ## 수익 구조
 
@@ -50,6 +78,9 @@ EMA200 기준:
   상회 시  → 0.7배
   20% 이상 상회 → 0.3배
 ```
+
+> [!note] 기술적 지표 출처
+> EMA200은 [[architecture#1. Market Data Collector|Market Data Collector]]가 계산하여 Redis에 캐싱합니다.
 
 ### 3. RSI 기반
 
@@ -110,6 +141,10 @@ max_combined_multiplier: 5.0   # 최대 5.0배
 | 일일 한도 | $500 | 일일 최대 투입 |
 | 주간 한도 | $2,000 | 주간 최대 투입 |
 
+> [!warning] Kill Switch 연동
+> 포트폴리오 레벨 낙폭(-5% 일일) 시 [[architecture#Kill Switch 4단계|Kill Switch L2]]가 발동되어 DCA 포지션도 청산됩니다.
+> 대응 절차: [[runbook#Kill Switch 대응]]
+
 ## 운영 사이클
 
 ```
@@ -128,11 +163,15 @@ max_combined_multiplier: 5.0   # 최대 5.0배
 5. 한도 검사 (일일/주간/총액)
    ↓
 6. 주문 실행 (시장가 또는 지정가)
+   → order:request 채널 경유 → 실행 엔진
    ↓
 7. 이익 실현 래더 확인
    ↓
 8. DB 기록 (dca_purchases 테이블)
 ```
+
+> [!note] 주문 실행 흐름
+> [[api#`order:request`|order:request]] → [[architecture#3. Execution Engine|실행 엔진]] → [[api#`order:result`|order:result]]
 
 ## 설정 파일
 
@@ -145,6 +184,9 @@ max_combined_multiplier: 5.0   # 최대 5.0배
 - 이익 실현 시점의 슬리피지 반영
 - 상승장 편향(bias) 주의 — 하락장 데이터도 포함
 
+> [!tip] 백테스트 시스템
+> [[architecture#백테스트 시스템|백테스터]]의 Monte Carlo 시뮬레이션으로 신뢰구간 확인 권장
+
 ## 최적 환경
 
 | 환경 | 적합도 |
@@ -154,3 +196,11 @@ max_combined_multiplier: 5.0   # 최대 5.0배
 | 단기 하락 | 양호 (평균 단가 하락) |
 | 장기 하락 | 주의 (한도 관리 중요) |
 | 급락 (공포) | 공격적 매수 구간 |
+
+> [!seealso] 관련 문서
+> - [[architecture|시스템 아키텍처]] — 전체 서비스 구조
+> - [[api|내부 API]] — Redis 채널 및 메시지 포맷
+> - [[runbook|운영 매뉴얼]] — 인시던트 대응
+> - [[funding_arb|펀딩비 차익거래]] — 핵심 전략
+> - [[grid_trading|그리드 트레이딩]] — 횡보장 보조 전략
+> - [[changelog|변경 이력]] — 버전별 변경사항
