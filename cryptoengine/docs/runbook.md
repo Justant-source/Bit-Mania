@@ -1,14 +1,33 @@
+---
+title: CryptoEngine 운영 매뉴얼
+tags:
+  - operations
+  - runbook
+  - incident
+  - kill-switch
+  - monitoring
+aliases:
+  - Runbook
+  - 운영 매뉴얼
+  - 인시던트 대응
+related:
+  - "[[architecture]]"
+  - "[[api]]"
+  - "[[strategies/funding_arb]]"
+  - "[[strategies/grid_trading]]"
+  - "[[strategies/adaptive_dca]]"
+---
+
 # CryptoEngine 운영 매뉴얼 (Runbook)
 
-## 목차
-
-1. [시스템 시작/중지](#시스템-시작중지)
-2. [일상 운영](#일상-운영)
-3. [인시던트 대응](#인시던트-대응)
-4. [Kill Switch 대응](#kill-switch-대응)
-5. [데이터베이스 관리](#데이터베이스-관리)
-6. [모니터링](#모니터링)
-7. [문제 해결](#문제-해결)
+> [!abstract] 목차
+> 1. [[#시스템 시작/중지]]
+> 2. [[#일상 운영]]
+> 3. [[#인시던트 대응]]
+> 4. [[#Kill Switch 대응]]
+> 5. [[#데이터베이스 관리]]
+> 6. [[#모니터링]]
+> 7. [[#문제 해결]]
 
 ---
 
@@ -33,6 +52,9 @@ docker compose up -d
 # 5. 상태 확인
 python scripts/health_check.py
 ```
+
+> [!note] 시스템 구성
+> 전체 서비스 목록 및 의존 관계는 [[architecture|아키텍처 문서]] 참조
 
 ### 전체 시스템 중지
 
@@ -80,7 +102,7 @@ docker compose restart strategy-orchestrator
 
 ### 주간 확인 사항
 
-1. **백테스트 실행**
+1. **백테스트 실행** ([[architecture#백테스트 시스템|백테스터 참조]])
    ```bash
    docker compose run --rm backtester \
      python main.py --strategy combined --walk-forward
@@ -128,19 +150,15 @@ docker compose restart strategy-orchestrator
 
 ### P1 대응 절차
 
-```
-1. 텔레그램에서 /kill 실행 (모든 포지션 즉시 청산)
-2. 시스템 로그 확인
-   docker compose logs --since=30m
-3. 거래소 API 상태 확인
-   curl https://api.bybit.com/v5/market/time
-4. 포지션 수동 확인 (Bybit 웹사이트)
-5. 원인 파악 후 조치
-6. 시스템 재시작
-   docker compose restart
-7. /resume 명령으로 거래 재개
-8. 인시던트 보고서 작성
-```
+> [!danger] P1: 자금 손실 위험
+> 1. 텔레그램에서 `/kill` 실행 (모든 포지션 즉시 청산)
+> 2. 시스템 로그 확인: `docker compose logs --since=30m`
+> 3. 거래소 API 상태 확인: `curl https://api.bybit.com/v5/market/time`
+> 4. 포지션 수동 확인 (Bybit 웹사이트)
+> 5. 원인 파악 후 조치
+> 6. 시스템 재시작: `docker compose restart`
+> 7. `/resume` 명령으로 거래 재개
+> 8. 인시던트 보고서 작성
 
 ### P2 대응 절차
 
@@ -161,11 +179,19 @@ docker compose restart strategy-orchestrator
 
 ## Kill Switch 대응
 
+> [!important] Kill Switch 개요
+> [[architecture#Kill Switch 4단계|4단계 Kill Switch 시스템]]은 자금 보호를 위한 최후 방어선입니다.
+> 이벤트 메시지 포맷: [[api#`system:kill_switch`|system:kill_switch 채널]]
+
 ### L1 — 전략 레벨
 
 - **증상**: 개별 전략 최대 낙폭 초과
 - **동작**: 해당 전략만 중지, 포지션 청산
 - **복구**: 쿨다운(4시간) 후 자동 재개
+- **영향 받는 전략**:
+  - [[strategies/funding_arb|펀딩비]]: 델타 중립 해제 → 양쪽 레그 청산
+  - [[strategies/grid_trading|그리드]]: 전 그리드 주문 취소
+  - [[strategies/adaptive_dca|DCA]]: 매수 일시 중지
 - **확인**:
   ```bash
   docker compose logs strategy-orchestrator | grep "kill-switch"
@@ -203,9 +229,16 @@ docker compose restart strategy-orchestrator
   2. 문제 해결
   3. 텔레그램에서 `/resume` 실행
 
+> [!tip] Dashboard에서도 Kill Switch 제어 가능
+> [[api#`POST /api/internal/kill-switch`|POST /api/internal/kill-switch]] 및
+> [[api#`POST /api/internal/resume`|POST /api/internal/resume]]
+
 ---
 
 ## 데이터베이스 관리
+
+> [!note] DB 스키마
+> 테이블 목록 및 용도는 [[architecture#PostgreSQL 16|아키텍처 문서]] 참조
 
 ### 백업
 
@@ -295,14 +328,17 @@ docker compose config
 
 ### 주문이 체결되지 않는 경우
 
-1. Execution Engine 로그 확인
+1. [[architecture#3. Execution Engine|Execution Engine]] 로그 확인
 2. Bybit API 상태 확인
 3. API 키 잔여 한도 확인
 4. 잔고 확인: `/balance`
 
+> [!tip] 에러 코드 참조
+> [[api#에러 코드|API 에러 코드]] 목록 참조
+
 ### 레짐 감지 오류
 
-1. Market Data 서비스 로그 확인
+1. [[architecture#1. Market Data Collector|Market Data]] 서비스 로그 확인
 2. OHLCV 데이터 수집 상태 확인
 3. Redis에 저장된 레짐 확인:
    ```bash
@@ -331,3 +367,11 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine \
 |------|--------|-----------|
 | 시스템 운영자 | 텔레그램 봇 | P1-P4 |
 | 거래소 지원 | Bybit 서포트 | API 장애 |
+
+> [!seealso] 관련 문서
+> - [[architecture|시스템 아키텍처]] — 서비스 구조 및 역할
+> - [[api|내부 API]] — Redis 채널, 메시지 포맷, REST 엔드포인트
+> - [[strategies/funding_arb|펀딩비 차익거래]] — 핵심 전략
+> - [[strategies/grid_trading|그리드 트레이딩]] — 보조 전략
+> - [[strategies/adaptive_dca|적응형 DCA]] — 보조 전략
+> - [[changelog|변경 이력]] — 버전별 변경사항

@@ -1,325 +1,457 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_CRYPTOENGINE_POSTGRESQL",
-      "label": "CryptoEngine PostgreSQL",
-      "description": "",
-      "type": "datasource",
-      "pluginId": "postgres",
-      "pluginName": "PostgreSQL"
-    }
-  ],
-  "__requires": [
-    {
-      "type": "grafana",
-      "id": "grafana",
-      "name": "Grafana",
-      "version": "9.0.0"
-    },
-    {
-      "type": "datasource",
-      "id": "postgres",
-      "name": "PostgreSQL",
-      "version": "1.0.0"
-    },
-    {
-      "type": "panel",
-      "id": "table",
-      "name": "Table",
-      "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
-    }
-  ],
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
-  "description": "CryptoEngine 백테스트 결과 분석 대시보드",
+  "annotations": { "list": [{ "builtIn": 1, "datasource": {"type":"grafana","uid":"-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0,211,255,1)", "name": "Annotations & Alerts", "type": "dashboard" }] },
+  "description": "CryptoEngine 전략별 종합 백테스트 분석",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [],
   "panels": [
+
     {
-      "datasource": {
-        "type": "postgres",
-        "uid": "cryptoengine-postgres"
-      },
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":0},
+      "id": 100,
+      "title": "📊 전체 시나리오 성과 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": {
-            "align": "auto",
-            "cellOptions": { "type": "auto" },
-            "inspect": false
-          },
+          "color": {"mode":"thresholds"},
+          "custom": {"align":"auto","cellOptions":{"type":"auto"},"inspect":false},
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
-            ]
-          }
+          "thresholds": {"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}
         },
         "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "수익률(%)" },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "gradient" }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "red", "value": null },
-                    { "color": "yellow", "value": 0 },
-                    { "color": "green", "value": 10 }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "MDD(%)" },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "gradient" }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "green", "value": null },
-                    { "color": "yellow", "value": -10 },
-                    { "color": "red", "value": -20 }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Sharpe" },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "gradient" }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "red", "value": null },
-                    { "color": "yellow", "value": 1 },
-                    { "color": "green", "value": 2 }
-                  ]
-                }
-              }
-            ]
-          }
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":50}]}}]},
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"MDD(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":-20},{"color":"red","value":-50}]}}]},
+          {"matcher":{"id":"byName","options":"Sortino"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]}
         ]
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {"h":12,"w":24,"x":0,"y":1},
       "id": 1,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": ["sum"],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "수익률(%)" }]
-      },
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"Sharpe"}]},
       "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "postgres",
-            "uid": "cryptoengine-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT strategy, symbol,\n       round(total_return::numeric, 2) as \"수익률(%)\",\n       round(sharpe_ratio::numeric, 2) as \"Sharpe\",\n       round(max_drawdown::numeric, 2) as \"MDD(%)\",\n       total_trades as \"거래수\",\n       round(win_rate::numeric, 1) as \"승률(%)\",\n       start_date::date as \"시작\", end_date::date as \"종료\"\nFROM backtest_results\nORDER BY run_at DESC",
-          "refId": "A",
-          "sql": {
-            "columns": [{ "parameters": [], "type": "function" }],
-            "groupBy": [{ "property": { "type": "string" }, "type": "groupBy" }],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "전략별 백테스트 성과 비교",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  strategy AS \"전략\",\n  metadata->>'timeframe' AS \"타임프레임\",\n  round(initial_capital::numeric) AS \"초기자본($)\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round((metadata->>'sortino_ratio')::numeric,2) AS \"Sortino\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  round((metadata->>'profit_factor')::numeric,2) AS \"손익비\",\n  round(win_rate::numeric,1) AS \"승률(%)\",\n  total_trades AS \"거래수\",\n  round((metadata->>'avg_trade_duration_hours')::numeric,1) AS \"평균보유(h)\"\nFROM backtest_results\nORDER BY sharpe_ratio DESC NULLS LAST",
+        "refId": "A"
+      }],
+      "title": "전체 시나리오 성과 비교 (Sharpe 기준 정렬)",
       "type": "table"
     },
+
     {
-      "datasource": {
-        "type": "postgres",
-        "uid": "cryptoengine-postgres"
-      },
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":13},
+      "id": 101,
+      "title": "📈 전략별 핵심 지표 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
       "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
-            ]
-          },
-          "unit": "percent"
-        },
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]},"unit":"none"},
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "gridPos": {"h":9,"w":8,"x":0,"y":14},
       "id": 2,
-      "options": {
-        "legend": { "calcs": ["mean", "max", "min"], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "single", "sort": "none" }
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy AS \"전략\", round(avg(sharpe_ratio)::numeric,2) AS \"평균 Sharpe\"\nFROM backtest_results\nGROUP BY strategy ORDER BY avg(sharpe_ratio) DESC",
+        "refId": "A"
+      }],
+      "title": "전략별 평균 Sharpe Ratio",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"percent"},
+        "overrides": []
       },
-      "targets": [
-        {
-          "datasource": {
-            "type": "postgres",
-            "uid": "cryptoengine-postgres"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, rate * 100 AS \"펀딩비(%)\"\nFROM funding_rate_history\nWHERE symbol = 'BTCUSDT'\nORDER BY timestamp",
-          "refId": "A",
-          "sql": {
-            "columns": [{ "parameters": [], "type": "function" }],
-            "groupBy": [{ "property": { "type": "string" }, "type": "groupBy" }],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "펀딩비 히스토리 (BTCUSDT)",
+      "gridPos": {"h":9,"w":8,"x":8,"y":14},
+      "id": 3,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy AS \"전략\", round(avg(win_rate)::numeric,1) AS \"평균 승률\"\nFROM backtest_results\nGROUP BY strategy ORDER BY avg(win_rate) DESC",
+        "refId": "A"
+      }],
+      "title": "전략별 평균 승률(%)",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"fillOpacity":70,"gradientMode":"none","hideFrom":{"legend":false,"tooltip":false,"viz":false},"lineWidth":1},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":9,"w":8,"x":16,"y":14},
+      "id": 4,
+      "options": {"barRadius":0.1,"barWidth":0.6,"fullHighlight":false,"groupWidth":0.7,"legend":{"calcs":[],"displayMode":"list","placement":"bottom","showLegend":true},"orientation":"auto","showValue":"auto","stacking":"none","tooltip":{"mode":"single","sort":"none"},"xTickLabelRotation":-30},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy AS \"전략\", round(avg(max_drawdown)::numeric,2) AS \"평균 MDD\"\nFROM backtest_results\nGROUP BY strategy ORDER BY avg(max_drawdown) ASC",
+        "refId": "A"
+      }],
+      "title": "전략별 평균 MDD(%, 낮을수록 좋음)",
+      "type": "barchart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":23},
+      "id": 102,
+      "title": "🕐 타임프레임 & 기간별 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":50}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":12,"x":0,"y":24},
+      "id": 5,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'timeframe' AS \"타임프레임\",\n  strategy AS \"전략\",\n  round(avg(total_return)::numeric,2) AS \"평균 수익률(%)\",\n  round(avg(sharpe_ratio)::numeric,2) AS \"Sharpe\",\n  round(avg(max_drawdown)::numeric,2) AS \"MDD(%)\",\n  sum(total_trades) AS \"총거래수\"\nFROM backtest_results\nGROUP BY metadata->>'timeframe', strategy\nORDER BY metadata->>'timeframe', avg(sharpe_ratio) DESC",
+        "refId": "A"
+      }],
+      "title": "타임프레임별 전략 성과",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]},
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":50}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":12,"x":12,"y":24},
+      "id": 6,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"기간/시나리오\",\n  strategy AS \"전략\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  total_trades AS \"거래수\"\nFROM backtest_results\nWHERE metadata->>'scenario' IN ('Q4_2025','Q1_2026','6m_full')\n  AND metadata->>'timeframe' = '1h'\nORDER BY metadata->>'scenario', strategy",
+        "refId": "A"
+      }],
+      "title": "기간별 성과 (Q4 2025 / Q1 2026 / 전체 6개월)",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":32},
+      "id": 103,
+      "title": "💰 자본 규모별 비교",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":50}]}}]},
+          {"matcher":{"id":"byName","options":"최종자산($)"},"properties":[{"id":"unit","value":"currencyUSD"}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":24,"x":0,"y":33},
+      "id": 7,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  strategy AS \"전략\",\n  round(initial_capital::numeric) AS \"초기자본($)\",\n  round(final_equity::numeric,2) AS \"최종자산($)\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\"\nFROM backtest_results\nWHERE metadata->>'scenario' IN ('small_cap','6m_full','large_cap')\n  AND metadata->>'timeframe' = '1h'\nORDER BY strategy, initial_capital",
+        "refId": "A"
+      }],
+      "title": "자본 규모별 성과 (1K / 10K / 100K USD)",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":41},
+      "id": 104,
+      "title": "🏆 Best / Worst 시나리오",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":5,"w":6,"x":0,"y":42},
+      "id": 8,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/^Sharpe$/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy || ' / ' || metadata->>'scenario' AS \"시나리오\", round(sharpe_ratio::numeric,2) AS \"Sharpe\"\nFROM backtest_results ORDER BY sharpe_ratio DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "title": "최고 Sharpe",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":50}]},"unit":"percent"},
+        "overrides": []
+      },
+      "gridPos": {"h":5,"w":6,"x":6,"y":42},
+      "id": 9,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/^수익률$/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy || ' / ' || metadata->>'scenario' AS \"시나리오\", round(total_return::numeric,2) AS \"수익률\"\nFROM backtest_results ORDER BY total_return DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "title": "최고 수익률",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":-20},{"color":"red","value":-50}]},"unit":"percent"},
+        "overrides": []
+      },
+      "gridPos": {"h":5,"w":6,"x":12,"y":42},
+      "id": 10,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/^MDD$/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT strategy || ' / ' || metadata->>'scenario' AS \"시나리오\", round(max_drawdown::numeric,2) AS \"MDD\"\nFROM backtest_results ORDER BY max_drawdown DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "title": "최소 MDD (가장 안전)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]},"unit":"none"},
+        "overrides": []
+      },
+      "gridPos": {"h":5,"w":6,"x":18,"y":42},
+      "id": 11,
+      "options": {"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"/^총시나리오$/","values":false},"showPercentChange":false,"textMode":"value_and_name","wideLayout":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT count(*) AS \"총시나리오\" FROM backtest_results",
+        "refId": "A"
+      }],
+      "title": "총 시나리오 수",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":47},
+      "id": 105,
+      "title": "🎯 Funding-Arb 전략 상세",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":100}]}}]},
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":12,"x":0,"y":48},
+      "id": 12,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  metadata->>'timeframe' AS \"TF\",\n  round(initial_capital::numeric) AS \"자본($)\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  total_trades AS \"거래수\",\n  round(win_rate::numeric,1) AS \"승률(%)\",\n  round((metadata->>'avg_trade_duration_hours')::numeric,1) AS \"평균보유(h)\"\nFROM backtest_results\nWHERE strategy = 'funding_arb'\nORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Funding-Arb 시나리오 전체",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"","axisPlacement":"auto","barAlignment":0,"drawStyle":"line","fillOpacity":10,"gradientMode":"opacity","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"linear","lineWidth":2,"pointSize":5,"scaleDistribution":{"type":"linear"},"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"percentunit"},
+        "overrides": []
+      },
+      "gridPos": {"h":8,"w":12,"x":12,"y":48},
+      "id": 13,
+      "options": {"legend":{"calcs":["last","max","min"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "time_series", "rawQuery": true,
+        "rawSql": "SELECT timestamp AS time, rate AS \"펀딩비율\"\nFROM funding_rate_history\nWHERE symbol = 'BTCUSDT'\nORDER BY timestamp",
+        "refId": "A"
+      }],
+      "title": "BTCUSDT 펀딩비율 이력 (전략 입력값)",
       "type": "timeseries"
     },
+
     {
-      "datasource": {
-        "type": "postgres",
-        "uid": "cryptoengine-postgres"
-      },
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":56},
+      "id": 106,
+      "title": "📐 Grid-Trading 전략 상세",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
       "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "opacity",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"Sharpe"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":1},{"color":"green","value":2}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":24,"x":0,"y":57},
+      "id": 14,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":true,"displayName":"Sharpe"}]},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  metadata->>'timeframe' AS \"TF\",\n  round(initial_capital::numeric) AS \"자본($)\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  total_trades AS \"거래수\",\n  round(win_rate::numeric,1) AS \"승률(%)\",\n  round((metadata->>'avg_trade_duration_hours')::numeric,1) AS \"평균보유(h)\"\nFROM backtest_results\nWHERE strategy = 'grid_trading'\nORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Grid-Trading 시나리오 전체",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":65},
+      "id": 107,
+      "title": "🔄 Adaptive-DCA & Combined 전략 상세",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":30}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":12,"x":0,"y":66},
+      "id": 15,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  metadata->>'timeframe' AS \"TF\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  total_trades AS \"거래수\"\nFROM backtest_results\nWHERE strategy = 'adaptive_dca'\nORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Adaptive-DCA 시나리오",
+      "type": "table"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"thresholds"},"custom":{"align":"auto","cellOptions":{"type":"auto"},"inspect":false},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":80}]}},
+        "overrides": [
+          {"matcher":{"id":"byName","options":"수익률(%)"},"properties":[{"id":"custom.cellOptions","value":{"type":"color-background","mode":"gradient"}},{"id":"thresholds","value":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":0},{"color":"green","value":30}]}}]}
+        ]
+      },
+      "gridPos": {"h":8,"w":12,"x":12,"y":66},
+      "id": 16,
+      "options": {"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true},
+      "pluginVersion": "10.0.0",
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "table", "rawQuery": true,
+        "rawSql": "SELECT\n  metadata->>'scenario' AS \"시나리오\",\n  metadata->>'timeframe' AS \"TF\",\n  round(total_return::numeric,2) AS \"수익률(%)\",\n  round(sharpe_ratio::numeric,2) AS \"Sharpe\",\n  round(max_drawdown::numeric,2) AS \"MDD(%)\",\n  total_trades AS \"거래수\"\nFROM backtest_results\nWHERE strategy = 'combined'\nORDER BY sharpe_ratio DESC",
+        "refId": "A"
+      }],
+      "title": "Combined 전략 시나리오",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h":1,"w":24,"x":0,"y":74},
+      "id": 108,
+      "title": "📉 BTC 가격 & 거래량 (백테스트 기간)",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+      "fieldConfig": {
+        "defaults": {"color":{"mode":"palette-classic"},"custom":{"axisBorderShow":false,"axisCenteredZero":false,"axisColorMode":"text","axisLabel":"","axisPlacement":"auto","barAlignment":0,"drawStyle":"line","fillOpacity":10,"gradientMode":"opacity","hideFrom":{"legend":false,"tooltip":false,"viz":false},"insertNulls":false,"lineInterpolation":"linear","lineWidth":2,"pointSize":5,"scaleDistribution":{"type":"linear"},"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},"mappings":[],"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"unit":"currencyUSD"},
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
-      "id": 3,
-      "options": {
-        "legend": { "calcs": ["last"], "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "single", "sort": "none" }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "postgres",
-            "uid": "cryptoengine-postgres"
-          },
-          "editorMode": "code",
-          "format": "time_series",
-          "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, close AS \"BTC 종가(USDT)\"\nFROM ohlcv_history\nWHERE symbol = 'BTCUSDT' AND timeframe = '1h'\nORDER BY timestamp",
-          "refId": "A",
-          "sql": {
-            "columns": [{ "parameters": [], "type": "function" }],
-            "groupBy": [{ "property": { "type": "string" }, "type": "groupBy" }],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "BTC 1h 가격 (BTCUSDT)",
+      "gridPos": {"h":10,"w":24,"x":0,"y":75},
+      "id": 17,
+      "options": {"legend":{"calcs":["last","max","min"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "targets": [{
+        "datasource": {"type":"grafana-postgresql-datasource","uid":"cryptoengine-postgres"},
+        "editorMode": "code", "format": "time_series", "rawQuery": true,
+        "rawSql": "SELECT timestamp AS time, close AS \"BTC 종가\"\nFROM ohlcv_history\nWHERE symbol = 'BTCUSDT' AND timeframe = '4h'\nORDER BY timestamp",
+        "refId": "A"
+      }],
+      "title": "BTC/USDT 4시간봉 가격 (2025-10-01 ~ 2026-03-31)",
       "type": "timeseries"
     }
+
   ],
-  "refresh": "1m",
+  "refresh": "5m",
   "schemaVersion": 38,
-  "tags": ["backtest", "cryptoengine"],
-  "templating": { "list": [] },
-  "time": { "from": "now-30d", "to": "now" },
+  "tags": ["backtest","cryptoengine","strategy"],
+  "templating": {"list": []},
+  "time": {"from": "2025-10-01T00:00:00.000Z", "to": "now"},
   "timepicker": {},
   "timezone": "Asia/Seoul",
-  "title": "백테스트 결과",
+  "title": "백테스트 결과 — 종합 분석",
   "uid": "cryptoengine-backtest",
-  "version": 1
+  "version": 3
 }
