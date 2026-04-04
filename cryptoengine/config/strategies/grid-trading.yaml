@@ -6,6 +6,7 @@ strategy:
   name: grid_trading
   version: "1.0"
   enabled: true
+  timeframe: "1h"
   description: >
     Places a grid of limit orders above and below the current price,
     profiting from mean-reversion in ranging markets. Automatically

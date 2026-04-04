@@ -152,7 +152,7 @@ class FreqtradeBridge:
         ohlcv: pd.DataFrame,
         funding: pd.DataFrame | None = None,
         initial_capital: float = 10_000.0,
-        fee_rate: float = 0.0006,
+        fee_rate: float = 0.00055,
     ) -> BacktestResult:
         """Run an in-process event-driven backtest on OHLCV data.
 
@@ -429,16 +429,65 @@ class _BacktestEngine:
         return None
 
     def _signal_grid(self, bar: Any, lookback: pd.DataFrame, idx: int) -> str | None:
-        """Grid: buy on dips, sell on rallies around SMA."""
-        close = float(bar["close"])
-        sma = float(lookback["close"].tail(20).mean())
-        dev = (close - sma) / sma if sma > 0 else 0
+        """Grid: enter only in ranging markets (low ADX + BB squeeze).
+
+        Activation condition:
+          * ADX(14) < 25  — no strong directional trend
+          * BB width narrow (< 4% of mid-price) — market in squeeze
+
+        Exit condition:
+          * ADX >= 25 (trend breakout) or BB width widens (> 4%)
+          * Stop-loss: PnL < -1% of initial capital
+        """
+        closes = lookback["close"].values.astype(float)
+        highs = lookback["high"].values.astype(float) if "high" in lookback.columns else closes
+        lows = lookback["low"].values.astype(float) if "low" in lookback.columns else closes
+
+        # ── ADX(14) ────────────────────────────────────────────────────
+        adx = 0.0
+        period = 14
+        if len(closes) >= period * 2:
+            plus_dm_list: list[float] = []
+            minus_dm_list: list[float] = []
+            tr_list: list[float] = []
+            for i in range(1, len(closes)):
+                up = float(highs[i]) - float(highs[i - 1])
+                down = float(lows[i - 1]) - float(lows[i])
+                plus_dm_list.append(up if up > down and up > 0 else 0.0)
+                minus_dm_list.append(down if down > up and down > 0 else 0.0)
+                hl = float(highs[i]) - float(lows[i])
+                hc = abs(float(highs[i]) - float(closes[i - 1]))
+                lc = abs(float(lows[i]) - float(closes[i - 1]))
+                tr_list.append(max(hl, hc, lc))
+
+            if len(tr_list) >= period:
+                import numpy as _np
+                atr_val = _np.mean(tr_list[-period:])
+                if atr_val > 0:
+                    plus_di = 100 * _np.mean(plus_dm_list[-period:]) / atr_val
+                    minus_di = 100 * _np.mean(minus_dm_list[-period:]) / atr_val
+                    di_sum = plus_di + minus_di
+                    if di_sum > 0:
+                        adx = float(100 * abs(plus_di - minus_di) / di_sum)
+
+        # ── Bollinger Band width ────────────────────────────────────────
+        bb_narrow = False
+        bb_window = closes[-20:] if len(closes) >= 20 else closes
+        if len(bb_window) >= 5:
+            import numpy as _np
+            sma_bb = float(_np.mean(bb_window))
+            std_bb = float(_np.std(bb_window))
+            bb_width = (4 * std_bb / sma_bb) if sma_bb > 0 else 1.0  # (upper-lower)/mid
+            bb_narrow = bb_width < 0.04  # squeeze threshold: 4%
+
+        ranging = adx < 25 and bb_narrow
 
         if self._position is None:
-            if dev < -0.005:
+            if ranging:
                 return "buy"
         else:
-            if dev > 0.005:
+            # Exit when trend emerges or BB widens out of squeeze
+            if not ranging:
                 return "close"
             pnl_pct = self._unrealized_pnl(bar) / self._initial_capital
             if pnl_pct < -0.01:

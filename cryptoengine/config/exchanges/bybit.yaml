@@ -60,6 +60,15 @@ exchange:
       - order
       - wallet
 
+  # ── Fee Structure ──────────────────────────────────────────
+  fees:
+    spot:
+      maker: 0.0001    # 0.01%
+      taker: 0.0001    # 0.01%
+    perpetual:
+      maker: 0.0002    # 0.02%
+      taker: 0.00055   # 0.055%
+
   # ── Trading Parameters ─────────────────────────────────────
   trading:
     # Account type: UNIFIED | CONTRACT

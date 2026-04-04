@@ -64,6 +64,13 @@ class FundingArbStrategy(BaseStrategy):
         self.max_spread_entry: float = config.get("max_spread_entry", MAX_SPREAD_ENTRY)
         self.leverage: float = config.get("leverage", 1.0)
 
+        # Fee rates (Bybit: spot taker 0.01%, perp taker 0.055%)
+        self.spot_fee_rate: float = config.get("fees", {}).get("spot_fee_rate", 0.0001)
+        self.perp_fee_rate: float = config.get("fees", {}).get("perp_fee_rate", 0.00055)
+        self._entry_fee_rate: float = self.spot_fee_rate + self.perp_fee_rate   # 0.00065 편도
+        self._exit_fee_rate: float = self.spot_fee_rate + self.perp_fee_rate    # 0.00065 편도
+        self._round_trip_fee: float = self._entry_fee_rate + self._exit_fee_rate  # 0.0013 왕복
+
         # Components (initialised on start)
         self._exchange: ExchangeConnector | None = None
         self._delta_mgr: DeltaNeutralManager | None = None
@@ -312,7 +319,18 @@ class FundingArbStrategy(BaseStrategy):
         if self._spot_qty > 0 and self._perp_qty > 0:
             self._basis_sm.enter_position(basis_spread)
             self._entry_price = spot_price
-            self._log.info("position_entered", spot_qty=self._spot_qty, perp_qty=self._perp_qty)
+
+            # Deduct entry fees: spot taker + perp taker
+            entry_notional = self._spot_qty * spot_price
+            entry_fee = entry_notional * self._entry_fee_rate * 2  # both legs
+            self.current_pnl -= entry_fee
+
+            self._log.info(
+                "position_entered",
+                spot_qty=self._spot_qty,
+                perp_qty=self._perp_qty,
+                entry_fee=round(entry_fee, 6),
+            )
         else:
             self._log.warning("entry_failed_no_fill")
 
@@ -446,6 +464,11 @@ class FundingArbStrategy(BaseStrategy):
         perp_price = float(perp_ticker.get("last", 0))
         exit_spread = (perp_price - spot_price) / spot_price if spot_price > 0 else 0.0
 
+        # Deduct exit fees: spot taker (sell) + perp taker (buy to close)
+        exit_notional = self._spot_qty * spot_price if spot_price > 0 else 0.0
+        exit_fee = exit_notional * self._exit_fee_rate * 2  # both legs
+        self.current_pnl -= exit_fee
+
         pnl = self._basis_sm.exit_position(exit_spread)
         self.current_pnl += pnl.total_pnl
 
@@ -458,6 +481,7 @@ class FundingArbStrategy(BaseStrategy):
             reason=reason,
             basis_pnl=round(pnl.basis_pnl * 100, 4),
             funding_pnl=round(pnl.funding_pnl, 6),
+            exit_fee=round(exit_fee, 6),
         )
 
     # ── position adjustment ─────────────────────────────────────────────

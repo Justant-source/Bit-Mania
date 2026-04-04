@@ -69,6 +69,7 @@ class GridStrategy(BaseStrategy):
         self.spacing_mode: str = config.get("spacing_mode", "arithmetic")
         self.adx_activation: float = config.get("adx_activation", ADX_ACTIVATION_THRESHOLD)
         self.adx_stop: float = config.get("adx_stop", ADX_STOP_THRESHOLD)
+        self.timeframe: str = config.get("timeframe", "1h")
 
         # Components (initialised on start)
         self._exchange: ExchangeConnector | None = None
@@ -143,7 +144,7 @@ class GridStrategy(BaseStrategy):
 
         # Fetch recent OHLCV for indicator calculation
         ohlcv = await self._exchange.get_ohlcv(
-            self.symbol, timeframe="1h", limit=50
+            self.symbol, timeframe=self.timeframe, limit=50
         )
         if not ohlcv or len(ohlcv) < BB_PERIOD:
             self._log.debug("insufficient_ohlcv", count=len(ohlcv) if ohlcv else 0)
