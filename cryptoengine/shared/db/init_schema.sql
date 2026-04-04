@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_time ON portfolio_snapshots(snapshot_at);
 
+-- ──────────────── market_regime_history ────────────────
+CREATE TABLE IF NOT EXISTS market_regime_history (
+    id          BIGSERIAL PRIMARY KEY,
+    symbol      VARCHAR(20) NOT NULL DEFAULT 'BTCUSDT',
+    regime      VARCHAR(20) NOT NULL,  -- 'trending', 'ranging', 'volatile'
+    confidence  DECIMAL(5, 3),
+    indicators  JSONB,                 -- {"atr_ratio": 0.02, "adx": 28.5, "bb_width": 0.15}
+    detected_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_regime_history_time ON market_regime_history(detected_at);
+CREATE INDEX IF NOT EXISTS idx_regime_history_symbol ON market_regime_history(symbol, detected_at);
+
 -- ──────────────── daily_reports ────────────────
 CREATE TABLE IF NOT EXISTS daily_reports (
     id              BIGSERIAL PRIMARY KEY,
