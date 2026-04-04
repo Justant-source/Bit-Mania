@@ -1,0 +1,487 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "CryptoEngine OHLCV Candlestick Chart with Trade Markers",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Candlestick Chart — $symbol ($timeframe)",
+      "type": "candlestick",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 12 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  timestamp AS time,\n  open,\n  high,\n  low,\n  close,\n  volume\nFROM ohlcv_history\nWHERE\n  symbol = '$symbol'\n  AND timeframe = '$timeframe'\n  AND $__timeFilter(timestamp)\nORDER BY timestamp ASC",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed" },
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 80
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "open" },
+            "properties": [
+              { "id": "custom.hidden", "value": false }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "high" },
+            "properties": [
+              { "id": "custom.hidden", "value": false }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "low" },
+            "properties": [
+              { "id": "custom.hidden", "value": false }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "close" },
+            "properties": [
+              { "id": "custom.hidden", "value": false }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "volume" },
+            "properties": [
+              { "id": "custom.hidden", "value": true },
+              { "id": "unit", "value": "short" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "candleStyle": "candles",
+        "colorStrategy": "open-close",
+        "downColor": "red",
+        "upColor": "dark-green",
+        "mode": "candles+volume",
+        "fields": {
+          "close": "close",
+          "high": "high",
+          "low": "low",
+          "open": "open",
+          "volume": "volume"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Current Price",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  NOW() AS time,\n  close AS value\nFROM ohlcv_history\nWHERE\n  symbol = '$symbol'\n  AND timeframe = '$timeframe'\nORDER BY timestamp DESC\nLIMIT 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "24h High",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 8, "y": 12, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  NOW() AS time,\n  MAX(high) AS value\nFROM ohlcv_history\nWHERE\n  symbol = '$symbol'\n  AND timeframe = '$timeframe'\n  AND timestamp >= NOW() - INTERVAL '24 hours'",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#26a69a" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#26a69a", "value": null }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "24h Low",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 16, "y": 12, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  NOW() AS time,\n  MIN(low) AS value\nFROM ohlcv_history\nWHERE\n  symbol = '$symbol'\n  AND timeframe = '$timeframe'\n  AND timestamp >= NOW() - INTERVAL '24 hours'",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#ef5350" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "#ef5350", "value": null }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Trade Entry / Exit Points",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  created_at AS time,\n  CASE WHEN side = 'buy' THEN price ELSE NULL END AS \"Buy Price\",\n  CASE WHEN side = 'sell' THEN price ELSE NULL END AS \"Sell Price\"\nFROM trades\nWHERE\n  $__timeFilter(created_at)\n  AND status = 'closed'\nORDER BY created_at ASC",
+          "format": "time_series",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  created_at AS time,\n  realized_pnl AS \"Realized PnL\"\nFROM trades\nWHERE\n  $__timeFilter(created_at)\n  AND status = 'closed'\n  AND realized_pnl IS NOT NULL\nORDER BY created_at ASC",
+          "format": "time_series",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 0,
+            "pointSize": 8,
+            "showPoints": "always",
+            "spanNulls": false
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Buy Price" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#26a69a" } },
+              {
+                "id": "custom.pointSymbol",
+                "value": "triangle"
+              },
+              { "id": "custom.pointSize", "value": 10 },
+              { "id": "custom.showPoints", "value": "always" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Sell Price" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#ef5350" } },
+              {
+                "id": "custom.pointSymbol",
+                "value": "triangle-down"
+              },
+              { "id": "custom.pointSize", "value": 10 },
+              { "id": "custom.showPoints", "value": "always" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Realized PnL" },
+            "properties": [
+              {
+                "id": "color",
+                "value": { "mode": "thresholds" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#ef5350", "value": null },
+                    { "color": "#26a69a", "value": 0 }
+                  ]
+                }
+              },
+              { "id": "custom.pointSize", "value": 6 },
+              { "id": "custom.showPoints", "value": "always" },
+              { "id": "unit", "value": "currencyUSD" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Volume",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "rawSql": "SELECT\n  timestamp AS time,\n  volume\nFROM ohlcv_history\nWHERE\n  symbol = '$symbol'\n  AND timeframe = '$timeframe'\n  AND $__timeFilter(timestamp)\nORDER BY timestamp ASC",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "volume" },
+            "properties": [
+              {
+                "id": "color",
+                "value": { "mode": "thresholds" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "#5794F2", "value": null }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fillOpacity": 80,
+        "groupWidth": 0.7,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "auto",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 200
+      }
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["trading", "candlestick", "ohlcv"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "BTCUSDT",
+          "value": "BTCUSDT"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "cryptoengine-postgres"
+        },
+        "definition": "SELECT DISTINCT symbol FROM ohlcv_history ORDER BY 1",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Symbol",
+        "multi": false,
+        "name": "symbol",
+        "options": [],
+        "query": "SELECT DISTINCT symbol FROM ohlcv_history ORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "1h",
+          "value": "1h"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Timeframe",
+        "multi": false,
+        "name": "timeframe",
+        "options": [
+          { "selected": false, "text": "1m", "value": "1m" },
+          { "selected": false, "text": "5m", "value": "5m" },
+          { "selected": false, "text": "15m", "value": "15m" },
+          { "selected": true,  "text": "1h", "value": "1h" },
+          { "selected": false, "text": "4h", "value": "4h" },
+          { "selected": false, "text": "1d", "value": "1d" }
+        ],
+        "query": "1m,5m,15m,1h,4h,1d",
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Candlestick Trading Chart",
+  "uid": "candlestick-trading",
+  "version": 1,
+  "weekStart": ""
+}
