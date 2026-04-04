@@ -1,0 +1,178 @@
+@startuml CryptoEngine System Architecture
+!pragma revision 1
+
+' ── 스타일 설정 ──────────────────────────────────────────────
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName "Noto Sans KR"
+skinparam defaultFontSize 11
+
+skinparam component {
+    BackgroundColor #E8F4FD
+    BorderColor #2196F3
+    FontColor #1A1A1A
+}
+
+skinparam package {
+    BackgroundColor #F5F5F5
+    BorderColor #9E9E9E
+    FontStyle bold
+}
+
+skinparam database {
+    BackgroundColor #FFF3E0
+    BorderColor #FF9800
+}
+
+skinparam queue {
+    BackgroundColor #FCE4EC
+    BorderColor #E91E63
+}
+
+skinparam cloud {
+    BackgroundColor #F3E5F5
+    BorderColor #9C27B0
+}
+
+skinparam arrow {
+    Color #546E7A
+    FontColor #546E7A
+    FontSize 10
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #FBC02D
+}
+
+title **CryptoEngine -- 비트코인 선물 자동매매 시스템**\n시스템 아키텍처 컴포넌트 다이어그램
+
+' ── 외부 시스템 ──────────────────────────────────────────────
+cloud "외부 API" as ext {
+    [Bybit WebSocket\n(실시간 시세)] as bybit_ws #E1BEE7
+    [Bybit REST API\n(주문 실행)] as bybit_rest #E1BEE7
+    [Telegram API] as telegram_api #E1BEE7
+    [Anthropic API\n(Claude)] as anthropic_api #E1BEE7
+}
+
+' ── Infrastructure 레이어 ────────────────────────────────────
+package "Infrastructure (인프라)" as infra #E8EAF6 {
+    database "PostgreSQL\n16-alpine\n:5432" as pg
+    queue "Redis\n7-alpine\n:6379\n(Pub/Sub + Cache)" as redis
+
+    package "Observability" as obs {
+        [Prometheus\n:9090\n(30일 보존)] as prom
+        [Node Exporter\n:9100] as node_exp
+        [Redis Exporter\n:9121] as redis_exp
+    }
+}
+
+' ── Core 레이어 ──────────────────────────────────────────────
+package "Core (핵심 서비스)" as core #E8F5E9 {
+    [market-data\n시세 수집 + 레짐 감지] as market_data
+    [strategy-orchestrator\n전략 조율 + 자본 배분\n+ Kill Switch] as orchestrator
+    [execution-engine\n주문 실행 + 안전 검증\n(레버리지 2x 제한)] as execution
+}
+
+' ── Strategy 레이어 ──────────────────────────────────────────
+package "Strategy (전략)" as strat #FFF3E0 {
+    [funding-arb\n<<핵심 전략>>\n델타 뉴트럴\n+ 펀딩비 수취] as funding #FFCC80
+    [grid-trading\n<<보조 전략>>\n횡보 구간 그리드] as grid
+    [adaptive-dca\n<<보조 전략>>\nFear&Greed 기반\n적응형 DCA] as dca
+}
+
+' ── Intelligence 레이어 ──────────────────────────────────────
+package "Intelligence (지능)" as intel #F3E5F5 {
+    [llm-advisor\nAnthropic SDK\n+ LangGraph\n시장 분석] as llm
+}
+
+' ── Interface 레이어 ─────────────────────────────────────────
+package "Interface (인터페이스)" as iface #E0F7FA {
+    [telegram-bot\n알림 + 비상 명령] as tg_bot
+    [dashboard\nExpress.js\n:3000 (내부)\n:3001 (공개)] as dash
+    [Grafana 10.4\n:3002\n모니터링 대시보드] as grafana
+}
+
+' ── Analysis 레이어 ──────────────────────────────────────────
+package "Analysis (분석)" as analysis #EFEBE9 {
+    [backtester\nFreqtrade 브릿지\n(on-demand 프로필)] as backtest
+}
+
+' ── 공유 라이브러리 ──────────────────────────────────────────
+note as shared_note
+    **shared/ 공유 라이브러리**
+    ----
+    models/ -- 도메인 모델
+    exchange/ -- CCXT Bybit 래퍼
+    db/ -- asyncpg 풀 + Repository
+    redis_client.py -- Pub/Sub 헬퍼
+    config_loader.py -- YAML 로더
+    kill_switch.py -- Kill Switch 로직
+    logging_config.py -- structlog 설정
+    risk.py -- 리스크 관리
+end note
+
+' ── 데이터 흐름 (Bybit → market-data) ───────────────────────
+bybit_ws -down-> market_data : WebSocket\n(가격, 펀딩비,\n오더북)
+
+' ── market-data → 저장/발행 ──────────────────────────────────
+market_data -down-> pg : OHLCV, 펀딩비\n히스토리 저장
+market_data -down-> redis : <b>market:funding_rate</b>\n<b>market:regime</b>
+
+' ── Redis → 전략/오케스트레이터 ──────────────────────────────
+redis -down-> orchestrator : market:regime\n(시장 레짐)
+redis -down-> funding : market:funding_rate
+redis -down-> grid : market:regime
+redis -down-> dca : market:regime
+
+' ── 오케스트레이터 → 전략 명령 ───────────────────────────────
+orchestrator -down-> redis : <b>strategy:command:{id}</b>\n(자본 배분, 시작/정지)
+orchestrator -down-> redis : <b>kill_switch</b>\n(긴급 청산)
+
+' ── 전략 → 주문 요청 ────────────────────────────────────────
+funding -down-> redis : <b>order:request</b>
+grid -down-> redis : order:request
+dca -down-> redis : order:request
+
+' ── execution-engine ─────────────────────────────────────────
+redis -right-> execution : order:request\nkill_switch
+execution -up-> bybit_rest : 주문 실행\n(REST API)
+execution -left-> redis : <b>order:update</b>\n(체결/취소 알림)
+execution -down-> pg : 거래 기록\n포지션 저장
+
+' ── Intelligence ─────────────────────────────────────────────
+llm -up-> anthropic_api : Claude API\n(시장 분석 요청)
+llm -down-> pg : llm_reports\n저장
+llm <-down- redis : 시장 데이터 구독
+
+' ── Interface ────────────────────────────────────────────────
+tg_bot -up-> telegram_api : 알림 전송\n비상 명령 수신
+tg_bot <-down- redis : kill_switch\n이벤트 구독
+dash <-down- pg : 포트폴리오\n조회
+dash <-down- redis : 실시간\n상태 조회
+
+' ── Grafana / Prometheus ─────────────────────────────────────
+grafana -down-> pg : PostgreSQL\n데이터소스
+grafana -down-> prom : Prometheus\n데이터소스
+grafana -down-> redis : Redis\n데이터소스
+prom <-up- node_exp : 호스트 메트릭
+prom <-up- redis_exp : Redis 메트릭
+redis_exp -down-> redis : 메트릭 수집
+
+' ── Backtester ───────────────────────────────────────────────
+backtest -down-> pg : 히스토리\n데이터 조회
+
+' ── 범례 ─────────────────────────────────────────────────────
+legend right
+    |= 색상 |= 레이어 |
+    | <#E8EAF6> | Infrastructure |
+    | <#E8F5E9> | Core |
+    | <#FFF3E0> | Strategy |
+    | <#F3E5F5> | Intelligence |
+    | <#E0F7FA> | Interface |
+    | <#EFEBE9> | Analysis |
+    | <#E1BEE7> | 외부 API |
+endlegend
+
+footer CryptoEngine v1.0 -- Docker Compose 16 서비스 | WSL Ubuntu 24/7 운영
+
+@enduml

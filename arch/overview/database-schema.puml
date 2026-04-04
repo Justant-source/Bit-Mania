@@ -1,0 +1,273 @@
+@startuml CryptoEngine Database Schema
+' ============================================================
+' CryptoEngine - PostgreSQL 16 데이터베이스 ER 다이어그램
+' 비트코인 선물 자동매매 시스템
+' ============================================================
+
+!theme plain
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam roundcorner 8
+
+title CryptoEngine 데이터베이스 스키마\n(PostgreSQL 16)
+
+' ──────────── 트레이딩 도메인 ────────────
+package "트레이딩 (Trading)" #E8F5E9 {
+
+    entity "trades" as trades {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * strategy_id : VARCHAR(50)
+        * exchange : VARCHAR(20)
+        * symbol : VARCHAR(20)
+        * side : VARCHAR(10)
+        * order_type : VARCHAR(10)
+        * quantity : DECIMAL(20,8)
+        * price : DECIMAL(20,2)
+        fee : DECIMAL(20,8)
+        fee_currency : VARCHAR(10)
+        pnl : DECIMAL(20,8)
+        order_id : VARCHAR(100)
+        request_id : VARCHAR(100) <<UNIQUE>>
+        * status : VARCHAR(20)
+        created_at : TIMESTAMPTZ
+        filled_at : TIMESTAMPTZ
+    }
+
+    entity "positions" as positions {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * strategy_id : VARCHAR(50)
+        * exchange : VARCHAR(20)
+        * symbol : VARCHAR(20)
+        * side : VARCHAR(10)
+        * size : DECIMAL(20,8)
+        * entry_price : DECIMAL(20,2)
+        current_price : DECIMAL(20,2)
+        unrealized_pnl : DECIMAL(20,8)
+        leverage : DECIMAL(5,2)
+        opened_at : TIMESTAMPTZ
+        closed_at : TIMESTAMPTZ
+        close_reason : VARCHAR(50)
+    }
+
+    entity "grid_orders" as grid_orders {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * strategy_id : VARCHAR(50)
+        * grid_level : INTEGER
+        * side : VARCHAR(10)
+        * price : DECIMAL(20,2)
+        * quantity : DECIMAL(20,8)
+        order_id : VARCHAR(100)
+        * status : VARCHAR(20)
+        created_at : TIMESTAMPTZ
+        filled_at : TIMESTAMPTZ
+    }
+
+    entity "dca_purchases" as dca_purchases {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * fear_greed_index : INTEGER
+        * multiplier : DECIMAL(5,2)
+        * amount_usdt : DECIMAL(20,2)
+        * btc_quantity : DECIMAL(20,8)
+        * btc_price : DECIMAL(20,2)
+        avg_cost_basis : DECIMAL(20,2)
+        total_btc_held : DECIMAL(20,8)
+        purchased_at : TIMESTAMPTZ
+    }
+
+    entity "funding_payments" as funding_payments {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * exchange : VARCHAR(20)
+        * symbol : VARCHAR(20)
+        * funding_rate : DECIMAL(10,6)
+        * payment : DECIMAL(20,8)
+        * position_size : DECIMAL(20,8)
+        * collected_at : TIMESTAMPTZ
+    }
+}
+
+' ──────────── 시장 데이터 도메인 ────────────
+package "시장 데이터 (Market Data)" #E3F2FD {
+
+    entity "ohlcv_history" as ohlcv {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * exchange : VARCHAR(20)
+        * symbol : VARCHAR(20)
+        * timeframe : VARCHAR(5)
+        * open : DECIMAL(20,2)
+        * high : DECIMAL(20,2)
+        * low : DECIMAL(20,2)
+        * close : DECIMAL(20,2)
+        * volume : DECIMAL(20,8)
+        * timestamp : TIMESTAMPTZ
+        ..
+        <<UNIQUE>> (exchange, symbol,
+          timeframe, timestamp)
+    }
+
+    entity "funding_rate_history" as funding_rate {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * exchange : VARCHAR(20)
+        * symbol : VARCHAR(20)
+        * rate : DECIMAL(10,6)
+        predicted_rate : DECIMAL(10,6)
+        * timestamp : TIMESTAMPTZ
+        ..
+        <<UNIQUE>> (exchange, symbol,
+          timestamp)
+    }
+
+    entity "market_regime_history" as regime {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * symbol : VARCHAR(20)
+        * regime : VARCHAR(20)
+        confidence : DECIMAL(5,3)
+        indicators : JSONB
+        detected_at : TIMESTAMPTZ
+    }
+}
+
+' ──────────── 리스크 관리 도메인 ────────────
+package "리스크 관리 (Risk Management)" #FFF3E0 {
+
+    entity "strategy_states" as strategy_states {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * strategy_id : VARCHAR(50) <<UNIQUE>>
+        is_running : BOOLEAN
+        allocated_capital : DECIMAL(20,2)
+        current_pnl : DECIMAL(20,8)
+        position_count : INTEGER
+        config_override : JSONB
+        updated_at : TIMESTAMPTZ
+    }
+
+    entity "kill_switch_events" as kill_switch {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * level : INTEGER
+        * reason : VARCHAR(200)
+        positions_closed : INTEGER
+        pnl_at_trigger : DECIMAL(20,8)
+        details : JSONB
+        triggered_at : TIMESTAMPTZ
+        resolved_at : TIMESTAMPTZ
+    }
+}
+
+' ──────────── 리포팅 도메인 ────────────
+package "리포팅 (Reporting)" #F3E5F5 {
+
+    entity "portfolio_snapshots" as snapshots {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * total_equity : DECIMAL(20,2)
+        unrealized_pnl : DECIMAL(20,8)
+        realized_pnl : DECIMAL(20,8)
+        drawdown : DECIMAL(10,6)
+        sharpe_30d : DECIMAL(10,4)
+        strategy_weights : JSONB
+        market_regime : VARCHAR(20)
+        snapshot_at : TIMESTAMPTZ
+    }
+
+    entity "daily_reports" as daily {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * date : DATE <<UNIQUE>>
+        starting_equity : DECIMAL(20,2)
+        ending_equity : DECIMAL(20,2)
+        daily_pnl : DECIMAL(20,8)
+        daily_return : DECIMAL(10,6)
+        trade_count : INTEGER
+        funding_income : DECIMAL(20,8)
+        grid_income : DECIMAL(20,8)
+        dca_value : DECIMAL(20,8)
+        max_drawdown : DECIMAL(10,6)
+        llm_summary : TEXT
+    }
+
+    entity "llm_judgments" as llm_j {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * rating : VARCHAR(20)
+        confidence : DECIMAL(5,3)
+        regime : VARCHAR(20)
+        reasoning : TEXT
+        weight_adjustment : JSONB
+        bull_summary : TEXT
+        bear_summary : TEXT
+        risk_flags : JSONB
+        actual_outcome : VARCHAR(20)
+        accuracy_score : DECIMAL(5,3)
+        created_at : TIMESTAMPTZ
+        evaluated_at : TIMESTAMPTZ
+    }
+
+    entity "llm_reports" as llm_r {
+        * **id** : BIGSERIAL <<PK>>
+        --
+        * title : VARCHAR(200)
+        * trigger : VARCHAR(30)
+        * rating : VARCHAR(20)
+        confidence : DECIMAL(5,3)
+        regime : VARCHAR(20)
+        symbol : VARCHAR(20)
+        btc_price : DECIMAL(20,2)
+        technical_summary : TEXT
+        sentiment_summary : TEXT
+        bull_summary : TEXT
+        bear_summary : TEXT
+        debate_conclusion : TEXT
+        risk_assessment : TEXT
+        reasoning : TEXT
+        weight_adjustments : JSONB
+        risk_flags : JSONB
+        created_at : TIMESTAMPTZ
+    }
+}
+
+' ──────────── 논리적 관계 (strategy_id 기반) ────────────
+
+strategy_states ||..o{ trades : "strategy_id"
+strategy_states ||..o{ positions : "strategy_id"
+strategy_states ||..o{ grid_orders : "strategy_id"
+
+' ──────────── 데이터 흐름 관계 ────────────
+
+funding_rate ..> funding_payments : "펀딩비율 참조"
+regime ..> snapshots : "레짐 정보 반영"
+ohlcv ..> regime : "OHLCV 기반\n레짐 감지"
+
+trades ..> daily : "일별 집계"
+funding_payments ..> daily : "펀딩비 집계"
+grid_orders ..> daily : "그리드 수입 집계"
+dca_purchases ..> daily : "DCA 가치 집계"
+
+llm_j ..> llm_r : "요약 vs 상세"
+llm_j ..> snapshots : "가중치 조정 반영"
+
+' ──────────── 범례 ────────────
+legend right
+  |= 기호 |= 의미 |
+  | * | NOT NULL |
+  | **bold** | Primary Key |
+  | <<UNIQUE>> | 유니크 제약 |
+  | <<PK>> | 기본 키 |
+  | ..> | 논리적 데이터 흐름 |
+  | \|\|..o{ | 논리적 1:N 관계 |
+  --
+  총 14개 테이블
+  명시적 FK 없음 (애플리케이션 레벨 관리)
+  strategy_id를 통한 논리적 연결
+endlegend
+
+footer CryptoEngine Database Schema v1.0 | PostgreSQL 16 Alpine | asyncpg + Repository Pattern
+@enduml
