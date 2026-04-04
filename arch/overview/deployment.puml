@@ -1,0 +1,165 @@
+@startuml CryptoEngine 배포 다이어그램
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam defaultFontName "Malgun Gothic"
+skinparam nodesep 60
+skinparam ranksep 40
+
+title CryptoEngine 배포 아키텍처\nBitcoin 선물 자동매매 시스템
+
+' ── 외부 시스템 ──────────────────────────────────────────
+cloud "외부 API" as ext {
+    [Bybit 테스트넷\nAPI (선물/현물)] as bybit
+    [Telegram\nBot API] as telegram_api
+    [Anthropic\nClaude API] as anthropic
+    [CoinGlass\nAPI] as coinglass
+}
+
+node "WSL Ubuntu 호스트" as host {
+
+    frame "Docker Compose 스택" as compose {
+
+        ' ── 인프라 계층 ──────────────────────────────────
+        package "인프라 (Data Layer)" as infra #E8F5E9 {
+            database "postgres\n:5432\npostgres:16-alpine" as pg {
+            }
+            database "redis\n:6379\nredis:7-alpine\n--appendonly yes" as redis {
+            }
+        }
+
+        ' ── 코어 서비스 ──────────────────────────────────
+        package "코어 서비스 (Core)" as core #E3F2FD {
+            component "market-data\nWebSocket 수집\n레짐 감지" as md
+            component "execution-engine\n주문 실행\n포지션 추적" as exec
+            component "strategy-orchestrator\n전략 조율\n자본 배분" as orch
+        }
+
+        ' ── 전략 서비스 ──────────────────────────────────
+        package "전략 서비스 (Strategy)" as strat #FFF3E0 {
+            component "funding-arb\n핵심: 델타 뉴트럴\n+ 펀딩비 수취" as farb
+            component "grid-trading\n보조: 횡보 구간\n그리드 매매" as grid
+            component "adaptive-dca\n보조: Fear&Greed\n적응형 DCA" as dca
+        }
+
+        ' ── 인텔리전스 ───────────────────────────────────
+        package "인텔리전스 (Intelligence)" as intel #F3E5F5 {
+            component "llm-advisor\nAnthropic SDK\n시장 분석" as llm
+            component "telegram-bot\n알림 전송\n비상 명령" as tbot
+        }
+
+        ' ── 인터페이스 ───────────────────────────────────
+        package "인터페이스 (Interface)" as iface #E0F7FA {
+            component "dashboard\n:3000 내부\n:3001 공개" as dash
+        }
+
+        ' ── 모니터링 ─────────────────────────────────────
+        package "모니터링 (Observability)" as obs #FBE9E7 {
+            component "grafana\n:3002\ngrafana:10.4.14" as graf
+            component "prometheus\n:9090\nprom:v2.51.0\n보존: 30일" as prom
+            component "node-exporter\n(9100 내부)\nv1.8.0" as nexp
+            component "redis-exporter\n(9121 내부)\noliver006" as rexp
+        }
+
+        ' ── 분석 (온디맨드) ──────────────────────────────
+        package "분석 (profile: backtest)" as analysis #ECEFF1 {
+            component "backtester\n온디맨드 실행\n백테스트 엔진" as bt
+        }
+    }
+
+    ' ── 볼륨 ─────────────────────────────────────────────
+    storage "Named Volumes" as vols {
+        file "pgdata" as v_pg
+        file "redisdata" as v_redis
+        file "grafana-data" as v_graf
+        file "prometheus-data" as v_prom
+    }
+
+    folder "바인드 마운트" as binds {
+        file "./config/" as cfg
+        file "./config/grafana/" as gcfg
+        file "./config/prometheus/" as pcfg
+        file "./backtest-results/" as btres
+    }
+}
+
+' ── 외부 연결 ────────────────────────────────────────────
+md --> bybit : WebSocket\nREST API
+md --> coinglass : 오픈 인터레스트\n펀딩비
+exec --> bybit : 주문 실행\nREST API
+tbot --> telegram_api : 알림/명령
+llm --> anthropic : Claude API\n시장 분석
+
+' ── Redis Pub/Sub 연결 ───────────────────────────────────
+md --> redis : market:funding_rate\nmarket:regime
+orch --> redis : strategy:command:*\nkill_switch
+farb --> redis : order:request
+grid --> redis : order:request
+dca --> redis : order:request
+exec --> redis : order:update
+llm --> redis : 구독/발행
+tbot --> redis : 구독/발행
+dash --> redis : 실시간 상태
+
+' ── PostgreSQL 연결 ──────────────────────────────────────
+md --> pg : ohlcv_history\nfunding_rate_history
+exec --> pg : trades\npositions
+orch --> pg : strategy_states\nportfolio_snapshots
+farb --> pg : funding_payments
+dash --> pg : 조회
+llm --> pg : llm_reports
+tbot --> pg : 조회
+bt --> pg : 히스토리 조회
+
+' ── 모니터링 연결 ────────────────────────────────────────
+prom --> nexp : /metrics (9100)
+prom --> rexp : /metrics (9121)
+rexp --> redis : 메트릭 수집
+graf --> prom : PromQL 쿼리
+graf --> pg : SQL 쿼리\n(비즈니스 데이터)
+graf --> telegram_api : 알림 전송
+
+' ── 볼륨 연결 ────────────────────────────────────────────
+pg ..> v_pg : /var/lib/postgresql/data
+redis ..> v_redis : /data
+graf ..> v_graf : /var/lib/grafana
+prom ..> v_prom : /prometheus
+
+' ── 바인드 마운트 연결 ───────────────────────────────────
+cfg ..> md : /app/config (ro)
+cfg ..> orch : /app/config (ro)
+cfg ..> exec : /app/config (ro)
+cfg ..> farb : /app/config (ro)
+cfg ..> grid : /app/config (ro)
+cfg ..> dca : /app/config (ro)
+gcfg ..> graf : provisioning (ro)
+pcfg ..> prom : prometheus.yml (ro)
+btres ..> bt : /app/results (rw)
+
+' ── 포트 매핑 주석 ───────────────────────────────────────
+note right of dash
+  **노출 포트**
+  3000 -> 내부 대시보드
+  3001 -> 공개 대시보드
+  3002 -> Grafana
+  5432 -> PostgreSQL
+  6379 -> Redis
+  9090 -> Prometheus
+end note
+
+note right of analysis
+  **온디맨드 실행**
+  make backtest
+  (profile: backtest)
+end note
+
+note bottom of core
+  **빌드 공통**
+  - python:3.12-slim 베이스
+  - build context: 프로젝트 루트
+  - COPY shared /app/shared
+  - PYTHONPATH=/app
+  - restart: always
+end note
+
+@enduml

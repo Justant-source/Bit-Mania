@@ -1,0 +1,254 @@
+@startuml risk-management
+' ============================================================
+' CryptoEngine 리스크 관리 흐름도
+' 주문 요청부터 실행까지의 리스크 검증 + Kill Switch 에스컬레이션
+' ============================================================
+
+skinparam activityBackgroundColor #FEFEFE
+skinparam activityBorderColor #333333
+skinparam activityDiamondBackgroundColor #FFFDE7
+skinparam activityDiamondBorderColor #F57F17
+skinparam noteBackgroundColor #E3F2FD
+
+title CryptoEngine 리스크 관리 흐름도
+
+|#E8F5E9| 전략 서비스 |
+|#E3F2FD| 실행 엔진 (SafetyGuard) |
+|#FFF3E0| Kill Switch |
+|#FFEBEE| 복구/쿨다운 |
+
+|전략 서비스|
+start
+:전략이 주문 요청 생성
+(Redis **order:request** 채널);
+
+:request_id 부여
+(멱등성 보장);
+
+|실행 엔진 (SafetyGuard)|
+:주문 페이로드 수신;
+
+' ── 안전 검증 6단계 ──
+#LightBlue:=== 안전 검증 시작 ===;
+
+:1. 최대 주문 규모 검증
+(notional <= 100,000 USD);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "order_size_exceeded";
+  stop
+endif
+
+:2. 레버리지 한도 검증
+(명시적 + 암묵적 이중 검증);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "leverage_exceeded";
+  stop
+endif
+
+:3. 가용 마진 검증
+(free margin >= 50 USD);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "insufficient_margin";
+  stop
+endif
+
+:4. 슬리피지 검증
+(편차 <= 0.5%);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "slippage_exceeded";
+  stop
+endif
+
+:5. 네트워크 건강성
+(마지막 응답 < 30초);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "network_unhealthy";
+
+  |Kill Switch|
+  :L3 SYSTEM 트리거 평가;
+  note right
+    API 무응답 30초 이상
+    시스템 건강성 실패 판정
+  end note
+  stop
+endif
+
+:6. API 호출 제한
+(< 108회/분);
+if (통과?) then (예)
+else (아니오)
+  :주문 거부
+  "rate_limit_near";
+  stop
+endif
+
+#LightGreen:=== 안전 검증 통과 ===;
+
+' ── Kill Switch 확인 ──
+|Kill Switch|
+:Kill Switch 상태 확인
+(is_triggered?);
+
+if (Kill Switch 활성?) then (예)
+  :주문 실행 차단;
+  :사유 로그 기록;
+  stop
+else (아니오)
+endif
+
+:포트폴리오 상태 평가;
+
+' ── L1: 전략 수준 ──
+if (전략별 드로다운 초과?) then (예)
+  #FFCDD2:L1 STRATEGY 발동;
+  note right
+    개별 전략 정지
+    funding-arb: -5% (7일)
+    grid: -4% (7일)
+    dca: -25% 일시정지
+  end note
+  :해당 전략만 정지;
+  :_affected_strategies에 추가;
+
+  |복구/쿨다운|
+  :쿨다운 시작 (4시간);
+  :auto_resume() 주기적 호출;
+  if (쿨다운 경과?) then (예)
+    :_reset() 호출;
+    :전략 재개 허용;
+    |전략 서비스|
+    :전략 재시작;
+    stop
+  else (아니오)
+    :대기 계속;
+    stop
+  endif
+
+else (아니오)
+endif
+
+|Kill Switch|
+' ── L2: 포트폴리오 수준 ──
+if (포트폴리오 드로다운 초과?) then (예)
+  #EF9A9A:L2 PORTFOLIO 발동;
+  note right
+    일간 -5% / 주간 -10% / 월간 -15%
+    또는 일간 손실 1,000 USD
+    또는 BTC 24h -15%
+  end note
+  :모든 전략 정지;
+  :텔레그램 알림 전송;
+
+  |복구/쿨다운|
+  :쿨다운 시작 (설정값);
+  :auto_resume() 주기적 호출;
+  if (쿨다운 경과?) then (예)
+    :_reset() 호출;
+    :전체 전략 재개;
+    stop
+  else (아니오)
+    :대기 계속;
+    stop
+  endif
+
+else (아니오)
+endif
+
+|Kill Switch|
+' ── L3: 시스템 수준 ──
+if (시스템 건강성 실패?) then (예)
+  #E57373:L3 SYSTEM 발동;
+  note right
+    거래소 API 무응답
+    API 오류 50건/10분
+    실행 레이턴시 > 5,000ms
+  end note
+  :모든 포지션 시장가 청산;
+  :모든 주문 취소;
+  :텔레그램 긴급 알림;
+  :kill_switch_events 기록;
+
+  |복구/쿨다운|
+  :쿨다운 시작 (4시간);
+  :시스템 상태 모니터링;
+  if (쿨다운 경과 AND 시스템 정상?) then (예)
+    :_reset() 호출;
+    :서비스 재시작;
+    stop
+  else (아니오)
+    :대기 계속;
+    stop
+  endif
+
+else (아니오)
+endif
+
+|Kill Switch|
+' ── L4: 수동 비상 ──
+if (수동 비상 명령?) then (예)
+  #F44336:L4 MANUAL 발동;
+  note right
+    Telegram /kill 명령
+    또는 make emergency
+    **자동 복구 불가**
+  end note
+  :즉시 전량 청산;
+  :모든 주문 취소;
+  :텔레그램 긴급 알림;
+  :kill_switch_events 기록;
+
+  |복구/쿨다운|
+  #FFCDD2:수동 해제 대기;
+  note right
+    auto_resume() 무효
+    반드시 reset_manual() 호출
+    운영자 직접 확인 후 해제
+  end note
+  :운영자가 reset_manual() 실행;
+  :시스템 상태 확인 후 재개;
+  stop
+
+else (아니오)
+endif
+
+' ── 주문 실행 ──
+|실행 엔진 (SafetyGuard)|
+#LightGreen:모든 검증 통과;
+
+:Bybit API로 주문 전송;
+:record_api_call() 호출;
+
+if (주문 성공?) then (예)
+  :record_api_response() 호출;
+  :trades 테이블 기록;
+  :Redis **order:update** 발행;
+
+  |전략 서비스|
+  :체결 확인 수신;
+  stop
+
+else (아니오)
+  |실행 엔진 (SafetyGuard)|
+  :재시도 (최대 3회, 지수 백오프);
+  if (재시도 성공?) then (예)
+    :trades 테이블 기록;
+    :Redis **order:update** 발행;
+    stop
+  else (아니오)
+    :주문 실패 기록;
+    :텔레그램 알림;
+    stop
+  endif
+endif
+
+@enduml

@@ -1,0 +1,177 @@
+@startuml trading-strategies
+!theme plain
+title CryptoEngine 트레이딩 전략 상태 다이어그램\n시장 레짐 기반 전략 조율 및 Kill Switch 개입
+
+' ============================================================
+' 색상 정의
+' ============================================================
+skinparam state {
+    BackgroundColor<<regime>> #E8F5E9
+    BackgroundColor<<strategy>> #E3F2FD
+    BackgroundColor<<kill>> #FFEBEE
+    BackgroundColor<<orchestrator>> #FFF3E0
+    BorderColor #546E7A
+    FontSize 12
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #FBC02D
+}
+
+' ============================================================
+' 시장 레짐 상태 (Market Regime States)
+' ============================================================
+state "시장 레짐 감지" as RegimeDetection <<orchestrator>> {
+
+    state "횡보 (Ranging)" as Ranging <<regime>> {
+        Ranging : ADX < 25
+        Ranging : BB 폭 < 0.06
+        Ranging : 신뢰도 >= 0.5
+    }
+
+    state "상승 추세 (Trending Up)" as TrendUp <<regime>> {
+        TrendUp : ADX >= 25
+        TrendUp : EMA 20 > 50 > 200
+        TrendUp : 가격 상승 방향
+    }
+
+    state "하락 추세 (Trending Down)" as TrendDown <<regime>> {
+        TrendDown : ADX >= 25
+        TrendDown : EMA 20 < 50 < 200
+        TrendDown : 가격 하락 방향
+    }
+
+    state "고변동 (Volatile)" as Volatile <<regime>> {
+        Volatile : BB 폭 > 0.08
+        Volatile : ATR 75th 백분위 초과
+        Volatile : 거래량 급등 (2x)
+    }
+
+    ' 레짐 전환 (연속 2회 동일 신호 확인 필요)
+    Ranging --> TrendUp : ADX 상승 +\nEMA 정렬 (상승)
+    Ranging --> TrendDown : ADX 상승 +\nEMA 정렬 (하락)
+    Ranging --> Volatile : BB 폭 급등
+
+    TrendUp --> Ranging : ADX 하락 < 25
+    TrendUp --> TrendDown : EMA 정렬 반전
+    TrendUp --> Volatile : 변동성 급등
+
+    TrendDown --> Ranging : ADX 하락 < 25
+    TrendDown --> TrendUp : EMA 정렬 반전
+    TrendDown --> Volatile : 변동성 급등
+
+    Volatile --> Ranging : BB 폭 축소
+    Volatile --> TrendUp : 방향성 확보 (상승)
+    Volatile --> TrendDown : 방향성 확보 (하락)
+}
+
+' ============================================================
+' 전략 활성화 상태 (Strategy Activation)
+' ============================================================
+state "전략 자본 배분" as StrategyAllocation <<orchestrator>> {
+
+    state "펀딩비 차익거래\n(CORE)" as FundingArb <<strategy>> {
+        FundingArb : 횡보: 25% | 상승: 15%
+        FundingArb : 하락: 20% | 고변동: 10%
+        FundingArb : ---
+        FundingArb : 델타 뉴트럴 포지션
+        FundingArb : 8시간 펀딩비 수취
+    }
+
+    state "그리드 트레이딩\n(AUX)" as GridTrading <<strategy>> {
+        GridTrading : 횡보: 40% | 그 외: 5%
+        GridTrading : ---
+        GridTrading : ranging 레짐 전용
+        GridTrading : 신뢰도 >= 0.6 필수
+    }
+
+    state "적응형 DCA\n(AUX)" as AdaptiveDCA <<strategy>> {
+        AdaptiveDCA : 횡보: 15% | 상승: 50%
+        AdaptiveDCA : 하락: 10% | 고변동: 5%
+        AdaptiveDCA : ---
+        AdaptiveDCA : Fear & Greed 기반
+        AdaptiveDCA : 공포 시 매수 확대
+    }
+
+    state "현금 준비금" as Cash <<regime>> {
+        Cash : 횡보: 20% | 상승: 30%
+        Cash : 하락: 65% | 고변동: 80%
+        Cash : ---
+        Cash : 최소 유지: 5%
+    }
+}
+
+' ============================================================
+' Kill Switch (비상 정지)
+' ============================================================
+state "Kill Switch\n비상 정지" as KillSwitch <<kill>> {
+
+    state "일일 낙폭\n> 5%" as KS_Daily <<kill>>
+    state "주간 낙폭\n> 10%" as KS_Weekly <<kill>>
+    state "월간 낙폭\n> 15%" as KS_Monthly <<kill>>
+    state "BTC 급락\n24h -15%" as KS_Crash <<kill>>
+    state "API 오류\n10분 50건" as KS_API <<kill>>
+    state "실행 지연\n> 5,000ms" as KS_Latency <<kill>>
+
+    state "비상 조치 실행" as Emergency <<kill>> {
+        Emergency : 1. 모든 포지션 청산
+        Emergency : 2. 모든 주문 취소
+        Emergency : 3. Telegram 알림
+        Emergency : 4. 크리티컬 로그
+        Emergency : 5. 수동 리셋 대기
+    }
+
+    KS_Daily --> Emergency
+    KS_Weekly --> Emergency
+    KS_Monthly --> Emergency
+    KS_Crash --> Emergency
+    KS_API --> Emergency
+    KS_Latency --> Emergency
+}
+
+' ============================================================
+' 레짐 -> 전략 배분 흐름
+' ============================================================
+RegimeDetection -down-> StrategyAllocation : 레짐 판정\n(300초 간격 평가)\nEMA 스무딩 적용\n(알파=0.3, 5단계)
+
+' 레짐별 전략 활성화/비활성화
+Ranging -[hidden]down-> FundingArb
+TrendUp -[hidden]down-> AdaptiveDCA
+
+' ============================================================
+' Kill Switch 개입점
+' ============================================================
+StrategyAllocation -right-> KillSwitch : 낙폭/오류\n임계값 초과
+
+KillSwitch -left-> StrategyAllocation : 수동 리셋\n(60분 쿨다운)
+
+' ============================================================
+' 노트
+' ============================================================
+note right of RegimeDetection
+  **레짐 감지 방법**
+  1. 지표 기반 규칙 분류
+     (ADX, BB, EMA, ATR, 거래량)
+  2. LightGBM ML 모델 보완
+     (6시간마다 재학습, 30일 데이터)
+  3. LLM Advisor 가중치 미세 조정
+     (최대 +/-15%p)
+end note
+
+note bottom of Emergency
+  Kill Switch 발동 후
+  **수동 리셋 필수**
+  자동 복구 없음
+  (안전 최우선 원칙)
+end note
+
+note left of StrategyAllocation
+  **가중치 전환 규칙**
+  - 5단계 점진적 전환
+  - 스텝당 최대 10%p 변동
+  - 최소 15분 간격 유지
+  - 2%p 미만 변동은 무시
+end note
+
+@enduml

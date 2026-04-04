@@ -1,0 +1,266 @@
+@startuml CryptoEngine_DataFlow
+' CryptoEngine 데이터 흐름 시퀀스 다이어그램
+' 시장 데이터 수집 → 레짐 감지 → 전략 조율 → 주문 실행 전체 생명주기
+
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 200
+skinparam responseMessageBelowArrow true
+skinparam sequenceArrowThickness 1.5
+
+title CryptoEngine - 거래 전체 생명주기 데이터 흐름\n비트코인 선물 자동매매 시스템
+
+actor "운영자" as Operator
+
+box "외부 시스템" #LightYellow
+    participant "Bybit WS\n(V5 Public)" as BybitWS
+    participant "Bybit REST\nAPI" as BybitREST
+end box
+
+box "market-data 서비스" #LightBlue
+    participant "MarketData\nCollector" as Collector
+    participant "Regime\nDetector" as Regime
+    participant "Funding\nMonitor" as Funding
+end box
+
+database "Redis\n(Pub/Sub + Cache)" as Redis #LightGreen
+
+database "PostgreSQL" as DB #LightCoral
+
+box "orchestrator 서비스" #LightPink
+    participant "Strategy\nOrchestrator" as Orchestrator
+    participant "Portfolio\nMonitor" as Portfolio
+    participant "Weight\nManager" as WeightMgr
+end box
+
+box "전략 서비스" #LightCyan
+    participant "funding-arb\n(핵심 전략)" as FundingArb
+end box
+
+box "execution 서비스" #Wheat
+    participant "Execution\nEngine" as ExecEngine
+    participant "Safety\nGuard" as Safety
+    participant "Order\nManager" as OrderMgr
+    participant "Position\nTracker" as PosMgr
+end box
+
+' ============================================================
+' 1단계: 시장 데이터 수집
+' ============================================================
+
+== 1단계: 시장 데이터 수집 (실시간) ==
+
+BybitWS -> Collector : WebSocket 연결\n(orderbook.1, publicTrade,\nkline.1/5/15/60/240,\ntickers.BTCUSDT)
+activate Collector
+
+Collector -> Redis : PUBLISH market:ohlcv:bybit:BTCUSDT:{tf}\n{ open, high, low, close, volume, ts, confirmed }
+Collector -> Redis : PUBLISH market:ticker:bybit:BTCUSDT\n{ last_price, mark_price, funding_rate }
+Collector -> Redis : PUBLISH market:orderbook:bybit:BTCUSDT\n{ bids, asks, type: snapshot|delta }
+Collector -> Redis : PUBLISH market:funding:bybit:BTCUSDT\n{ rate, predicted_rate, next_funding_time }
+
+note right of Collector
+  확정(confirmed) 캔들만
+  DB에 UPSERT
+end note
+
+Collector -> DB : INSERT INTO ohlcv\nON CONFLICT DO UPDATE\n(확정 캔들만)
+Collector -> Redis : HSET cache:ohlcv:bybit:BTCUSDT:{tf}\n(최신 캔들 캐시)
+Collector -> Redis : HSET cache:funding:bybit:BTCUSDT\n(현재 펀딩비 캐시)
+
+' REST 폴링
+BybitREST -> Collector : GET /v5/market/open-interest\n(60초 주기)
+Collector -> Redis : PUBLISH market:open_interest:bybit:BTCUSDT
+
+BybitREST -> Collector : GET /v5/market/account-ratio\n(300초 주기)
+Collector -> Redis : PUBLISH market:long_short_ratio:bybit:BTCUSDT
+
+' 펀딩비 모니터
+BybitREST -> Funding : GET /v5/market/tickers\n(60초 주기)
+activate Funding
+Funding -> Redis : PUBLISH market:funding:bybit:BTCUSDT
+Funding -> DB : INSERT INTO funding_rates\nON CONFLICT DO NOTHING
+deactivate Funding
+
+' ============================================================
+' 2단계: 레짐 감지
+' ============================================================
+
+== 2단계: 레짐 감지 (5분봉 기반) ==
+
+Redis -> Regime : SUBSCRIBE market:ohlcv:bybit:BTCUSDT:5m\n(확정 캔들 수신)
+activate Regime
+
+note right of Regime
+  지표 계산:
+  - ADX(14) : 추세 강도
+  - ATR(14) : 변동성
+  - BB(20, 2.0) : 밴드 폭
+  - EMA(20) : 방향성
+
+  분류 결과:
+  ranging / trending_up /
+  trending_down / volatile
+end note
+
+Regime -> Redis : PUBLISH market:regime\n{ regime, confidence, adx, volatility, bb_width }
+Regime -> Redis : HSET cache:regime\n(현재 레짐 캐시)
+Regime -> DB : INSERT INTO market_regimes\n(regime, confidence, adx, volatility, bb_width)
+deactivate Regime
+
+' ============================================================
+' 3단계: 포트폴리오 평가 및 전략 조율
+' ============================================================
+
+== 3단계: 전략 조율 (5분 주기) ==
+
+Orchestrator -> Redis : GET cache:wallet_balance\n(execution-engine이 60초마다 갱신)
+activate Orchestrator
+
+Orchestrator -> Redis : GET market:regime:current\n(또는 ML 모델 예측)
+
+Orchestrator -> Portfolio : evaluate()
+activate Portfolio
+Portfolio --> Orchestrator : { total_equity, daily_drawdown,\nweekly_drawdown }
+deactivate Portfolio
+
+Orchestrator -> WeightMgr : get_target_weights(regime)\nsmooth_transition(current, target)
+activate WeightMgr
+WeightMgr --> Orchestrator : { funding_arb: 0.50,\ngrid: 0.25, dca: 0.15, cash: 0.10 }
+deactivate WeightMgr
+
+alt Kill Switch 발동 (일간 낙폭 >= 5%)
+    Orchestrator -> Redis : PUBLISH strategy:*:command\n{ weight: 0, allocated_capital: 0 }
+    Orchestrator -> Redis : PUBLISH system:kill_switch\n{ triggered: true, reason, cooldown_minutes: 60 }
+    Orchestrator -> Redis : SET orchestrator:kill_switch\n(TTL 7200s)
+    note right of Orchestrator
+      모든 전략 긴급 정지
+      100% 현금 전환
+      60분 쿨다운
+    end note
+else 정상 운영
+    Orchestrator -> Redis : PUBLISH strategy:funding_arb:command\nAllocationCommand { strategy_id,\nallocated_capital, weight, regime }
+    Orchestrator -> Redis : PUBLISH strategy:grid:command\nAllocationCommand
+    Orchestrator -> Redis : PUBLISH strategy:dca:command\nAllocationCommand
+end
+
+Orchestrator -> Redis : SET orchestrator:state\n{ regime, weights, equity, kill_switch }
+deactivate Orchestrator
+
+' ============================================================
+' 4단계: 전략 수신 및 주문 생성
+' ============================================================
+
+== 4단계: 전략 실행 (funding-arb 예시) ==
+
+Redis -> FundingArb : SUBSCRIBE strategy:funding_arb:command\n(자본 배분 수신)
+activate FundingArb
+
+FundingArb -> FundingArb : tick()\n펀딩비 분석 + 포지션 산출\n델타 뉴트럴 헤지 계산
+
+note right of FundingArb
+  OrderRequest:
+  - request_id (UUID, 멱등성 키)
+  - symbol: BTCUSDT
+  - side: buy/sell
+  - order_type: limit
+  - quantity, price
+  - strategy_id: funding_arb
+  - post_only: true
+  - leverage: 1~2x
+end note
+
+FundingArb -> Redis : PUBLISH order:request\nOrderRequest { request_id, symbol,\nside, order_type, quantity, price,\nstrategy_id, post_only, leverage }
+deactivate FundingArb
+
+' ============================================================
+' 5단계: 주문 실행
+' ============================================================
+
+== 5단계: 주문 실행 ==
+
+Redis -> ExecEngine : SUBSCRIBE order:request\n(주문 요청 수신)
+activate ExecEngine
+
+ExecEngine -> ExecEngine : 멱등성 검사\nrequest_id 중복 확인
+
+ExecEngine -> Safety : check_order(payload)
+activate Safety
+
+note right of Safety
+  6단계 순차 검증:
+  1. 최대 주문 크기 ($100K)
+  2. 레버리지 제한 (10x)
+  3. 여유 마진 확인 ($50)
+  4. 슬리피지 검증 (0.5%)
+  5. 네트워크 상태 (30s)
+  6. API Rate Limit (90%)
+end note
+
+Safety -> Redis : GET cache:balance:bybit\n(잔고 확인)
+Safety -> Redis : SCAN cache:position:bybit:*\n(포지션 합산)
+Safety --> ExecEngine : (passed=true, reason="")
+deactivate Safety
+
+ExecEngine -> OrderMgr : place_order(payload)
+activate OrderMgr
+
+loop 최대 3회 재시도 (지수 백오프: 1s, 2s, 3s)
+    OrderMgr -> BybitREST : POST /v5/order/create\n{ symbol, side, orderType, qty, price }
+    BybitREST --> OrderMgr : { orderId, status, filledQty }
+end
+
+OrderMgr -> DB : INSERT INTO orders\n(request_id, order_id, status,\nfilled_qty, filled_price, fee)
+OrderMgr --> ExecEngine : OrderResult
+deactivate OrderMgr
+
+' ============================================================
+' 6단계: 결과 전파
+' ============================================================
+
+== 6단계: 결과 전파 ==
+
+ExecEngine -> Redis : PUBLISH order:result\n{ request_id, order_id, status,\nfilled_qty, filled_price, fee }
+
+ExecEngine -> Redis : PUBLISH order:result:funding_arb\n(전략별 전용 채널)
+
+ExecEngine -> DB : UPDATE orders SET status, filled_qty,\nfilled_price, fee WHERE request_id
+
+ExecEngine -> PosMgr : on_order_fill(result)
+activate PosMgr
+PosMgr -> DB : UPDATE positions\n(size, entry_price, unrealized_pnl)
+PosMgr -> Redis : SET cache:position:bybit:BTCUSDT\n(포지션 캐시 갱신)
+deactivate PosMgr
+
+deactivate ExecEngine
+
+Redis -> FundingArb : order:result:funding_arb\n{ status: "filled", filled_qty, filled_price }
+activate FundingArb
+FundingArb -> FundingArb : 포지션 상태 업데이트\n다음 tick() 대기
+deactivate FundingArb
+
+' ============================================================
+' 지갑 잔고 갱신 (백그라운드)
+' ============================================================
+
+== 백그라운드: 지갑 잔고 갱신 (60초 주기) ==
+
+ExecEngine -> BybitREST : GET /v5/account/wallet-balance
+activate ExecEngine
+BybitREST --> ExecEngine : { total, free, used }
+ExecEngine -> Redis : SETEX cache:wallet_balance 300\n{ total, free, used }
+deactivate ExecEngine
+
+' ============================================================
+' 모니터링
+' ============================================================
+
+== 모니터링 (상시) ==
+
+note over DB, Redis
+  Grafana (포트 3002):
+  - PostgreSQL 직접 쿼리 → 가격/PnL/펀딩비 차트
+  - Prometheus 스크래핑 → 시스템/Redis 메트릭
+  - node-exporter → CPU/메모리/디스크
+  - redis-exporter → Redis 상태
+end note
+
+@enduml
