@@ -66,11 +66,11 @@ async def _load_ohlcv(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ts, open, high, low, close, volume
-            FROM ohlcv
+            SELECT timestamp AS ts, open, high, low, close, volume
+            FROM ohlcv_history
             WHERE symbol = $1 AND timeframe = $2
-              AND ts >= $3 AND ts <= $4
-            ORDER BY ts ASC
+              AND timestamp >= $3 AND timestamp <= $4
+            ORDER BY timestamp ASC
             """,
             symbol,
             timeframe,
@@ -98,11 +98,11 @@ async def _load_funding_rates(
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT collected_at, rate, predicted_rate
-            FROM funding_rates
+            SELECT timestamp AS ts, rate, NULL::double precision AS predicted_rate
+            FROM funding_rate_history
             WHERE symbol = $1
-              AND collected_at >= $2 AND collected_at <= $3
-            ORDER BY collected_at ASC
+              AND timestamp >= $2 AND timestamp <= $3
+            ORDER BY timestamp ASC
             """,
             symbol,
             start,
@@ -195,7 +195,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start",
         type=str,
-        default=(datetime.now(timezone.utc) - timedelta(days=365)).strftime("%Y-%m-%d"),
+        default=(datetime.now(timezone.utc) - timedelta(days=1095)).strftime("%Y-%m-%d"),
         help="Start date (YYYY-MM-DD)",
     )
     parser.add_argument(

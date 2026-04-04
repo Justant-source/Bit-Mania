@@ -1,113 +1,156 @@
 # CryptoEngine
 
-비트코인 선물 자동매매 시스템 — 펀딩비 차익거래 중심의 안정적 수익 추구
+**비트코인 선물 자동매매 시스템** -- 펀딩비 차익거래 중심, 델타 뉴트럴 전략으로 안정적 수익 추구
 
-> **현재 상태**: Bybit 테스트넷 연동 완료, Phase 3 (백테스트) 진행 예정  
-> **목표**: 테스트넷 검증 → 소액($500) 실전 → 공개 퍼포먼스 대시보드
+> **현재 상태**: Phase 2 (서비스 기동 + 연결 검증) 진행 중 | Bybit 테스트넷 10,000 USDT  
+> **목표**: 테스트넷 검증 -> 소액 실전($500) -> 공개 퍼포먼스 대시보드
 
 ---
 
-## 시스템 아키텍처
+## 시스템 개요
+
+16개 마이크로서비스가 Docker Compose로 구성된 24/7 무중단 트레이딩 시스템.
+Bybit 선물 시장에서 펀딩비 차익거래를 핵심으로, 그리드/DCA를 보조 전략으로 운영합니다.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      DOCKER COMPOSE STACK                        │
-│                                                                  │
-│  market-data ──→ Redis ──→ strategy-orchestrator                 │
-│       ↓           ↕              ↓                               │
-│   PostgreSQL   pub/sub    execution-engine ──→ Bybit API         │
-│       ↑           ↕              ↑                               │
-│   grafana     llm-advisor   funding-arb                          │
-│   dashboard   telegram-bot  grid-trading                         │
-│                             adaptive-dca                         │
-└──────────────────────────────────────────────────────────────────┘
+                        ┌─────────────┐
+                        │  Bybit API  │
+                        └──────┬──────┘
+                               │
+              ┌────────────────┼────────────────┐
+              v                v                v
+        ┌───────────┐  ┌──────────────┐  ┌───────────┐
+        │market-data│  │  execution   │  │ telegram  │
+        │ WebSocket │  │   engine     │  │   bot     │
+        └─────┬─────┘  └──────┬───────┘  └───────────┘
+              │               │
+              v               v
+        ┌─────────────────────────────┐
+        │        Redis Pub/Sub        │
+        └──────┬──────────┬───────────┘
+               │          │
+     ┌─────────┴──┐  ┌────┴──────────────────────────┐
+     │orchestrator│  │          strategies            │
+     │  (가중치)  │  │ funding-arb | grid | dca       │
+     └────────────┘  └───────────────────────────────-┘
+               │          │
+        ┌──────┴──────────┴──────┐
+        │      PostgreSQL        │──── Grafana / Dashboard
+        └────────────────────────┘
 ```
 
-### 서비스 구성
+---
 
-| 서비스 | 역할 | 포트 |
+## 아키텍처 문서
+
+상세 설계 문서는 [`arch/`](arch/) 디렉토리를 참조하세요.
+
+| 문서 | 내용 |
+|------|------|
+| [`system-overview.md`](arch/overview/system-overview.md) | 전체 시스템 아키텍처, 서비스 간 관계 |
+| [`data-flow.md`](arch/overview/data-flow.md) | 데이터 흐름: WebSocket -> Redis -> DB |
+| [`trading-strategies.md`](arch/overview/trading-strategies.md) | 3개 전략 상세 (펀딩비, 그리드, DCA) |
+| [`risk-management.md`](arch/overview/risk-management.md) | Kill Switch 4단계, 레버리지 정책 |
+| [`database-schema.md`](arch/overview/database-schema.md) | PostgreSQL 테이블 설계 및 관계도 |
+| [`deployment.md`](arch/overview/deployment.md) | Docker 배포, 환경 변수, 운영 가이드 |
+
+---
+
+## 서비스 구성 (16개)
+
+### 트레이딩 핵심
+
+| 서비스 | 설명 |
+|--------|------|
+| `market-data` | Bybit WebSocket으로 OHLCV, 호가, 펀딩비 실시간 수집. 시장 레짐(trending/ranging/volatile) 감지 |
+| `strategy-orchestrator` | 레짐 기반 전략 가중치 동적 조절, 자본 배분, Kill Switch 총괄 |
+| `execution-engine` | CCXT 주문 실행, 포지션 추적, 슬리피지/수수료 검증, 레버리지 안전장치 |
+| `funding-arb` | **핵심 전략** -- 델타 뉴트럴 포지션으로 8시간 주기 펀딩비 수취 (연 15-30% 목표) |
+| `grid-trading` | 보조 전략 -- 횡보 레짐에서 가격 그리드 기반 자동매매 |
+| `adaptive-dca` | 보조 전략 -- Fear & Greed Index 기반 적응형 BTC 적립 |
+
+### 분석 및 알림
+
+| 서비스 | 설명 |
+|--------|------|
+| `llm-advisor` | Anthropic SDK + LangGraph 기반 시장 분석, 일일 회고 리포트 생성 |
+| `telegram-bot` | 트레이딩 알림 발송, `/emergency_close` 비상 청산 명령 수신 |
+
+### 모니터링 및 인프라
+
+| 서비스 | 포트 | 설명 |
 |--------|------|------|
-| `market-data` | Bybit WebSocket 데이터 수집, 레짐 감지, 펀딩비 모니터링 | — |
-| `strategy-orchestrator` | 시장 레짐 기반 전략 가중치 조율, Kill Switch 관리 | — |
-| `execution-engine` | 주문 실행, 포지션 추적, 안전 검증 | — |
-| `funding-arb` | 핵심 전략: 델타 뉴트럴 + 펀딩비 수취 | — |
-| `grid-trading` | 보조 전략: 횡보 구간 그리드 | — |
-| `adaptive-dca` | 보조 전략: Fear & Greed 기반 BTC 적립 | — |
-| `llm-advisor` | Claude Code 기반 시장 분석 및 일일 회고 | — |
-| `telegram-bot` | 알림 발송, 비상 청산 명령 수신 | — |
-| `dashboard` | 내부 관리 + 공개 퍼포먼스 페이지 | 3000/3001 |
-| `grafana` | 실시간 모니터링 대시보드 | 3002 |
-| `postgres` | 트레이딩 데이터 영구 저장 | 5432 |
-| `redis` | 서비스 간 메시지 브로커 + 캐시 | 6379 |
+| `dashboard` | 3000 / 3001 | 내부 관리 대시보드(3000) + 공개 퍼포먼스 페이지(3001) |
+| `grafana` | 3002 | 실시간 모니터링 대시보드 (Prometheus + PostgreSQL 데이터소스) |
+| `prometheus` | 9090 | 메트릭 수집 및 시계열 저장 |
+| `node-exporter` | -- | 호스트 시스템 메트릭 (CPU, 메모리, 디스크) |
+| `redis-exporter` | -- | Redis 메트릭 (연결 수, 메모리, 명령 처리량) |
+| `postgres` | 5432 | 트레이딩 데이터 영구 저장 |
+| `redis` | 6379 | 서비스 간 메시지 브로커(Pub/Sub) + 캐시 |
+| `backtester` | -- | 히스토리 데이터 기반 전략 백테스트 (프로필 활성화 시 실행) |
 
 ---
 
-## 핵심 전략: 펀딩비 차익거래 (Funding Rate Arbitrage)
+## 기술 스택
 
-### 개념
-- BTC 선물 포지션을 델타 뉴트럴로 유지하면서 8시간마다 발생하는 펀딩비를 수취
-- 현물 매수 + 선물 숏 (또는 반대) 으로 방향성 리스크 제거
-- 연환산 수익률 목표: 15~30% (펀딩비만으로)
-
-### 진입 조건
-- 펀딩비 > 0.01% (연환산 ~11%)
-- 베이시스 스프레드 허용 범위 내
-- 포트폴리오 손실 한도 미도달
-
-### 리스크 관리
-```
-Level 1: 개별 전략 손절 (전략 자체 로직)
-Level 2: 일일 -1%, 주간 -3% → 해당 전략 자동 정지
-Level 3: 헬스체크 실패 → 전체 마켓 청산
-Level 4: Telegram /emergency_close → 즉시 전체 청산
-```
+| 영역 | 기술 | 버전 |
+|------|------|------|
+| 언어 | Python, TypeScript (dashboard) | 3.12, ES2022 |
+| 거래소 | CCXT, Bybit WebSocket | 4.x |
+| 데이터베이스 | PostgreSQL, asyncpg | 16, -- |
+| 캐시/메시징 | Redis (Pub/Sub) | 7 |
+| 비동기 | asyncio, aiohttp | -- |
+| 기술 지표 | TA-Lib, pandas, numpy, scikit-learn | -- |
+| LLM | Anthropic SDK, LangGraph | claude-sonnet-4-6 |
+| 로깅 | structlog (JSON 구조화) | -- |
+| 컨테이너 | Docker Compose, python:3.12-slim | 28+ |
+| 모니터링 | Grafana, Prometheus | -- |
 
 ---
 
 ## 빠른 시작
 
 ### 사전 요구사항
-- Docker Engine 28+, docker compose plugin
-- WSL Ubuntu 24.04 (Windows 환경)
-- Bybit 테스트넷 계정 + API 키
+
+- Docker Engine 28+ / docker compose plugin
+- WSL Ubuntu 24.04 (Windows) 또는 Linux
+- Bybit 테스트넷 계정 + API 키 (출금 권한 제외)
 
 ### 1. 환경 설정
 
 ```bash
 cd ~/Data/Bit-Mania/cryptoengine
 cp .env.example .env
-# .env 편집: DB_PASSWORD, GRAFANA_ADMIN_PASSWORD, BYBIT_API_KEY, BYBIT_API_SECRET
+# .env 편집: BYBIT_API_KEY, BYBIT_API_SECRET, DB_PASSWORD, GRAFANA_ADMIN_PASSWORD
 ```
 
 ### 2. 인프라 기동
 
 ```bash
-docker compose up -d postgres redis grafana
+# 인프라 서비스 시작
+docker compose up -d postgres redis grafana prometheus
 
 # DB 스키마 초기화
 docker compose exec -T postgres psql -U cryptoengine -d cryptoengine \
   -f /dev/stdin < shared/db/init_schema.sql
-
-# Grafana: http://localhost:3002 (admin / 설정한 비밀번호)
 ```
 
-### 3. 서비스 빌드 및 기동
+### 3. 트레이딩 서비스 기동
 
 ```bash
-# 전체 빌드
-docker compose build
+# 전체 빌드 + 기동
+make up
 
-# 핵심 서비스 기동
+# 또는 핵심 서비스만
 docker compose up -d market-data execution-engine funding-arb strategy-orchestrator
-
-# 상태 확인
-docker compose ps
-docker compose logs -f funding-arb
 ```
 
-### 4. 연결 확인
+### 4. 동작 확인
 
 ```bash
+# 서비스 상태 + 리소스 사용량
+make status
+
 # 데이터 수신 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine \
   -c "SELECT count(*) FROM ohlcv_history;"
@@ -115,57 +158,78 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine \
 # 펀딩비 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine \
   -c "SELECT * FROM funding_rate_history ORDER BY recorded_at DESC LIMIT 5;"
+
+# 실시간 로그
+make logs-funding-arb
 ```
+
+### 접속 URL
+
+| 서비스 | URL |
+|--------|-----|
+| 내부 대시보드 | http://localhost:3000 |
+| 공개 대시보드 | http://localhost:3001 |
+| Grafana | http://localhost:3002 |
+| Prometheus | http://localhost:9090 |
+
+---
+
+## Makefile 명령어
+
+`cryptoengine/` 디렉토리에서 실행합니다.
+
+| 명령 | 설명 |
+|------|------|
+| `make up` | 전체 서비스 빌드 + 기동 |
+| `make up-dev` | 개발 모드 (hot reload) 기동 |
+| `make down` | 전체 서비스 중지 |
+| `make down-clean` | 전체 중지 + 볼륨 삭제 (**데이터 삭제됨**) |
+| `make restart` | 전체 서비스 재시작 |
+| `make logs` | 전체 서비스 로그 tail |
+| `make logs-<서비스명>` | 특정 서비스 로그 (예: `make logs-funding-arb`) |
+| `make status` | 컨테이너 상태 + 리소스 사용량 |
+| `make test` | 전체 테스트 스위트 실행 |
+| `make test-unit` | 유닛 테스트만 실행 |
+| `make backtest` | 백테스터 실행 (히스토리 데이터 기반) |
+| `make migrate` | DB 마이그레이션 (Alembic) |
+| `make monthly-report` | 월간 성과 리포트 생성 |
+| `make emergency` | **비상 청산** -- 전 포지션 즉시 청산 + 전략 정지 |
+
+---
+
+## 리스크 관리: Kill Switch 4단계
+
+```
+Level 1  개별 전략 손절      전략 자체 로직으로 포지션 축소
+Level 2  일일/주간 한도      일 -1% 또는 주 -3% 도달 시 해당 전략 자동 정지
+Level 3  헬스체크 실패       서비스 무응답 시 전체 마켓 포지션 청산
+Level 4  수동 비상 정지      Telegram /emergency_close 또는 make emergency
+```
+
+상세 내용: [`arch/risk-management.md`](arch/overview/risk-management.md)
 
 ---
 
 ## 개발 로드맵
 
-```
-Phase 0 ✅  환경 설정 (Docker, DB, 인프라)
-Phase 1 ✅  API 키 발급 (Bybit 테스트넷 10,000 USDT)
-Phase 2 🔄  서비스 기동 + 연결 검증
-Phase 3 ⏳  백테스트 (6개월 데이터, Sharpe ≥ 2.0 목표)
-Phase 4 ⏳  테스트넷 포워드 테스트 (2주, 7개 시나리오)
-Phase 5 ⏳  소액 실전 ($500, BYBIT_TESTNET=false)
-Phase 6 ⏳  공개 대시보드 + 유튜브
-```
+| Phase | 상태 | 내용 |
+|-------|------|------|
+| 0 | 완료 | 환경 설정 -- Docker, PostgreSQL, Redis, Grafana |
+| 1 | 완료 | Bybit 테스트넷 API 키 발급 (10,000 USDT) |
+| 2 | **진행 중** | 서비스 기동 + 연결 검증, Redis Pub/Sub 데이터 흐름 확인 |
+| 3 | 예정 | 백테스트 -- 6개월 히스토리 데이터, Sharpe >= 2.0 목표 |
+| 4 | 예정 | 테스트넷 포워드 테스트 (2주, 7개 시나리오) |
+| 5 | 예정 | 소액 실전 ($500, BYBIT_TESTNET=false 전환) |
+| 6 | 예정 | 공개 퍼포먼스 대시보드 + 유튜브 |
 
-### Phase 3 백테스트 기준
+### Phase 3 백테스트 통과 기준
 
-| 지표 | 통과 기준 |
-|------|-----------|
-| Sharpe Ratio | ≥ 2.0 |
-| Max Drawdown | ≤ 5% |
-| 펀딩비 수취 승률 | ≥ 80% |
-| 백테스트 vs 실전 괴리 | ≤ 10% |
-
----
-
-## 주요 명령어
-
-```bash
-# 전체 재시작
-docker compose down && docker compose up -d
-
-# 특정 서비스만 재빌드
-docker compose up -d --build --no-deps funding-arb
-
-# DB 직접 쿼리
-docker compose exec postgres psql -U cryptoengine -d cryptoengine
-
-# 최근 거래 확인
-# SELECT * FROM trades ORDER BY created_at DESC LIMIT 10;
-
-# 포지션 확인
-# SELECT * FROM positions WHERE closed_at IS NULL;
-
-# Kill Switch 이력
-# SELECT * FROM kill_switch_events ORDER BY triggered_at DESC LIMIT 5;
-
-# 비상 청산
-make emergency
-```
+| 지표 | 기준 |
+|------|------|
+| Sharpe Ratio | >= 2.0 |
+| Max Drawdown | <= 5% |
+| 펀딩비 수취 승률 | >= 80% |
+| 백테스트 vs 실전 괴리 | <= 10% |
 
 ---
 
@@ -173,44 +237,41 @@ make emergency
 
 ```
 cryptoengine/
-├── config/           # 전략 파라미터, 거래소 설정, Grafana 프로비저닝
-├── shared/           # 공유 라이브러리 (models, exchange, db, redis)
-├── services/         # 마이크로서비스 (각 서비스 독립 Docker 이미지)
-│   ├── market-data/
-│   ├── orchestrator/
-│   ├── execution/
-│   ├── strategies/   # funding-arb, grid-trading, adaptive-dca
-│   ├── llm-advisor/
-│   ├── telegram-bot/
-│   ├── dashboard/
-│   └── backtester/
-├── tests/            # unit / integration / backtest
-├── scripts/          # DB 초기화, 데이터 시딩, 리포트 생성
-└── docs/             # 아키텍처 문서, 전략 설명, 운영 매뉴얼
+├── docker-compose.yml        # 16개 서비스 정의
+├── Makefile                  # 운영 명령어
+├── .env                      # 환경 변수 (git 제외)
+├── config/
+│   ├── strategies/           # 전략별 파라미터 YAML
+│   ├── orchestrator.yaml     # 레짐별 가중치, Kill Switch 임계값
+│   └── grafana/              # Grafana 프로비저닝
+├── shared/                   # 전 서비스 공유 라이브러리
+│   ├── models/               # 도메인 모델 (Order, Position, Strategy)
+│   ├── exchange/             # Bybit CCXT 래퍼
+│   ├── db/                   # asyncpg 풀, Repository 패턴
+│   ├── redis_client.py       # Redis Pub/Sub 헬퍼
+│   ├── config_loader.py      # YAML 설정 로더
+│   └── kill_switch.py        # Kill Switch 공통 로직
+├── services/
+│   ├── market-data/          # 시장 데이터 수집
+│   ├── orchestrator/         # 전략 조율
+│   ├── execution/            # 주문 실행
+│   ├── strategies/           # funding-arb, grid-trading, adaptive-dca
+│   ├── llm-advisor/          # LLM 시장 분석
+│   ├── telegram-bot/         # 알림 + 비상 명령
+│   ├── dashboard/            # 웹 대시보드 (TypeScript)
+│   └── backtester/           # 백테스트 엔진
+├── arch/                     # 아키텍처 설계 문서
+├── tests/                    # 테스트
+└── scripts/                  # DB 초기화, 데이터 시딩
 ```
 
 ---
 
-## 주의사항
+## 안전 수칙
 
-- `.env` 파일은 절대 git에 커밋하지 않음
-- `BYBIT_TESTNET=true` — Phase 4 완료 전까지 절대 변경 금지
-- API 키에 **출금 권한 없음** (의도적 설계)
-- 선물 레버리지 **2배 초과 금지**
-- Kill Switch 로직(`shared/kill_switch.py`) 절대 약화 금지
-
----
-
-## 기술 스택
-
-| 영역 | 기술 |
-|------|------|
-| 언어 | Python 3.12, TypeScript (dashboard) |
-| 거래소 연동 | CCXT 4.x, Bybit WebSocket |
-| 데이터 | PostgreSQL 16, Redis 7, asyncpg |
-| 기술 지표 | TA-Lib, pandas, numpy, scikit-learn |
-| 비동기 | asyncio, aiohttp |
-| 로깅 | structlog (JSON 구조화) |
-| 컨테이너 | Docker Compose, python:3.12-slim |
-| 모니터링 | Grafana, PostgreSQL datasource |
-| LLM | Claude Code (claude-sonnet-4-6) |
+- **`.env` 파일은 절대 git에 커밋하지 않음**
+- **`BYBIT_TESTNET=true`** -- Phase 4 완료 전까지 절대 변경 금지
+- **API 키에 출금 권한 없음** (의도적 설계)
+- **선물 레버리지 2배 초과 금지**
+- **Kill Switch 로직(`shared/kill_switch.py`)을 절대 약화시키지 않음**
+- `shared/` 변경 시 모든 서비스 이미지 재빌드 필요 (`make up`)
