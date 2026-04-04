@@ -108,6 +108,19 @@ take_profit:
   # Cooldown before resuming DCA after TP (hours)
   resume_cooldown_hours: 48
 
+# ── Graduated Entry (Test C 결과 반영: baseline 대비 +34.3%p 수익률) ──────────
+graduated_entry:
+  enabled: true
+  # 첫 진입 시 기본 매수금액의 일부만 집행
+  initial_size_ratio: 0.5       # 1차 매수: 산출 금액의 50%
+  # 추가 진입 조건: 1차 진입 후 추가 하락 시 잔여분 집행
+  add_on_dip_pct: 5.0           # 1차 진입가 대비 5% 추가 하락 시 잔여 50% 매수
+  max_entries_per_cycle: 2      # 사이클당 최대 진입 횟수 (1차 + 추가 1회)
+  # 추가 진입 금액 비율 (initial_size_ratio의 나머지)
+  followup_size_ratio: 0.5      # 2차 매수: 잔여 50%
+  # 추가 진입 가능 시간 창 (시간) — 초과 시 1차 진입만으로 사이클 종료
+  add_on_window_hours: 24
+
 # ── Safety & Risk Management ─────────────────────────────────
 risk:
   # Maximum total capital deployed in DCA (USD)
