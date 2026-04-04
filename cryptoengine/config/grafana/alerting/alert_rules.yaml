@@ -1,0 +1,251 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: cryptoengine-alerts
+    folder: CryptoEngine
+    interval: 1m
+    rules:
+
+      # ── Rule 1: 펀딩비 급변 (Funding Rate Spike) ──────────────────────────
+      - uid: alert-funding-spike
+        title: 펀딩비 급변
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: cryptoengine-postgres
+            model:
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: cryptoengine-postgres
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT MAX(ABS(rate)) AS value
+                FROM funding_rate_history
+                WHERE collected_at >= NOW() - INTERVAL '1 hour'
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [0.0003]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "펀딩비가 {{ $value | printf \"%.4f\" }}%로 임계값(0.03%)을 초과했습니다"
+
+      # ── Rule 2: 자산 급감 (Equity Drop) ──────────────────────────────────
+      - uid: alert-equity-drop
+        title: 자산 급감
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: cryptoengine-postgres
+            model:
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: cryptoengine-postgres
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT
+                  (1 - CAST(last(total_equity, snapshot_at) AS FLOAT)
+                     / NULLIF(CAST(first(total_equity, snapshot_at) AS FLOAT), 0))
+                  AS value
+                FROM portfolio_snapshots
+                WHERE snapshot_at >= NOW() - INTERVAL '15 minutes'
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [0.03]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "자산이 15분 내 {{ $value | printf \"%.1f\" }}% 감소했습니다"
+
+      # ── Rule 3: 데이터 수집 중단 (OHLCV Gap) ─────────────────────────────
+      - uid: alert-ohlcv-gap
+        title: 데이터 수집 중단
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: cryptoengine-postgres
+            model:
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: cryptoengine-postgres
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT EXTRACT(EPOCH FROM (NOW() - MAX(open_time))) / 60 AS value
+                FROM ohlcv_history
+                WHERE symbol = 'BTCUSDT'
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "OHLCV 데이터 수집이 {{ $value | printf \"%.0f\" }}분째 중단되었습니다"
+
+      # ── Rule 4: Kill Switch 발동 (Kill Switch Activated) ─────────────────
+      - uid: alert-kill-switch
+        title: Kill Switch 발동
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: cryptoengine-postgres
+            model:
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: cryptoengine-postgres
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT COUNT(*) AS value
+                FROM kill_switch_events
+                WHERE triggered_at >= NOW() - INTERVAL '5 minutes'
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kill Switch가 발동되었습니다! 즉시 확인 요망"
+
+      # ── Rule 5: Sharpe 하락 (Sharpe Drop) ────────────────────────────────
+      - uid: alert-sharpe-drop
+        title: Sharpe 하락
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: cryptoengine-postgres
+            model:
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: cryptoengine-postgres
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT COUNT(*) AS value
+                FROM daily_reports
+                WHERE date >= CURRENT_DATE - INTERVAL '3 days'
+                  AND sharpe_ratio < 1.0
+          - refId: B
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [3]
+                    type: gt-eq
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sharpe Ratio가 3일 연속 1.0 미만입니다"
