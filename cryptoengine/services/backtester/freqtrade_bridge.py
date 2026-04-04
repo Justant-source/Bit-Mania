@@ -377,16 +377,15 @@ class _BacktestEngine:
             signal = handler(bar, lookback, idx)
 
             if signal == "buy" and self._position is None:
-                self._open_position(bar, "buy")
+                self._open_position(bar, "buy", idx)
             elif signal == "sell" and self._position is None:
-                self._open_position(bar, "sell")
+                self._open_position(bar, "sell", idx)
             elif signal == "close" and self._position is not None:
                 self._close_position(bar)
             elif signal == "reverse" and self._position is not None:
                 self._close_position(bar)
-                new_side = "sell" if self._position is None else "buy"
                 # position already closed, reverse
-                self._open_position(bar, "buy" if bars.iloc[idx]["close"] > bars.iloc[idx]["open"] else "sell")
+                self._open_position(bar, "buy" if bars.iloc[idx]["close"] > bars.iloc[idx]["open"] else "sell", idx)
 
             self._equity_curve.append(self._equity + self._unrealized_pnl(bar))
 
@@ -411,21 +410,76 @@ class _BacktestEngine:
         return handlers.get(self._strategy, self._signal_funding_arb)
 
     def _signal_funding_arb(self, bar: Any, lookback: pd.DataFrame, idx: int) -> str | None:
-        """Funding arb: enter when funding positive and spread exists."""
-        close = float(bar["close"])
-        sma20 = float(lookback["close"].tail(20).mean())
-        sma50 = float(lookback["close"].tail(50).mean()) if len(lookback) >= 50 else sma20
+        """Funding arb: 완전한 델타 뉴트럴 2-레그 모델.
+
+        실제 펀딩비 차익거래 구조:
+          레그 1 — 숏 perp  (funding > 0 일 때) / 롱 perp  (funding < 0 일 때)
+          레그 2 — 롱 spot  (funding > 0 일 때) / 숏 spot  (funding < 0 일 때)
+
+        두 레그의 가격 손익은 정반대로 상쇄 → 순 가격 PnL = 0.
+        오직 펀딩비 결제분만 수익/비용으로 기록된다.
+
+        결제 주기: Bybit 8시간 (00:00 / 08:00 / 16:00 UTC)
+        진입 조건: |funding_rate| >= 0.0001 (0.01%/8h ≈ 10.95% APY)
+        청산 조건: 반대 방향 펀딩이 3회 연속 지속
+
+        타임프레임 독립성:
+          OHLCV 봉 크기는 진입/청산 실행 가격에만 영향.
+          신호 판단은 항상 8h 정산 타임스탬프 기준.
+        """
+        ENTRY_THRESHOLD =  0.0001   # 0.01%/8h — 진입 최소 조건 (양/음 모두)
+        REVERSE_EXIT    =  3        # 반대 방향 연속 N회 → 청산
 
         funding_rate = self._get_funding_rate(bar)
 
+        # ── 8시간 정산 타이밍 감지 (00:00 / 08:00 / 16:00 UTC) ─────────
+        ts = bar.get("ts", bar.name)
+        try:
+            ts_dt = pd.Timestamp(ts)
+            if ts_dt.tzinfo is None:
+                ts_dt = ts_dt.tz_localize("UTC")
+            is_settlement = (ts_dt.hour % 8 == 0) and (ts_dt.minute == 0)
+        except Exception:
+            is_settlement = (idx % 8 == 0)
+
+        # ── 펀딩비 정산: 수취(+) 또는 지불(-) 모두 equity에 즉시 반영 ──
+        # direction = +1 → 숏 perp 보유 (funding>0 이면 수취, <0 이면 지불)
+        # direction = -1 → 롱 perp 보유 (funding<0 이면 수취, >0 이면 지불)
+        if self._position is not None and is_settlement:
+            direction   = self._position.get("funding_direction", 1)
+            pos_value   = self._position["size"] * self._position["entry_price"]
+            # 실제 수령액 = pos_value × rate × direction
+            # (+rate, direction=+1) → 수취  |  (-rate, direction=+1) → 지불
+            net_funding = pos_value * funding_rate * direction
+            self._equity += net_funding
+            self._position["funding_accumulated"] = (
+                self._position.get("funding_accumulated", 0.0) + net_funding
+            )
+
+        # ── 진입: 정산 시점 + 충분한 펀딩비가 있을 때 ─────────────────
         if self._position is None:
-            if funding_rate > 0.0001 and close < sma20:
-                return "buy"
+            if is_settlement:
+                if funding_rate >= ENTRY_THRESHOLD:
+                    return "sell"   # 숏 perp + 롱 spot  (funding > 0 → 숏이 수취)
+                elif funding_rate <= -ENTRY_THRESHOLD:
+                    return "buy"    # 롱 perp + 숏 spot  (funding < 0 → 롱이 수취)
+
+        # ── 청산: 방향이 지속적으로 반전될 때 ──────────────────────────
         else:
-            held_bars = idx - self._position.get("entry_idx", idx)
-            pnl_pct = self._unrealized_pnl(bar) / self._initial_capital
-            if funding_rate < 0 or pnl_pct < -0.02 or pnl_pct > 0.03 or held_bars > 24 * 3:
-                return "close"
+            direction = self._position.get("funding_direction", 1)
+            if is_settlement:
+                funding_reversed = (direction > 0 and funding_rate < 0) or \
+                                   (direction < 0 and funding_rate > 0)
+                if funding_reversed:
+                    self._position["reverse_count"] = (
+                        self._position.get("reverse_count", 0) + 1
+                    )
+                else:
+                    self._position["reverse_count"] = 0
+
+                if self._position.get("reverse_count", 0) >= REVERSE_EXIT:
+                    return "close"
+
         return None
 
     def _signal_grid(self, bar: Any, lookback: pd.DataFrame, idx: int) -> str | None:
@@ -524,7 +578,7 @@ class _BacktestEngine:
     # Position management
     # ------------------------------------------------------------------
 
-    def _open_position(self, bar: Any, side: str) -> None:
+    def _open_position(self, bar: Any, side: str, idx: int = 0) -> None:
         entry = float(bar["close"])
         size = (self._equity * 0.95) / entry  # 95% capital utilisation
         fee = entry * size * self._fee_rate
@@ -535,30 +589,48 @@ class _BacktestEngine:
             "entry_price": entry,
             "size": size,
             "entry_ts": bar.get("ts", bar.name) if hasattr(bar, "name") else None,
-            "entry_idx": 0,
+            "entry_idx": idx,
             "fee_paid": fee,
+            # funding_arb: +1 = short perp (positive funding), -1 = long perp (negative funding)
+            "funding_direction": 1 if side == "sell" else -1,
+            # 델타 뉴트럴 여부: funding_arb는 두 레그가 가격 리스크를 상쇄
+            "delta_neutral": self._strategy == "funding_arb",
+            # 누적 펀딩 수취/지불액 추적 (trade PnL 보고용)
+            "funding_accumulated": 0.0,
         }
 
     def _close_position(self, bar: Any) -> None:
         if self._position is None:
             return
 
-        exit_price = float(bar["close"])
-        size = self._position["size"]
+        size  = self._position["size"]
         entry = self._position["entry_price"]
-        side = self._position["side"]
+        side  = self._position["side"]
+        entry_ts  = self._position.get("entry_ts")
+        close_ts  = bar.get("ts", bar.name) if hasattr(bar, "name") else None
+        fee_entry = self._position.get("fee_paid", 0.0)
 
-        if side == "buy":
-            pnl = (exit_price - entry) * size
+        if self._position.get("delta_neutral", False):
+            # ── 델타 뉴트럴 (funding_arb) ────────────────────────────────
+            # 레그1(perp) + 레그2(spot) 가격 PnL이 정확히 상쇄됨.
+            # equity에는 이미 펀딩 수취/지불이 누적되어 있다.
+            # 청산 시 exit fee만 차감하면 된다.
+            exit_price = float(bar["close"])
+            fee_exit   = exit_price * size * self._fee_rate
+            self._equity -= fee_exit   # 입장 수수료는 _open_position에서 차감됨
+
+            # trade PnL = 누적 펀딩 - 진입 수수료 - 청산 수수료
+            net_pnl = self._position.get("funding_accumulated", 0.0) - fee_entry - fee_exit
         else:
-            pnl = (entry - exit_price) * size
-
-        fee = exit_price * size * self._fee_rate
-        net_pnl = pnl - fee
-        self._equity += net_pnl
-
-        entry_ts = self._position.get("entry_ts")
-        close_ts = bar.get("ts", bar.name) if hasattr(bar, "name") else None
+            # ── 단일 레그 (grid, dca, combined) ─────────────────────────
+            exit_price = float(bar["close"])
+            if side == "buy":
+                pnl = (exit_price - entry) * size
+            else:
+                pnl = (entry - exit_price) * size
+            fee_exit = exit_price * size * self._fee_rate
+            net_pnl  = pnl - fee_exit
+            self._equity += net_pnl
 
         self._trades.append(
             TradeRecord(
@@ -570,7 +642,7 @@ class _BacktestEngine:
                 entry_price=entry,
                 exit_price=exit_price,
                 pnl=net_pnl,
-                fee=fee + self._position.get("fee_paid", 0),
+                fee=fee_entry + fee_exit,
                 duration_hours=0.0,
             )
         )
@@ -579,9 +651,12 @@ class _BacktestEngine:
     def _unrealized_pnl(self, bar: Any) -> float:
         if self._position is None:
             return 0.0
+        # 델타 뉴트럴: 두 레그(perp + spot)의 가격 손익이 상쇄 → 0
+        if self._position.get("delta_neutral", False):
+            return 0.0
         price = float(bar["close"])
         entry = self._position["entry_price"]
-        size = self._position["size"]
+        size  = self._position["size"]
         if self._position["side"] == "buy":
             return (price - entry) * size
         return (entry - price) * size

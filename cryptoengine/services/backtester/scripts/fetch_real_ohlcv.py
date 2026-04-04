@@ -3,12 +3,22 @@
 인증 불필요 (공개 마켓 데이터 엔드포인트 사용).
 테스트넷 API 키로 메인넷 히스토리 데이터를 받을 수 없는 문제를 우회.
 
+기본 범위: 3년 (2023-04-01 ~ 2026-04-01), BTCUSDT, 1h/4h/15m
+
 사용 예:
+    # 기본 (3년, BTCUSDT, 1h/4h/15m)
     python scripts/fetch_real_ohlcv.py
+
+    # 커스텀 기간
+    python scripts/fetch_real_ohlcv.py --start 2023-04-01 --end 2026-04-01
+
+    # 심볼 / 타임프레임 지정
+    python scripts/fetch_real_ohlcv.py --symbol ETHUSDT --timeframes 1h,4h
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 from datetime import datetime, timezone
@@ -26,7 +36,7 @@ DB_DSN = (
 
 BYBIT_PUBLIC = "https://api.bybit.com"
 SYMBOL = "BTCUSDT"
-START = "2025-10-01"
+START = "2023-04-01"
 END   = "2026-04-01"
 TIMEFRAMES = ["1h", "4h", "15m"]
 
@@ -179,23 +189,55 @@ def _tf_ms(timeframe: str) -> int:
     return int(timeframe[:-1]) * units[timeframe[-1]]
 
 
-async def main() -> None:
-    start_ms = int(datetime.strptime(START, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
-    end_ms   = int(datetime.strptime(END,   "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Bybit 공개 REST API로 실제 OHLCV / 펀딩비 데이터 수집"
+    )
+    parser.add_argument(
+        "--start",
+        default=START,
+        metavar="YYYY-MM-DD",
+        help=f"수집 시작일 (기본: {START})",
+    )
+    parser.add_argument(
+        "--end",
+        default=END,
+        metavar="YYYY-MM-DD",
+        help=f"수집 종료일 (기본: {END})",
+    )
+    parser.add_argument(
+        "--symbol",
+        default=SYMBOL,
+        help=f"거래 심볼 (기본: {SYMBOL})",
+    )
+    parser.add_argument(
+        "--timeframes",
+        default=",".join(TIMEFRAMES),
+        metavar="TF1,TF2,...",
+        help=f"쉼표 구분 타임프레임 (기본: {','.join(TIMEFRAMES)})",
+    )
+    return parser.parse_args()
+
+
+async def main(args: argparse.Namespace) -> None:
+    start_ms = int(datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+    end_ms   = int(datetime.strptime(args.end,   "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+    symbol = args.symbol
+    timeframes = [tf.strip() for tf in args.timeframes.split(",") if tf.strip()]
 
     print(f"[INFO] DB 연결 중...")
     pool = await asyncpg.create_pool(dsn=DB_DSN, min_size=2, max_size=5)
 
     async with aiohttp.ClientSession() as session:
         # OHLCV
-        for tf in TIMEFRAMES:
+        for tf in timeframes:
             print(f"\n[INFO] OHLCV {tf} 다운로드 중...")
-            count = await fetch_ohlcv(session, pool, SYMBOL, tf, start_ms, end_ms)
+            count = await fetch_ohlcv(session, pool, symbol, tf, start_ms, end_ms)
             print(f"[INFO] {tf} 완료: {count}개")
 
         # 펀딩비
         print(f"\n[INFO] 펀딩비 히스토리 다운로드 중...")
-        count = await fetch_funding(session, pool, SYMBOL, start_ms, end_ms)
+        count = await fetch_funding(session, pool, symbol, start_ms, end_ms)
         print(f"[INFO] 펀딩비 완료: {count}개")
 
     await pool.close()
@@ -203,4 +245,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    args = _parse_args()
+    asyncio.run(main(args))

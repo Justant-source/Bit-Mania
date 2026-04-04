@@ -60,6 +60,36 @@ SCENARIOS = [
     # 15분봉 시나리오
     ("15m_tf",     "grid_trading", "BTCUSDT", "2025-10-01", "2026-03-31", "15m", 10000),
     ("15m_tf",     "funding_arb",  "BTCUSDT", "2025-10-01", "2026-03-31", "15m", 10000),
+    # ── 3년 전체 (2023-04-01 ~ 2026-03-31) ────────────────────────────────
+    ("3y_full",    "funding_arb",  "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  10000),
+    ("3y_full",    "grid_trading", "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  10000),
+    ("3y_full",    "adaptive_dca", "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  10000),
+    ("3y_full",    "combined",     "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  10000),
+    # ── 연도별 분석 ────────────────────────────────────────────────────────
+    # 2023년 (BTC 상승 사이클 초입)
+    ("Y2023",      "funding_arb",  "BTCUSDT", "2023-04-01", "2023-12-31", "1h",  10000),
+    ("Y2023",      "grid_trading", "BTCUSDT", "2023-04-01", "2023-12-31", "1h",  10000),
+    ("Y2023",      "adaptive_dca", "BTCUSDT", "2023-04-01", "2023-12-31", "1h",  10000),
+    ("Y2023",      "combined",     "BTCUSDT", "2023-04-01", "2023-12-31", "1h",  10000),
+    # 2024년 (반감기 + 사상최고가)
+    ("Y2024",      "funding_arb",  "BTCUSDT", "2024-01-01", "2024-12-31", "1h",  10000),
+    ("Y2024",      "grid_trading", "BTCUSDT", "2024-01-01", "2024-12-31", "1h",  10000),
+    ("Y2024",      "adaptive_dca", "BTCUSDT", "2024-01-01", "2024-12-31", "1h",  10000),
+    ("Y2024",      "combined",     "BTCUSDT", "2024-01-01", "2024-12-31", "1h",  10000),
+    # 2025년 (상승장 후반~조정)
+    ("Y2025",      "funding_arb",  "BTCUSDT", "2025-01-01", "2025-12-31", "1h",  10000),
+    ("Y2025",      "grid_trading", "BTCUSDT", "2025-01-01", "2025-12-31", "1h",  10000),
+    ("Y2025",      "adaptive_dca", "BTCUSDT", "2025-01-01", "2025-12-31", "1h",  10000),
+    ("Y2025",      "combined",     "BTCUSDT", "2025-01-01", "2025-12-31", "1h",  10000),
+    # ── 3년 4시간봉 ────────────────────────────────────────────────────────
+    ("3y_4h",      "funding_arb",  "BTCUSDT", "2023-04-01", "2026-03-31", "4h",  10000),
+    ("3y_4h",      "grid_trading", "BTCUSDT", "2023-04-01", "2026-03-31", "4h",  10000),
+    ("3y_4h",      "combined",     "BTCUSDT", "2023-04-01", "2026-03-31", "4h",  10000),
+    # ── 3년 소자본 / 대자본 ────────────────────────────────────────────────
+    ("3y_small",   "funding_arb",  "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  1000),
+    ("3y_small",   "combined",     "BTCUSDT", "2023-04-01", "2026-03-31", "1h",  1000),
+    ("3y_large",   "funding_arb",  "BTCUSDT", "2023-04-01", "2026-03-31", "1h", 100000),
+    ("3y_large",   "combined",     "BTCUSDT", "2023-04-01", "2026-03-31", "1h", 100000),
 ]
 
 
@@ -89,7 +119,7 @@ async def load_funding(pool: asyncpg.Pool, symbol: str,
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT timestamp AS ts, rate, predicted_rate
+            SELECT timestamp AS ts, rate, NULL::double precision AS predicted_rate
             FROM funding_rate_history
             WHERE symbol = $1
               AND timestamp >= $2 AND timestamp <= $3

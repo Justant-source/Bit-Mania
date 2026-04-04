@@ -5,12 +5,12 @@ PostgreSQL에 시드(upsert)하는 스크립트.
     python scripts/seed_historical.py \
         --exchange bybit --symbol BTCUSDT \
         --timeframes 1m,5m,15m,1h,4h \
-        --start 2025-10-01 --end 2026-04-01
+        --start 2023-04-01 --end 2026-04-01
 
     python scripts/seed_historical.py \
         --exchange bybit --symbol BTCUSDT \
         --data-type funding \
-        --start 2025-10-01 --end 2026-04-01
+        --start 2023-04-01 --end 2026-04-01
 """
 
 from __future__ import annotations
@@ -100,7 +100,12 @@ ON CONFLICT (exchange, symbol, timestamp) DO UPDATE
 # ── Exchange 초기화 ────────────────────────────────────────────────────────────
 
 def _build_exchange(exchange_id: str) -> ccxt_async.Exchange:
-    """ccxt async exchange 인스턴스 생성. Bybit testnet 지원."""
+    """ccxt async exchange 인스턴스 생성.
+
+    OHLCV / 펀딩비는 항상 메인넷 공개 엔드포인트에서 가져옴.
+    테스트넷에는 수년치 히스토리 데이터가 없으므로 URL을 절대 testnet으로
+    덮어쓰지 않음. BYBIT_TESTNET 플래그는 주문 실행(private API)에만 적용됨.
+    """
     ExchangeClass = getattr(ccxt_async, exchange_id, None)
     if ExchangeClass is None:
         raise ValueError(f"Unknown exchange: {exchange_id}")
@@ -112,20 +117,11 @@ def _build_exchange(exchange_id: str) -> ccxt_async.Exchange:
         "options": {},
     }
 
-    if exchange_id == "bybit" and BYBIT_TESTNET:
-        print("[INFO] Bybit TESTNET 모드 사용")
+    if exchange_id == "bybit":
+        if BYBIT_TESTNET:
+            print("[INFO] Bybit TESTNET 계정 모드 — OHLCV/펀딩비는 메인넷 공개 API에서 수집")
         options["options"]["defaultType"] = "linear"
         options["options"]["adjustForTimeDifference"] = True
-        # ccxt bybit testnet URL 설정
-        options["urls"] = {
-            "api": {
-                "public": "https://api-testnet.bybit.com",
-                "private": "https://api-testnet.bybit.com",
-            }
-        }
-    else:
-        if exchange_id == "bybit":
-            options["options"]["defaultType"] = "linear"
 
     return ExchangeClass(options)
 
@@ -341,8 +337,8 @@ def _parse_args() -> argparse.Namespace:
         default="1h",
         help="콤마 구분 타임프레임, --data-type ohlcv 시 사용 (예: 1m,5m,15m,1h,4h)",
     )
-    parser.add_argument("--start", required=True, help="시작일 YYYY-MM-DD")
-    parser.add_argument("--end", required=True, help="종료일 YYYY-MM-DD")
+    parser.add_argument("--start", default="2023-04-01", help="시작일 YYYY-MM-DD (기본: 2023-04-01)")
+    parser.add_argument("--end", default="2026-04-01", help="종료일 YYYY-MM-DD (기본: 2026-04-01)")
     return parser.parse_args()
 
 
