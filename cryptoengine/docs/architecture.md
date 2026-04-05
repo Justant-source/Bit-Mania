@@ -107,10 +107,12 @@ related:
 ### 4. Trading Strategies
 
 #### 4a. [[strategies/funding_arb|Funding Rate Arbitrage]] (`services/strategies/funding-arb/`)
-- 델타 중립 포지션: 현물 매수 + 무기한 선물 매도
-- 펀딩비 수취 목적 (**핵심 전략**)
+- 델타 중립 포지션: 현물 매수 + 무기한 선물 매도 (**핵심 전략**)
+- **현재 설정**: fa80_lev5_r30 (FA 80% + 레버리지 5x + 재투자 30%)
+  - CAGR +34.87% | Sharpe 3.583 | MDD -4.52% (6년 백테스트, Test 12 Stage D2)
 - Basis Spread State Machine으로 진입/청산 결정
 - 한쪽 체결 복구 로직 (3분 대기)
+- 재투자: 펀딩비 수익의 30%를 현물 BTC 매수로 자동 재투자
 
 #### 4b. [[strategies/grid_trading|Grid Trading]] (`services/strategies/grid-trading/`)
 - 횡보장에서 그리드 주문 배치 (**보조 전략**)

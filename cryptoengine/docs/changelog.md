@@ -22,6 +22,32 @@ related:
 
 ---
 
+## [1.1.0] - 2026-04-05
+
+### 변경 (Changed)
+
+#### FA 전략 파라미터 — fa80_lev5_r30 적용
+- `config/strategies/funding-arb.yaml`: 레버리지 2x → **5x** (max_leverage: 5)
+- `fa_capital_ratio: 0.80` 추가 (전체 포트폴리오의 80%를 FA 전략에 배분)
+- `reinvest_ratio: 0.30` 추가 (펀딩비 수익의 30% 현물 BTC 재투자)
+- `risk.max_portfolio_allocation_pct`: 25% → 80%
+
+#### 전략 코드 변경 (`services/strategies/funding-arb/strategy.py`)
+- `leverage` 기본값: 1.0 → 5.0
+- `_calculate_position_size()`: 레버리지 팩터 반영 (qty = capital * 0.95 / (price * (1 + 1/L)))
+- `_process_funding_payment()`: 재투자 로직 추가 — 양수 펀딩비의 30%를 현물 BTC 시장가 매수
+- `on_start()`: 설정값 로깅 강화 (leverage, fa_capital_ratio, reinvest_ratio)
+
+#### 선택 근거
+- Test 12 Stage D2 백테스트 결과 기반 (2020-04-01 ~ 2026-03-31, 6년)
+- 전체 18개 조합 중 연수익 1위, Sharpe 1위
+- 6년간 청산 0회, 최소 마진비율 36.5x (충분히 안전)
+- 후보 설정 (CLAUDE.md 및 config 주석 참조):
+  - `fa80_lev4_r30`: CAGR +28.56% Sharpe 3.556 (보수적)
+  - `fa80_lev5_r50`: CAGR +33.54% Sharpe 1.867 (재투자 확대)
+
+---
+
 ## [1.0.0] - 2026-04-03
 
 ### 추가 (Added)

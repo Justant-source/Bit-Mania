@@ -85,6 +85,7 @@ result = engine.run()
 | `combined/bt_fa_plus_tf.py` | [Stage 2] FA + 추세추종 결합 | 레짐별 가중치 그리드 서치, 7종 포트폴리오 비교 |
 | `combined/bt_fa_tf_onchain.py` | [Stage 3] FA + TF + 펀딩비 필터 | 온체인 필터 대신 펀딩비 필터 적용 효과 |
 | `combined/bt_optimal_combination.py` | **[Test 12D]** 최적 조합 탐색 11종 | FA비율 × 레버리지 × 재투자 교차 최적화 |
+| `combined/bt_fa80_extended.py` | **[Test 12D2]** FA80 확장 18종 | FA80 lev3~5x × reinvest30~90%, FA90 재투자 확장 포함 |
 
 **언제 사용:** 멀티 전략 포트폴리오 구성, 자본 배분 최적화
 
@@ -215,4 +216,5 @@ docker compose --profile backtest run --rm backtester \
 | Test 12B | `fa/bt_fa_capital_ratio.py` | FA 80%까지 마진안전배율 5.49x (안전) | `.result/12.` |
 | Test 12C | `fa/bt_fa_leverage_limit.py` | 레버리지 10배도 6년간 청산 0회 | `.result/12.` |
 | Test 12D | `combined/bt_optimal_combination.py` | FA90%+3x+재투자30% = 연수익+24.57% | `.result/12.` |
+| Test 12D2 | `combined/bt_fa80_extended.py` | FA80+5x+30% = 연수익+34.87% (전체 최고), FA80+4x+30% = Sharpe 균형 최적 | `.result/12.` |
 | Test 12E | `stress/bt_stress_optimal.py` | 5/5 스트레스 시나리오 전부 PASS | `.result/12.` |
