@@ -329,6 +329,19 @@ class StrategyOrchestrator:
         max_single_pct = risk_cfg.get("max_single_strategy_pct", 50.0) / 100.0
         min_cash_pct = risk_cfg.get("min_cash_reserve_pct", 5.0) / 100.0
 
+        # Cap deployed capital to max_capital_usd (Phase 4 trial: 1_000 USD)
+        max_capital_usd = risk_cfg.get("max_capital_usd")
+        if max_capital_usd is not None:
+            capped = min(total_equity, float(max_capital_usd))
+            if capped < total_equity:
+                log.info(
+                    "capital_capped",
+                    actual_equity=total_equity,
+                    cap=max_capital_usd,
+                    deployed=capped,
+                )
+            total_equity = capped
+
         # Enforce minimum cash reserve
         cash_weight = weights.get("cash", 0.0)
         if cash_weight < min_cash_pct:

@@ -23,13 +23,14 @@ import yaml
 from services.llm_advisor.agent_graph import TradingAnalysisGraph
 from services.llm_advisor.claude_bridge import ClaudeCodeBridge
 from services.llm_advisor.model_manager import ModelManager
+from services.llm_advisor.prompt_templates.asset_report import ASSET_REPORT_PROMPT
 from services.llm_advisor.reflection import DailyReflection
 from services.llm_advisor.vision_chart import ChartAnalyzer
 from shared.db.connection import create_pool, close_pool, get_pool
 
 log = structlog.get_logger(__name__)
 
-ANALYSIS_INTERVAL_HOURS = 4
+ANALYSIS_INTERVAL_HOURS = 6
 REQUEST_CHANNEL = "llm:request"
 ADVISORY_CHANNEL = "llm:advisory"
 
@@ -137,7 +138,7 @@ class LLMAdvisorService:
         log.info("llm_advisor_stopped")
 
     async def _scheduled_analysis_loop(self) -> None:
-        """Run full analysis every 4 hours."""
+        """Run full analysis every 6 hours."""
         while self._running:
             try:
                 await self._run_analysis("scheduled")
@@ -208,11 +209,14 @@ class LLMAdvisorService:
 
         await self._redis.publish(ADVISORY_CHANNEL, json.dumps(advisory))
         await self._redis.set(
-            "llm:latest_advisory", json.dumps(advisory), ex=28800  # 8 hours
+            "llm:latest_advisory", json.dumps(advisory), ex=21600  # 6 hours
         )
 
+        # Generate 6-hour Korean narrative asset report
+        asset_report = await self._generate_asset_report(result, context)
+
         # Persist full report to DB
-        await self._save_report(trigger, result, context)
+        await self._save_report(trigger, result, context, asset_report)
 
         log.info(
             "analysis_complete",
@@ -220,11 +224,86 @@ class LLMAdvisorService:
             confidence=advisory["confidence"],
         )
 
+    async def _generate_asset_report(
+        self,
+        result: dict[str, Any],
+        context: dict[str, Any],
+    ) -> str | None:
+        """Generate a comprehensive 6-hour Korean narrative asset report."""
+        try:
+            # Extract BTC price
+            ticker = context.get("btc_price", {})
+            if isinstance(ticker, dict):
+                btc_price = ticker.get("last") or ticker.get("close") or "N/A"
+            else:
+                btc_price = ticker or "N/A"
+
+            # Extract 24h change from features
+            features = context.get("features", {})
+            price_change_24h = features.get("price_change_24h", "N/A")
+            if isinstance(price_change_24h, float):
+                price_change_24h = f"{price_change_24h:.2f}"
+
+            # Extract funding rate
+            funding = context.get("funding_rate", {})
+            if isinstance(funding, dict):
+                funding_rate = funding.get("rate") or funding.get("funding_rate") or "N/A"
+            else:
+                funding_rate = funding or "N/A"
+            if isinstance(funding_rate, float):
+                funding_rate = f"{funding_rate:.6f}"
+
+            regime = result.get("regime_assessment") or context.get("regime", "unknown")
+            rating = result.get("rating", "hold")
+            confidence = result.get("confidence", 0.0)
+
+            portfolio = context.get("portfolio", {})
+            if isinstance(portfolio, dict):
+                portfolio_state = json.dumps(portfolio, ensure_ascii=False, indent=2)
+            else:
+                portfolio_state = str(portfolio) if portfolio else "데이터 없음"
+
+            def _fmt(d: Any) -> str:
+                if not d:
+                    return "데이터 없음"
+                if isinstance(d, str):
+                    return d
+                return json.dumps(d, ensure_ascii=False)
+
+            prompt = ASSET_REPORT_PROMPT.format(
+                btc_price=btc_price,
+                price_change_24h=price_change_24h,
+                funding_rate=funding_rate,
+                regime=regime,
+                technical_report=_fmt(result.get("_technical_report")),
+                sentiment_report=_fmt(result.get("_sentiment_report")),
+                bull_argument=_fmt(result.get("_bull_argument")),
+                bear_argument=_fmt(result.get("_bear_argument")),
+                debate_conclusion=_fmt(result.get("_debate_conclusion")),
+                risk_assessment=_fmt(result.get("_risk_assessment")),
+                rating=rating,
+                confidence=f"{confidence:.2f}",
+                portfolio_state=portfolio_state,
+            )
+
+            report_data = await self._model_manager.invoke(prompt)
+            if report_data is None:
+                log.warning("asset_report_generation_failed_no_result")
+                return None
+
+            # Return full JSON as string for storage; full_report is the narrative
+            return json.dumps(report_data, ensure_ascii=False)
+
+        except Exception:
+            log.exception("asset_report_generation_error")
+            return None
+
     async def _save_report(
         self,
         trigger: str,
         result: dict[str, Any],
         context: dict[str, Any],
+        asset_report: str | None = None,
     ) -> None:
         """Save the full analysis report to the llm_reports table."""
         try:
@@ -264,12 +343,14 @@ class LLMAdvisorService:
                     title, trigger, rating, confidence, regime, symbol,
                     btc_price, technical_summary, sentiment_summary,
                     bull_summary, bear_summary, debate_conclusion,
-                    risk_assessment, reasoning, weight_adjustments, risk_flags
+                    risk_assessment, reasoning, weight_adjustments, risk_flags,
+                    asset_report
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6,
                     $7, $8, $9,
                     $10, $11, $12,
-                    $13, $14, $15, $16
+                    $13, $14, $15, $16,
+                    $17
                 )
                 """,
                 title,
@@ -288,6 +369,7 @@ class LLMAdvisorService:
                 reasoning or None,
                 json.dumps(result.get("weight_adjustments", {})),
                 json.dumps(result.get("risk_flags", [])),
+                asset_report,
             )
             log.info("llm_report_saved", title=title)
         except Exception:
