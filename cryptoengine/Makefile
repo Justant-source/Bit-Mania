@@ -94,6 +94,18 @@ emergency: ## EMERGENCY: Close all positions and halt trading immediately
 monthly-report: ## Generate monthly performance report
 	$(COMPOSE) run --rm backtester python -m reports.monthly_report
 
+resilience-test: ## Run automated resilience tests (kill+restart each core service, verify recovery)
+	@echo "=== CryptoEngine Resilience Test ==="
+	@echo "WARNING: This will briefly kill core services."
+	@read -p "Proceed? [y/N] " confirm; [ "$$confirm" = "y" ] || exit 0
+	python scripts/resilience_test.py
+
+resilience-test-market-data: ## Test only market-data restart + gap backfill
+	python scripts/resilience_test.py --service market-data
+
+resilience-test-execution: ## Test only execution-engine restart + position preservation
+	python scripts/resilience_test.py --service execution-engine
+
 backup: ## Trigger manual PostgreSQL backup now
 	@echo "=== Manual backup triggered ==="
 	$(COMPOSE) exec pg-backup sh /scripts/pg_backup.sh

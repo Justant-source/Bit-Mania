@@ -39,6 +39,10 @@ REST_TESTNET = "https://api-testnet.bybit.com"
 
 KLINE_TIMEFRAMES = ["1", "5", "15", "60", "240"]  # Bybit notation
 TF_MAP = {"1": "1m", "5": "5m", "15": "15m", "60": "1h", "240": "4h"}
+# Reverse: standard tf → Bybit interval string
+TF_BYBIT_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240"}
+# Candle duration in seconds per timeframe
+TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 
 MAX_RECONNECT_DELAY = 120  # seconds
 BASE_RECONNECT_DELAY = 1
@@ -46,6 +50,9 @@ BASE_RECONNECT_DELAY = 1
 REST_POLL_INTERVAL_OI = 60         # seconds — open interest
 REST_POLL_INTERVAL_RATIO = 300     # seconds — long/short ratio
 REST_POLL_INTERVAL_LIQ = 120       # seconds — liquidations
+
+# Gap recovery: only backfill up to this many hours on startup
+BACKFILL_MAX_HOURS = 48
 
 
 class MarketDataCollector:
@@ -82,6 +89,7 @@ class MarketDataCollector:
     async def run(self, shutdown: asyncio.Event) -> None:
         """Top-level loop: run WS + REST pollers concurrently."""
         log.info(SERVICE_STARTED, message="collector starting", symbol=self.symbol)
+        await self.backfill_ohlcv_gaps()
         tasks = [
             asyncio.create_task(self._ws_loop(shutdown), name="ws_loop"),
             asyncio.create_task(self._rest_poll_loop(shutdown, self._poll_open_interest, REST_POLL_INTERVAL_OI), name="poll_oi"),
@@ -338,6 +346,136 @@ class MarketDataCollector:
                 "rate": str(payload["fundingRate"]),
                 "next_funding_time": str(payload.get("nextFundingTime", "")),
             })
+
+    # ------------------------------------------------------------------
+    # Startup gap recovery
+    # ------------------------------------------------------------------
+
+    async def backfill_ohlcv_gaps(self) -> None:
+        """Detect missing OHLCV candles since last recorded timestamp and backfill via REST.
+
+        Only runs on startup. Caps backfill at BACKFILL_MAX_HOURS (48h) to avoid
+        excessive API calls when the service has been down for a long time.
+        Initial historical seeding should be done with scripts/seed_historical.py.
+        """
+        now_ms = int(time.time() * 1000)
+        max_lookback_ms = BACKFILL_MAX_HOURS * 3600 * 1000
+
+        for tf, interval_str in TF_BYBIT_INTERVAL.items():
+            tf_ms = TF_SECONDS[tf] * 1000
+
+            async with self.db_pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT MAX(timestamp) AS last_ts FROM ohlcv_history "
+                    "WHERE exchange = $1 AND symbol = $2 AND timeframe = $3",
+                    self.exchange, self.symbol, tf,
+                )
+
+            if row is None or row["last_ts"] is None:
+                log.info(
+                    MARKET_OHLCV_STORED,
+                    message="no existing ohlcv data, skipping backfill (run seed_historical.py first)",
+                    timeframe=tf, symbol=self.symbol,
+                )
+                continue
+
+            last_ms = int(row["last_ts"].timestamp() * 1000)
+            gap_ms = now_ms - last_ms - tf_ms
+
+            if gap_ms <= tf_ms:
+                # At most 1 candle missing — negligible
+                continue
+
+            # Clamp start to BACKFILL_MAX_HOURS ago
+            start_ms = max(last_ms + tf_ms, now_ms - max_lookback_ms)
+            gap_hours = gap_ms / 3_600_000
+
+            log.info(
+                MARKET_OHLCV_STORED,
+                message="ohlcv gap detected, backfilling",
+                timeframe=tf, gap_hours=round(gap_hours, 1), symbol=self.symbol,
+                backfill_from=datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc).isoformat(),
+            )
+
+            await self._fetch_and_store_klines(
+                interval_str=interval_str, tf=tf, start_ms=start_ms, end_ms=now_ms,
+            )
+
+    async def _fetch_and_store_klines(
+        self, interval_str: str, tf: str, start_ms: int, end_ms: int,
+    ) -> None:
+        """Batch-fetch klines from Bybit REST and upsert into ohlcv_history."""
+        url = f"{self._rest_base}/v5/market/kline"
+        tf_ms = TF_SECONDS[tf] * 1000
+        total = 0
+        cursor_ms = start_ms
+
+        async with aiohttp.ClientSession() as session:
+            while cursor_ms < end_ms:
+                params = {
+                    "category": "linear",
+                    "symbol": self.symbol,
+                    "interval": interval_str,
+                    "start": cursor_ms,
+                    "end": end_ms,
+                    "limit": 1000,
+                }
+                try:
+                    async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                        data = await resp.json()
+                except Exception as exc:
+                    log.error(MARKET_OHLCV_STORED, message="kline backfill fetch error", exc=str(exc), tf=tf)
+                    break
+
+                if data.get("retCode") != 0:
+                    log.warning(MARKET_OHLCV_STORED, message="kline API error", response=data, tf=tf)
+                    break
+
+                klines = data.get("result", {}).get("list", [])
+                if not klines:
+                    break
+
+                # Bybit returns newest-first — reverse to process in chronological order
+                klines = list(reversed(klines))
+
+                records = []
+                for k in klines:
+                    try:
+                        ts_ms_k = int(k[0])
+                        if ts_ms_k < start_ms or ts_ms_k >= end_ms:
+                            continue
+                        records.append((
+                            self.exchange, self.symbol, tf,
+                            datetime.fromtimestamp(ts_ms_k / 1000, tz=timezone.utc),
+                            float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5]),
+                        ))
+                    except (IndexError, ValueError, TypeError):
+                        continue
+
+                if records:
+                    async with self.db_pool.acquire() as conn:
+                        await conn.executemany(
+                            """
+                            INSERT INTO ohlcv_history
+                                (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            ON CONFLICT (exchange, symbol, timeframe, timestamp) DO NOTHING
+                            """,
+                            records,
+                        )
+                    total += len(records)
+
+                if len(klines) < 1000:
+                    break  # No more pages
+
+                cursor_ms = int(klines[-1][0]) + tf_ms
+                await asyncio.sleep(0.1)  # Be polite to the API
+
+        log.info(
+            MARKET_OHLCV_STORED,
+            message="ohlcv backfill complete",
+            timeframe=tf, candles_inserted=total, symbol=self.symbol,
+        )
 
     # ------------------------------------------------------------------
     # REST pollers
