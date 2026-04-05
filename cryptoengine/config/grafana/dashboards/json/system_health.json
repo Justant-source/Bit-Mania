@@ -316,10 +316,10 @@
       },
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
       "id": 14,
-      "options": {"sortBy": [{"desc": true, "displayName": "감지 시각"}], "footer": {"show": false}},
+      "options": {"sortBy": [{"desc": true, "displayName": "확정 시각"}], "footer": {"show": false}},
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  detected_at AS \"감지 시각\",\n  symbol AS \"심볼\",\n  regime AS \"레짐\",\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도\"\nFROM market_regime_history\nWHERE detected_at > NOW() - INTERVAL '24 hours'\nORDER BY detected_at DESC\nLIMIT 20", "refId": "A"}],
-      "title": "레짐 감지 이력 (24h)",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  detected_at AS \"확정 시각\",\n  symbol AS \"심볼\",\n  regime AS \"레짐\",\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도\",\n  consecutive_count AS \"연속 횟수\",\n  change_reason AS \"확정 근거\"\nFROM market_regime_history\nWHERE is_confirmed = TRUE\n  AND detected_at > NOW() - INTERVAL '24 hours'\nORDER BY detected_at DESC\nLIMIT 20", "refId": "A"}],
+      "title": "레짐 확정 이력 (24h)",
       "type": "table"
     }
   ],

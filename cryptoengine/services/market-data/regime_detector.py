@@ -59,6 +59,12 @@ class RegimeDetector:
         self._candles: list[dict[str, Any]] = []
         self._last_regime: str | None = None
 
+        # 확정 로직 상태
+        self._pending_regime: str | None = None
+        self._consecutive_count: int = 0
+        self._confirmed_regime: str | None = None
+        self._confirmation_threshold: int = 3
+
     # ------------------------------------------------------------------
     # Public
     # ------------------------------------------------------------------
@@ -203,7 +209,25 @@ class RegimeDetector:
 
         confidence = round(float(np.clip(confidence, 0.0, 1.0)), 4)
 
-        # Publish
+        # ── 연속 횟수 추적 및 확정 판단 ──
+        if regime == self._pending_regime:
+            self._consecutive_count += 1
+        else:
+            self._pending_regime = regime
+            self._consecutive_count = 1
+
+        is_confirmed = self._consecutive_count >= self._confirmation_threshold
+        newly_confirmed = is_confirmed and regime != self._confirmed_regime
+
+        change_reason: str | None = None
+        if newly_confirmed:
+            self._confirmed_regime = regime
+            change_reason = self._build_reason(
+                regime, self._consecutive_count,
+                float(current_adx), float(current_atr), confidence,
+            )
+
+        # Publish raw regime
         regime_msg = {
             "regime": regime,
             "confidence": confidence,
@@ -211,17 +235,31 @@ class RegimeDetector:
             "volatility": round(float(current_atr), 4),
             "bb_width": round(float(bb_width), 6),
             "detected_at": datetime.now(tz=timezone.utc).isoformat(),
+            "consecutive": self._consecutive_count,
         }
 
         await self.redis.publish("market:regime", json.dumps(regime_msg))
         await self.redis.hset("cache:regime", mapping={k: str(v) for k, v in regime_msg.items()})
 
+        # 확정 시점에 별도 채널 발행 및 Redis 키 갱신
+        if newly_confirmed:
+            confirmed_msg = {**regime_msg, "reason": change_reason}
+            await self.redis.publish("market:regime:confirmed", json.dumps(confirmed_msg))
+            await self.redis.set("market:regime:confirmed", json.dumps(confirmed_msg), ex=3600)
+            log.info(
+                "regime_confirmed",
+                new=regime,
+                consecutive=self._consecutive_count,
+                reason=change_reason,
+            )
+
         # Persist to DB
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO market_regime_history (symbol, regime, confidence, indicators)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO market_regime_history
+                  (symbol, regime, confidence, indicators, consecutive_count, is_confirmed, change_reason)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 self.symbol,
                 regime,
@@ -231,6 +269,9 @@ class RegimeDetector:
                     "volatility": round(float(current_atr), 4),
                     "bb_width": round(float(bb_width), 6),
                 }),
+                self._consecutive_count,
+                is_confirmed,
+                change_reason,
             )
 
         if regime != self._last_regime:
@@ -240,7 +281,33 @@ class RegimeDetector:
                 new=regime,
                 confidence=confidence,
                 adx=round(float(current_adx), 2),
+                consecutive=self._consecutive_count,
             )
             self._last_regime = regime
         else:
-            log.debug("regime_unchanged", regime=regime, confidence=confidence)
+            log.debug(
+                "regime_unchanged",
+                regime=regime,
+                confidence=confidence,
+                consecutive=self._consecutive_count,
+            )
+
+    @staticmethod
+    def _build_reason(regime: str, count: int, adx: float, atr: float, conf: float) -> str:
+        """확정 레짐 변경 근거 문자열 생성."""
+        REGIME_KO = {
+            "trending_up": "상승 추세",
+            "trending_down": "하락 추세",
+            "ranging": "횡보",
+            "volatile": "고변동성",
+        }
+        label = REGIME_KO.get(regime, regime)
+        if regime == "volatile":
+            return (
+                f"{count}회 연속 {label} 감지 "
+                f"(ATR×{ATR_VOLATILE_MULTIPLIER:.0f} 초과, 신뢰도={conf:.0%}) → 레짐 확정"
+            )
+        return (
+            f"{count}회 연속 {label} 감지 "
+            f"(ADX={adx:.1f}, 신뢰도={conf:.0%}) → 레짐 확정"
+        )

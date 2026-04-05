@@ -227,3 +227,11 @@ CREATE TABLE IF NOT EXISTS llm_reports (
 
 CREATE INDEX IF NOT EXISTS idx_llm_reports_created ON llm_reports(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_reports_symbol ON llm_reports(symbol, created_at DESC);
+
+-- ──────────────── market_regime_history 컬럼 추가 (확정 로직) ────────────────
+DO $$ BEGIN
+  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS consecutive_count INTEGER DEFAULT 1;
+  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT FALSE;
+  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS change_reason TEXT;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_regime_confirmed ON market_regime_history(is_confirmed, detected_at DESC);
