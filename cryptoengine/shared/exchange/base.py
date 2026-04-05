@@ -70,6 +70,28 @@ class ExchangeConnector(ABC):
     @abstractmethod
     async def get_balance(self) -> dict[str, float]: ...
 
+    async def get_trading_fees(
+        self, symbols: list[str] | None = None
+    ) -> dict[str, dict[str, float]]:
+        """계정 VIP 등급 기반 실제 수수료 조회 (선택 구현).
+
+        Returns: {symbol: {"maker": float, "taker": float}}
+        구현하지 않는 커넥터는 Bybit VIP0 기본값을 반환한다.
+        """
+        defaults = {"maker": 0.0002, "taker": 0.00055}
+        if symbols:
+            return {s: dict(defaults) for s in symbols}
+        return {"_default": dict(defaults)}
+
+    async def get_min_order_sizes(
+        self, symbols: list[str]
+    ) -> dict[str, dict[str, float]]:
+        """심볼별 최소 주문 크기 조회 (선택 구현).
+
+        Returns: {symbol: {"min_qty": float, "qty_step": float, "min_notional": float}}
+        """
+        return {s: {"min_qty": 0.001, "qty_step": 0.001, "min_notional": 1.0, "contract_size": 1.0} for s in symbols}
+
     # ── websocket streams ────────────────────────────────────────────────
 
     @abstractmethod

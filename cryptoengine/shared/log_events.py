@@ -85,6 +85,15 @@ TELEGRAM_COMMAND_RECEIVED = "telegram_command_received"
 TELEGRAM_NOTIFICATION_SENT = "telegram_notification_sent"
 TELEGRAM_HEARTBEAT = "telegram_heartbeat"
 
+# === 포지션 정합성 ===
+POSITION_RECONCILE_OK = "position_reconcile_ok"
+POSITION_RECONCILE_MISMATCH = "position_reconcile_mismatch"
+POSITION_RECONCILE_FIXED = "position_reconcile_fixed"
+
+# === 수수료 ===
+FEE_TIER_UPDATED = "fee_tier_updated"
+FEE_TIER_MISMATCH = "fee_tier_mismatch"
+
 # === 인프라 ===
 DB_POOL_CREATED = "db_pool_created"
 DB_POOL_CLOSED = "db_pool_closed"

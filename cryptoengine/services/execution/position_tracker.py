@@ -32,6 +32,9 @@ log = structlog.get_logger(__name__)
 POSITION_CACHE_TTL = 120  # seconds
 SYNC_INTERVAL = 60.0  # periodic full-sync interval
 DISCONNECT_THRESHOLD = 30.0  # seconds without update before resync
+RECONCILE_INTERVAL = 600.0  # 10분마다 정합성 검증
+MAX_SIZE_DISCREPANCY_RATIO = 0.01  # 1% 이상 사이즈 차이 시 불일치 처리
+RECONCILE_CHANNEL = "position:reconcile_event"
 WATCHED_SYMBOLS_KEY = "config:watched_symbols:{exchange}"
 
 
@@ -63,6 +66,7 @@ class PositionTracker:
         self._positions: dict[str, Position] = {}
         self._last_update: dict[str, float] = {}
         self._last_sync: float = 0.0
+        self._last_reconcile: float = 0.0
         self._connected = False
 
     # ------------------------------------------------------------------
@@ -117,6 +121,10 @@ class PositionTracker:
                 elapsed = time.monotonic() - self._last_sync
                 if elapsed >= SYNC_INTERVAL:
                     await self.sync_from_exchange()
+
+                # 10분마다 정합성 검증
+                if time.monotonic() - self._last_reconcile >= RECONCILE_INTERVAL:
+                    await self.reconcile_positions()
 
                 # Check for stale positions (possible disconnect)
                 now = time.monotonic()
@@ -258,6 +266,133 @@ class PositionTracker:
         self._connected = True
         await self.sync_from_exchange()
         log.info(SERVICE_RECONNECTED, message="position recovery complete", open_positions=len(self._positions))
+
+    async def reconcile_positions(self) -> None:
+        """거래소 실제 포지션과 내부 포지션을 비교하여 불일치를 감지하고 수정한다.
+
+        감지 케이스:
+          - ghost: 내부에 있지만 거래소에 없음 → 청산된 것으로 처리
+          - missing: 거래소에 있지만 내부에 없음 → 강제 동기화
+          - size_mismatch: 양쪽 크기 차이 > MAX_SIZE_DISCREPANCY_RATIO → 강제 동기화
+
+        모든 불일치는 structured log + Redis ``position:reconcile_event`` 채널에 발행된다.
+        """
+        if not self._connected:
+            return
+
+        self._last_reconcile = time.monotonic()
+        symbols = await self._get_watched_symbols()
+        if not symbols:
+            return
+
+        # 거래소에서 실제 포지션 전체 조회
+        exchange_positions: dict[str, Position] = {}
+        for symbol in symbols:
+            try:
+                pos = await self._connector.get_position(symbol)
+                if pos is not None and pos.size > 0:
+                    exchange_positions[symbol] = pos
+            except Exception:
+                log.exception(SERVICE_HEALTH_FAIL, message="reconcile: get_position failed", symbol=symbol)
+
+        internal_syms = set(self._positions.keys())
+        exchange_syms = set(exchange_positions.keys())
+
+        mismatches = 0
+
+        # 1) Ghost 포지션: 내부에 있는데 거래소에 없음
+        for symbol in internal_syms - exchange_syms:
+            internal_size = self._positions[symbol].size
+            log.error(
+                POSITION_RECONCILE_MISMATCH,
+                message="ghost position: 내부에 있지만 거래소에 없음 → 제거",
+                symbol=symbol,
+                internal_size=internal_size,
+                exchange=self._exchange_id,
+            )
+            await self._remove_position(symbol)
+            await self._publish_reconcile_event(
+                "ghost_position_removed",
+                symbol=symbol,
+                internal_size=internal_size,
+                exchange_size=0.0,
+            )
+            mismatches += 1
+
+        # 2) 누락 포지션: 거래소에 있는데 내부에 없음
+        for symbol in exchange_syms - internal_syms:
+            exchange_size = exchange_positions[symbol].size
+            log.error(
+                POSITION_RECONCILE_MISMATCH,
+                message="missing position: 거래소에 있지만 내부에 없음 → 강제 동기화",
+                symbol=symbol,
+                exchange_size=exchange_size,
+                exchange=self._exchange_id,
+            )
+            await self._apply_position_update(symbol, exchange_positions[symbol])
+            self._last_update[symbol] = time.monotonic()
+            await self._publish_reconcile_event(
+                "missing_position_synced",
+                symbol=symbol,
+                internal_size=0.0,
+                exchange_size=exchange_size,
+            )
+            mismatches += 1
+
+        # 3) 크기 불일치: 양쪽 모두 있는데 차이 > 1%
+        for symbol in internal_syms & exchange_syms:
+            internal = self._positions[symbol]
+            exchange = exchange_positions[symbol]
+            discrepancy = abs(internal.size - exchange.size) / max(exchange.size, 1e-10)
+            if discrepancy > MAX_SIZE_DISCREPANCY_RATIO:
+                log.error(
+                    POSITION_RECONCILE_MISMATCH,
+                    message="size mismatch: 포지션 크기 불일치 → 강제 동기화",
+                    symbol=symbol,
+                    internal_size=internal.size,
+                    exchange_size=exchange.size,
+                    discrepancy_pct=round(discrepancy * 100, 3),
+                    exchange=self._exchange_id,
+                )
+                await self._apply_position_update(symbol, exchange)
+                self._last_update[symbol] = time.monotonic()
+                await self._publish_reconcile_event(
+                    "size_mismatch_fixed",
+                    symbol=symbol,
+                    internal_size=internal.size,
+                    exchange_size=exchange.size,
+                )
+                mismatches += 1
+
+        if mismatches == 0:
+            log.info(
+                POSITION_RECONCILE_OK,
+                message="position reconcile OK",
+                exchange=self._exchange_id,
+                symbols_checked=len(symbols),
+                open_positions=len(exchange_positions),
+            )
+        else:
+            log.warning(
+                POSITION_RECONCILE_FIXED,
+                message="position reconcile: 불일치 수정 완료",
+                exchange=self._exchange_id,
+                mismatches_fixed=mismatches,
+            )
+
+    async def _publish_reconcile_event(self, event_type: str, **kwargs: Any) -> None:
+        """Redis reconcile 이벤트 채널에 불일치 내용 발행."""
+        import json as _json
+        payload = {
+            "event_type": event_type,
+            "exchange": self._exchange_id,
+            "ts": time.time(),
+            **kwargs,
+        }
+        try:
+            await self._redis.publish(RECONCILE_CHANNEL, _json.dumps(payload))
+        except Exception:
+            log.exception(SERVICE_HEALTH_FAIL, message="reconcile event publish failed")
 
     # ------------------------------------------------------------------
     # Internal helpers

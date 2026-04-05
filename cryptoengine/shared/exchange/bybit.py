@@ -268,6 +268,57 @@ class BybitConnector(ExchangeConnector):
             "used": float(bal.get("used", {}).get("USDT", 0) or 0),
         }
 
+    async def get_trading_fees(self, symbols: list[str] | None = None) -> dict[str, dict[str, float]]:
+        """계정 VIP 등급 기반 실제 수수료 조회.
+
+        Returns:
+            {symbol: {"maker": float, "taker": float}}
+
+        Fallback: 조회 실패 시 Bybit VIP0 기본값 반환.
+        """
+        self._ensure_connected()
+        defaults = {"maker": 0.0002, "taker": 0.00055}
+        try:
+            async with self._rate_limiter:
+                if symbols:
+                    raw = await self._exchange.fetch_trading_fees(symbols)
+                else:
+                    raw = await self._exchange.fetch_trading_fees()
+            result: dict[str, dict[str, float]] = {}
+            for sym, fee_data in raw.items():
+                result[sym] = {
+                    "maker": float(fee_data.get("maker") or defaults["maker"]),
+                    "taker": float(fee_data.get("taker") or defaults["taker"]),
+                }
+            log.info("trading_fees_fetched", symbols=list(result.keys())[:5], count=len(result))
+            return result
+        except Exception as exc:
+            log.warning("get_trading_fees failed, using defaults: %s", exc)
+            if symbols:
+                return {s: dict(defaults) for s in symbols}
+            return {"_default": dict(defaults)}
+
+    async def get_min_order_sizes(self, symbols: list[str]) -> dict[str, dict[str, float]]:
+        """심볼별 최소 주문 크기 및 계약 단위 조회.
+
+        Returns:
+            {symbol: {"min_qty": float, "qty_step": float, "min_notional": float}}
+        """
+        self._ensure_connected()
+        result: dict[str, dict[str, float]] = {}
+        markets = self._exchange.markets or {}
+        for symbol in symbols:
+            market = markets.get(symbol, {})
+            limits = market.get("limits", {})
+            precision = market.get("precision", {})
+            result[symbol] = {
+                "min_qty": float(limits.get("amount", {}).get("min") or 0.001),
+                "qty_step": float(precision.get("amount") or 0.001),
+                "min_notional": float(limits.get("cost", {}).get("min") or 1.0),
+                "contract_size": float(market.get("contractSize") or 1.0),
+            }
+        return result
+
     # ── websocket streams ────────────────────────────────────────────────
 
     async def subscribe_ticker(self, symbol: str) -> AsyncIterator[dict[str, Any]]:
