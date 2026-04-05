@@ -1,0 +1,280 @@
+{
+  "description": "LLM Intelligence — 최신 AI 판단·리포트 상세·Rating 추이·신뢰도·정확도 추적",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
+    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"}
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "title": "최신 LLM 판단 요약",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "최신 LLM 매매 판단",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"options": {
+              "strong_buy": {"color": "#15803d", "index": 0, "text": "🚀 STRONG BUY"},
+              "buy": {"color": "#22c55e", "index": 1, "text": "🟢 BUY"},
+              "hold": {"color": "#f59e0b", "index": 2, "text": "🟡 HOLD"},
+              "sell": {"color": "#ef4444", "index": 3, "text": "🔴 SELL"},
+              "strong_sell": {"color": "#991b1b", "index": 4, "text": "💀 STRONG SELL"}
+            }, "type": "value"}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 5, "x": 0, "y": 1},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^rating$/", "values": false}, "textMode": "value"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT rating FROM llm_reports ORDER BY created_at DESC LIMIT 1", "refId": "A"}],
+      "title": "LLM Rating",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 분석 신뢰도 (55%=규칙기반, 70%+=Claude AI)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 55}, {"color": "green", "value": 70}]},
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 4, "x": 5, "y": 1},
+      "id": 2,
+      "options": {"orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND((confidence * 100)::numeric, 1) AS \"신뢰도 (%)\"\nFROM llm_reports ORDER BY created_at DESC LIMIT 1", "refId": "A"}],
+      "title": "신뢰도",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 판단 시점 레짐",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"options": {"ranging": {"color": "#fbbf24", "index": 0, "text": "🟡 RANGING"}, "trending_up": {"color": "#22c55e", "index": 1, "text": "🟢 TRENDING UP"}, "trending_down": {"color": "#ef4444", "index": 2, "text": "🔴 TRENDING DOWN"}, "volatile": {"color": "#a855f7", "index": 3, "text": "🟣 VOLATILE"}}, "type": "value"}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 5, "x": 9, "y": 1},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^regime$/", "values": false}, "textMode": "value"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT regime FROM llm_reports ORDER BY created_at DESC LIMIT 1", "refId": "A"}],
+      "title": "판단 시점 레짐",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 판단 시점 BTC 가격",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "unit": "currencyUSD",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 5, "x": 14, "y": 1},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(btc_price::numeric, 0) AS \"BTC 가격\"\nFROM llm_reports ORDER BY created_at DESC LIMIT 1", "refId": "A"}],
+      "title": "판단 시 BTC 가격",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "최근 30일 LLM 판단 정확도",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": 0}, {"color": "yellow", "value": 50}, {"color": "green", "value": 60}]},
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 5, "x": 19, "y": 1},
+      "id": 5,
+      "options": {"orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND((AVG(accuracy_score) * 100)::numeric, 1) AS \"정확도 (%)\"\nFROM llm_judgments\nWHERE created_at > NOW() - INTERVAL '30 days'\n  AND evaluated_at IS NOT NULL", "refId": "A"}],
+      "title": "30D 정확도",
+      "type": "gauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 7},
+      "id": 101,
+      "title": "최신 LLM 리포트",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "최신 LLM 분석 리포트 상세",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "left", "wrap": true, "cellOptions": {"type": "auto"}}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "평가"}, "properties": [
+            {"id": "custom.width", "value": 130},
+            {"id": "mappings", "value": [{"options": {"strong_buy": {"color": "green", "index": 0, "text": "🚀 STRONG BUY"}, "buy": {"color": "green", "index": 1, "text": "🟢 BUY"}, "hold": {"color": "yellow", "index": 2, "text": "🟡 HOLD"}, "sell": {"color": "red", "index": 3, "text": "🔴 SELL"}, "strong_sell": {"color": "red", "index": 4, "text": "💀 STRONG SELL"}}, "type": "value"}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "신뢰도"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "custom.width", "value": 80}]},
+          {"matcher": {"id": "byName", "options": "BTC가격"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 0}, {"id": "custom.width", "value": 100}]}
+        ]
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 8},
+      "id": 6,
+      "options": {"sortBy": [{"desc": true, "displayName": "생성 시각"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  created_at AS \"생성 시각\",\n  rating AS \"평가\",\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도\",\n  regime AS \"레짐\",\n  ROUND(btc_price::numeric, 0) AS \"BTC가격\",\n  COALESCE(technical_summary, '') AS \"기술적 분석\",\n  COALESCE(sentiment_summary, '') AS \"시장 심리\",\n  COALESCE(debate_conclusion, reasoning, '') AS \"결론\",\n  COALESCE(risk_assessment, '') AS \"리스크\",\n  COALESCE(weight_adjustments::text, '') AS \"가중치 조정\"\nFROM llm_reports\nORDER BY created_at DESC\nLIMIT 5", "refId": "A"}],
+      "title": "최신 LLM 리포트 (최근 5건)",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20},
+      "id": 102,
+      "title": "LLM 판단 이력 & 추이",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM Rating 타임라인",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [
+            {"options": {
+              "strong_buy": {"color": "#15803d", "index": 0, "text": "STRONG BUY"},
+              "buy": {"color": "#22c55e", "index": 1, "text": "BUY"},
+              "hold": {"color": "#f59e0b", "index": 2, "text": "HOLD"},
+              "sell": {"color": "#ef4444", "index": 3, "text": "SELL"},
+              "strong_sell": {"color": "#991b1b", "index": 4, "text": "STRONG SELL"}
+            }, "type": "value"}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 14, "x": 0, "y": 21},
+      "id": 7,
+      "options": {"colWidth": 0.9, "legend": {"displayMode": "list", "placement": "bottom"}, "mergeValues": true, "rowHeight": 0.9, "showValue": "auto", "tooltip": {"mode": "single", "sort": "none"}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT created_at AS time, 'LLM Rating' AS metric, rating AS state\nFROM llm_reports\nWHERE created_at > NOW() - INTERVAL '7 days'\nORDER BY created_at", "refId": "A"}],
+      "title": "Rating 타임라인 (7일)",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 신뢰도 추이",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"fixedColor": "#3b82f6", "mode": "fixed"},
+          "unit": "percent",
+          "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 10, "x": 14, "y": 21},
+      "id": 8,
+      "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "time_series", "rawQuery": true, "rawSql": "SELECT created_at AS time,\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도 (%)\"\nFROM llm_reports\nWHERE created_at > NOW() - INTERVAL '30 days'\nORDER BY created_at", "refId": "A"}],
+      "title": "신뢰도 추이 (30일)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 27},
+      "id": 103,
+      "title": "판단 정확도 & 이력",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 판단 정확도 추이 (목표: 60%)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"fixedColor": "#22c55e", "mode": "fixed"},
+          "unit": "percent",
+          "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+      "id": 9,
+      "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "time_series", "rawQuery": true, "rawSql": "SELECT evaluated_at AS time,\n  ROUND((accuracy_score * 100)::numeric, 1) AS \"정확도 (%)\"\nFROM llm_judgments\nWHERE evaluated_at IS NOT NULL\n  AND created_at > NOW() - INTERVAL '30 days'\nORDER BY evaluated_at", "refId": "A"}],
+      "title": "정확도 추이 (30일)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM 판단 이력 상세",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "center"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "Rating"}, "properties": [
+            {"id": "mappings", "value": [{"options": {"strong_buy": {"color": "green", "index": 0, "text": "🚀 SB"}, "buy": {"color": "green", "index": 1, "text": "🟢 BUY"}, "hold": {"color": "yellow", "index": 2, "text": "🟡 HOLD"}, "sell": {"color": "red", "index": 3, "text": "🔴 SELL"}, "strong_sell": {"color": "red", "index": 4, "text": "💀 SS"}}, "type": "value"}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "결과"}, "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+            {"id": "mappings", "value": [{"options": {"⏳ 대기": {"color": "yellow", "index": 0}, "✅ 맞음": {"color": "green", "index": 1}, "❌ 틀림": {"color": "red", "index": 2}}, "type": "value"}]}
+          ]},
+          {"matcher": {"id": "byName", "options": "신뢰도"}, "properties": [{"id": "unit", "value": "percent"}]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+      "id": 10,
+      "options": {"sortBy": [{"desc": true, "displayName": "생성 시각"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  created_at AS \"생성 시각\",\n  rating AS \"Rating\",\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도\",\n  CASE\n    WHEN actual_outcome IS NULL THEN '⏳ 대기'\n    WHEN accuracy_score >= 0.5 THEN '✅ 맞음'\n    ELSE '❌ 틀림'\n  END AS \"결과\"\nFROM llm_judgments\nWHERE created_at > NOW() - INTERVAL '30 days'\nORDER BY created_at DESC\nLIMIT 20", "refId": "A"}],
+      "title": "판단 이력 (30일)",
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["cryptoengine", "llm"],
+  "templating": {"list": []},
+  "time": {"from": "now-7d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "LLM Intelligence",
+  "uid": "cryptoengine-llm",
+  "version": 1
+}

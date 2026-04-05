@@ -30,13 +30,11 @@
   "graphTooltip": 1,
   "id": null,
   "links": [
-    {
-      "icon": "doc",
-      "tags": [],
-      "title": "LLM 리포트 목록",
-      "type": "link",
-      "url": "/d/cryptoengine-llm-reports/llm-리포트-목록"
-    }
+    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
+    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"},
+    {"icon": "dashboard", "tags": [], "title": "Positions & Orders", "type": "link", "url": "/d/cryptoengine-positions"},
+    {"icon": "dashboard", "tags": [], "title": "LLM Intelligence", "type": "link", "url": "/d/cryptoengine-llm"},
+    {"icon": "dashboard", "tags": [], "title": "System Health", "type": "link", "url": "/d/cryptoengine-health"}
   ],
   "panels": [
 
