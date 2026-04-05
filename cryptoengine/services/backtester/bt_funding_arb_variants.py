@@ -46,11 +46,11 @@ DB_DSN = (
 
 SYMBOL          = "BTCUSDT"
 TIMEFRAME       = "1h"
-START_DATE      = "2023-04-01"
+START_DATE      = "2020-04-01"
 END_DATE        = "2026-03-31"
 INITIAL_CAPITAL = 10_000.0
 FEE_RATE        = 0.00055
-TEST_NAME       = "test_b_funding_arb_variants"
+TEST_NAME       = "test_f_funding_arb_variants_6y"
 
 # ── 4가지 변형 파라미터 ───────────────────────────────────────────────────────
 VARIANTS: dict[str, dict[str, Any]] = {

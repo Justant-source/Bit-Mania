@@ -473,7 +473,7 @@ async def _run_all(args: argparse.Namespace) -> None:
 
         result: WalkForwardResult = analyzer.run(
             ohlcv=ohlcv,
-            funding=funding if strategy == "funding_arb" else None,
+            funding=funding if strategy in ("funding_arb", "combined_v2") else None,
             strategy=strategy,
             initial_capital=args.capital,
         )
@@ -567,8 +567,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--strategies",
         nargs="+",
-        default=["funding_arb", "grid_trading", "combined"],
-        choices=["funding_arb", "grid_trading", "adaptive_dca", "combined"],
+        default=["funding_arb", "adaptive_dca", "combined_v2"],
+        choices=["funding_arb", "grid_trading", "adaptive_dca", "adaptive_dca_graduated", "combined", "combined_v2"],
         help="실행할 전략 목록",
     )
     parser.add_argument(
