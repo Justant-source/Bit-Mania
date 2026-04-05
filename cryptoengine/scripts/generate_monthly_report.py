@@ -68,7 +68,7 @@ async def _fetch_daily_reports(
             """
             SELECT date, starting_equity, ending_equity, daily_pnl,
                    daily_return, trade_count, funding_income,
-                   grid_income, dca_value, max_drawdown
+                   dca_value, max_drawdown
             FROM daily_reports
             WHERE date >= $1 AND date <= $2
             ORDER BY date ASC
@@ -185,9 +185,7 @@ def _calculate_monthly_stats(
             stats["sharpe_ratio"] = 0.0
 
         # Per-strategy income
-        grid_incomes = [float(r["grid_income"] or 0) for r in daily_rows]
         dca_values = [float(r["dca_value"] or 0) for r in daily_rows]
-        stats["grid_income"] = sum(grid_incomes)
         stats["dca_value"] = sum(dca_values)
     else:
         stats.update({
@@ -200,7 +198,6 @@ def _calculate_monthly_stats(
             "sharpe_ratio": 0,
             "win_days": 0,
             "loss_days": 0,
-            "grid_income": 0,
             "dca_value": 0,
         })
 
@@ -289,8 +286,8 @@ async def _save_report(
             INSERT INTO daily_reports
                 (date, starting_equity, ending_equity, daily_pnl,
                  daily_return, trade_count, funding_income,
-                 grid_income, dca_value, max_drawdown, llm_summary)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                 dca_value, max_drawdown, llm_summary)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (date) DO UPDATE SET
                 starting_equity = EXCLUDED.starting_equity,
                 ending_equity = EXCLUDED.ending_equity,
@@ -298,7 +295,6 @@ async def _save_report(
                 daily_return = EXCLUDED.daily_return,
                 trade_count = EXCLUDED.trade_count,
                 funding_income = EXCLUDED.funding_income,
-                grid_income = EXCLUDED.grid_income,
                 dca_value = EXCLUDED.dca_value,
                 max_drawdown = EXCLUDED.max_drawdown,
                 llm_summary = EXCLUDED.llm_summary
@@ -310,7 +306,6 @@ async def _save_report(
             stats.get("monthly_return_pct", 0),
             stats.get("total_trades", 0),
             stats.get("funding_income", 0),
-            stats.get("grid_income", 0),
             stats.get("dca_value", 0),
             stats.get("max_drawdown", 0),
             summary,

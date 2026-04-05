@@ -124,7 +124,6 @@ def upgrade() -> None:
         sa.Column("daily_return", sa.Numeric(10, 6)),
         sa.Column("trade_count", sa.Integer),
         sa.Column("funding_income", sa.Numeric(20, 8)),
-        sa.Column("grid_income", sa.Numeric(20, 8)),
         sa.Column("dca_value", sa.Numeric(20, 8)),
         sa.Column("max_drawdown", sa.Numeric(10, 6)),
         sa.Column("llm_summary", sa.Text),

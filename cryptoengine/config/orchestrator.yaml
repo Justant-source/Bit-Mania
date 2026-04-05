@@ -61,8 +61,7 @@ regime_detection:
 # ── Weight Matrix ─────────────────────────────────────────────
 # Rows = market regime, Columns = strategy allocation weight.
 # Each row must sum to 1.0.
-# 그리드 트레이딩 완전 제거 (Test B/D 결과: Walk-Forward Sharpe -0.581, consistency 0.000)
-# 최종 포트폴리오: FA + graduated DCA + 현금 (Test H 기반, 2026-04-05)
+# 포트폴리오: FA + Adaptive DCA + 현금 (Test H 기반, 2026-04-05)
 weights:
   # 횡보: FA 지배적 (Test E 횡보 Sharpe 2.72), DCA 소량
   ranging:
