@@ -316,6 +316,7 @@
   "templating": {
     "list": [
       {
+        "allValue": "All",
         "current": {},
         "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
         "definition": "SELECT DISTINCT service FROM service_logs ORDER BY service",
@@ -332,6 +333,7 @@
         "type": "query"
       },
       {
+        "allValue": "All",
         "current": {"selected": false, "text": "All", "value": "$__all"},
         "hide": 0,
         "includeAll": true,
@@ -350,6 +352,7 @@
         "type": "custom"
       },
       {
+        "allValue": "All",
         "current": {},
         "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
         "definition": "SELECT DISTINCT event FROM service_logs ORDER BY event",
