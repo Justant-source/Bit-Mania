@@ -161,6 +161,8 @@ class ExecutionEngine:
                         self._order_manager.place_order(payload),
                         timeout=ORDER_TIMEOUT,
                     )
+                    self._safety.record_api_response()
+                    self._safety.record_api_call()
                     break
                 except asyncio.TimeoutError:
                     last_error = "order_timeout"

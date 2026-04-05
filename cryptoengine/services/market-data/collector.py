@@ -286,9 +286,9 @@ class MarketDataCollector:
                 async with self.db_pool.acquire() as conn:
                     await conn.execute(
                         """
-                        INSERT INTO ohlcv_history (exchange, symbol, timeframe, ts, open, high, low, close, volume)
+                        INSERT INTO ohlcv_history (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                        ON CONFLICT (exchange, symbol, timeframe, ts) DO UPDATE
+                        ON CONFLICT (exchange, symbol, timeframe, timestamp) DO UPDATE
                         SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
                             close = EXCLUDED.close, volume = EXCLUDED.volume
                         """,

@@ -220,14 +220,17 @@ class RegimeDetector:
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO market_regimes (regime, confidence, adx, volatility, bb_width)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO market_regime_history (symbol, regime, confidence, indicators)
+                VALUES ($1, $2, $3, $4)
                 """,
+                self.symbol,
                 regime,
                 confidence,
-                float(current_adx),
-                float(current_atr),
-                float(bb_width),
+                json.dumps({
+                    "adx": round(float(current_adx), 4),
+                    "volatility": round(float(current_atr), 4),
+                    "bb_width": round(float(bb_width), 6),
+                }),
             )
 
         if regime != self._last_regime:

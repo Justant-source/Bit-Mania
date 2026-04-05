@@ -26,7 +26,7 @@ async def main() -> None:
     setup_logging(service_name="funding-arb")
     config = load_config(os.getenv("CONFIG_PATH", "/app/config/strategies/funding-arb.yaml"))
 
-    strategy_id = os.getenv("STRATEGY_ID", "funding-arb-01")
+    strategy_id = os.getenv("STRATEGY_ID", "funding-arb")
     strategy = FundingArbStrategy(strategy_id=strategy_id, config=config)
 
     loop = asyncio.get_running_loop()

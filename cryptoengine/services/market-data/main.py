@@ -94,24 +94,22 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
                 ts            TIMESTAMPTZ NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS funding_rates (
+            CREATE TABLE IF NOT EXISTS funding_rate_history (
                 id                 BIGSERIAL PRIMARY KEY,
                 exchange           TEXT        NOT NULL,
                 symbol             TEXT        NOT NULL,
                 rate               DOUBLE PRECISION NOT NULL,
                 predicted_rate     DOUBLE PRECISION,
-                next_funding_time  TIMESTAMPTZ NOT NULL,
-                collected_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE (exchange, symbol, next_funding_time)
+                timestamp          TIMESTAMPTZ NOT NULL,
+                UNIQUE (exchange, symbol, timestamp)
             );
 
-            CREATE TABLE IF NOT EXISTS market_regimes (
+            CREATE TABLE IF NOT EXISTS market_regime_history (
                 id            BIGSERIAL PRIMARY KEY,
+                symbol        TEXT        NOT NULL DEFAULT 'BTCUSDT',
                 regime        TEXT        NOT NULL,
-                confidence    DOUBLE PRECISION NOT NULL,
-                adx           DOUBLE PRECISION,
-                volatility    DOUBLE PRECISION,
-                bb_width      DOUBLE PRECISION,
+                confidence    DOUBLE PRECISION,
+                indicators    JSONB,
                 detected_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
             """

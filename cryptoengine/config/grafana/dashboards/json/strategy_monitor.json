@@ -392,7 +392,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT snapshot_at AS time,\n  total_equity AS \"총 자산\",\n  COALESCE(unrealized_pnl, 0) AS \"미실현 손익\",\n  COALESCE(realized_pnl, 0) AS \"실현 손익\"\nFROM portfolio_snapshots\nWHERE $__timeFilter(snapshot_at)\nORDER BY snapshot_at",
+          "rawSql": "SELECT snapshot_at AS time,\n  total_equity AS \"총 자산\",\n  COALESCE(unrealized_pnl, 0) AS \"미실현 손익\",\n  COALESCE(realized_pnl_today, 0) AS \"실현 손익\"\nFROM portfolio_snapshots\nWHERE $__timeFilter(snapshot_at)\nORDER BY snapshot_at",
           "refId": "A"
         }
       ],
