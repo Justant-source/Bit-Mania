@@ -1,0 +1,497 @@
+{
+  "description": "전략 상태·Redis 명령 이력·레짐 변화·Kill Switch — CryptoEngine 운영 모니터",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "핵심 모니터",
+      "type": "link",
+      "url": "/d/cryptoengine-cockpit"
+    }
+  ],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "전략 실행 상태 (strategy_states)",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "Orchestrator가 각 전략에 할당한 자본 및 현재 운영 상태",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "실행 중" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": { "true":  { "color": "green", "index": 0, "text": "● 실행 중" },
+                               "false": { "color": "gray",  "index": 1, "text": "○ 정지" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "배분 자본" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "현재 PnL" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 4 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  strategy_id AS \"전략 ID\",\n  is_running::text AS \"실행 중\",\n  allocated_capital AS \"배분 자본\",\n  current_pnl AS \"현재 PnL\",\n  position_count AS \"포지션 수\",\n  updated_at AS \"최근 업데이트\"\nFROM strategy_states\nORDER BY strategy_id",
+          "refId": "A"
+        }
+      ],
+      "title": "전략별 실행 상태",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 101,
+      "title": "시장 레짐 변화 이력",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "market-data 서비스가 감지한 레짐 전환 이력 — 이 데이터를 기반으로 Orchestrator가 전략 가중치를 변경합니다.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "레짐" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": {
+                    "trending_up":   { "color": "green",  "index": 0, "text": "↑ 상승추세" },
+                    "trending_down": { "color": "red",    "index": 1, "text": "↓ 하락추세" },
+                    "ranging":       { "color": "blue",   "index": 2, "text": "↔ 횡보" },
+                    "volatile":      { "color": "orange", "index": 3, "text": "⚡ 변동성" },
+                    "trending":      { "color": "green",  "index": 4, "text": "↑ 추세" },
+                    "unknown":       { "color": "gray",   "index": 5, "text": "? 불명" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "신뢰도" },
+            "properties": [{ "id": "unit", "value": "percentunit" }, { "id": "decimals", "value": 2 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 8 },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  detected_at AS \"감지 시간\",\n  symbol AS \"심볼\",\n  regime AS \"레짐\",\n  confidence AS \"신뢰도\"\nFROM market_regime_history\nWHERE $__timeFilter(detected_at)\nORDER BY detected_at DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "레짐 변화 이력",
+      "type": "table"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "시간 구간별 펀딩비 추이 — 진입/청산 신호 기준",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green",  "value": 0.0001 }
+            ]
+          },
+          "unit": "percentunit",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 8 },
+      "id": 3,
+      "options": {
+        "legend": { "calcs": ["mean", "last", "max"], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  timestamp AS time,\n  rate AS \"펀딩비율\"\nFROM funding_rate_history\nWHERE symbol = 'BTCUSDT'\n  AND $__timeFilter(timestamp)\nORDER BY timestamp",
+          "refId": "A"
+        }
+      ],
+      "title": "펀딩비율 추이",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 102,
+      "title": "Kill Switch 이벤트",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "Kill Switch 발동 이력 — 레벨 1(전략), 2(포트폴리오), 3(시스템), 4(수동 Telegram)",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "레벨" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": {
+                    "1": { "color": "yellow", "index": 0, "text": "L1 전략" },
+                    "2": { "color": "orange", "index": 1, "text": "L2 포트폴리오" },
+                    "3": { "color": "red",    "index": 2, "text": "L3 시스템" },
+                    "4": { "color": "dark-red","index": 3, "text": "L4 수동" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "PnL at 발동" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 4 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  triggered_at AS \"발동 시간\",\n  level AS \"레벨\",\n  reason AS \"이유\",\n  positions_closed AS \"청산 포지션 수\",\n  pnl_at_trigger AS \"PnL at 발동\",\n  resolved_at AS \"해제 시간\"\nFROM kill_switch_events\nORDER BY triggered_at DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "Kill Switch 발동 이력",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "id": 103,
+      "title": "Redis 실시간 캐시 값",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+      "description": "Redis cache:wallet_balance 키의 현재 값 (JSON 문자열)",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 28 },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+          "key": "cache:wallet_balance",
+          "command": "get",
+          "type": "timeseries",
+          "refId": "A"
+        }
+      ],
+      "title": "Redis: 지갑 잔고 (raw JSON)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+      "description": "Redis cache:portfolio_state 키의 현재 값",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 28 },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+          "key": "cache:portfolio_state",
+          "command": "get",
+          "type": "timeseries",
+          "refId": "A"
+        }
+      ],
+      "title": "Redis: 포트폴리오 상태",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+      "description": "Redis cache:funding:bybit:BTCUSDT 해시의 현재 펀딩비 필드",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green",  "value": 0.0001 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 28 },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "redis-datasource", "uid": "cryptoengine-redis" },
+          "key": "cache:funding:bybit:BTCUSDT",
+          "field": "rate",
+          "command": "hget",
+          "type": "timeseries",
+          "refId": "A"
+        }
+      ],
+      "title": "Redis: 현재 펀딩비율 (cache)",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 104,
+      "title": "LLM 분석 명령 이력",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "LLM Advisor가 실행한 분석 요청 및 결과 이력 — 트리거 유형과 판단 내용 포함",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "판단" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": {
+                    "strong_buy":  { "color": "dark-green", "index": 0, "text": "강력매수" },
+                    "buy":         { "color": "green",      "index": 1, "text": "매수" },
+                    "hold":        { "color": "yellow",     "index": 2, "text": "보유" },
+                    "sell":        { "color": "orange",     "index": 3, "text": "매도" },
+                    "strong_sell": { "color": "red",        "index": 4, "text": "강력매도" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "신뢰도" },
+            "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "리스크 평가" },
+            "properties": [
+              { "id": "custom.width", "value": 500 },
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 33 },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"분석 시간\",\n  trigger AS \"트리거\",\n  rating AS \"판단\",\n  ROUND(confidence * 100, 1) AS \"신뢰도\",\n  regime AS \"레짐\",\n  COALESCE(\n    CASE WHEN risk_assessment LIKE '{%' THEN (risk_assessment::json->>'risk_assessment') ELSE risk_assessment END,\n    '없음'\n  ) AS \"리스크 평가\"\nFROM llm_reports\nWHERE $__timeFilter(created_at)\nORDER BY created_at DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM 분석 요청/결과 이력",
+      "type": "table"
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["cryptoengine", "strategy", "redis", "monitor"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Strategy & Redis Monitor",
+  "uid": "cryptoengine-strategy-monitor",
+  "version": 1
+}

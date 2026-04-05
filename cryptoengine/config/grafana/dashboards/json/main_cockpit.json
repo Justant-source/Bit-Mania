@@ -91,6 +91,7 @@
 
     {
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "거래소가 공시하는 8시간 기준 원시 펀딩비율입니다.\n레버리지 조정 전 수치입니다. 예: 0.50% × 5배 레버리지 = 투자금 대비 2.50%/8h 수익.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -130,7 +131,7 @@
           "refId": "A"
         }
       ],
-      "title": "현재 펀딩비",
+      "title": "현재 펀딩비 (8h 원시요율)",
       "type": "stat"
     },
 
@@ -232,20 +233,23 @@
 
     {
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "market-data 서비스가 실시간으로 감지한 최신 시장 레짐입니다.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [
-            { "options": { "trending_up":   { "color": "green",  "index": 0, "text": "↑ 상승추세" },
-                           "trending_down": { "color": "red",    "index": 1, "text": "↓ 하락추세" },
-                           "ranging":       { "color": "blue",   "index": 2, "text": "↔ 횡보" },
-                           "volatile":      { "color": "orange", "index": 3, "text": "⚡ 변동성" },
-                           "trending":      { "color": "green",  "index": 4, "text": "↑ 추세" },
-                           "unknown":       { "color": "gray",   "index": 5, "text": "? 불명" }
+            { "options": {
+                "1": { "color": "green",  "index": 0, "text": "↑ 상승추세" },
+                "2": { "color": "red",    "index": 1, "text": "↓ 하락추세" },
+                "3": { "color": "blue",   "index": 2, "text": "↔ 횡보" },
+                "4": { "color": "orange", "index": 3, "text": "⚡ 변동성" },
+                "5": { "color": "green",  "index": 4, "text": "↑ 추세" },
+                "0": { "color": "gray",   "index": 5, "text": "? 불명" }
               }, "type": "value" }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] },
-          "unit": "string"
+          "unit": "none",
+          "noValue": "감지 중..."
         },
         "overrides": []
       },
@@ -267,7 +271,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT regime AS \"현재 레짐\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE regime WHEN 'trending_up' THEN 1 WHEN 'trending_down' THEN 2 WHEN 'ranging' THEN 3 WHEN 'volatile' THEN 4 WHEN 'trending' THEN 5 ELSE 0 END AS \"현재 레짐\" FROM market_regime_history WHERE symbol = 'BTCUSDT' ORDER BY detected_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -277,19 +281,23 @@
 
     {
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "LLM 분석 기반 매매 방향성 판단입니다. ANTHROPIC_API_KEY 미설정 시 규칙 기반 폴백(hold)을 표시합니다.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [
-            { "options": { "strong_buy":  { "color": "dark-green", "index": 0, "text": "강력 매수 ▲▲" },
-                           "buy":         { "color": "green",      "index": 1, "text": "매수 ▲" },
-                           "hold":        { "color": "yellow",     "index": 2, "text": "보유 ─" },
-                           "sell":        { "color": "orange",     "index": 3, "text": "매도 ▼" },
-                           "strong_sell": { "color": "red",        "index": 4, "text": "강력 매도 ▼▼" }
+            { "options": {
+                "5": { "color": "dark-green", "index": 0, "text": "강력 매수 ▲▲" },
+                "4": { "color": "green",      "index": 1, "text": "매수 ▲" },
+                "3": { "color": "yellow",     "index": 2, "text": "보유 ─" },
+                "2": { "color": "orange",     "index": 3, "text": "매도 ▼" },
+                "1": { "color": "red",        "index": 4, "text": "강력 매도 ▼▼" },
+                "0": { "color": "gray",       "index": 5, "text": "? 불명" }
               }, "type": "value" }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] },
-          "unit": "string"
+          "unit": "none",
+          "noValue": "분석 중..."
         },
         "overrides": []
       },
@@ -311,7 +319,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT rating AS \"LLM 판단\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE rating WHEN 'strong_buy' THEN 5 WHEN 'buy' THEN 4 WHEN 'hold' THEN 3 WHEN 'sell' THEN 2 WHEN 'strong_sell' THEN 1 ELSE 0 END AS \"LLM 판단\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
@@ -321,6 +329,7 @@
 
     {
       "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "LLM이 자신의 분석에 부여한 신뢰도입니다.\n55% = ANTHROPIC_API_KEY 미설정 → 규칙 기반 폴백 (항상 고정값)\n70%+ = Claude AI 실제 분석 신뢰도",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -362,13 +371,59 @@
           "refId": "A"
         }
       ],
-      "title": "LLM 신뢰도",
+      "title": "AI 분석 신뢰도 (55%=규칙기반)",
       "type": "stat"
     },
 
     {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "LLM이 평가한 현재 가장 주의해야 할 리스크와 핵심 조언입니다.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": { "type": "auto", "wrapText": true },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "semi-dark-orange", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "주요 조언" },
+            "properties": [
+              { "id": "custom.width", "value": 1200 },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 10 },
+      "id": 11,
+      "options": {
+        "cellHeight": "lg",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": false
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT '⚠ LLM 리스크 조언: ' || COALESCE(\n  CASE WHEN risk_assessment LIKE '{%' THEN (risk_assessment::json->>'risk_assessment') ELSE risk_assessment END,\n  debate_conclusion,\n  reasoning,\n  '현재 리스크 평가 없음'\n) AS \"주요 조언\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM 주요 리스크 조언",
+      "type": "table"
+    },
+
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
       "id": 102,
       "title": "현재 포지션",
       "type": "row"
@@ -418,7 +473,7 @@
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 11 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
       "id": 8,
       "options": {
         "cellHeight": "sm",
@@ -442,7 +497,7 @@
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
       "id": 103,
       "title": "최근 주문",
       "type": "row"
@@ -500,7 +555,7 @@
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
       "id": 9,
       "options": {
         "cellHeight": "sm",
@@ -524,7 +579,7 @@
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
       "id": 104,
       "title": "LLM 자산 리포트",
       "type": "row"
@@ -576,7 +631,7 @@
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 29 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 32 },
       "id": 10,
       "options": {
         "cellHeight": "md",
