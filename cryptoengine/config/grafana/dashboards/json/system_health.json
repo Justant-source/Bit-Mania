@@ -1,0 +1,336 @@
+{
+  "description": "System Health — 서비스 상태·Kill Switch·Redis·PostgreSQL·API 레이턴시·에러 로그",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
+    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"}
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "title": "서비스 상태",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "market-data 서비스 마지막 업데이트 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 30}, {"color": "red", "value": 120}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(timestamp))::numeric, 0) AS \"market-data (초)\"\nFROM ohlcv_history WHERE symbol = 'BTCUSDT' AND timeframe = '1m'", "refId": "A"}],
+      "title": "market-data",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "execution-engine: 최근 거래 기록 기준 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+      "id": 2,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(COALESCE(filled_at, created_at)))::numeric, 0) AS \"execution-engine (초)\"\nFROM trades", "refId": "A"}],
+      "title": "execution-engine",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "strategy-orchestrator: portfolio_snapshots 기준 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+      "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(snapshot_at))::numeric, 0) AS \"orchestrator (초)\"\nFROM portfolio_snapshots", "refId": "A"}],
+      "title": "strategy-orchestrator",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "funding-arb: strategy_states 기준 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+      "id": 4,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(updated_at))::numeric, 0) AS \"funding-arb (초)\"\nFROM strategy_states WHERE strategy_id = 'funding_arb'", "refId": "A"}],
+      "title": "funding-arb",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "LLM Advisor: llm_reports 기준 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 21600}, {"color": "red", "value": 43200}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
+      "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(created_at))::numeric, 0) AS \"llm-advisor (초)\"\nFROM llm_reports", "refId": "A"}],
+      "title": "llm-advisor",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "market-data 펀딩비율 업데이트 경과 시간",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 600}, {"color": "red", "value": 1800}]},
+          "unit": "s",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
+      "id": 6,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(EXTRACT(EPOCH FROM NOW() - MAX(timestamp))::numeric, 0) AS \"funding-rate (초)\"\nFROM funding_rate_history WHERE symbol = 'BTCUSDT'", "refId": "A"}],
+      "title": "펀딩비 업데이트",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+      "id": 101,
+      "title": "Kill Switch & 데이터 현황",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "현재 Kill Switch 상태",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 6},
+      "id": 7,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  CASE\n    WHEN EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN '⚠️ 활성'\n    ELSE '✅ 정상'\n  END AS \"Kill Switch 상태\"", "refId": "A"}],
+      "title": "Kill Switch",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "주요 테이블 데이터 건수 현황",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "center"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "건수"}, "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 100}]}}
+          ]}
+        ]
+      },
+      "gridPos": {"h": 7, "w": 10, "x": 6, "y": 6},
+      "id": 8,
+      "options": {"sortBy": [], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT * FROM (\n  SELECT 'ohlcv_history' AS \"테이블\", COUNT(*) AS \"건수\", MAX(timestamp) AS \"최신 레코드\" FROM ohlcv_history\n  UNION ALL SELECT 'portfolio_snapshots', COUNT(*), MAX(snapshot_at) FROM portfolio_snapshots\n  UNION ALL SELECT 'positions (오픈)', COUNT(*), MAX(opened_at) FROM positions WHERE closed_at IS NULL\n  UNION ALL SELECT 'trades', COUNT(*), MAX(COALESCE(filled_at, created_at)) FROM trades\n  UNION ALL SELECT 'funding_payments', COUNT(*), MAX(collected_at) FROM funding_payments\n  UNION ALL SELECT 'funding_rate_history', COUNT(*), MAX(timestamp) FROM funding_rate_history\n  UNION ALL SELECT 'daily_reports', COUNT(*), MAX(date::timestamptz) FROM daily_reports\n  UNION ALL SELECT 'llm_reports', COUNT(*), MAX(created_at) FROM llm_reports\n) t ORDER BY \"테이블\"", "refId": "A"}],
+      "title": "DB 테이블 현황",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "최근 24시간 Kill Switch 이력",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "center"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "레벨"}, "properties": [
+            {"id": "mappings", "value": [{"options": {"1": {"color": "yellow", "index": 0, "text": "L1"}, "2": {"color": "orange", "index": 1, "text": "L2"}, "3": {"color": "red", "index": 2, "text": "L3"}, "4": {"color": "dark-red", "index": 3, "text": "L4"}}, "type": "value"}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
+          ]}
+        ]
+      },
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 6},
+      "id": 9,
+      "options": {"sortBy": [{"desc": true, "displayName": "발동 시각"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  level AS \"레벨\",\n  LEFT(reason, 40) AS \"사유\",\n  triggered_at AS \"발동 시각\",\n  CASE WHEN resolved_at IS NULL THEN '⚠️ 활성' ELSE '✅ 해제' END AS \"상태\"\nFROM kill_switch_events\nORDER BY triggered_at DESC\nLIMIT 5", "refId": "A"}],
+      "title": "Kill Switch 이력",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
+      "id": 102,
+      "title": "Redis 상태",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"},
+      "description": "Redis: 지갑 잔고 캐시",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 14},
+      "id": 10,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"}, "command": "get", "keyName": "cache:wallet_balance", "query": "", "refId": "A", "type": "TimeSeries"}],
+      "title": "Redis: 지갑 잔고",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"},
+      "description": "Redis: 포트폴리오 상태 캐시",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 14},
+      "id": 11,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"}, "command": "get", "keyName": "cache:portfolio_state", "query": "", "refId": "A", "type": "TimeSeries"}],
+      "title": "Redis: 포트폴리오 상태",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"},
+      "description": "Redis: 현재 펀딩비율 캐시",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0}, {"color": "green", "value": 0.0001}]},
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 14},
+      "id": 12,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "redis-datasource", "uid": "cryptoengine-redis"}, "command": "hget", "keyName": "cache:funding:bybit:BTCUSDT", "query": "rate", "refId": "A", "type": "TimeSeries"}],
+      "title": "Redis: 현재 펀딩비율",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20},
+      "id": 103,
+      "title": "데이터 수집 현황",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "1분봉 OHLCV 수집 현황 (최근 24시간)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "unit": "none",
+          "custom": {"lineWidth": 2, "fillOpacity": 10}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+      "id": 13,
+      "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "time_series", "rawQuery": true, "rawSql": "SELECT\n  date_trunc('hour', timestamp) AS time,\n  COUNT(*) AS \"OHLCV 건수/시간\"\nFROM ohlcv_history\nWHERE symbol = 'BTCUSDT' AND timeframe = '1m'\n  AND timestamp > NOW() - INTERVAL '24 hours'\nGROUP BY date_trunc('hour', timestamp)\nORDER BY time", "refId": "A"}],
+      "title": "OHLCV 수집량 (1시간 단위)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "레짐 감지 이력 (최근 24시간)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "center"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "레짐"}, "properties": [
+            {"id": "mappings", "value": [{"options": {"ranging": {"color": "#fbbf24", "index": 0, "text": "🟡 ranging"}, "trending_up": {"color": "#22c55e", "index": 1, "text": "🟢 trend_up"}, "trending_down": {"color": "#ef4444", "index": 2, "text": "🔴 trend_dn"}, "volatile": {"color": "#a855f7", "index": 3, "text": "🟣 volatile"}}, "type": "value"}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "신뢰도"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "decimals", "value": 1}]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
+      "id": 14,
+      "options": {"sortBy": [{"desc": true, "displayName": "감지 시각"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  detected_at AS \"감지 시각\",\n  symbol AS \"심볼\",\n  regime AS \"레짐\",\n  ROUND((confidence * 100)::numeric, 1) AS \"신뢰도\"\nFROM market_regime_history\nWHERE detected_at > NOW() - INTERVAL '24 hours'\nORDER BY detected_at DESC\nLIMIT 20", "refId": "A"}],
+      "title": "레짐 감지 이력 (24h)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["cryptoengine", "system"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "System Health",
+  "uid": "cryptoengine-health",
+  "version": 1
+}
