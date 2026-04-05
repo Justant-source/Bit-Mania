@@ -296,3 +296,231 @@ groups:
           severity: warning
         annotations:
           summary: "최대 낙폭이 3일 연속 10% 초과"
+
+      # ── Rule 6: CPU 과다 사용 (High CPU) ──────────────────────────────────
+      - uid: alert-high-cpu
+        title: CPU 과다 사용
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: cryptoengine-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: cryptoengine-prometheus
+              editorMode: code
+              expr: >-
+                100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [85]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 사용률이 5분간 85%를 초과했습니다 (현재: {{ $value | printf \"%.1f\" }}%)"
+
+      # ── Rule 7: 메모리 부족 (Low Memory) ─────────────────────────────────
+      - uid: alert-low-memory
+        title: 메모리 부족
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: cryptoengine-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: cryptoengine-prometheus
+              editorMode: code
+              expr: >-
+                (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [15]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "가용 메모리가 15% 미만입니다 (현재: {{ $value | printf \"%.1f\" }}%). OOM 위험!"
+
+      # ── Rule 8: 디스크 부족 (Low Disk Space) ─────────────────────────────
+      - uid: alert-low-disk
+        title: 디스크 용량 부족
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: cryptoengine-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: cryptoengine-prometheus
+              editorMode: code
+              expr: >-
+                (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 여유 공간이 10% 미만입니다 (현재: {{ $value | printf \"%.1f\" }}%). 백업/로그 정리 필요"
+
+      # ── Rule 9: Redis 메모리 한계 근접 (Redis Memory Near Limit) ─────────
+      - uid: alert-redis-memory
+        title: Redis 메모리 한계 근접
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: cryptoengine-prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: cryptoengine-prometheus
+              editorMode: code
+              expr: >-
+                (redis_memory_used_bytes / redis_memory_max_bytes) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+              conditions: []
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [80]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 메모리 사용률이 80%를 초과했습니다 (현재: {{ $value | printf \"%.1f\" }}%)"

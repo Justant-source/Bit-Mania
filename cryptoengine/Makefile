@@ -94,6 +94,19 @@ emergency: ## EMERGENCY: Close all positions and halt trading immediately
 monthly-report: ## Generate monthly performance report
 	$(COMPOSE) run --rm backtester python -m reports.monthly_report
 
+backup: ## Trigger manual PostgreSQL backup now
+	@echo "=== Manual backup triggered ==="
+	$(COMPOSE) exec pg-backup sh /scripts/pg_backup.sh
+	@echo "=== Backup complete. Files in pg-backups volume ==="
+
+backup-list: ## List all existing PostgreSQL backups
+	$(COMPOSE) exec pg-backup sh -c "ls -lh /backups/cryptoengine_*.sql.gz 2>/dev/null || echo 'No backups found'"
+
+backup-restore: ## Restore from latest backup (DESTRUCTIVE — confirm first)
+	@echo "!!! WARNING: This will overwrite the current database !!!"
+	@read -p "Latest backup to restore (filename only, e.g. cryptoengine_20260406_170000.sql.gz): " f; \
+	$(COMPOSE) exec pg-backup sh -c "gunzip -c /backups/$$f | psql -h postgres -U cryptoengine -d cryptoengine"
+
 # ── Help ──────────────────────────────────────────────────────
 
 help: ## Show this help message
