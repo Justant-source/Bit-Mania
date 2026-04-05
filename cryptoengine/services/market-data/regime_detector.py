@@ -24,6 +24,7 @@ import redis.asyncio as aioredis
 import structlog
 
 from indicators import compute_adx, compute_atr, compute_bb, compute_ema
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -71,7 +72,7 @@ class RegimeDetector:
 
     async def run(self, shutdown: asyncio.Event) -> None:
         """Main loop — listen for confirmed candles and run detection."""
-        log.info("regime_detector_starting", symbol=self.symbol, tf=self.detection_timeframe)
+        log.info(SERVICE_STARTED, message="regime detector starting", symbol=self.symbol, tf=self.detection_timeframe)
 
         # Pre-load historical candles from DB
         await self._load_history()
@@ -100,7 +101,7 @@ class RegimeDetector:
         finally:
             await pubsub.unsubscribe(channel)
             await pubsub.aclose()
-            log.info("regime_detector_stopped")
+            log.info(SERVICE_STOPPED, message="regime detector stopped")
 
     # ------------------------------------------------------------------
     # Internal
@@ -133,7 +134,7 @@ class RegimeDetector:
                 "ts": row["ts"].timestamp() * 1000,
             })
 
-        log.info("regime_history_loaded", candle_count=len(self._candles))
+        log.info(SERVICE_HEALTH_OK, message="regime history loaded", candle_count=len(self._candles))
 
     def _append_candle(self, payload: dict[str, Any]) -> None:
         """Append a new candle and trim to lookback window."""
@@ -157,7 +158,7 @@ class RegimeDetector:
     async def _detect_and_publish(self) -> None:
         """Run regime classification logic and publish to Redis."""
         if len(self._candles) < MIN_CANDLES:
-            log.debug("regime_insufficient_data", candles=len(self._candles))
+            log.debug(MARKET_REGIME_CHANGED, message="insufficient data for regime detection", candles=len(self._candles))
             return
 
         df = self._build_df()
@@ -247,7 +248,8 @@ class RegimeDetector:
             await self.redis.publish("market:regime:confirmed", json.dumps(confirmed_msg))
             await self.redis.set("market:regime:confirmed", json.dumps(confirmed_msg), ex=3600)
             log.info(
-                "regime_confirmed",
+                MARKET_REGIME_CHANGED,
+                message="regime confirmed",
                 new=regime,
                 consecutive=self._consecutive_count,
                 reason=change_reason,
@@ -276,7 +278,8 @@ class RegimeDetector:
 
         if regime != self._last_regime:
             log.info(
-                "regime_changed",
+                MARKET_REGIME_CHANGED,
+                message="regime changed",
                 old=self._last_regime,
                 new=regime,
                 confidence=confidence,
@@ -286,7 +289,8 @@ class RegimeDetector:
             self._last_regime = regime
         else:
             log.debug(
-                "regime_unchanged",
+                MARKET_REGIME_CHANGED,
+                message="regime unchanged",
                 regime=regime,
                 confidence=confidence,
                 consecutive=self._consecutive_count,

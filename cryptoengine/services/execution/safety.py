@@ -21,6 +21,8 @@ import asyncpg
 import redis.asyncio as aioredis
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -141,14 +143,15 @@ class SafetyGuard:
             await self._redis.ping()
             self._redis_healthy = True
             self._redis_failure_count = 0
-            log.info("redis_health_restored")
+            log.info(REDIS_CONNECTED, message="redis health restored")
             return True
         except Exception as exc:
             self._redis_failure_count += 1
             if self._redis_failure_count >= self._redis_failure_threshold:
                 if self._redis_healthy:
                     log.error(
-                        "redis_marked_unhealthy",
+                        REDIS_DISCONNECTED,
+                        message="redis marked unhealthy",
                         failure_count=self._redis_failure_count,
                         error=str(exc),
                     )
@@ -168,7 +171,8 @@ class SafetyGuard:
         if self._redis_failure_count >= self._redis_failure_threshold:
             if self._redis_healthy:
                 log.error(
-                    "redis_marked_unhealthy",
+                    REDIS_DISCONNECTED,
+                    message="redis marked unhealthy",
                     context=context,
                     failure_count=self._redis_failure_count,
                     error=str(error),
@@ -176,7 +180,8 @@ class SafetyGuard:
             self._redis_healthy = False
         else:
             log.warning(
-                "redis_connection_error",
+                REDIS_DISCONNECTED,
+                message="redis connection error",
                 context=context,
                 failure_count=self._redis_failure_count,
                 error=str(error),
@@ -204,7 +209,8 @@ class SafetyGuard:
                     "restored (fail-closed)"
                 )
                 log.error(
-                    "safety_redis_fail_closed",
+                    ORDER_SAFETY_FAILED,
+                    message="safety redis fail-closed",
                     request_id=payload.get("request_id"),
                     reason=reason,
                 )
@@ -240,7 +246,7 @@ class SafetyGuard:
         if not passed:
             return False, reason
 
-        log.debug("safety_checks_passed", request_id=payload.get("request_id"))
+        log.debug(ORDER_SAFETY_PASSED, message="safety checks passed", request_id=payload.get("request_id"))
         return True, ""
 
     # ------------------------------------------------------------------
@@ -296,7 +302,8 @@ class SafetyGuard:
                 f"> max={self.max_order_size:.2f}"
             )
             log.warning(
-                "safety_order_size_exceeded",
+                ORDER_SAFETY_FAILED,
+                message="safety order size exceeded",
                 request_id=payload.get("request_id"),
                 notional=notional,
                 max_order_size=self.max_order_size,
@@ -321,7 +328,8 @@ class SafetyGuard:
                 f"> limit={self.leverage_limit}"
             )
             log.warning(
-                "safety_leverage_exceeded",
+                ORDER_SAFETY_FAILED,
+                message="safety leverage exceeded",
                 request_id=payload.get("request_id"),
                 requested=requested_leverage,
                 limit=self.leverage_limit,
@@ -349,7 +357,8 @@ class SafetyGuard:
                     f"> limit={self.leverage_limit}"
                 )
                 log.warning(
-                    "safety_implied_leverage_exceeded",
+                    ORDER_SAFETY_FAILED,
+                    message="safety implied leverage exceeded",
                     request_id=payload.get("request_id"),
                     implied=implied_leverage,
                     limit=self.leverage_limit,
@@ -370,7 +379,8 @@ class SafetyGuard:
                 f"< minimum={self.min_margin_available:.2f}"
             )
             log.warning(
-                "safety_insufficient_margin",
+                ORDER_SAFETY_FAILED,
+                message="safety insufficient margin",
                 request_id=payload.get("request_id"),
                 free_margin=free_margin,
                 min_required=self.min_margin_available,
@@ -408,7 +418,8 @@ class SafetyGuard:
         if market_price is None or market_price <= 0:
             # Cannot verify slippage without market data -- allow but warn
             log.warning(
-                "safety_no_market_price",
+                ORDER_SAFETY_PASSED,
+                message="safety no market price, allowing order",
                 request_id=payload.get("request_id"),
                 symbol=symbol,
             )
@@ -430,7 +441,8 @@ class SafetyGuard:
                 f"(max={SLIPPAGE_MAX_ACCEPTABLE:.4f})"
             )
             log.warning(
-                "safety_slippage_exceeded",
+                ORDER_SAFETY_FAILED,
+                message="safety slippage exceeded",
                 request_id=payload.get("request_id"),
                 symbol=symbol,
                 deviation=deviation,
@@ -441,7 +453,8 @@ class SafetyGuard:
 
         if deviation > buffer:
             log.info(
-                "safety_slippage_warning",
+                ORDER_SAFETY_PASSED,
+                message="safety slippage warning",
                 request_id=payload.get("request_id"),
                 symbol=symbol,
                 deviation=deviation,
@@ -460,7 +473,8 @@ class SafetyGuard:
                 f"(threshold={NETWORK_TIMEOUT_THRESHOLD:.0f}s)"
             )
             log.warning(
-                "safety_network_unhealthy",
+                ORDER_SAFETY_FAILED,
+                message="safety network unhealthy",
                 elapsed=elapsed,
                 threshold=NETWORK_TIMEOUT_THRESHOLD,
             )
@@ -479,7 +493,8 @@ class SafetyGuard:
                 f"calls in last 60s (block at {threshold})"
             )
             log.warning(
-                "safety_rate_limit_near",
+                ORDER_SAFETY_FAILED,
+                message="safety rate limit near",
                 calls=calls,
                 limit=self.rate_limit_per_minute,
                 threshold=threshold,
@@ -528,14 +543,15 @@ class SafetyGuard:
             cached = self._local_cache.get(cache_key)
             if cached is not None:
                 log.info(
-                    "using_local_cache_market_price",
+                    SERVICE_HEALTH_OK,
+                    message="using local cache market price",
                     symbol=symbol,
                     price=cached,
                     failure_count=self._redis_failure_count,
                 )
             return cached
         except Exception:
-            log.debug("market_price_lookup_failed", symbol=symbol)
+            log.debug(SERVICE_HEALTH_FAIL, message="market price lookup failed", symbol=symbol)
         return None
 
     async def _get_cached_equity(self) -> float:
@@ -561,13 +577,14 @@ class SafetyGuard:
             cached = self._local_cache.get(cache_key)
             if cached is not None:
                 log.info(
-                    "using_local_cache_equity",
+                    SERVICE_HEALTH_OK,
+                    message="using local cache equity",
                     equity=cached,
                     failure_count=self._redis_failure_count,
                 )
                 return cached
         except Exception:
-            log.debug("equity_lookup_failed")
+            log.debug(SERVICE_HEALTH_FAIL, message="equity lookup failed")
         return 0.0
 
     async def _get_free_margin(self) -> float | None:
@@ -593,13 +610,14 @@ class SafetyGuard:
             cached = self._local_cache.get(cache_key)
             if cached is not None:
                 log.info(
-                    "using_local_cache_free_margin",
+                    SERVICE_HEALTH_OK,
+                    message="using local cache free margin",
                     free_margin=cached,
                     failure_count=self._redis_failure_count,
                 )
                 return cached
         except Exception:
-            log.debug("free_margin_lookup_failed")
+            log.debug(SERVICE_HEALTH_FAIL, message="free margin lookup failed")
         return None
 
     async def _get_total_position_notional(self) -> float:
@@ -634,11 +652,12 @@ class SafetyGuard:
             cached = self._local_cache.get(cache_key)
             if cached is not None:
                 log.info(
-                    "using_local_cache_position_notional",
+                    SERVICE_HEALTH_OK,
+                    message="using local cache position notional",
                     notional=cached,
                     failure_count=self._redis_failure_count,
                 )
                 return cached
         except Exception:
-            log.debug("position_notional_scan_failed")
+            log.debug(SERVICE_HEALTH_FAIL, message="position notional scan failed")
         return total

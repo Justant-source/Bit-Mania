@@ -14,6 +14,8 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
+
 logger = structlog.get_logger()
 
 
@@ -71,7 +73,7 @@ class CrossExchangeArbitrage:
         self._log = logger.bind(component="cross_exchange_arb")
 
         if not self.enabled:
-            self._log.info("cross_exchange_arb_disabled")
+            self._log.info(SERVICE_STOPPED, message="크로스거래소 차익거래 비활성화")
 
     async def fetch_multi_exchange_rates(
         self, symbol: str = "BTCUSDT"
@@ -83,7 +85,7 @@ class CrossExchangeArbitrage:
         if not self.enabled:
             return []
 
-        self._log.info("fetching_multi_exchange_rates", symbol=symbol)
+        self._log.info(MARKET_FUNDING_RATE, message="멀티거래소 펀딩비 조회", symbol=symbol)
         # Phase 2: httpx call to CoinGlass API
         # GET https://open-api-v3.coinglass.com/api/futures/fundingRate/current
         # Headers: {"CG-API-KEY": self.coinglass_api_key}
@@ -118,7 +120,8 @@ class CrossExchangeArbitrage:
             )
             opportunities.append(opp)
             self._log.info(
-                "cross_exchange_opportunity",
+                FA_ENTRY_CONDITION_MET,
+                message="크로스거래소 차익 기회 발견",
                 long=lowest.exchange,
                 short=highest.exchange,
                 spread_pct=round(spread * 100, 4),
@@ -132,7 +135,8 @@ class CrossExchangeArbitrage:
         if not self.enabled:
             return
         self._log.info(
-            "cross_exchange_entry_stub",
+            FA_POSITION_OPENED,
+            message="크로스거래소 진입 스텁 (Phase 2)",
             long=opportunity.long_exchange,
             short=opportunity.short_exchange,
         )

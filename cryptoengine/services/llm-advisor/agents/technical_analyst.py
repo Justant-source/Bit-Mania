@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.model_manager import ModelManager
+from shared.log_events import *
 from services.llm_advisor.prompt_templates.market_analysis import (
     MARKET_ANALYSIS_PROMPT,
 )
@@ -54,12 +55,13 @@ class TechnicalAnalyst:
         result = await self._mm.invoke(prompt, market_data)
         if result:
             log.info(
-                "technical_analysis_complete",
+                LLM_ANALYSIS_COMPLETE,
+                message="기술 분석 완료",
                 trend=result.get("trend"),
                 bias=result.get("overall_bias"),
             )
         else:
-            log.warning("technical_analysis_failed")
+            log.warning(LLM_API_ERROR, message="기술 분석 실패")
         return result
 
     @staticmethod

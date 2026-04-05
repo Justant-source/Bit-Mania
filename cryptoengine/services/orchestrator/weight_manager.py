@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
@@ -55,7 +57,8 @@ class WeightManager:
         )
 
         log.info(
-            "weight_manager_initialized",
+            SERVICE_STARTED,
+            message="weight manager initialized",
             regimes=list(self._weight_matrix.keys()),
             ema_alpha=self._ema_alpha,
         )
@@ -64,7 +67,7 @@ class WeightManager:
         """Load weight matrix from config, mapping config keys to internal keys."""
         raw = self._config.get("weights", self._config.get("weight_matrix", {}))
         if not raw:
-            log.warning("weight_matrix_not_in_config_using_defaults")
+            log.warning(ORCH_CONFIG_RELOADED, message="weight matrix not in config, using defaults")
             return copy.deepcopy(DEFAULT_WEIGHT_MATRIX)
 
         matrix: dict[str, dict[str, float]] = {}
@@ -83,7 +86,8 @@ class WeightManager:
             total = sum(normalized.values())
             if abs(total - 1.0) > 0.01:
                 log.warning(
-                    "weight_matrix_row_not_normalized",
+                    ORCH_WEIGHT_CHANGED,
+                    message="weight matrix row not normalized",
                     regime=regime,
                     total=total,
                 )
@@ -103,7 +107,7 @@ class WeightManager:
         """Return target weights for the given market regime."""
         weights = self._weight_matrix.get(regime)
         if weights is None:
-            log.warning("unknown_regime_fallback", regime=regime)
+            log.warning(ORCH_WEIGHT_CHANGED, message="unknown regime fallback", regime=regime)
             weights = self._weight_matrix.get("ranging", DEFAULT_WEIGHT_MATRIX["ranging"])
         return copy.deepcopy(weights)
 
@@ -159,7 +163,7 @@ class WeightManager:
             confidence: LLM confidence score (0.0 - 1.0).
         """
         if confidence <= 0.5:
-            log.info("llm_adjustment_skipped_low_confidence", confidence=confidence)
+            log.info(LLM_WEIGHT_SUGGESTION, message="llm adjustment skipped low confidence", confidence=confidence)
             return
 
         scaled: dict[str, float] = {}
@@ -171,7 +175,7 @@ class WeightManager:
             scaled[internal_key] = clamped * confidence
 
         self._llm_adjustments = scaled
-        log.info("llm_adjustments_stored", adjustments=scaled)
+        log.info(LLM_WEIGHT_SUGGESTION, message="llm adjustments stored", adjustments=scaled)
 
     def get_adjusted_weights(self, regime: RegimeType) -> dict[str, float]:
         """Get regime weights with LLM adjustments applied.

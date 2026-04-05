@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import structlog
 
+from shared.log_events import *
 from shared.exchange.base import ExchangeConnector
 from shared.models.order import OrderRequest
 from shared.models.position import Position
@@ -117,7 +118,8 @@ class DeltaNeutralManager:
         diff = self._spot_qty - self._perp_qty
 
         self._log.warning(
-            "delta_divergence_detected",
+            FA_HEDGE_DRIFT,
+            message="델타 불균형 감지",
             spot_qty=self._spot_qty,
             perp_qty=self._perp_qty,
             divergence_pct=round(divergence * 100, 4),
@@ -137,7 +139,7 @@ class DeltaNeutralManager:
                     post_only=True,
                 )
             )
-            self._log.info("rebalance_increase_perp_short", qty=adjust_qty)
+            self._log.info(FA_HEDGE_REBALANCED, message="퍼프 숏 증가 재조정", qty=adjust_qty)
         else:
             # Perp exceeds spot — need to buy more spot or reduce perp short
             adjust_qty = abs(diff)
@@ -152,7 +154,7 @@ class DeltaNeutralManager:
                     post_only=True,
                 )
             )
-            self._log.info("rebalance_increase_spot", qty=adjust_qty)
+            self._log.info(FA_HEDGE_REBALANCED, message="스팟 증가 재조정", qty=adjust_qty)
 
         return orders
 
@@ -169,7 +171,8 @@ class DeltaNeutralManager:
             return orders
 
         self._log.warning(
-            "margin_buffer_low",
+            STRATEGY_CIRCUIT_BREAKER,
+            message="마진 버퍼 부족, 디레버리징",
             margin_buffer=round(self.margin_buffer, 2),
             threshold=MARGIN_BUFFER_MULTIPLIER,
         )
@@ -206,7 +209,7 @@ class DeltaNeutralManager:
             )
         )
 
-        self._log.info("margin_deleverage", reduce_qty=reduce_qty, reduce_pct=reduce_pct)
+        self._log.info(FA_HEDGE_REBALANCED, message="마진 디레버리징", reduce_qty=reduce_qty, reduce_pct=reduce_pct)
         return orders
 
     # ── diagnostics ─────────────────────────────────────────────────────

@@ -12,11 +12,14 @@ import signal
 import sys
 from typing import Any
 
-import logging
 import structlog
 import yaml
 
 from services.orchestrator.core import StrategyOrchestrator
+from shared.logging_config import setup_logging
+from shared.log_events import *
+
+SERVICE_NAME = "strategy-orchestrator"
 
 log = structlog.get_logger(__name__)
 
@@ -28,7 +31,7 @@ def _load_config() -> dict[str, Any]:
         with open(config_path) as fh:
             cfg = yaml.safe_load(fh) or {}
     except FileNotFoundError:
-        log.warning("config_not_found", path=config_path)
+        log.warning(ORCH_CONFIG_RELOADED, message="config not found", path=config_path)
         cfg = {}
 
     # Environment variable overrides
@@ -44,39 +47,19 @@ def _load_config() -> dict[str, Any]:
     return cfg
 
 
-def _configure_logging() -> None:
-    """Set up structlog with JSON rendering."""
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level, logging.INFO)
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-
 async def main() -> None:
     """Start the orchestrator service."""
-    _configure_logging()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    setup_logging(level=log_level, service_name=SERVICE_NAME)
     config = _load_config()
-    log.info("orchestrator_starting", config_keys=list(config.keys()))
+    log.info(SERVICE_STARTED, message="orchestrator 서비스 시작", config_keys=list(config.keys()))
 
     orchestrator = StrategyOrchestrator(config)
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
 
     def _handle_signal() -> None:
-        log.info("shutdown_signal_received")
+        log.info(SERVICE_STOPPING, message="shutdown signal received")
         shutdown_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -87,7 +70,7 @@ async def main() -> None:
         await shutdown_event.wait()
     finally:
         await orchestrator.stop()
-        log.info("orchestrator_stopped")
+        log.info(SERVICE_STOPPED, message="orchestrator 서비스 종료")
 
 
 if __name__ == "__main__":

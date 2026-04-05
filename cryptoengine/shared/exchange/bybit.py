@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 
 import ccxt.pro as ccxtpro
+import structlog
 
 from shared.exchange.base import ExchangeConnector
 from shared.models.market import (
@@ -20,7 +20,7 @@ from shared.models.market import (
 from shared.models.order import OrderRequest, OrderResult
 from shared.models.position import Position
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _DEFAULT_RATE_LIMIT = 50  # ms between REST calls
 MAX_LEVERAGE: int = 2  # Project policy: never exceed 2x leverage
@@ -63,14 +63,14 @@ class BybitConnector(ExchangeConnector):
             return
         await self._exchange.load_markets()
         self._connected = True
-        logger.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
+        log.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
 
     async def disconnect(self) -> None:
         if not self._connected:
             return
         await self._exchange.close()
         self._connected = False
-        logger.info("bybit connector closed")
+        log.info("bybit connector closed")
 
     # ── helpers ──────────────────────────────────────────────────────────
 
@@ -189,7 +189,7 @@ class BybitConnector(ExchangeConnector):
                 timestamp=datetime.now(tz=timezone.utc),
             )
         except Exception as exc:
-            logger.exception("order placement failed: %s", exc)
+            log.exception("order placement failed: %s", exc)
             return OrderResult(
                 request_id=order.request_id,
                 order_id="",
@@ -204,7 +204,7 @@ class BybitConnector(ExchangeConnector):
                 await self._exchange.cancel_order(order_id, symbol)
             return True
         except Exception as exc:
-            logger.warning("cancel_order failed for %s: %s", order_id, exc)
+            log.warning("cancel_order failed for %s: %s", order_id, exc)
             return False
 
     async def set_leverage(self, symbol: str, leverage: int) -> None:
@@ -214,10 +214,10 @@ class BybitConnector(ExchangeConnector):
         try:
             async with self._rate_limiter:
                 await self._exchange.set_leverage(safe_leverage, symbol)
-            logger.info("leverage_set symbol=%s leverage=%d", symbol, safe_leverage)
+            log.info("leverage_set symbol=%s leverage=%d", symbol, safe_leverage)
         except Exception as exc:
             # Some exchanges raise if leverage is already set to this value
-            logger.warning("set_leverage warning symbol=%s: %s", symbol, exc)
+            log.warning("set_leverage warning symbol=%s: %s", symbol, exc)
 
     async def set_margin_mode(self, symbol: str, mode: str = "isolated") -> None:
         """Set margin mode for a symbol to isolated (prevents cross-margin liquidation)."""
@@ -225,13 +225,13 @@ class BybitConnector(ExchangeConnector):
         try:
             async with self._rate_limiter:
                 await self._exchange.set_margin_mode(mode, symbol)
-            logger.info("margin_mode_set symbol=%s mode=%s", symbol, mode)
+            log.info("margin_mode_set symbol=%s mode=%s", symbol, mode)
         except Exception as exc:
             # Bybit raises if margin mode is already set
             if "already" in str(exc).lower() or "110026" in str(exc):
-                logger.debug("margin_mode already %s for %s", mode, symbol)
+                log.debug("margin_mode already %s for %s", mode, symbol)
             else:
-                logger.warning("set_margin_mode warning symbol=%s: %s", symbol, exc)
+                log.warning("set_margin_mode warning symbol=%s: %s", symbol, exc)
 
     # ── account ──────────────────────────────────────────────────────────
 
@@ -277,7 +277,7 @@ class BybitConnector(ExchangeConnector):
                 ticker = await self._exchange.watch_ticker(symbol)
                 yield ticker
             except Exception as exc:
-                logger.warning("ticker ws error for %s: %s — reconnecting", symbol, exc)
+                log.warning("ticker ws error for %s: %s — reconnecting", symbol, exc)
                 await asyncio.sleep(1)
 
     async def subscribe_orderbook(self, symbol: str) -> AsyncIterator[OrderBook]:
@@ -297,7 +297,7 @@ class BybitConnector(ExchangeConnector):
                     else datetime.now(tz=timezone.utc),
                 )
             except Exception as exc:
-                logger.warning("orderbook ws error for %s: %s — reconnecting", symbol, exc)
+                log.warning("orderbook ws error for %s: %s — reconnecting", symbol, exc)
                 await asyncio.sleep(1)
 
     async def subscribe_trades(self, symbol: str) -> AsyncIterator[dict[str, Any]]:
@@ -308,5 +308,5 @@ class BybitConnector(ExchangeConnector):
                 for trade in trades:
                     yield trade
             except Exception as exc:
-                logger.warning("trades ws error for %s: %s — reconnecting", symbol, exc)
+                log.warning("trades ws error for %s: %s — reconnecting", symbol, exc)
                 await asyncio.sleep(1)

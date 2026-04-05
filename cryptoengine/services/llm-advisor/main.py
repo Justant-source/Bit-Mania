@@ -20,6 +20,9 @@ from typing import Any
 import structlog
 import yaml
 
+from shared.log_events import *
+from shared.logging_config import setup_logging
+from shared.log_writer import init_log_writer, close_log_writer
 from services.llm_advisor.agent_graph import TradingAnalysisGraph
 from services.llm_advisor.claude_bridge import ClaudeCodeBridge
 from services.llm_advisor.model_manager import ModelManager
@@ -30,6 +33,7 @@ from shared.db.connection import create_pool, close_pool, get_pool
 
 log = structlog.get_logger(__name__)
 
+SERVICE_NAME = "llm-advisor"
 ANALYSIS_INTERVAL_HOURS = 6
 REQUEST_CHANNEL = "llm:request"
 ADVISORY_CHANNEL = "llm:advisory"
@@ -47,27 +51,6 @@ def _load_config() -> dict[str, Any]:
     cfg.setdefault("redis", {})["url"] = os.getenv("REDIS_URL", "redis://localhost:6379")
     cfg["claude_code_path"] = os.getenv("CLAUDE_CODE_PATH", "/usr/local/bin/claude")
     return cfg
-
-
-def _configure_logging() -> None:
-    """Set up structlog with JSON rendering."""
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, log_level, logging.INFO)
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
 
 
 class LLMAdvisorService:
@@ -93,17 +76,20 @@ class LLMAdvisorService:
         """Initialize connections and start scheduled tasks."""
         import redis.asyncio as aioredis
 
-        self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
-        await self._redis.ping()
-        log.info("llm_advisor_redis_connected")
-
-        # Database pool for persisting reports
+        # Database pool must be created before setup_logging so db_pool can be passed
         db_url = os.getenv(
             "DATABASE_URL",
             "postgresql://cryptoengine:cryptoengine@localhost:5432/cryptoengine",
         )
         await create_pool(dsn=db_url)
-        log.info("llm_advisor_db_connected")
+        pool = get_pool()
+        await init_log_writer(SERVICE_NAME, pool)
+        setup_logging(service_name=SERVICE_NAME, db_pool=pool)
+
+        self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
+        await self._redis.ping()
+        log.info(REDIS_CONNECTED, message="LLM Advisor Redis 연결 성공")
+        log.info(DB_POOL_CREATED, message="LLM Advisor DB 풀 생성 완료")
 
         self._analysis_graph = TradingAnalysisGraph(
             self._model_manager, self._chart_analyzer
@@ -120,7 +106,7 @@ class LLMAdvisorService:
         self._reflection_task = asyncio.create_task(
             self._daily_reflection_loop(), name="daily-reflection"
         )
-        log.info("llm_advisor_started")
+        log.info(SERVICE_STARTED, message="LLM Advisor 서비스 시작")
 
     async def stop(self) -> None:
         """Shut down all tasks."""
@@ -134,8 +120,9 @@ class LLMAdvisorService:
                     pass
         if self._redis:
             await self._redis.aclose()
+        log.info(SERVICE_STOPPED, message="LLM Advisor 서비스 종료")
         await close_pool()
-        log.info("llm_advisor_stopped")
+        await close_log_writer()
 
     async def _scheduled_analysis_loop(self) -> None:
         """Run full analysis every 6 hours."""
@@ -145,14 +132,14 @@ class LLMAdvisorService:
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("scheduled_analysis_error")
+                log.exception(LLM_API_ERROR, message="정기 분석 오류")
             await asyncio.sleep(ANALYSIS_INTERVAL_HOURS * 3600)
 
     async def _subscribe_requests(self) -> None:
         """Listen for on-demand analysis requests on Redis pub/sub."""
         pubsub = self._redis.pubsub()
         await pubsub.subscribe(REQUEST_CHANNEL)
-        log.info("llm_request_subscribed", channel=REQUEST_CHANNEL)
+        log.info(REDIS_CONNECTED, message="LLM 요청 채널 구독 시작", channel=REQUEST_CHANNEL)
 
         try:
             async for message in pubsub.listen():
@@ -165,9 +152,9 @@ class LLMAdvisorService:
                     trigger = request.get("trigger", "on_demand")
                     await self._run_analysis(trigger, request)
                 except json.JSONDecodeError:
-                    log.warning("invalid_request_data")
+                    log.warning(LLM_API_ERROR, message="잘못된 요청 데이터")
                 except Exception:
-                    log.exception("on_demand_analysis_error")
+                    log.exception(LLM_API_ERROR, message="온디맨드 분석 오류")
         except asyncio.CancelledError:
             pass
         finally:
@@ -178,12 +165,12 @@ class LLMAdvisorService:
         self, trigger: str, request: dict[str, Any] | None = None
     ) -> None:
         """Execute the full analysis pipeline, persist report, and publish advisory."""
-        log.info("analysis_started", trigger=trigger)
+        log.info(LLM_ANALYSIS_START, message="분석 시작", trigger=trigger)
 
         # Gather market context from Redis
         context = await self._gather_market_context()
         if not context:
-            log.warning("no_market_context_available")
+            log.warning(LLM_API_ERROR, message="시장 컨텍스트 없음")
             return
 
         # Run the analysis graph
@@ -191,7 +178,7 @@ class LLMAdvisorService:
         result = await self._analysis_graph.run(context)
 
         if result is None:
-            log.warning("analysis_produced_no_result")
+            log.warning(LLM_API_ERROR, message="분석 결과 없음")
             return
 
         rating = result.get("rating", "hold")
@@ -219,7 +206,8 @@ class LLMAdvisorService:
         await self._save_report(trigger, result, context, asset_report)
 
         log.info(
-            "analysis_complete",
+            LLM_ANALYSIS_COMPLETE,
+            message="분석 완료",
             rating=advisory["rating"],
             confidence=advisory["confidence"],
         )
@@ -288,14 +276,14 @@ class LLMAdvisorService:
 
             report_data = await self._model_manager.invoke(prompt)
             if report_data is None:
-                log.warning("asset_report_generation_failed_no_result")
+                log.warning(LLM_API_ERROR, message="자산 리포트 생성 결과 없음")
                 return None
 
             # Return full JSON as string for storage; full_report is the narrative
             return json.dumps(report_data, ensure_ascii=False)
 
         except Exception:
-            log.exception("asset_report_generation_error")
+            log.exception(LLM_API_ERROR, message="자산 리포트 생성 오류")
             return None
 
     async def _save_report(
@@ -309,7 +297,7 @@ class LLMAdvisorService:
         try:
             pool = get_pool()
         except RuntimeError:
-            log.warning("db_pool_not_available_skipping_report_save")
+            log.warning(SERVICE_HEALTH_FAIL, message="DB 풀 없음, 리포트 저장 생략")
             return
 
         rating = result.get("rating", "hold")
@@ -371,9 +359,9 @@ class LLMAdvisorService:
                 json.dumps(result.get("risk_flags", [])),
                 asset_report,
             )
-            log.info("llm_report_saved", title=title)
+            log.info(LLM_ANALYSIS_COMPLETE, message="LLM 리포트 저장 완료", title=title)
         except Exception:
-            log.exception("llm_report_save_error")
+            log.exception(LLM_API_ERROR, message="LLM 리포트 저장 오류")
 
     async def _gather_market_context(self) -> dict[str, Any]:
         """Collect market data from Redis for analysis context."""
@@ -422,22 +410,23 @@ class LLMAdvisorService:
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("daily_reflection_error")
+                log.exception(LLM_API_ERROR, message="일일 반성 오류")
                 await asyncio.sleep(3600)
 
 
 async def main() -> None:
     """Start the LLM Advisor service."""
-    _configure_logging()
+    setup_logging(service_name=SERVICE_NAME)
+    log = structlog.get_logger()
     config = _load_config()
-    log.info("llm_advisor_starting")
+    log.info(SERVICE_STARTED, message="LLM Advisor 서비스 시작 중")
 
     service = LLMAdvisorService(config)
     loop = asyncio.get_running_loop()
     shutdown_event = asyncio.Event()
 
     def _handle_signal() -> None:
-        log.info("shutdown_signal_received")
+        log.info(SERVICE_STOPPING, message="종료 신호 수신")
         shutdown_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):

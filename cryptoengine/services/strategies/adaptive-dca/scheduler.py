@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import structlog
 
+from shared.log_events import *
 from shared.redis_client import RedisClient
 
 logger = structlog.get_logger()
@@ -126,7 +127,8 @@ class DCAScheduler:
         await self.redis.set(history_key, serialised)
 
         self._log.info(
-            "purchase_recorded",
+            DCA_PURCHASE,
+            message="DCA 매수 기록 저장",
             price=price,
             quantity=quantity,
             fng_index=fng_index,
@@ -160,7 +162,7 @@ class DCAScheduler:
                     )
                     for d in data
                 ]
-                self._log.info("history_loaded", count=len(self._purchases))
+                self._log.info(SERVICE_STARTED, message="DCA 히스토리 로드 완료", count=len(self._purchases))
             except (ValueError, TypeError, KeyError):
                 self._log.exception("history_load_error")
 

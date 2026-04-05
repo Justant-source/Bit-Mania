@@ -15,6 +15,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.memory.embeddings import EmbeddingModel
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -48,7 +49,7 @@ class TradeMemory:
             name=_COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
         )
-        log.info("trade_memory_collection_ready", name=_COLLECTION_NAME)
+        log.info(LLM_ANALYSIS_START, message="거래 메모리 컬렉션 준비 완료", name=_COLLECTION_NAME)
         return self._collection
 
     # ------------------------------------------------------------------
@@ -143,7 +144,7 @@ class TradeMemory:
                     include=["documents", "metadatas", "distances"],
                 )
             except Exception:
-                log.warning("trade_memory_query_failed", label=label)
+                log.warning(LLM_API_ERROR, message="거래 메모리 쿼리 실패", label=label)
                 continue
 
             if not hits or not hits.get("ids"):

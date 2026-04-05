@@ -15,6 +15,7 @@ import structlog
 import yaml
 
 from services.llm_advisor.model_manager import ModelManager
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -78,7 +79,7 @@ class SemanticRuleExtractor:
         Returns a list of rule dicts.
         """
         if not recent_trades:
-            log.info("no_trades_for_rule_extraction")
+            log.info(LLM_ANALYSIS_START, message="룰 추출용 거래 없음")
             return []
 
         # Format trades for the prompt (limit to 50 most recent)
@@ -88,11 +89,11 @@ class SemanticRuleExtractor:
         result = await self._mm.invoke(prompt)
 
         if result is None:
-            log.warning("rule_extraction_llm_failed")
+            log.warning(LLM_API_ERROR, message="룰 추출 LLM 실패")
             return []
 
         rules = result.get("rules", [])
-        log.info("rules_extracted", count=len(rules))
+        log.info(LLM_ANALYSIS_COMPLETE, message="룰 추출 완료", count=len(rules))
         self._last_run = time.time()
         return rules
 
@@ -119,7 +120,7 @@ class SemanticRuleExtractor:
                 sort_keys=False,
             )
 
-        log.info("rules_saved", path=str(self._rules_path), count=len(merged))
+        log.info(LLM_ANALYSIS_COMPLETE, message="룰 저장 완료", path=str(self._rules_path), count=len(merged))
 
     def load_rules(self) -> list[dict[str, Any]]:
         """Load rules from ``rules.yaml``.
@@ -133,10 +134,10 @@ class SemanticRuleExtractor:
             with open(self._rules_path) as fh:
                 data = yaml.safe_load(fh) or {}
             rules = data.get("rules", [])
-            log.debug("rules_loaded", count=len(rules))
+            log.debug(LLM_ANALYSIS_COMPLETE, message="룰 로드 완료", count=len(rules))
             return rules
         except Exception:
-            log.exception("rules_load_error")
+            log.exception(LLM_API_ERROR, message="룰 로드 오류")
             return []
 
     async def run_weekly(
@@ -146,7 +147,7 @@ class SemanticRuleExtractor:
 
         Intended to be called by a scheduler every 7 days.
         """
-        log.info("weekly_rule_extraction_started")
+        log.info(LLM_ANALYSIS_START, message="주간 룰 추출 시작")
         rules = await self.extract_rules(recent_trades)
         if rules:
             self.save_rules(rules)

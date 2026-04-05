@@ -16,6 +16,8 @@ import redis.asyncio as aioredis
 import structlog
 from pydantic import BaseModel, Field
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 REDIS_KEY_PORTFOLIO = "cache:portfolio_state"
@@ -70,9 +72,9 @@ class PortfolioMonitor:
                     self._pg_dsn, min_size=1, max_size=3
                 )
                 await self._ensure_tables()
-                log.info("portfolio_monitor_pg_connected")
+                log.info(DB_POOL_CREATED, message="portfolio monitor pg connected")
             except Exception:
-                log.exception("portfolio_monitor_pg_connection_failed")
+                log.exception(DB_POOL_CREATED, message="portfolio monitor pg connection failed")
                 self._pg_pool = None
 
         # Load historical equity from Redis
@@ -82,7 +84,7 @@ class PortfolioMonitor:
         self._snapshot_task = asyncio.create_task(
             self._snapshot_loop(), name="portfolio-snapshot"
         )
-        log.info("portfolio_monitor_started")
+        log.info(SERVICE_STARTED, message="portfolio monitor started")
 
     async def stop(self) -> None:
         """Shut down the monitor."""
@@ -95,7 +97,7 @@ class PortfolioMonitor:
                 pass
         if self._pg_pool:
             await self._pg_pool.close()
-        log.info("portfolio_monitor_stopped")
+        log.info(SERVICE_STOPPED, message="portfolio monitor stopped")
 
     async def evaluate(self) -> PortfolioState:
         """Collect strategy states and compute portfolio metrics."""
@@ -169,7 +171,7 @@ class PortfolioMonitor:
                     data = json.loads(raw)
                     strategies.append(data)
                 except json.JSONDecodeError:
-                    log.warning("invalid_strategy_status", strategy=sid)
+                    log.warning(SERVICE_HEALTH_FAIL, message="invalid strategy status", strategy=sid)
             else:
                 strategies.append(
                     {
@@ -275,7 +277,8 @@ class PortfolioMonitor:
             self._weekly_peak = self._peak_equity
             self._monthly_peak = self._peak_equity
             log.info(
-                "equity_history_loaded",
+                SERVICE_HEALTH_OK,
+                message="equity history loaded",
                 entries=len(self._equity_history),
                 peak=self._peak_equity,
             )
@@ -309,7 +312,7 @@ class PortfolioMonitor:
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("portfolio_snapshot_error")
+                log.exception(SERVICE_HEALTH_FAIL, message="portfolio snapshot error")
 
     async def _snapshot_to_pg(self) -> None:
         """Write current portfolio state to PostgreSQL."""
@@ -323,7 +326,7 @@ class PortfolioMonitor:
         try:
             state = PortfolioState.model_validate_json(raw)
         except Exception:
-            log.exception("portfolio_state_parse_error")
+            log.exception(SERVICE_HEALTH_FAIL, message="portfolio state parse error")
             return
 
         async with self._pg_pool.acquire() as conn:
@@ -345,7 +348,7 @@ class PortfolioMonitor:
                 json.dumps(state.strategies),
                 state.snapshot_at,
             )
-        log.debug("portfolio_snapshot_saved", equity=state.total_equity)
+        log.debug(SERVICE_HEALTH_OK, message="portfolio snapshot saved", equity=state.total_equity)
 
     async def _ensure_tables(self) -> None:
         """Create portfolio_snapshots table if it does not exist."""

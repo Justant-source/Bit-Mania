@@ -11,6 +11,7 @@ from typing import Any
 import aiohttp
 import structlog
 
+from shared.log_events import *
 from shared.redis_client import RedisClient
 
 logger = structlog.get_logger()
@@ -124,7 +125,8 @@ class FearGreedCollector:
 
                     value = int(data[0].get("value", 50))
                     self._log.info(
-                        "fng_fetched",
+                        DCA_MULTIPLIER_CALC,
+                        message="공포탐욕지수 조회 완료",
                         value=value,
                         classification=data[0].get("value_classification"),
                     )

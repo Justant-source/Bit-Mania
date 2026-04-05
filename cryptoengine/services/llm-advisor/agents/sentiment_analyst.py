@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.model_manager import ModelManager
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -84,10 +85,11 @@ class SentimentAnalyst:
         result = await self._mm.invoke(prompt, market_data)
         if result:
             log.info(
-                "sentiment_analysis_complete",
+                LLM_ANALYSIS_COMPLETE,
+                message="감성 분석 완료",
                 sentiment=result.get("sentiment"),
                 funding_bias=result.get("funding_bias"),
             )
         else:
-            log.warning("sentiment_analysis_failed")
+            log.warning(LLM_API_ERROR, message="감성 분석 실패")
         return result

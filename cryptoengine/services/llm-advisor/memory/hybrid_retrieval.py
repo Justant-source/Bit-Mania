@@ -17,6 +17,7 @@ from rank_bm25 import BM25Okapi
 
 from services.llm_advisor.memory.embeddings import EmbeddingModel
 from services.llm_advisor.memory.trade_memory import TradeMemory
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -81,7 +82,7 @@ class HybridRetriever:
                 include=["documents", "metadatas", "distances"],
             )
         except Exception:
-            log.warning("hybrid_dense_query_failed")
+            log.warning(LLM_API_ERROR, message="하이브리드 검색 실패")
             return []
 
         if not dense_results or not dense_results.get("ids"):

@@ -14,14 +14,21 @@ period (default 4 h) before ``auto_resume`` can re-enable trading.
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from typing import Any
 
+import structlog
+
+from shared.log_events import (
+    KILL_SWITCH_COOLDOWN,
+    KILL_SWITCH_MANUAL_RESET,
+    KILL_SWITCH_RESUMED,
+    KILL_SWITCH_TRIGGERED,
+)
 from shared.models.position import PortfolioState
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 class KillLevel(IntEnum):
@@ -92,7 +99,7 @@ class KillSwitch:
             # If already triggered, check cooldown for possible auto-resume.
             if self.is_triggered:
                 if await self._try_auto_resume():
-                    logger.info("kill-switch auto-resumed after cooldown")
+                    log.info(KILL_SWITCH_RESUMED, message="Kill Switch 해제 (쿨다운 만료)")
                 else:
                     return self._active_level
 
@@ -165,13 +172,13 @@ class KillSwitch:
         self._active_level = level
         self._reason = reason
         self._triggered_at = datetime.now(tz=timezone.utc)
-        logger.critical("KILL-SWITCH L%d triggered: %s", level, reason)
+        log.critical(KILL_SWITCH_TRIGGERED, message="Kill Switch 발동", level=int(level), reason=reason)
 
         if self._on_trigger is not None:
             try:
                 await self._on_trigger(level, reason)
             except Exception:
-                logger.exception("on_trigger callback failed")
+                log.exception("on_trigger callback failed")
 
     # ── cooldown / auto-resume ───────────────────────────────────────────
 
@@ -183,6 +190,7 @@ class KillSwitch:
             return False
         now = datetime.now(tz=timezone.utc)
         if now - self._triggered_at >= self.cooldown:
+            log.info(KILL_SWITCH_COOLDOWN, message="Kill Switch 쿨다운 시작")
             self._reset()
             return True
         return False
@@ -202,4 +210,4 @@ class KillSwitch:
         """Operator-initiated reset (clears even L4)."""
         async with self._lock:
             self._reset()
-            logger.info("kill-switch manually reset")
+            log.info(KILL_SWITCH_MANUAL_RESET, message="Kill Switch 수동 리셋")

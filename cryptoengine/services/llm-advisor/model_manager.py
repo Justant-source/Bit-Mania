@@ -16,6 +16,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.claude_bridge import ClaudeCodeBridge
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -118,7 +119,8 @@ class ModelManager:
         except Exception as exc:
             await self._stats.record_failure()
             log.warning(
-                "model_manager_invocation_failed",
+                LLM_API_ERROR,
+                message="모델 호출 실패",
                 error=str(exc),
                 stats=self._stats.snapshot(),
             )
@@ -127,14 +129,16 @@ class ModelManager:
         if result is None:
             await self._stats.record_failure()
             log.warning(
-                "model_manager_no_result",
+                LLM_API_ERROR,
+                message="모델 결과 없음",
                 stats=self._stats.snapshot(),
             )
             return None
 
         await self._stats.record_success()
         log.debug(
-            "model_manager_invocation_ok",
+            LLM_ANALYSIS_COMPLETE,
+            message="모델 호출 성공",
             stats=self._stats.snapshot(),
         )
         return result

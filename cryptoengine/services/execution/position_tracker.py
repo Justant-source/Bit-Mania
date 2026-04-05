@@ -21,6 +21,7 @@ import structlog
 
 from shared.exchange import ExchangeConnector, exchange_factory
 from shared.models.position import Position
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -94,13 +95,14 @@ class PositionTracker:
                     await self._clear_position_cache(symbol)
                     await self._clear_position_db(symbol)
             except Exception:
-                log.exception("position_sync_error", symbol=symbol)
+                log.exception(SERVICE_HEALTH_FAIL, message="position sync error", symbol=symbol)
 
             self._last_update[symbol] = time.monotonic()
 
         self._last_sync = time.monotonic()
         log.info(
-            "positions_synced",
+            SERVICE_HEALTH_OK,
+            message="positions synced",
             exchange=self._exchange_id,
             symbols_checked=len(symbols),
             open_positions=synced,
@@ -108,7 +110,7 @@ class PositionTracker:
 
     async def run(self, shutdown: asyncio.Event) -> None:
         """Background loop: periodic sync and stale-position detection."""
-        log.info("position_tracker_starting", exchange=self._exchange_id)
+        log.info(SERVICE_STARTED, message="position tracker starting", exchange=self._exchange_id)
 
         try:
             while not shutdown.is_set():
@@ -121,7 +123,8 @@ class PositionTracker:
                 for symbol, last in list(self._last_update.items()):
                     if now - last > DISCONNECT_THRESHOLD and symbol in self._positions:
                         log.warning(
-                            "position_stale_detected",
+                            SERVICE_HEALTH_FAIL,
+                            message="position stale detected",
                             symbol=symbol,
                             seconds_since_update=round(now - last, 1),
                         )
@@ -133,7 +136,7 @@ class PositionTracker:
                             else:
                                 await self._remove_position(symbol)
                         except Exception:
-                            log.exception("stale_resync_error", symbol=symbol)
+                            log.exception(SERVICE_HEALTH_FAIL, message="stale resync error", symbol=symbol)
                         self._last_update[symbol] = now
 
                 await asyncio.sleep(5.0)
@@ -143,7 +146,7 @@ class PositionTracker:
             if self._connected:
                 await self._connector.disconnect()
                 self._connected = False
-            log.info("position_tracker_stopped")
+            log.info(SERVICE_STOPPED, message="position tracker stopped")
 
     async def on_order_fill(self, result: dict[str, Any]) -> None:
         """Called by ``ExecutionEngine`` when an order reaches a fill state.
@@ -161,11 +164,12 @@ class PositionTracker:
             else:
                 await self._remove_position(symbol)
         except Exception:
-            log.exception("on_order_fill_sync_error", symbol=symbol)
+            log.exception(ORDER_FILLED, message="on order fill sync error", symbol=symbol)
 
         self._last_update[symbol] = time.monotonic()
         log.info(
-            "position_updated_from_fill",
+            ORDER_FILLED,
+            message="position updated from fill",
             symbol=symbol,
             status=result.get("status"),
             filled_qty=result.get("filled_qty"),
@@ -203,7 +207,8 @@ class PositionTracker:
         prev = self._positions.get(symbol)
         if prev and prev.model_dump() != position.model_dump():
             log.info(
-                "position_change_detected",
+                SERVICE_HEALTH_OK,
+                message="position change detected",
                 symbol=symbol,
                 prev_size=prev.size,
                 new_size=position.size,
@@ -241,18 +246,18 @@ class PositionTracker:
 
     async def recovery_resync(self) -> None:
         """Full resync triggered after a detected disconnect event."""
-        log.warning("position_recovery_resync_triggered", exchange=self._exchange_id)
+        log.warning(SERVICE_RECONNECTED, message="position recovery resync triggered", exchange=self._exchange_id)
         if self._connected:
             try:
                 await self._connector.disconnect()
             except Exception:
-                log.exception("disconnect_during_recovery")
+                log.exception(SERVICE_HEALTH_FAIL, message="disconnect during recovery")
             self._connected = False
 
         await self._connector.connect()
         self._connected = True
         await self.sync_from_exchange()
-        log.info("position_recovery_complete", open_positions=len(self._positions))
+        log.info(SERVICE_RECONNECTED, message="position recovery complete", open_positions=len(self._positions))
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -269,7 +274,7 @@ class PositionTracker:
         self._positions.pop(symbol, None)
         await self._clear_position_cache(symbol)
         await self._clear_position_db(symbol)
-        log.info("position_removed", symbol=symbol, exchange=self._exchange_id)
+        log.info(SERVICE_HEALTH_OK, message="position removed", symbol=symbol, exchange=self._exchange_id)
 
     # -- Redis cache --
 
@@ -283,14 +288,14 @@ class PositionTracker:
         try:
             await self._redis.setex(key, POSITION_CACHE_TTL, payload)
         except Exception:
-            log.exception("cache_position_error", symbol=position.symbol)
+            log.exception(SERVICE_HEALTH_FAIL, message="cache position error", symbol=position.symbol)
 
     async def _clear_position_cache(self, symbol: str) -> None:
         key = self._cache_key(symbol)
         try:
             await self._redis.delete(key)
         except Exception:
-            log.exception("clear_position_cache_error", symbol=symbol)
+            log.exception(SERVICE_HEALTH_FAIL, message="clear position cache error", symbol=symbol)
 
     async def get_cached_position(self, symbol: str) -> Position | None:
         """Read a position from Redis cache (fallback when memory is stale)."""
@@ -301,7 +306,7 @@ class PositionTracker:
                 return None
             return Position.model_validate_json(raw)
         except Exception:
-            log.exception("read_cached_position_error", symbol=symbol)
+            log.exception(SERVICE_HEALTH_FAIL, message="read cached position error", symbol=symbol)
             return None
 
     # -- Database persistence --
@@ -338,7 +343,7 @@ class PositionTracker:
                     position.margin_used,
                 )
         except Exception:
-            log.exception("persist_position_error", symbol=position.symbol)
+            log.exception(SERVICE_HEALTH_FAIL, message="persist position error", symbol=position.symbol)
 
     async def _clear_position_db(self, symbol: str) -> None:
         try:
@@ -349,7 +354,7 @@ class PositionTracker:
                     symbol,
                 )
         except Exception:
-            log.exception("clear_position_db_error", symbol=symbol)
+            log.exception(SERVICE_HEALTH_FAIL, message="clear position db error", symbol=symbol)
 
     async def _get_watched_symbols(self) -> list[str]:
         """Return the list of symbols this tracker should monitor.
@@ -364,7 +369,7 @@ class PositionTracker:
                 if isinstance(symbols, list) and symbols:
                     return symbols
         except Exception:
-            log.exception("get_watched_symbols_error")
+            log.exception(SERVICE_HEALTH_FAIL, message="get watched symbols error")
 
         # Fallback: load positions from DB to discover symbols
         try:
@@ -376,6 +381,6 @@ class PositionTracker:
                 if rows:
                     return [row["symbol"] for row in rows]
         except Exception:
-            log.exception("get_watched_symbols_db_fallback_error")
+            log.exception(SERVICE_HEALTH_FAIL, message="get watched symbols db fallback error")
 
         return []

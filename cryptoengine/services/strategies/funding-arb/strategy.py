@@ -28,6 +28,8 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
+
 # Allow import of base_strategy from parent directory
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -149,7 +151,8 @@ class FundingArbStrategy(BaseStrategy):
         self.register_controller("basis_sm", self._basis_sm)
 
         self._log.info(
-            "strategy_started",
+            STRATEGY_STARTED,
+            message="펀딩비 차익거래 전략 시작",
             capital=capital,
             spot_symbol=self.spot_symbol,
             perp_symbol=self.perp_symbol,
@@ -160,7 +163,7 @@ class FundingArbStrategy(BaseStrategy):
 
     async def on_stop(self, reason: str) -> None:
         """Exit all positions and disconnect."""
-        self._log.info("strategy_stopping", reason=reason)
+        self._log.info(SERVICE_STOPPING, message="전략 종료 중", reason=reason)
 
         if self._basis_sm and self._basis_sm.is_open:
             await self._exit_position(reason=reason)
@@ -168,7 +171,7 @@ class FundingArbStrategy(BaseStrategy):
         if self._exchange:
             await self._exchange.disconnect()
 
-        self._log.info("strategy_stopped", reason=reason)
+        self._log.info(STRATEGY_STOPPED, message="전략 종료 완료", reason=reason)
 
     async def get_status(self) -> StrategyStatus:
         return StrategyStatus(
@@ -194,7 +197,8 @@ class FundingArbStrategy(BaseStrategy):
         diff = target_qty - self._spot_qty
 
         self._log.info(
-            "rebalancing_position",
+            STRATEGY_REBALANCE,
+            message="포지션 재조정",
             old_capital=old_capital,
             new_capital=new_capital,
             qty_diff=diff,
@@ -278,7 +282,7 @@ class FundingArbStrategy(BaseStrategy):
         # 9. Check funding reversal exit
         if self._basis_sm.is_open and funding.rate < 0:
             if not self._funding_tracker.is_liquidation_blocked():
-                self._log.warning("funding_rate_negative", rate=funding.rate)
+                self._log.warning(STRATEGY_CIRCUIT_BREAKER, message="펀딩비 음수 전환, 포지션 종료", rate=funding.rate)
                 await self._exit_position(reason="funding_reversal")
 
     # ── entry logic ─────────────────────────────────────────────────────
@@ -317,7 +321,8 @@ class FundingArbStrategy(BaseStrategy):
         quantity = self._calculate_position_size(spot_price)
 
         self._log.info(
-            "entering_position",
+            FA_ENTRY_CONDITION_MET,
+            message="진입 조건 충족, 포지션 진입 중",
             quantity=quantity,
             spot_price=spot_price,
             perp_price=perp_price,
@@ -366,14 +371,15 @@ class FundingArbStrategy(BaseStrategy):
             self.current_pnl -= entry_fee
 
             self._log.info(
-                "position_entered",
+                FA_POSITION_OPENED,
+                message="포지션 진입 완료",
                 spot_qty=self._spot_qty,
                 perp_qty=self._perp_qty,
                 entry_fee=round(entry_fee, 6),
                 max_hold_hours=self._max_hold_seconds / 3600,
             )
         else:
-            self._log.warning("entry_failed_no_fill")
+            self._log.warning(FA_ONE_SIDE_FILL, message="진입 실패: 미체결")
 
         self._pending_entry = False
 
@@ -404,7 +410,8 @@ class FundingArbStrategy(BaseStrategy):
 
         # One side filled, other pending
         self._log.info(
-            "one_side_fill_recovery",
+            FA_ONE_SIDE_RECOVERY,
+            message="한쪽 레그 체결, 반대편 대기 중",
             spot_filled=spot_filled,
             perp_filled=perp_filled,
             wait_seconds=ONE_SIDE_FILL_TIMEOUT,
@@ -467,7 +474,7 @@ class FundingArbStrategy(BaseStrategy):
         assert self._exchange is not None
         assert self._basis_sm is not None
 
-        self._log.info("exiting_position", reason=reason)
+        self._log.info(FA_POSITION_CLOSED, message="포지션 종료 중", reason=reason)
 
         # 1. Close perp short first (higher risk leg)
         if self._perp_qty > 0:
@@ -520,7 +527,8 @@ class FundingArbStrategy(BaseStrategy):
         self._tiered_exit_done = [False, False, False]
 
         self._log.info(
-            "position_exited",
+            FA_POSITION_CLOSED,
+            message="포지션 종료 완료",
             reason=reason,
             basis_pnl=round(pnl.basis_pnl * 100, 4),
             funding_pnl=round(pnl.funding_pnl, 6),
@@ -724,7 +732,8 @@ class FundingArbStrategy(BaseStrategy):
             # Primary path: route through execution engine via Redis (SafetyGuard applied)
             await self.submit_order(order)
             self._log.info(
-                "order_submitted_via_engine",
+                ORDER_SUBMITTED,
+                message="주문 실행엔진 경유 제출",
                 request_id=order.request_id,
                 symbol=order.symbol,
                 side=order.side,
@@ -752,7 +761,8 @@ class FundingArbStrategy(BaseStrategy):
         assert self._delta_mgr is not None
         if not self._delta_mgr.is_balanced():
             self._log.warning(
-                "position_unbalanced_before_funding",
+                FA_HEDGE_DRIFT,
+                message="펀딩 수취 전 포지션 불균형 감지",
                 divergence=self._delta_mgr.quantity_divergence,
             )
             rebal_orders = await self._delta_mgr.check_and_rebalance()
@@ -804,7 +814,8 @@ class FundingArbStrategy(BaseStrategy):
                     self._total_reinvested_usd += reinvest_usd
                     self.current_pnl -= reinvest_usd  # deducted from FA PnL; held as spot
                     self._log.info(
-                        "funding_reinvested",
+                        FA_REINVEST,
+                        message="펀딩비 재투자 완료",
                         payment=round(payment, 6),
                         reinvest_usd=round(reinvest_usd, 6),
                         btc_qty=round(btc_qty, 8),

@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.model_manager import ModelManager
+from shared.log_events import *
 from services.llm_advisor.prompt_templates.risk_evaluation import (
     RISK_EVALUATION_PROMPT,
 )
@@ -70,10 +71,11 @@ class RiskManager:
         result = await self._mm.invoke(prompt, context)
         if result:
             log.info(
-                "risk_evaluation_complete",
+                LLM_ANALYSIS_COMPLETE,
+                message="리스크 평가 완료",
                 risk_level=result.get("risk_level"),
                 reduce_exposure=result.get("reduce_exposure"),
             )
         else:
-            log.warning("risk_evaluation_failed")
+            log.warning(LLM_API_ERROR, message="리스크 평가 실패")
         return result

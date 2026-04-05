@@ -17,14 +17,14 @@ import sys
 
 import asyncpg
 import redis.asyncio as aioredis
-import logging
 import structlog
 
+from shared.logging_config import setup_logging
+from shared.log_writer import init_log_writer, close_log_writer
+from shared.log_events import *
 from collector import MarketDataCollector
 from regime_detector import RegimeDetector
 from funding_monitor import FundingMonitor
-
-log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Configuration from environment
@@ -47,22 +47,9 @@ BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 BYBIT_TESTNET = os.getenv("BYBIT_TESTNET", "true").lower() == "true"
 COINGLASS_API_KEY = os.getenv("COINGLASS_API_KEY", "")
 
+SERVICE_NAME = "market-data"
 
-def _configure_logging() -> None:
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.dev.ConsoleRenderer() if LOG_LEVEL == "DEBUG" else structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, LOG_LEVEL, logging.INFO)  # type: ignore[arg-type]
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+log = structlog.get_logger(__name__)
 
 
 async def _create_tables(pool: asyncpg.Pool) -> None:
@@ -114,13 +101,10 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
             );
             """
         )
-    log.info("database_tables_ensured")
+    log.info(SERVICE_HEALTH_OK, message="database tables ensured")
 
 
 async def main() -> None:
-    _configure_logging()
-    log.info("market_data_service_starting", exchange=EXCHANGE, symbol=SYMBOL)
-
     # --- Connection pools ---
     db_pool: asyncpg.Pool = await asyncpg.create_pool(
         dsn=DB_DSN,
@@ -128,9 +112,14 @@ async def main() -> None:
         max_size=10,
         command_timeout=30,
     )
+    await init_log_writer(SERVICE_NAME, db_pool)
+    setup_logging(level=LOG_LEVEL, service_name=SERVICE_NAME, db_pool=db_pool)
+    log = structlog.get_logger()
+    log.info(SERVICE_STARTED, message="market-data 서비스 시작", exchange=EXCHANGE, symbol=SYMBOL)
+
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await redis_client.ping()
-    log.info("connections_established", redis=REDIS_URL)
+    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=REDIS_URL)
 
     await _create_tables(db_pool)
 
@@ -160,7 +149,7 @@ async def main() -> None:
     shutdown_event = asyncio.Event()
 
     def _signal_handler() -> None:
-        log.info("shutdown_signal_received")
+        log.info(SERVICE_STOPPING, message="shutdown signal received")
         shutdown_event.set()
 
     loop = asyncio.get_running_loop()
@@ -183,7 +172,7 @@ async def main() -> None:
                 )
                 pathlib.Path("/tmp/heartbeat_ok").touch()
             except Exception:
-                log.warning("heartbeat_publish_failed", service=service_name)
+                log.warning(SERVICE_HEALTH_FAIL, message="heartbeat publish failed", service=service_name)
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=30)
             except asyncio.TimeoutError:
@@ -197,11 +186,11 @@ async def main() -> None:
         asyncio.create_task(_heartbeat_publisher(shutdown_event), name="heartbeat_publisher"),
     ]
 
-    log.info("all_tasks_launched", count=len(tasks))
+    log.info(SERVICE_STARTED, message="all tasks launched", count=len(tasks))
 
     # Wait until shutdown is requested
     await shutdown_event.wait()
-    log.info("shutting_down_tasks")
+    log.info(SERVICE_STOPPING, message="market-data 서비스 종료 중")
 
     for task in tasks:
         task.cancel()
@@ -209,8 +198,9 @@ async def main() -> None:
 
     # Cleanup
     await redis_client.aclose()
+    log.info(SERVICE_STOPPED, message="market-data 서비스 종료")
+    await close_log_writer()
     await db_pool.close()
-    log.info("market_data_service_stopped")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ import structlog
 
 from shared.exchange import ExchangeConnector, exchange_factory
 from shared.models.order import OrderRequest, OrderResult
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -110,12 +111,12 @@ class OrderManager:
         """Connect to the exchange and restore in-flight order state."""
         await self._connector.connect()
         await self._restore_inflight_orders()
-        log.info("order_manager_initialized", exchange=self._exchange_id)
+        log.info(SERVICE_STARTED, message="order manager initialized", exchange=self._exchange_id)
 
     async def shutdown(self) -> None:
         """Disconnect from the exchange."""
         await self._connector.disconnect()
-        log.info("order_manager_shutdown")
+        log.info(SERVICE_STOPPED, message="order manager shutdown")
 
     # ------------------------------------------------------------------
     # Order placement
@@ -132,7 +133,7 @@ class OrderManager:
 
         # Idempotency check
         if self._is_duplicate(request_id):
-            log.warning("order_duplicate_rejected", request_id=request_id)
+            log.warning(ORDER_DUPLICATE_SKIPPED, message="order duplicate rejected", request_id=request_id)
             return {
                 "request_id": request_id,
                 "order_id": self._request_to_order.get(request_id, ""),
@@ -179,12 +180,12 @@ class OrderManager:
         """Cancel an active order by request_id."""
         order_id = self._request_to_order.get(request_id)
         if not order_id:
-            log.warning("cancel_order_unknown_request", request_id=request_id)
+            log.warning(ORDER_CANCELLED, message="cancel order unknown request", request_id=request_id)
             return {"request_id": request_id, "status": "rejected", "reason": "unknown_request_id"}
 
         current_state = self._order_states.get(request_id)
         if current_state in _TERMINAL_STATES:
-            log.info("cancel_order_already_terminal", request_id=request_id, state=current_state)
+            log.info(ORDER_CANCELLED, message="cancel order already terminal", request_id=request_id, state=current_state)
             return {"request_id": request_id, "status": str(current_state), "reason": "already_terminal"}
 
         success = await self._connector.cancel_order(order_id, symbol)
@@ -192,10 +193,10 @@ class OrderManager:
         if success:
             self._transition(request_id, current_state, OrderState.CANCELLED)
             await self._update_order_status(request_id, OrderState.CANCELLED)
-            log.info("order_cancelled", request_id=request_id, order_id=order_id)
+            log.info(ORDER_CANCELLED, message="order cancelled", request_id=request_id, order_id=order_id)
             return {"request_id": request_id, "order_id": order_id, "status": "cancelled"}
 
-        log.warning("cancel_order_failed", request_id=request_id, order_id=order_id)
+        log.warning(ORDER_CANCELLED, message="cancel order failed", request_id=request_id, order_id=order_id)
         return {"request_id": request_id, "order_id": order_id, "status": "cancel_failed"}
 
     async def modify_order(
@@ -220,7 +221,7 @@ class OrderManager:
         # Cancel the existing order
         cancelled = await self._connector.cancel_order(order_id, symbol)
         if not cancelled:
-            log.warning("modify_cancel_failed", request_id=request_id, order_id=order_id)
+            log.warning(ORDER_CANCELLED, message="modify cancel failed", request_id=request_id, order_id=order_id)
             return {"request_id": request_id, "status": "modify_failed", "reason": "cancel_step_failed"}
 
         self._transition(request_id, current_state, OrderState.CANCELLED)
@@ -253,7 +254,8 @@ class OrderManager:
 
         result = await self._execute_with_retries(new_order)
         log.info(
-            "order_modified",
+            ORDER_SENT,
+            message="order modified",
             old_request_id=request_id,
             new_request_id=new_request_id,
             status=result.get("status"),
@@ -301,7 +303,8 @@ class OrderManager:
                 await self._update_order_from_result(result_dict)
 
                 log.info(
-                    "order_executed",
+                    ORDER_SENT,
+                    message="order executed",
                     request_id=request_id,
                     order_id=result.order_id,
                     status=result.status,
@@ -320,7 +323,8 @@ class OrderManager:
                 )
                 if any(kw in exc_type for kw in non_retryable_keywords):
                     log.error(
-                        "order_non_retryable_error",
+                        ORDER_REJECTED,
+                        message="order non-retryable error",
                         request_id=request_id,
                         error_type=exc_type,
                         error=last_error,
@@ -328,7 +332,8 @@ class OrderManager:
                     break  # Do not retry
 
                 log.warning(
-                    "order_attempt_failed",
+                    ORDER_RETRY,
+                    message="order attempt failed",
                     request_id=request_id,
                     attempt=attempt,
                     max_retries=self._max_retries,
@@ -374,7 +379,8 @@ class OrderManager:
         """Validate and apply a state transition, logging every change."""
         if from_state is not None and from_state in _TERMINAL_STATES:
             log.warning(
-                "order_state_already_terminal",
+                ORDER_REJECTED,
+                message="order state already terminal",
                 request_id=request_id,
                 current=str(from_state),
                 requested=str(to_state),
@@ -385,7 +391,8 @@ class OrderManager:
             valid_targets = _VALID_TRANSITIONS.get(from_state, set())
             if to_state not in valid_targets:
                 log.warning(
-                    "order_invalid_transition",
+                    ORDER_REJECTED,
+                    message="order invalid state transition",
                     request_id=request_id,
                     from_state=str(from_state),
                     to_state=str(to_state),
@@ -394,7 +401,8 @@ class OrderManager:
 
         self._order_states[request_id] = to_state
         log.info(
-            "order_state_transition",
+            ORDER_SENT,
+            message="order state transition",
             request_id=request_id,
             from_state=str(from_state) if from_state else "none",
             to_state=str(to_state),
@@ -455,7 +463,7 @@ class OrderManager:
                     order.reduce_only,
                 )
         except Exception:
-            log.exception("persist_new_order_error", request_id=order.request_id)
+            log.exception(ORDER_REJECTED, message="persist new order error", request_id=order.request_id)
 
     async def _update_order_from_result(self, result: dict[str, Any]) -> None:
         """Update order row from an execution result dict."""
@@ -476,7 +484,7 @@ class OrderManager:
                     result.get("fee", 0),
                 )
         except Exception:
-            log.exception("update_order_result_error", request_id=result.get("request_id"))
+            log.exception(ORDER_REJECTED, message="update order result error", request_id=result.get("request_id"))
 
     async def _update_order_status(self, request_id: str, state: OrderState) -> None:
         """Update only the status column."""
@@ -488,7 +496,7 @@ class OrderManager:
                     state.value,
                 )
         except Exception:
-            log.exception("update_order_status_error", request_id=request_id)
+            log.exception(ORDER_REJECTED, message="update order status error", request_id=request_id)
 
     async def _fetch_order_from_db(self, request_id: str) -> dict[str, Any] | None:
         """Fetch an order record by request_id."""
@@ -500,7 +508,7 @@ class OrderManager:
                 )
                 return dict(row) if row else None
         except Exception:
-            log.exception("fetch_order_error", request_id=request_id)
+            log.exception(ORDER_REJECTED, message="fetch order error", request_id=request_id)
             return None
 
     async def _restore_inflight_orders(self) -> None:
@@ -532,9 +540,9 @@ class OrderManager:
                 except ValueError:
                     self._order_states[rid] = OrderState.SUBMITTED
 
-            log.info("inflight_orders_restored", count=len(rows))
+            log.info(SERVICE_HEALTH_OK, message="inflight orders restored", count=len(rows))
         except Exception:
-            log.exception("restore_inflight_orders_error")
+            log.exception(SERVICE_HEALTH_FAIL, message="restore inflight orders error")
 
     # ------------------------------------------------------------------
     # Utility

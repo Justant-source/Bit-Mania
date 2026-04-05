@@ -23,6 +23,8 @@ import structlog
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import LabelEncoder
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
@@ -76,7 +78,8 @@ class RegimeMLModel:
         )
         self._retrain_thread.start()
         log.info(
-            "regime_ml_model_started",
+            SERVICE_STARTED,
+            message="regime ml model started",
             retrain_interval_hours=self._retrain_interval_hours,
             features=len(self._feature_names),
         )
@@ -86,7 +89,7 @@ class RegimeMLModel:
         self._running = False
         if self._retrain_thread and self._retrain_thread.is_alive():
             self._retrain_thread.join(timeout=10)
-        log.info("regime_ml_model_stopped")
+        log.info(SERVICE_STOPPED, message="regime ml model stopped")
 
     async def predict(self) -> tuple[RegimeType, float]:
         """Predict current market regime from latest features.
@@ -96,12 +99,12 @@ class RegimeMLModel:
         """
         features = await self._get_latest_features()
         if features is None:
-            log.warning("no_features_available_for_prediction")
+            log.warning(MARKET_REGIME_CHANGED, message="no features available for prediction")
             return await self._rule_based_fallback()
 
         with self._model_lock:
             if self._model is None:
-                log.info("no_ml_model_available_using_fallback")
+                log.info(MARKET_REGIME_CHANGED, message="no ml model available, using fallback")
                 return await self._rule_based_fallback()
 
             try:
@@ -113,14 +116,15 @@ class RegimeMLModel:
                 confidence = float(probabilities[predicted_idx])
                 regime = REGIME_LABELS[predicted_idx]
                 log.info(
-                    "ml_regime_predicted",
+                    MARKET_REGIME_CHANGED,
+                    message="ml regime predicted",
                     regime=regime,
                     confidence=confidence,
                     probabilities=dict(zip(REGIME_LABELS, probabilities.tolist())),
                 )
                 return regime, confidence  # type: ignore[return-value]
             except Exception:
-                log.exception("ml_prediction_failed")
+                log.exception(MARKET_REGIME_CHANGED, message="ml prediction failed")
                 return await self._rule_based_fallback()
 
     async def _rule_based_fallback(self) -> tuple[RegimeType, float]:
@@ -164,7 +168,7 @@ class RegimeMLModel:
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            log.warning("invalid_feature_data")
+            log.warning(MARKET_REGIME_CHANGED, message="invalid feature data")
             return None
 
     def _retrain_loop(self) -> None:
@@ -173,7 +177,7 @@ class RegimeMLModel:
             try:
                 self._retrain_model()
             except Exception:
-                log.exception("retrain_failed")
+                log.exception(SERVICE_HEALTH_FAIL, message="retrain failed")
 
             # Sleep until next retrain window
             sleep_seconds = self._retrain_interval_hours * 3600
@@ -184,7 +188,7 @@ class RegimeMLModel:
 
     def _retrain_model(self) -> None:
         """Train a new LightGBM model on historical features."""
-        log.info("regime_model_retrain_start")
+        log.info(SERVICE_HEALTH_OK, message="regime model retrain start")
 
         # Load training data synchronously via a new event loop
         loop = asyncio.new_event_loop()
@@ -195,7 +199,8 @@ class RegimeMLModel:
 
         if df is None or len(df) < self._min_samples:
             log.warning(
-                "insufficient_training_data",
+                SERVICE_HEALTH_FAIL,
+                message="insufficient training data",
                 samples=len(df) if df is not None else 0,
                 min_required=self._min_samples,
             )
@@ -204,7 +209,7 @@ class RegimeMLModel:
         # Prepare features and labels
         feature_cols = [c for c in self._feature_names if c in df.columns]
         if not feature_cols:
-            log.warning("no_matching_feature_columns", available=list(df.columns))
+            log.warning(SERVICE_HEALTH_FAIL, message="no matching feature columns", available=list(df.columns))
             return
 
         X = df[feature_cols].values
@@ -256,12 +261,13 @@ class RegimeMLModel:
                 best_model = model
 
         if best_model is None:
-            log.warning("no_model_produced_during_training")
+            log.warning(SERVICE_HEALTH_FAIL, message="no model produced during training")
             return
 
         avg_accuracy = float(np.mean(accuracies))
         log.info(
-            "regime_model_retrain_complete",
+            SERVICE_HEALTH_OK,
+            message="regime model retrain complete",
             avg_accuracy=round(avg_accuracy, 4),
             best_accuracy=round(best_accuracy, 4),
             samples=len(df),
@@ -282,7 +288,7 @@ class RegimeMLModel:
             )
             loop.close()
         except Exception:
-            log.exception("model_cache_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="model cache failed")
 
     async def _load_training_data(self) -> pd.DataFrame | None:
         """Load feature history from Redis for training."""
@@ -324,6 +330,6 @@ class RegimeMLModel:
                 model = pickle.loads(raw)  # noqa: S301
                 with self._model_lock:
                     self._model = model
-                log.info("regime_model_loaded_from_cache")
+                log.info(SERVICE_HEALTH_OK, message="regime model loaded from cache")
             except Exception:
-                log.warning("cached_model_load_failed")
+                log.warning(SERVICE_HEALTH_FAIL, message="cached model load failed")
