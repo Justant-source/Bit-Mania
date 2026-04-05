@@ -179,7 +179,7 @@ market-data collector.py의 `_on_trades()`에서 DB INSERT 제거됨.
 
 ```bash
 # Bybit (테스트넷)
-BYBIT_API_KEY=UhwLgPG4wqEwt9cX0x
+BYBIT_API_KEY=<testnet key — see .env file>
 BYBIT_TESTNET=true          # 절대 false로 바꾸지 않음 (Phase 5 전까지)
 
 # DB

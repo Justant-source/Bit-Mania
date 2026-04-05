@@ -63,15 +63,16 @@ CREATE INDEX IF NOT EXISTS idx_funding_exchange_symbol ON funding_payments(excha
 
 -- ──────────────── portfolio_snapshots ────────────────
 CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-    id              BIGSERIAL PRIMARY KEY,
-    total_equity    DECIMAL(20, 2) NOT NULL,
-    unrealized_pnl  DECIMAL(20, 8),
-    realized_pnl    DECIMAL(20, 8),
-    drawdown        DECIMAL(10, 6),
-    sharpe_30d      DECIMAL(10, 4),
-    strategy_weights JSONB,                    -- {"funding_arb": 0.50, ...}
-    market_regime   VARCHAR(20),
-    snapshot_at     TIMESTAMPTZ DEFAULT NOW()
+    id                  BIGSERIAL PRIMARY KEY,
+    total_equity        DOUBLE PRECISION NOT NULL,
+    unrealized_pnl      DOUBLE PRECISION DEFAULT 0,
+    realized_pnl_today  DOUBLE PRECISION DEFAULT 0,
+    daily_drawdown      DOUBLE PRECISION DEFAULT 0,
+    weekly_drawdown     DOUBLE PRECISION DEFAULT 0,
+    monthly_drawdown    DOUBLE PRECISION DEFAULT 0,
+    sharpe_ratio_30d    DOUBLE PRECISION,
+    strategies          JSONB DEFAULT '[]',
+    snapshot_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_time ON portfolio_snapshots(snapshot_at);

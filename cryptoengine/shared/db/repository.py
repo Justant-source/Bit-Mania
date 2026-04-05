@@ -186,7 +186,7 @@ class PositionRepo(_BaseRepo):
 
 
 class FundingRepo(_BaseRepo):
-    """CRUD for the ``funding_rates`` table."""
+    """CRUD for the ``funding_rate_history`` table."""
 
     @classmethod
     async def insert(
@@ -201,17 +201,15 @@ class FundingRepo(_BaseRepo):
     ) -> None:
         await cls._execute(
             """
-            INSERT INTO funding_rates
-                (id, exchange, symbol, rate, predicted_rate, next_funding_time, collected_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7)
+            INSERT INTO funding_rate_history
+                (exchange, symbol, rate, predicted_rate, timestamp)
+            VALUES ($1,$2,$3,$4,$5)
             """,
-            uuid4().hex,
             exchange,
             symbol,
             rate,
             predicted_rate,
-            next_funding_time,
-            collected_at or datetime.now(tz=timezone.utc),
+            next_funding_time or collected_at or datetime.now(tz=timezone.utc),
         )
 
     @classmethod
@@ -223,9 +221,9 @@ class FundingRepo(_BaseRepo):
     ) -> list[asyncpg.Record]:
         return await cls._fetch(
             """
-            SELECT * FROM funding_rates
+            SELECT * FROM funding_rate_history
             WHERE exchange = $1 AND symbol = $2
-            ORDER BY collected_at DESC
+            ORDER BY timestamp DESC
             LIMIT $3
             """,
             exchange,
@@ -251,32 +249,27 @@ class SnapshotRepo(_BaseRepo):
         weekly_drawdown: float = 0.0,
         strategies: list[dict[str, Any]] | None = None,
         kill_switch_triggered: bool = False,
-    ) -> str:
-        snap_id = uuid4().hex
+    ) -> None:
         await cls._execute(
             """
             INSERT INTO portfolio_snapshots
-                (id, total_equity, unrealized_pnl, realized_pnl_today,
-                 daily_drawdown, weekly_drawdown, strategies,
-                 kill_switch_triggered, created_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                (total_equity, unrealized_pnl, realized_pnl_today,
+                 daily_drawdown, weekly_drawdown, strategies, snapshot_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7)
             """,
-            snap_id,
             total_equity,
             unrealized_pnl,
             realized_pnl_today,
             daily_drawdown,
             weekly_drawdown,
             json.dumps(strategies or []),
-            kill_switch_triggered,
             datetime.now(tz=timezone.utc),
         )
-        return snap_id
 
     @classmethod
     async def get_latest(cls) -> asyncpg.Record | None:
         return await cls._fetchrow(
-            "SELECT * FROM portfolio_snapshots ORDER BY created_at DESC LIMIT 1"
+            "SELECT * FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1"
         )
 
     @classmethod
@@ -289,8 +282,8 @@ class SnapshotRepo(_BaseRepo):
         return await cls._fetch(
             """
             SELECT * FROM portfolio_snapshots
-            WHERE created_at BETWEEN $1 AND $2
-            ORDER BY created_at
+            WHERE snapshot_at BETWEEN $1 AND $2
+            ORDER BY snapshot_at
             LIMIT $3
             """,
             start,

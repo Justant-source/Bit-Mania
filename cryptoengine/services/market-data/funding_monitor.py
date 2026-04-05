@@ -172,9 +172,9 @@ class FundingMonitor:
             async with self.db_pool.acquire() as conn:
                 await conn.execute(
                     """
-                    INSERT INTO funding_rates (exchange, symbol, rate, predicted_rate, next_funding_time)
+                    INSERT INTO funding_rate_history (exchange, symbol, rate, predicted_rate, timestamp)
                     VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (exchange, symbol, next_funding_time) DO UPDATE
+                    ON CONFLICT (exchange, symbol, timestamp) DO UPDATE
                     SET rate = EXCLUDED.rate, predicted_rate = EXCLUDED.predicted_rate
                     """,
                     self.exchange,
