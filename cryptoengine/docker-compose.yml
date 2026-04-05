@@ -268,8 +268,12 @@ services:
       <<: *common-env
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      REQUEST_DIR: /app/request_dir
+      RESULT_DIR: /app/result_dir
     volumes:
       - ./config:/app/config:ro
+      - ../.request:/app/request_dir
+      - ../.result:/app/result_dir
     deploy:
       resources:
         limits:

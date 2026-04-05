@@ -14,7 +14,7 @@ import signal
 import asyncpg
 import redis.asyncio as aioredis
 import structlog
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from handlers import BotHandlers
 from shared.log_events import *
@@ -169,6 +169,7 @@ async def main() -> None:
     # --- Telegram application ---
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
+    app.add_handler(CommandHandler("help", handlers.help_command))
     app.add_handler(CommandHandler("status", handlers.status_command))
     app.add_handler(CommandHandler("emergency_close", handlers.emergency_close_command))
     app.add_handler(CommandHandler("stop", handlers.stop_command))
@@ -177,6 +178,15 @@ async def main() -> None:
     app.add_handler(CommandHandler("report", handlers.report_command))
     app.add_handler(CommandHandler("pause_all", handlers.pause_all_command))
     app.add_handler(CommandHandler("resume_all", handlers.resume_all_command))
+    # Work request / result file management
+    app.add_handler(CommandHandler("requests", handlers.requests_command))
+    app.add_handler(CommandHandler("results", handlers.results_command))
+    app.add_handler(CommandHandler("get", handlers.get_result_command))
+    app.add_handler(MessageHandler(filters.Document.ALL, handlers.handle_document))
+    # Inline keyboard callbacks
+    app.add_handler(CallbackQueryHandler(handlers.handle_callback))
+    # Fallback: unknown command
+    app.add_handler(MessageHandler(filters.COMMAND, handlers.unknown_command))
 
     # --- Graceful shutdown ---
     shutdown_event = asyncio.Event()
