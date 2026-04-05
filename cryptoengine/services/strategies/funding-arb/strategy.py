@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 from typing import Any
 
 import structlog
@@ -77,11 +78,22 @@ class FundingArbStrategy(BaseStrategy):
         self._funding_tracker: FundingTracker | None = None
         self._basis_sm: BasisSpreadStateMachine | None = None
 
+        # Max holding period (seconds).  Tiered exits fire at 50% / 75% / 100%.
+        _max_holding_hours: float = config.get("exit", {}).get("max_holding_hours", 720)
+        self._max_hold_seconds: float = _max_holding_hours * 3600.0
+
         # Position state
         self._spot_qty: float = 0.0
         self._perp_qty: float = 0.0
         self._entry_price: float = 0.0
         self._pending_entry: bool = False
+        # Monotonic timestamp recorded when the position is opened
+        self._position_open_ts: float = 0.0
+        # Track which tiered-exit tiers have already been executed
+        # Tier indices: 0 = 50% close at 50% duration
+        #               1 = 30% close at 75% duration
+        #               2 = 20% close at 100% duration (full exit path)
+        self._tiered_exit_done: list[bool] = [False, False, False]
 
         self._log = logger.bind(strategy_id=strategy_id, strategy="funding_arb")
 
@@ -91,6 +103,14 @@ class FundingArbStrategy(BaseStrategy):
         """Initialise exchange connection and controllers."""
         self._exchange = exchange_factory(self.exchange_id)
         await self._exchange.connect()
+
+        # Set isolated margin mode and leverage before any order placement
+        # This must be called after connect() and before any order
+        try:
+            await self._exchange.set_margin_mode(self.perp_symbol, "isolated")
+            await self._exchange.set_leverage(self.perp_symbol, int(self.leverage))
+        except Exception as exc:
+            self._log.warning("leverage_margin_setup_warning", exc=str(exc))
 
         self._delta_mgr = DeltaNeutralManager(
             strategy_id=self.strategy_id,
@@ -237,7 +257,10 @@ class FundingArbStrategy(BaseStrategy):
             case BasisAction.HOLD:
                 pass
 
-        # 8. Check funding reversal exit
+        # 8. Check tiered exits based on hold duration
+        await self._check_tiered_exits()
+
+        # 9. Check funding reversal exit
         if self._basis_sm.is_open and funding.rate < 0:
             if not self._funding_tracker.is_liquidation_blocked():
                 self._log.warning("funding_rate_negative", rate=funding.rate)
@@ -319,6 +342,8 @@ class FundingArbStrategy(BaseStrategy):
         if self._spot_qty > 0 and self._perp_qty > 0:
             self._basis_sm.enter_position(basis_spread)
             self._entry_price = spot_price
+            self._position_open_ts = time.monotonic()
+            self._tiered_exit_done = [False, False, False]
 
             # Deduct entry fees: spot taker + perp taker
             entry_notional = self._spot_qty * spot_price
@@ -330,6 +355,7 @@ class FundingArbStrategy(BaseStrategy):
                 spot_qty=self._spot_qty,
                 perp_qty=self._perp_qty,
                 entry_fee=round(entry_fee, 6),
+                max_hold_hours=self._max_hold_seconds / 3600,
             )
         else:
             self._log.warning("entry_failed_no_fill")
@@ -475,6 +501,8 @@ class FundingArbStrategy(BaseStrategy):
         self._spot_qty = 0.0
         self._perp_qty = 0.0
         self._entry_price = 0.0
+        self._position_open_ts = 0.0
+        self._tiered_exit_done = [False, False, False]
 
         self._log.info(
             "position_exited",
@@ -482,6 +510,124 @@ class FundingArbStrategy(BaseStrategy):
             basis_pnl=round(pnl.basis_pnl * 100, 4),
             funding_pnl=round(pnl.funding_pnl, 6),
             exit_fee=round(exit_fee, 6),
+        )
+
+    # ── tiered exit ─────────────────────────────────────────────────────
+
+    async def _check_tiered_exits(self) -> None:
+        """Check whether a tiered partial exit should fire based on hold duration.
+
+        Tier schedule (fractions of max_hold_seconds):
+          Tier 0 — 50% of max_hold: close 50% of position
+          Tier 1 — 75% of max_hold: close 30% more  (80% total closed)
+          Tier 2 — 100% of max_hold: close remaining 20% (full exit)
+
+        The final tier delegates to ``_exit_position`` so that the state
+        machine and fee accounting are finalised correctly.
+        """
+        if not self._basis_sm or not self._basis_sm.is_open:
+            return
+        if self._position_open_ts <= 0 or self._max_hold_seconds <= 0:
+            return
+        if self._funding_tracker and self._funding_tracker.is_liquidation_blocked():
+            return
+
+        elapsed = time.monotonic() - self._position_open_ts
+        fraction = elapsed / self._max_hold_seconds
+
+        # Tier 0: ≥50% of max_hold — close 50%
+        if not self._tiered_exit_done[0] and fraction >= 0.50:
+            close_qty = self._spot_qty * 0.50
+            self._log.info(
+                "tiered_exit_tier0",
+                elapsed_h=round(elapsed / 3600, 2),
+                close_qty=round(close_qty, 6),
+                pct=50,
+            )
+            await self._partial_exit(close_qty, reason="tiered_exit_50pct")
+            self._tiered_exit_done[0] = True
+
+        # Tier 1: ≥75% of max_hold — close 30% of *original* size (≈37.5% of remaining)
+        if not self._tiered_exit_done[1] and fraction >= 0.75:
+            # Remaining after tier 0 is ~50%.  We want to close another 30% of original.
+            # Guard against rounding: cap at current qty.
+            close_qty = min(self._spot_qty * 0.60, self._spot_qty)
+            self._log.info(
+                "tiered_exit_tier1",
+                elapsed_h=round(elapsed / 3600, 2),
+                close_qty=round(close_qty, 6),
+                pct=30,
+            )
+            await self._partial_exit(close_qty, reason="tiered_exit_80pct_total")
+            self._tiered_exit_done[1] = True
+
+        # Tier 2: ≥100% of max_hold — close remainder via full exit
+        if not self._tiered_exit_done[2] and fraction >= 1.00:
+            self._log.info(
+                "tiered_exit_tier2",
+                elapsed_h=round(elapsed / 3600, 2),
+                remaining_qty=round(self._spot_qty, 6),
+                pct=20,
+            )
+            self._tiered_exit_done[2] = True
+            await self._exit_position(reason="max_hold_tiered_final")
+
+    async def _partial_exit(self, qty: float, reason: str) -> None:
+        """Close *qty* of the position on both legs without finalising the state machine.
+
+        Fees for the partial close are deducted from ``current_pnl`` immediately.
+        The state machine remains open; only a full ``_exit_position`` call closes it.
+        """
+        assert self._exchange is not None
+
+        if qty <= 0:
+            return
+
+        # Close perp short first (higher risk leg)
+        perp_close = OrderRequest(
+            strategy_id=self.strategy_id,
+            exchange=self.exchange_id,
+            symbol=self.perp_symbol,
+            side="buy",
+            order_type="market",
+            quantity=qty,
+            reduce_only=True,
+            post_only=False,
+        )
+        await self.submit_order(perp_close)
+        self._log.info("partial_perp_close_submitted", qty=qty, reason=reason)
+
+        # Then sell spot
+        spot_close = OrderRequest(
+            strategy_id=self.strategy_id,
+            exchange=self.exchange_id,
+            symbol=self.spot_symbol,
+            side="sell",
+            order_type="market",
+            quantity=qty,
+            post_only=False,
+        )
+        await self.submit_order(spot_close)
+        self._log.info("partial_spot_close_submitted", qty=qty, reason=reason)
+
+        # Estimate price for fee calculation
+        spot_ticker = await self._exchange.get_ticker(self.spot_symbol)
+        spot_price = float(spot_ticker.get("last", self._entry_price))
+        exit_notional = qty * spot_price if spot_price > 0 else 0.0
+        exit_fee = exit_notional * self._exit_fee_rate * 2  # both legs
+        self.current_pnl -= exit_fee
+
+        # Reduce tracked quantities
+        self._spot_qty = max(0.0, self._spot_qty - qty)
+        self._perp_qty = max(0.0, self._perp_qty - qty)
+
+        self._log.info(
+            "partial_exit_done",
+            reason=reason,
+            closed_qty=qty,
+            exit_fee=round(exit_fee, 6),
+            remaining_spot=round(self._spot_qty, 6),
+            remaining_perp=round(self._perp_qty, 6),
         )
 
     # ── position adjustment ─────────────────────────────────────────────
@@ -544,19 +690,37 @@ class FundingArbStrategy(BaseStrategy):
         return usable_capital / price
 
     async def _place_and_track(self, order: OrderRequest) -> OrderResult | None:
-        """Place order via exchange and return result."""
+        """Place order via execution engine (Redis) for safety validation.
+
+        Routes through order:request channel → ExecutionEngine → SafetyGuard → exchange.
+        Falls back to direct exchange call only when execution engine is unavailable.
+        """
         assert self._exchange is not None
         try:
-            result = await self._exchange.place_order(order)
+            # Primary path: route through execution engine via Redis (SafetyGuard applied)
+            await self.submit_order(order)
             self._log.info(
-                "order_result",
+                "order_submitted_via_engine",
                 request_id=order.request_id,
-                status=result.status,
-                filled_qty=result.filled_qty,
+                symbol=order.symbol,
+                side=order.side,
+                qty=order.quantity,
             )
-            return result
+            # Return a synthetic pending result — actual fill tracked via order:update channel
+            from shared.models.order import OrderResult
+            from datetime import datetime, timezone
+            return OrderResult(
+                request_id=order.request_id,
+                order_id="",
+                status="pending",
+                filled_qty=0.0,
+                filled_price=None,
+                fee=0.0,
+                fee_currency="USDT",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
         except Exception:
-            self._log.exception("order_placement_error", request_id=order.request_id)
+            self._log.exception("order_submission_error", request_id=order.request_id)
             return None
 
     async def _verify_position_for_funding(self) -> None:

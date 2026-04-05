@@ -52,6 +52,16 @@ class ExchangeConnector(ABC):
     @abstractmethod
     async def cancel_order(self, order_id: str, symbol: str) -> bool: ...
 
+    @abstractmethod
+    async def set_leverage(self, symbol: str, leverage: int) -> None:
+        """Set leverage for a symbol. Must be called before placing futures orders."""
+        ...
+
+    @abstractmethod
+    async def set_margin_mode(self, symbol: str, mode: str = "isolated") -> None:
+        """Set margin mode for a symbol. Use 'isolated' to limit loss to position margin."""
+        ...
+
     # ── account ──────────────────────────────────────────────────────────
 
     @abstractmethod

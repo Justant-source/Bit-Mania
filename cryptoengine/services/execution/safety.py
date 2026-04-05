@@ -28,7 +28,7 @@ log = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 DEFAULT_MAX_ORDER_SIZE: float = 100_000.0  # USD notional
-DEFAULT_LEVERAGE_LIMIT: float = 10.0
+DEFAULT_LEVERAGE_LIMIT: float = 2.0
 DEFAULT_MIN_MARGIN_AVAILABLE: float = 50.0  # USD
 
 # Slippage

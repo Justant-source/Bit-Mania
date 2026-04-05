@@ -22,6 +22,46 @@ import structlog
 from freqtrade_bridge import BacktestResult
 from walk_forward import MonteCarloResult, WalkForwardResult
 
+
+def btc_buy_hold_return(ohlcv: list) -> float:
+    """Calculate BTC buy-and-hold percentage return for the same period as the backtest.
+
+    Args:
+        ohlcv: List of OHLCV bars.  Each bar must be a sequence where index 4
+               is the *close* price (standard CCXT / Freqtrade format:
+               [timestamp, open, high, low, close, volume]).
+               A plain list of floats (close prices only) is also accepted.
+
+    Returns:
+        Percentage return from the first bar's close to the last bar's close.
+        Returns 0.0 if fewer than 2 bars are provided or the first close is zero.
+
+    Example:
+        >>> btc_buy_hold_return([[0,0,0,0,30000,0], [0,0,0,0,45000,0]])
+        50.0
+    """
+    if not ohlcv or len(ohlcv) < 2:
+        return 0.0
+
+    first_bar = ohlcv[0]
+    last_bar = ohlcv[-1]
+
+    # Support both full OHLCV sequences and plain float lists (close prices only)
+    try:
+        if hasattr(first_bar, "__len__") and len(first_bar) >= 5:
+            first_close = float(first_bar[4])
+            last_close = float(last_bar[4])
+        else:
+            first_close = float(first_bar)
+            last_close = float(last_bar)
+    except (TypeError, IndexError, ValueError):
+        return 0.0
+
+    if first_close <= 0:
+        return 0.0
+
+    return (last_close - first_close) / first_close * 100.0
+
 log = structlog.get_logger(__name__)
 
 
@@ -40,27 +80,45 @@ class ReportGenerator:
         self,
         result: BacktestResult,
         strategy: str,
+        ohlcv: list | None = None,
     ) -> Path:
         """Generate an HTML report for a single backtest run.
 
-        Returns the path to the generated file.
+        Args:
+            result: Backtest result object.
+            strategy: Strategy name used for the output filename.
+            ohlcv: Optional OHLCV data for the same period.  When provided, a
+                   BTC buy-and-hold return is calculated and displayed alongside
+                   the strategy return so readers can judge alpha vs. passive
+                   holding.  Each bar should be a sequence
+                   [timestamp, open, high, low, close, volume] or a plain
+                   float (close price).
+
+        Returns:
+            Path to the generated HTML file.
         """
+        bh_return: float | None = btc_buy_hold_return(ohlcv) if ohlcv else None
+
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"backtest_{strategy}_{ts}.html"
         filepath = self._results_dir / filename
 
-        html_content = self._render_backtest_html(result)
+        html_content = self._render_backtest_html(result, bh_return=bh_return)
         filepath.write_text(html_content, encoding="utf-8")
 
         # Also write markdown summary
         md_path = filepath.with_suffix(".md")
-        md_content = self._render_backtest_markdown(result)
+        md_content = self._render_backtest_markdown(result, bh_return=bh_return)
         md_path.write_text(md_content, encoding="utf-8")
 
         # Write raw JSON
         json_path = filepath.with_suffix(".json")
+        result_dict = self._result_to_dict(result)
+        if bh_return is not None:
+            result_dict["btc_buy_hold_return_pct"] = bh_return
+            result_dict["alpha_vs_btc_pct"] = result.total_profit_pct - bh_return
         json_path.write_text(
-            json.dumps(self._result_to_dict(result), indent=2, default=str),
+            json.dumps(result_dict, indent=2, default=str),
             encoding="utf-8",
         )
 
@@ -100,7 +158,7 @@ class ReportGenerator:
     # HTML Rendering — Backtest
     # ==================================================================
 
-    def _render_backtest_html(self, r: BacktestResult) -> str:
+    def _render_backtest_html(self, r: BacktestResult, bh_return: float | None = None) -> str:
         equity_svg = self._svg_line_chart(
             r.equity_curve, title="Equity Curve", color="#2ecc71", height=250
         )
@@ -109,6 +167,22 @@ class ReportGenerator:
         )
 
         trades_html = self._trades_table_html(r)
+
+        # BTC buy-and-hold benchmark card (only rendered when data is available)
+        if bh_return is not None:
+            alpha = r.total_profit_pct - bh_return
+            alpha_class = "positive" if alpha >= 0 else "negative"
+            bh_class = "positive" if bh_return >= 0 else "negative"
+            bh_cards = f"""  <div class="card">
+    <div class="card-label">BTC Buy &amp; Hold</div>
+    <div class="card-value {bh_class}">{bh_return:+.2f}%</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Alpha vs BTC</div>
+    <div class="card-value {alpha_class}">{alpha:+.2f}%</div>
+  </div>"""
+        else:
+            bh_cards = ""
 
         return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -161,6 +235,7 @@ class ReportGenerator:
     <div class="card-label">Profit Factor</div>
     <div class="card-value">{r.profit_factor:.2f}</div>
   </div>
+{bh_cards}
 </div>
 
 <h2>Equity Curve</h2>
@@ -250,7 +325,17 @@ class ReportGenerator:
     # Markdown Rendering
     # ==================================================================
 
-    def _render_backtest_markdown(self, r: BacktestResult) -> str:
+    def _render_backtest_markdown(self, r: BacktestResult, bh_return: float | None = None) -> str:
+        # Optional BTC buy-and-hold rows
+        if bh_return is not None:
+            alpha = r.total_profit_pct - bh_return
+            bh_rows = (
+                f"| BTC Buy & Hold | {bh_return:+.2f}% |\n"
+                f"| Alpha vs BTC | {alpha:+.2f}% |"
+            )
+        else:
+            bh_rows = ""
+
         return f"""# Backtest Report: {r.strategy}
 
 **Period:** {r.start_date} ~ {r.end_date}
@@ -269,6 +354,7 @@ class ReportGenerator:
 | Total Trades | {r.total_trades} |
 | Profit Factor | {r.profit_factor:.2f} |
 | Avg Trade Duration | {r.avg_trade_duration_hours:.1f}h |
+{bh_rows}
 
 ## Trades
 

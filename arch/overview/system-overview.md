@@ -50,7 +50,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 | 포트 |
 |--------|------|------|
-| **telegram-bot** | 실시간 알림 전송 + 비상 명령 수신(`/kill`, `/status`). Kill Switch 발동 시 즉시 알림 | - |
+| **telegram-bot** | 실시간 알림 전송 + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림. 30분 간격 시스템 하트비트(자본 + 포지션 수) 전송 | - |
 | **dashboard** | Express.js 기반 웹 대시보드. 내부용(상세 지표)과 공개용(요약) 분리 | 3000 (내부), 3001 (공개) |
 | **grafana** | Grafana 10.4 기반 모니터링 대시보드. PostgreSQL + Prometheus 데이터소스. 공개 대시보드 기능 활성화 | 3002 |
 
@@ -159,10 +159,11 @@ config/
 
 - **Kill Switch 4단계**: 경고 → 포지션 축소 → 전체 청산 → 시스템 전면 중지
 - **테스트넷 강제**: `BYBIT_TESTNET=true` 기본값. Phase 5 전까지 변경 금지
-- **레버리지 제한**: 선물 포지션 최대 2배 레버리지
+- **레버리지 제한**: 선물 포지션 최대 2배 레버리지 (`bybit.py MAX_LEVERAGE=2` 상수 + `SafetyGuard` 이중 강제)
 - **출금 불가**: API 키에 Withdraw 권한 미부여
 - **헬스체크**: PostgreSQL, Redis에 Docker 헬스체크 설정. 의존 서비스 시작 순서 보장
 - **Dead Man's Switch**: execution-engine/market-data가 30초마다 Redis에 하트비트 발행. 오케스트레이터 워치독이 60초마다 확인, execution-engine 하트비트 5분 이상 미수신 시 Kill Switch 자동 발동
+- **Redis 보안**: `requirepass` 인증 활성화, 포트 127.0.0.1에만 바인딩 (외부 접근 차단)
 - **주문 Rate Limiting**: 전략별 초당 2회 / 분당 30회 제한 (기본값, 설정 가능)
 - **Redis Fail-Closed**: Redis 3회 연속 연결 실패 시 신규 주문 전면 차단. 로컬 메모리 캐시(TTL 60초)로 일시적 단절 완충
 - **설정 핫 리로드**: `orchestrator.yaml`의 kill_switch 임계값을 서비스 재시작 없이 변경 가능 (최대 30초 반영)

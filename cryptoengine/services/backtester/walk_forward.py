@@ -107,7 +107,7 @@ class WalkForwardAnalyzer:
         self,
         train_days: int = 180,
         test_days: int = 90,
-        monte_carlo_runs: int = 100,
+        monte_carlo_runs: int = 1000,
     ) -> None:
         self.train_days = train_days
         self.test_days = test_days
@@ -272,7 +272,7 @@ class WalkForwardAnalyzer:
     @staticmethod
     def monte_carlo(
         windows: list[WindowResult],
-        n_simulations: int = 100,
+        n_simulations: int = 1000,
         seed: int | None = None,
     ) -> MonteCarloResult:
         """Shuffle per-window OOS returns and compute confidence intervals.

@@ -168,6 +168,37 @@ class BaseStrategy(ABC):
 
     # ── abstract hooks ──────────────────────────────────────────────────
 
+    def _atr_position_size(
+        self,
+        entry_price: float,
+        atr: float,
+        risk_pct: float = 0.01,
+        atr_stop_multiplier: float = 2.0,
+    ) -> float:
+        """Calculate position size using ATR-based risk management.
+
+        Position size = (account_equity × risk_pct) / (atr × atr_stop_multiplier × entry_price)
+
+        Args:
+            entry_price: Current asset price.
+            atr: Average True Range value (same units as price).
+            risk_pct: Fraction of total capital to risk per trade (default 1%).
+            atr_stop_multiplier: Stop-loss distance = atr × multiplier (default 2×ATR).
+
+        Returns:
+            Position size in base asset units. Returns 0.0 if inputs are invalid.
+        """
+        if entry_price <= 0 or atr <= 0 or self.allocated_capital <= 0:
+            return 0.0
+        stop_distance = atr * atr_stop_multiplier
+        if stop_distance <= 0:
+            return 0.0
+        account_risk_usd = self.allocated_capital * risk_pct
+        position_size = account_risk_usd / (stop_distance * entry_price)
+        # Cap at 95% of allocated capital (same as existing logic)
+        max_size = self.allocated_capital * 0.95 / entry_price
+        return min(position_size, max_size)
+
     @abstractmethod
     async def tick(self) -> None:
         """Called every tick interval while the strategy is running."""

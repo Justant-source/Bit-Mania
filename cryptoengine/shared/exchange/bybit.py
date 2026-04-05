@@ -23,6 +23,7 @@ from shared.models.position import Position
 logger = logging.getLogger(__name__)
 
 _DEFAULT_RATE_LIMIT = 50  # ms between REST calls
+MAX_LEVERAGE: int = 2  # Project policy: never exceed 2x leverage
 
 
 class BybitConnector(ExchangeConnector):
@@ -205,6 +206,32 @@ class BybitConnector(ExchangeConnector):
         except Exception as exc:
             logger.warning("cancel_order failed for %s: %s", order_id, exc)
             return False
+
+    async def set_leverage(self, symbol: str, leverage: int) -> None:
+        """Set leverage for a symbol, capped at MAX_LEVERAGE."""
+        self._ensure_connected()
+        safe_leverage = min(leverage, MAX_LEVERAGE)
+        try:
+            async with self._rate_limiter:
+                await self._exchange.set_leverage(safe_leverage, symbol)
+            logger.info("leverage_set symbol=%s leverage=%d", symbol, safe_leverage)
+        except Exception as exc:
+            # Some exchanges raise if leverage is already set to this value
+            logger.warning("set_leverage warning symbol=%s: %s", symbol, exc)
+
+    async def set_margin_mode(self, symbol: str, mode: str = "isolated") -> None:
+        """Set margin mode for a symbol to isolated (prevents cross-margin liquidation)."""
+        self._ensure_connected()
+        try:
+            async with self._rate_limiter:
+                await self._exchange.set_margin_mode(mode, symbol)
+            logger.info("margin_mode_set symbol=%s mode=%s", symbol, mode)
+        except Exception as exc:
+            # Bybit raises if margin mode is already set
+            if "already" in str(exc).lower() or "110026" in str(exc):
+                logger.debug("margin_mode already %s for %s", mode, symbol)
+            else:
+                logger.warning("set_margin_mode warning symbol=%s: %s", symbol, exc)
 
     # ── account ──────────────────────────────────────────────────────────
 

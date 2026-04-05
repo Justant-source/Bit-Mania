@@ -68,6 +68,52 @@ def _configure_logging() -> None:
     )
 
 
+HEARTBEAT_INTERVAL_SECONDS = 30 * 60  # 30 minutes
+
+
+async def _heartbeat_task(
+    redis_client: aioredis.Redis,
+    bot: object,
+    shutdown_event: asyncio.Event,
+) -> None:
+    """Send a system-alive heartbeat message every 30 minutes."""
+    log.info("heartbeat_task_started", interval_seconds=HEARTBEAT_INTERVAL_SECONDS)
+    try:
+        while not shutdown_event.is_set():
+            try:
+                # Read equity and positions from Redis
+                portfolio_raw = await redis_client.get("ce:portfolio:state")
+                portfolio = json.loads(portfolio_raw) if portfolio_raw else {}
+                equity = portfolio.get("total_equity", 0.0)
+
+                positions_raw = await redis_client.get("ce:positions:all")
+                positions = json.loads(positions_raw) if positions_raw else []
+                position_count = len(positions) if isinstance(positions, list) else 0
+
+                msg = (
+                    f"\u2705 System alive | "
+                    f"equity: {equity:.2f} USDT | "
+                    f"positions: {position_count}"
+                )
+                await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg)  # type: ignore[attr-defined]
+                log.info("heartbeat_sent", equity=equity, positions=position_count)
+
+            except Exception:
+                log.exception("heartbeat_send_failed")
+
+            # Wait for next interval, checking shutdown frequently
+            try:
+                await asyncio.wait_for(
+                    shutdown_event.wait(), timeout=HEARTBEAT_INTERVAL_SECONDS
+                )
+                break  # shutdown_event was set
+            except asyncio.TimeoutError:
+                pass  # normal — interval elapsed, send next heartbeat
+
+    except asyncio.CancelledError:
+        log.info("heartbeat_task_cancelled")
+
+
 async def _redis_alert_subscriber(
     redis_client: aioredis.Redis,
     handlers: BotHandlers,
@@ -143,6 +189,8 @@ async def main() -> None:
     app.add_handler(CommandHandler("start", handlers.start_command))
     app.add_handler(CommandHandler("weight", handlers.weight_command))
     app.add_handler(CommandHandler("report", handlers.report_command))
+    app.add_handler(CommandHandler("pause_all", handlers.pause_all_command))
+    app.add_handler(CommandHandler("resume_all", handlers.resume_all_command))
 
     # --- Graceful shutdown ---
     shutdown_event = asyncio.Event()
@@ -164,6 +212,10 @@ async def main() -> None:
         _redis_alert_subscriber(redis_client, handlers, app.bot, shutdown_event),
         name="redis_subscriber",
     )
+    heartbeat_task = asyncio.create_task(
+        _heartbeat_task(redis_client, app.bot, shutdown_event),
+        name="heartbeat",
+    )
 
     log.info("telegram_bot_running", chat_id=TELEGRAM_CHAT_ID)
 
@@ -173,7 +225,8 @@ async def main() -> None:
 
     # Cleanup
     subscriber_task.cancel()
-    await asyncio.gather(subscriber_task, return_exceptions=True)
+    heartbeat_task.cancel()
+    await asyncio.gather(subscriber_task, heartbeat_task, return_exceptions=True)
 
     await app.updater.stop()  # type: ignore[union-attr]
     await app.stop()

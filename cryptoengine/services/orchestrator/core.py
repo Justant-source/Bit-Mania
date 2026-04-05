@@ -24,6 +24,7 @@ from services.orchestrator.dissimilarity_index import DissimilarityIndex
 from services.orchestrator.portfolio_monitor import PortfolioMonitor
 from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
+from shared.kill_switch import KillLevel, KillSwitch
 
 log = structlog.get_logger(__name__)
 
@@ -31,9 +32,9 @@ StrategyName = Literal["funding_arb", "grid", "dca", "cash"]
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
 
 STRATEGY_CHANNELS: dict[str, str] = {
-    "funding_arb": "strategy:funding_arb:command",
-    "grid": "strategy:grid:command",
-    "dca": "strategy:dca:command",
+    "funding_arb": "strategy:command:funding-arb",
+    "grid": "strategy:command:grid-trading",
+    "dca": "strategy:command:adaptive-dca",
 }
 
 
@@ -46,15 +47,6 @@ class AllocationCommand(BaseModel):
     regime: str
     max_drawdown: float | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class KillSwitchState(BaseModel):
-    """Kill switch status tracking."""
-
-    triggered: bool = False
-    reason: str | None = None
-    triggered_at: datetime | None = None
-    cooldown_until: datetime | None = None
 
 
 class StrategyOrchestrator:
@@ -72,7 +64,15 @@ class StrategyOrchestrator:
         self._regime_model: RegimeMLModel | None = None
         self._di_index: DissimilarityIndex | None = None
 
-        self._kill_switch = KillSwitchState()
+        ks_cfg = self._kill_switch_config
+        cooldown_min = ks_cfg.get("cooldown_minutes", 60)
+        self._kill_switch = KillSwitch(
+            daily_limit=-(ks_cfg.get("max_daily_drawdown_pct", 5.0) / 100.0),
+            weekly_limit=-(ks_cfg.get("max_weekly_drawdown_pct", 10.0) / 100.0),
+            monthly_limit=-(ks_cfg.get("max_monthly_drawdown_pct", 15.0) / 100.0),
+            cooldown_hours=cooldown_min / 60.0,
+            on_trigger=self._on_kill_switch_trigger,
+        )
         self._current_regime: RegimeType = "ranging"
         self._current_weights: dict[str, float] = {}
         self._total_equity: float = 0.0
@@ -188,28 +188,27 @@ class StrategyOrchestrator:
             weekly_dd=portfolio_state.weekly_drawdown,
         )
 
-        # 4. Check kill-switch conditions
-        kill_triggered = await self._check_kill_switch(portfolio_state)
-        if kill_triggered:
+        # 4. Check kill-switch conditions (delegates to shared KillSwitch)
+        monthly_dd = getattr(portfolio_state, "monthly_drawdown", 0.0)
+        active_level = await self._kill_switch.check(
+            portfolio_state,
+            monthly_drawdown=monthly_dd,
+            system_healthy=True,
+        )
+        if active_level > KillLevel.NONE:
             log.critical(
                 "kill_switch_triggered",
+                level=active_level.name,
                 reason=self._kill_switch.reason,
                 equity=portfolio_state.total_equity,
             )
-            await self._execute_kill_switch()
+            # _on_kill_switch_trigger callback already fired inside KillSwitch.check()
             return
 
-        # Check if kill switch is in cooldown
-        if self._kill_switch.cooldown_until:
-            now = datetime.now(timezone.utc)
-            if now < self._kill_switch.cooldown_until:
-                log.warning(
-                    "kill_switch_cooldown",
-                    until=self._kill_switch.cooldown_until.isoformat(),
-                )
-                return
-            self._kill_switch = KillSwitchState()
-            log.info("kill_switch_cooldown_expired")
+        # If kill switch is still cooling down, skip allocations
+        if self._kill_switch.is_triggered:
+            log.warning("kill_switch_cooldown", triggered_at=self._kill_switch.triggered_at)
+            return
 
         # 5. Issue capital allocation commands
         await self._issue_allocations(smoothed_weights, portfolio_state.total_equity)
@@ -249,43 +248,31 @@ class StrategyOrchestrator:
 
         return "ranging"
 
-    async def _check_kill_switch(self, portfolio_state: Any) -> bool:
-        """Evaluate kill-switch conditions against portfolio state."""
-        ks = self._kill_switch_config
-        max_daily_dd = ks.get("max_daily_drawdown_pct", 5.0) / 100.0
-        max_weekly_dd = ks.get("max_weekly_drawdown_pct", 10.0) / 100.0
-        max_monthly_dd = ks.get("max_monthly_drawdown_pct", 15.0) / 100.0
+    def _get_drawdown_size_multiplier(self, drawdown_pct: float) -> float:
+        """Return position size multiplier based on current drawdown level.
 
-        if portfolio_state.daily_drawdown >= max_daily_dd:
-            self._kill_switch = KillSwitchState(
-                triggered=True,
-                reason=f"Daily drawdown {portfolio_state.daily_drawdown:.2%} >= {max_daily_dd:.2%}",
-                triggered_at=datetime.now(timezone.utc),
-            )
-            return True
+        0-20%  drawdown → 1.0x (normal)
+        20-30% drawdown → 0.5x (reduced)
+        30-50% drawdown → 0.1x (minimal — only highest conviction)
+        50%+   drawdown → 0.0x (halt all trading)
+        """
+        if drawdown_pct < 0.20:
+            return 1.0
+        elif drawdown_pct < 0.30:
+            return 0.5
+        elif drawdown_pct < 0.50:
+            return 0.1
+        else:
+            return 0.0
 
-        if portfolio_state.weekly_drawdown >= max_weekly_dd:
-            self._kill_switch = KillSwitchState(
-                triggered=True,
-                reason=f"Weekly drawdown {portfolio_state.weekly_drawdown:.2%} >= {max_weekly_dd:.2%}",
-                triggered_at=datetime.now(timezone.utc),
-            )
-            return True
+    async def _on_kill_switch_trigger(self, level: KillLevel, reason: str) -> None:
+        """Callback fired by shared KillSwitch on every trigger.
 
-        monthly_dd = getattr(portfolio_state, "monthly_drawdown", 0.0)
-        if monthly_dd >= max_monthly_dd:
-            self._kill_switch = KillSwitchState(
-                triggered=True,
-                reason=f"Monthly drawdown {monthly_dd:.2%} >= {max_monthly_dd:.2%}",
-                triggered_at=datetime.now(timezone.utc),
-            )
-            return True
-
-        return False
-
-    async def _execute_kill_switch(self) -> None:
-        """Halt all strategies and move to 100% cash."""
-        assert self._redis is not None
+        Halts all strategies, sets emergency weights, and publishes
+        the kill-switch event to Redis so downstream services react.
+        """
+        if self._redis is None:
+            return
 
         emergency_weights = {"funding_arb": 0.0, "grid": 0.0, "dca": 0.0, "cash": 1.0}
         self._current_weights = emergency_weights
@@ -302,11 +289,6 @@ class StrategyOrchestrator:
             log.info("kill_switch_halt_sent", strategy=strategy_id)
 
         cooldown_min = self._kill_switch_config.get("cooldown_minutes", 60)
-        from datetime import timedelta
-
-        self._kill_switch.cooldown_until = datetime.now(timezone.utc) + timedelta(
-            minutes=cooldown_min
-        )
 
         # Publish kill switch event
         await self._redis.publish(
@@ -314,7 +296,8 @@ class StrategyOrchestrator:
             json.dumps(
                 {
                     "triggered": True,
-                    "reason": self._kill_switch.reason,
+                    "level": level.name,
+                    "reason": reason,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "cooldown_minutes": cooldown_min,
                 }
@@ -322,18 +305,15 @@ class StrategyOrchestrator:
         )
 
         # Cache state
+        triggered_at = self._kill_switch.triggered_at
         await self._redis.set(
             "orchestrator:kill_switch",
             json.dumps(
                 {
                     "triggered": True,
-                    "reason": self._kill_switch.reason,
-                    "triggered_at": self._kill_switch.triggered_at.isoformat()
-                    if self._kill_switch.triggered_at
-                    else None,
-                    "cooldown_until": self._kill_switch.cooldown_until.isoformat()
-                    if self._kill_switch.cooldown_until
-                    else None,
+                    "level": level.name,
+                    "reason": reason,
+                    "triggered_at": triggered_at.isoformat() if triggered_at else None,
                 }
             ),
             ex=7200,
@@ -365,6 +345,25 @@ class StrategyOrchestrator:
 
             # Enforce max single strategy cap
             weight = min(weight, max_single_pct)
+
+            # Apply graduated drawdown multiplier
+            if self._portfolio_monitor:
+                portfolio_state = await self._portfolio_monitor.evaluate()
+                max_dd = max(
+                    getattr(portfolio_state, "daily_drawdown", 0.0),
+                    getattr(portfolio_state, "weekly_drawdown", 0.0),
+                )
+                multiplier = self._get_drawdown_size_multiplier(max_dd)
+                weight = weight * multiplier
+                if multiplier < 1.0:
+                    log.warning(
+                        "drawdown_size_reduction",
+                        strategy=strategy_id,
+                        drawdown_pct=round(max_dd * 100, 2),
+                        multiplier=multiplier,
+                        original_weight=weights.get(strategy_id, 0.0),
+                        adjusted_weight=round(weight, 4),
+                    )
 
             allocated = total_equity * weight
             cmd = AllocationCommand(
@@ -441,7 +440,8 @@ class StrategyOrchestrator:
             "weights": self._current_weights,
             "total_equity": self._total_equity,
             "kill_switch": {
-                "triggered": self._kill_switch.triggered,
+                "triggered": self._kill_switch.is_triggered,
+                "level": self._kill_switch.level.name,
                 "reason": self._kill_switch.reason,
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -517,12 +517,10 @@ class StrategyOrchestrator:
                         dead_services=critical_dead,
                         action="triggering_kill_switch",
                     )
-                    self._kill_switch = KillSwitchState(
-                        triggered=True,
-                        reason=f"Dead man's switch: services not responding: {critical_dead}",
-                        triggered_at=datetime.now(timezone.utc),
+                    await self._kill_switch.trigger(
+                        KillLevel.SYSTEM,
+                        f"Dead man's switch: services not responding: {critical_dead}",
                     )
-                    await self._execute_kill_switch()
 
                     # Telegram 알림 발행
                     await self._redis.publish(
