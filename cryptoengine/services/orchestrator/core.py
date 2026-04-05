@@ -91,7 +91,8 @@ class StrategyOrchestrator:
         log.info(REDIS_CONNECTED, message="redis connected", url=redis_url)
 
         pg_dsn = self._config.get("postgres", {}).get("dsn")
-        self._portfolio_monitor = PortfolioMonitor(self._redis, pg_dsn)
+        snapshot_interval = self._config.get("portfolio_snapshot_interval_seconds", 900)
+        self._portfolio_monitor = PortfolioMonitor(self._redis, pg_dsn, snapshot_interval=snapshot_interval)
         await self._portfolio_monitor.start()
 
         ml_config = self._config.get("regime_ml", {})
