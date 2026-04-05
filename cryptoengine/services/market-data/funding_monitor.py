@@ -35,6 +35,10 @@ BYBIT_REST_TESTNET = "https://api-testnet.bybit.com"
 POLL_INTERVAL_BYBIT = 60         # seconds — Bybit REST funding
 POLL_INTERVAL_COINGLASS = 300    # seconds — multi-exchange comparison
 
+# Gap recovery: Bybit perpetuals fund every 8 hours; backfill cap on startup
+FUNDING_INTERVAL_HOURS = 8
+BACKFILL_MAX_DAYS = 3  # cap at 3 days to avoid excessive API calls on long outages
+
 
 class FundingMonitor:
     """Monitors funding rates from Bybit and CoinGlass."""
@@ -74,6 +78,7 @@ class FundingMonitor:
     async def run(self, shutdown: asyncio.Event) -> None:
         """Launch concurrent funding-rate pollers."""
         log.info(SERVICE_STARTED, message="funding monitor starting", symbol=self.symbol)
+        await self.backfill_funding_gaps()
 
         tasks = [
             asyncio.create_task(self._poll_loop(shutdown, self._poll_bybit_funding, POLL_INTERVAL_BYBIT), name="bybit_funding"),
@@ -95,6 +100,120 @@ class FundingMonitor:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             log.info(SERVICE_STOPPED, message="funding monitor stopped")
+
+    # ------------------------------------------------------------------
+    # Startup gap recovery
+    # ------------------------------------------------------------------
+
+    async def backfill_funding_gaps(self) -> None:
+        """Detect missing funding rate records since last persisted entry and backfill via REST.
+
+        Uses Bybit's /v5/market/funding/history endpoint (confirmed rates only).
+        Caps backfill at BACKFILL_MAX_DAYS (3 days) on startup.
+        """
+        now_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+        funding_interval_ms = FUNDING_INTERVAL_HOURS * 3600 * 1000
+        max_lookback_ms = BACKFILL_MAX_DAYS * 24 * 3600 * 1000
+
+        async with self.db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT MAX(timestamp) AS last_ts FROM funding_rate_history "
+                "WHERE exchange = $1 AND symbol = $2",
+                self.exchange, self.symbol,
+            )
+
+        if row is None or row["last_ts"] is None:
+            log.info(
+                SERVICE_STARTED,
+                message="no existing funding rate data, skipping backfill",
+                symbol=self.symbol,
+            )
+            return
+
+        last_ms = int(row["last_ts"].timestamp() * 1000)
+        gap_ms = now_ms - last_ms
+
+        if gap_ms <= funding_interval_ms:
+            return  # At most ~8h missing — will be filled by next poll
+
+        start_ms = max(last_ms + funding_interval_ms, now_ms - max_lookback_ms)
+        gap_hours = gap_ms / 3_600_000
+
+        log.info(
+            SERVICE_STARTED,
+            message="funding rate gap detected, backfilling",
+            gap_hours=round(gap_hours, 1), symbol=self.symbol,
+            backfill_from=datetime.fromtimestamp(start_ms / 1000, tz=timezone.utc).isoformat(),
+        )
+
+        url = f"{self._rest_base}/v5/market/funding/history"
+        total = 0
+        cursor_ms = start_ms
+
+        async with aiohttp.ClientSession() as session:
+            while cursor_ms < now_ms:
+                params = {
+                    "category": "linear",
+                    "symbol": self.symbol,
+                    "startTime": cursor_ms,
+                    "endTime": now_ms,
+                    "limit": 200,
+                }
+                try:
+                    async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                        data = await resp.json()
+                except Exception as exc:
+                    log.error(SERVICE_HEALTH_FAIL, message="funding history fetch error", exc=str(exc))
+                    break
+
+                if data.get("retCode") != 0:
+                    log.warning(SERVICE_HEALTH_FAIL, message="funding history API error", response=data)
+                    break
+
+                items = data.get("result", {}).get("list", [])
+                if not items:
+                    break
+
+                # Bybit returns newest-first; reverse for chronological processing
+                items = list(reversed(items))
+
+                records = []
+                for item in items:
+                    try:
+                        ts_ms = int(item["fundingRateTimestamp"])
+                        if ts_ms < start_ms:
+                            continue
+                        ts_dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+                        rate = float(item["fundingRate"])
+                        records.append((self.exchange, self.symbol, rate, rate, ts_dt))
+                    except (KeyError, ValueError, TypeError):
+                        continue
+
+                if records:
+                    async with self.db_pool.acquire() as conn:
+                        await conn.executemany(
+                            """
+                            INSERT INTO funding_rate_history
+                                (exchange, symbol, rate, predicted_rate, timestamp)
+                            VALUES ($1, $2, $3, $4, $5)
+                            ON CONFLICT (exchange, symbol, timestamp) DO NOTHING
+                            """,
+                            records,
+                        )
+                    total += len(records)
+
+                if len(items) < 200:
+                    break
+
+                # Advance cursor past the newest item in this batch
+                cursor_ms = int(items[-1]["fundingRateTimestamp"]) + funding_interval_ms
+                await asyncio.sleep(0.1)
+
+        log.info(
+            SERVICE_STARTED,
+            message="funding rate backfill complete",
+            records_inserted=total, symbol=self.symbol,
+        )
 
     # ------------------------------------------------------------------
     # Polling loop
