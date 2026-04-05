@@ -21,7 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import asyncpg
@@ -117,7 +117,7 @@ async def fetch_ohlcv(session: aiohttp.ClientSession, pool: asyncpg.Pool,
         total += len(rows)
         last_ts_ms = int(candles[-1][0])
         last_dt = datetime.fromtimestamp(last_ts_ms / 1000, tz=timezone.utc)
-        print(f"  [{symbol} {timeframe}] {total}개 저장 (마지막: {last_dt.isoformat()})")
+        print(f"  [{symbol} {timeframe}] {total}개 저장 (마지막: {last_dt.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%dT%H:%M:%S+09:00')})")
 
         if last_ts_ms >= end_ms - _tf_ms(timeframe):
             break
@@ -174,7 +174,7 @@ async def fetch_funding(session: aiohttp.ClientSession, pool: asyncpg.Pool,
         total += len(rows)
         last_ts_ms = int(records[-1]["fundingRateTimestamp"])
         last_dt = datetime.fromtimestamp(last_ts_ms / 1000, tz=timezone.utc)
-        print(f"  [{symbol} funding] {total}개 저장 (마지막: {last_dt.isoformat()})")
+        print(f"  [{symbol} funding] {total}개 저장 (마지막: {last_dt.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%dT%H:%M:%S+09:00')})")
 
         if last_ts_ms >= end_ms - 8 * 3600 * 1000:
             break

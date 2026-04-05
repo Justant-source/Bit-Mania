@@ -24,14 +24,14 @@ import logging
 
 import asyncpg
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 # Project root — one level above /scripts
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 structlog.configure(
     processors=[
         structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
+        kst_timestamper,
         structlog.dev.ConsoleRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

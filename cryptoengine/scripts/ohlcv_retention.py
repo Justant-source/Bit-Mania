@@ -68,5 +68,7 @@ async def run_retention() -> None:
 
 
 if __name__ == "__main__":
-    print(f"OHLCV 보존 정책 실행: {datetime.now(timezone.utc).isoformat()}")
+    sys.path.insert(0, "/app") if "/app" not in sys.path else None
+    from shared.timezone_utils import format_kst
+    print(f"OHLCV 보존 정책 실행: {format_kst(datetime.now(timezone.utc))}")
     asyncio.run(run_retention())

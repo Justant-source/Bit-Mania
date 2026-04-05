@@ -28,7 +28,7 @@ import asyncpg
 import numpy as np
 import pandas as pd
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 # ── sys.path: import freqtrade_bridge from parent backtester dir ──────────────
 _BACKTESTER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _BACKTESTER_DIR not in sys.path:
@@ -1207,7 +1207,7 @@ async def main() -> None:
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
+            kst_timestamper,
             structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

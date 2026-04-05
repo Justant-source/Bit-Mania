@@ -30,7 +30,7 @@ import asyncpg
 import numpy as np
 import pandas as pd
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 # ── sys.path: allow importing from parent backtester directory ────────────────
 _THIS_DIR   = os.path.dirname(os.path.abspath(__file__))
 _PARENT_DIR = os.path.dirname(os.path.dirname(_THIS_DIR))   # .../backtester/
@@ -420,7 +420,7 @@ async def main() -> None:
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
+            kst_timestamper,
             structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

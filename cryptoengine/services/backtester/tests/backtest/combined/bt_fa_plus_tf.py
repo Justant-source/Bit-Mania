@@ -33,7 +33,7 @@ import asyncpg
 import numpy as np
 import pandas as pd
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 log = structlog.get_logger(__name__)
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -1061,7 +1061,7 @@ async def main(args: argparse.Namespace) -> None:
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
+            kst_timestamper,
             structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

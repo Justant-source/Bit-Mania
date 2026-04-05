@@ -65,5 +65,6 @@ async def run_retention():
         await conn.close()
 
 if __name__ == "__main__":
-    print(f"로그 보존 정책 실행: {datetime.now(timezone.utc).isoformat()}")
+    from shared.timezone_utils import format_kst
+    print(f"로그 보존 정책 실행: {format_kst(datetime.now(timezone.utc))}")
     asyncio.run(run_retention())

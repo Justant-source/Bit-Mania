@@ -24,18 +24,18 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import logging
 
 # structlog은 공유 라이브러리 없이 독립 실행 가능하도록 간단하게 설정
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 structlog.configure(
     processors=[
         structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
+        kst_timestamper,
         structlog.dev.ConsoleRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
@@ -431,7 +431,7 @@ def print_report(results: list[CheckResult], as_json: bool = False) -> int:
     # 텍스트 출력
     print("\n" + "=" * 60)
     print("  Phase 5 실전 전환 프리플라이트 체크")
-    print(f"  {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"  {datetime.now(tz=timezone.utc).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S KST')}")
     print("=" * 60)
 
     failed = 0

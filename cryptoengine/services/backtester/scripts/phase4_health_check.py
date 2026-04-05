@@ -327,7 +327,7 @@ def print_summary() -> int:
 async def main() -> int:
     print("=" * 60)
     print("Phase 4 헬스체크 — 테스트넷 포워드 테스트 준비 검증")
-    print(f"실행 시각: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    print(f"실행 시각: {datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S KST')}")
     print("=" * 60)
 
     # DB 및 Redis 연결
