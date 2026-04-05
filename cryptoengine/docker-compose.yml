@@ -27,6 +27,37 @@ services:
       start_period: 30s
     ports:
       - "127.0.0.1:5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  pg-backup:
+    image: postgres:16-alpine
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: cryptoengine
+      DB_USER: cryptoengine
+      DB_PASSWORD: ${DB_PASSWORD}
+      BACKUP_CRON: ${BACKUP_CRON:-0 17 * * *}   # 매일 02:00 KST
+      RUN_ON_STARTUP: ${BACKUP_ON_STARTUP:-false}
+    volumes:
+      - ./scripts/pg_backup.sh:/scripts/pg_backup.sh:ro
+      - ./scripts/pg_backup_entrypoint.sh:/scripts/pg_backup_entrypoint.sh:ro
+      - pg-backups:/backups
+    entrypoint: ["sh", "/scripts/pg_backup_entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
 
   redis:
     image: redis:7-alpine
@@ -42,6 +73,13 @@ services:
       start_period: 10s
     ports:
       - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 320M
+        reservations:
+          memory: 128M
 
   # ── Core Services ───────────────────────────────────────────
   market-data:
@@ -68,6 +106,13 @@ services:
       start_period: 30s
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   strategy-orchestrator:
     build:
@@ -85,6 +130,13 @@ services:
       <<: *common-env
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   execution-engine:
     build:
@@ -109,6 +161,13 @@ services:
       start_period: 30s
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # ── Strategy Services ───────────────────────────────────────
   funding-arb:
@@ -137,6 +196,13 @@ services:
       start_period: 30s
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   adaptive-dca:
     build:
@@ -155,6 +221,13 @@ services:
       STRATEGY_ID: adaptive-dca-01
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 128M
+        reservations:
+          memory: 32M
 
   # ── Intelligence & Reporting ────────────────────────────────
   llm-advisor:
@@ -173,6 +246,13 @@ services:
     volumes:
       - ./config:/app/config:ro
       - /tmp/claude-code:/tmp/claude-code
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
 
   telegram-bot:
     build:
@@ -190,6 +270,13 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+        reservations:
+          memory: 32M
 
   # ── Dashboard & Monitoring ──────────────────────────────────
   dashboard:
@@ -211,6 +298,13 @@ services:
       - "${DASHBOARD_PUBLIC_PORT:-3001}:3001"
     volumes:
       - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   grafana:
     image: grafana/grafana:10.4.14
@@ -235,6 +329,13 @@ services:
       - ./config/grafana/alerting:/etc/grafana/provisioning/alerting:ro
     ports:
       - "3002:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # ── Observability Stack ─────────────────────────────────────
   node-exporter:
@@ -249,6 +350,11 @@ services:
       - /sys:/host/sys:ro
     expose:
       - "9100"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
 
   redis-exporter:
     image: oliver006/redis_exporter:latest
@@ -260,6 +366,11 @@ services:
       REDIS_ADDR: redis://redis:6379
     expose:
       - "9121"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
 
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -278,6 +389,13 @@ services:
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # ── Backtesting (on-demand) ─────────────────────────────────
   backtester:
@@ -298,6 +416,11 @@ services:
       - ./backtest-results:/app/results
     profiles:
       - backtest
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
 
 volumes:
   pgdata:
@@ -307,4 +430,6 @@ volumes:
   grafana-data:
     driver: local
   prometheus-data:
+    driver: local
+  pg-backups:
     driver: local
