@@ -269,7 +269,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE regime WHEN 'trending_up' THEN 1 WHEN 'trending_down' THEN 2 WHEN 'ranging' THEN 3 WHEN 'volatile' THEN 4 WHEN 'trending' THEN 5 ELSE 0 END AS \"현재 레짐\" FROM market_regime_history WHERE symbol = 'BTCUSDT' ORDER BY detected_at DESC LIMIT 1",
+          "rawSql": "SELECT CASE regime WHEN 'trending_up' THEN 1 WHEN 'trending_down' THEN 2 WHEN 'ranging' THEN 3 WHEN 'volatile' THEN 4 WHEN 'trending' THEN 5 ELSE 0 END AS \"현재 레짐\" FROM market_regime_history WHERE symbol = 'BTCUSDT' AND is_confirmed = TRUE ORDER BY detected_at DESC LIMIT 1",
           "refId": "A"
         }
       ],
