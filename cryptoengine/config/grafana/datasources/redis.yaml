@@ -4,6 +4,6 @@ datasources:
   - name: Redis
     type: redis-datasource
     uid: cryptoengine-redis
-    url: redis://redis:6379
+    url: redis://:RedisPass2026!@redis:6379
     access: proxy
     editable: false
