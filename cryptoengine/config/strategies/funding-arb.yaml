@@ -33,6 +33,25 @@ entry:
     - BNBUSDT
     - XRPUSDT
 
+# ── Active Strategy Configuration (fa80_lev5_r30) ────────────
+# Backtest: 2020-04-01 ~ 2026-03-31  |  CAGR +34.87%  |  Sharpe 3.583  |  MDD -4.52%  |  Liquidations 0
+# Selected: FA capital ratio 80%, leverage 5x, reinvest ratio 30%
+#
+# Candidate pool (do NOT change without re-running Test 12 Stage D2):
+#   fa80_lev4_r30: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 MDD -3.64% (보수적 차선책)
+#   fa80_lev5_r50: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 MDD -7.13% (재투자 확대)
+
+# FA capital ratio: fraction of total portfolio allocated to this strategy.
+# Orchestrator should honor this when distributing capital.
+fa_capital_ratio: 0.80
+
+# Leverage applied to the perpetual futures leg.
+# Delta-neutral: spot qty = perp qty; leverage reduces perp margin requirement.
+leverage: 5.0
+
+# Fraction of realized FA profit reinvested into spot BTC accumulation.
+reinvest_ratio: 0.30
+
 # ── Position Sizing ──────────────────────────────────────────
 position:
   # Sizing mode: fixed_usd | pct_equity | kelly
@@ -43,8 +62,8 @@ position:
   max_position_usd: 10_000
   # Minimum position size (USD)
   min_position_usd: 100
-  # Maximum leverage allowed
-  max_leverage: 2
+  # Maximum leverage allowed (hard limit — reflects fa80_lev5_r30 selection)
+  max_leverage: 5
   # Maximum number of concurrent funding arb positions
   max_concurrent_positions: 5
   # Target delta-neutral ratio (1.0 = perfectly hedged)
@@ -70,7 +89,8 @@ exit:
 # ── Risk Management ──────────────────────────────────────────
 risk:
   # Maximum total portfolio allocation to funding arb (percentage)
-  max_portfolio_allocation_pct: 25.0
+  # fa80_lev5_r30 기준: 80% 배분 — orchestrator.yaml의 가중치와 동기화 필요
+  max_portfolio_allocation_pct: 80.0
   # Maximum drawdown before strategy auto-disables (percentage)
   max_drawdown_pct: 5.0
   # Drawdown lookback window in hours

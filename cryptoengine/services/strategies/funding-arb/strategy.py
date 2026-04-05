@@ -63,7 +63,15 @@ class FundingArbStrategy(BaseStrategy):
         self.exchange_id: str = config.get("exchange", "binance")
         self.min_funding_rate: float = config.get("min_funding_rate", MIN_FUNDING_RATE)
         self.max_spread_entry: float = config.get("max_spread_entry", MAX_SPREAD_ENTRY)
-        self.leverage: float = config.get("leverage", 1.0)
+        # fa80_lev5_r30: leverage=5, fa_capital_ratio=0.80, reinvest_ratio=0.30
+        self.leverage: float = config.get("leverage", 5.0)
+        # fa_capital_ratio: informational — orchestrator allocates capital; logged on start
+        self.fa_capital_ratio: float = config.get("fa_capital_ratio", 0.80)
+        # reinvest_ratio: fraction of realized funding profit to reinvest into spot BTC
+        self.reinvest_ratio: float = config.get("reinvest_ratio", 0.30)
+        # Accumulated spot BTC from reinvestment (tracked separately from hedge position)
+        self._reinvested_btc: float = 0.0
+        self._total_reinvested_usd: float = 0.0
 
         # Fee rates (Bybit: spot taker 0.01%, perp taker 0.055%)
         self.spot_fee_rate: float = config.get("fees", {}).get("spot_fee_rate", 0.0001)
@@ -141,6 +149,9 @@ class FundingArbStrategy(BaseStrategy):
             capital=capital,
             spot_symbol=self.spot_symbol,
             perp_symbol=self.perp_symbol,
+            leverage=self.leverage,
+            fa_capital_ratio=self.fa_capital_ratio,
+            reinvest_ratio=self.reinvest_ratio,
         )
 
     async def on_stop(self, reason: str) -> None:
@@ -682,12 +693,21 @@ class FundingArbStrategy(BaseStrategy):
     # ── helpers ─────────────────────────────────────────────────────────
 
     def _calculate_position_size(self, price: float) -> float:
-        """Determine BTC quantity based on allocated capital and leverage."""
+        """Determine BTC quantity for delta-neutral position (spot qty = perp qty).
+
+        Capital allocation model (fa80_lev5_r30):
+          - allocated_capital = orchestrator-assigned capital (already reflects fa_capital_ratio)
+          - With leverage L on perp: margin_needed = qty * price / L
+          - Total capital = spot_value + perp_margin = qty * price * (1 + 1/L)
+          - Solving: qty = usable / (price * (1 + 1/L))
+
+        At 5x leverage: capital_factor = 1.2  → 20% more BTC per dollar vs 2x (factor=1.5)
+        """
         if price <= 0:
             return 0.0
-        # Use 95% of allocated capital (5% buffer for fees/slippage)
-        usable_capital = self.allocated_capital * 0.95
-        return usable_capital / price
+        usable_capital = self.allocated_capital * 0.95  # 5% buffer for fees/slippage
+        leverage_factor = 1.0 + (1.0 / self.leverage) if self.leverage > 0 else 2.0
+        return usable_capital / (price * leverage_factor)
 
     async def _place_and_track(self, order: OrderRequest) -> OrderResult | None:
         """Place order via execution engine (Redis) for safety validation.
@@ -736,7 +756,13 @@ class FundingArbStrategy(BaseStrategy):
                 await self.submit_order(order)
 
     async def _process_funding_payment(self, funding: FundingRate) -> None:
-        """Record funding payment after it occurs."""
+        """Record funding payment and optionally reinvest into spot BTC.
+
+        Reinvest logic (reinvest_ratio=0.30 per fa80_lev5_r30):
+          - On each positive funding payment, 30% is used to buy additional spot BTC
+          - Reinvested BTC is held separately from the hedge position (_reinvested_btc)
+          - This does NOT affect the delta-neutral hedge; it is an additive BTC accumulation
+        """
         assert self._funding_tracker is not None
         assert self._basis_sm is not None
 
@@ -751,3 +777,34 @@ class FundingArbStrategy(BaseStrategy):
         )
         self._basis_sm.record_funding(payment)
         self.current_pnl += payment
+
+        # Reinvest positive funding into spot BTC accumulation
+        if payment > 0 and self.reinvest_ratio > 0 and self._exchange is not None:
+            reinvest_usd = payment * self.reinvest_ratio
+            try:
+                spot_ticker = await self._exchange.get_ticker(self.spot_symbol)
+                spot_price = float(spot_ticker.get("last", 0))
+                if spot_price > 0:
+                    btc_qty = reinvest_usd / spot_price
+                    reinvest_order = OrderRequest(
+                        strategy_id=self.strategy_id,
+                        exchange=self.exchange_id,
+                        symbol=self.spot_symbol,
+                        side="buy",
+                        order_type="market",
+                        quantity=btc_qty,
+                        post_only=False,
+                    )
+                    await self.submit_order(reinvest_order)
+                    self._reinvested_btc += btc_qty
+                    self._total_reinvested_usd += reinvest_usd
+                    self.current_pnl -= reinvest_usd  # deducted from FA PnL; held as spot
+                    self._log.info(
+                        "funding_reinvested",
+                        payment=round(payment, 6),
+                        reinvest_usd=round(reinvest_usd, 6),
+                        btc_qty=round(btc_qty, 8),
+                        total_reinvested_btc=round(self._reinvested_btc, 8),
+                    )
+            except Exception:
+                self._log.exception("reinvest_order_error", reinvest_usd=reinvest_usd)

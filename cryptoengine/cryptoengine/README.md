@@ -62,10 +62,14 @@ backtester                      — 백테스트 엔진
 
 ## 핵심 전략: 펀딩비 차익거래 (Funding Rate Arbitrage)
 
+### 현재 설정 (fa80_lev5_r30)
+- **FA 자본 비율**: 80% | **레버리지**: 5x | **재투자 비율**: 30%
+- **백테스트** (2020-04-01 ~ 2026-03-31): CAGR **+34.87%** | Sharpe **3.583** | MDD **-4.52%** | 청산 **0회**
+
 ### 개념
 - BTC 선물 포지션을 델타 뉴트럴로 유지하면서 8시간마다 발생하는 펀딩비를 수취
-- 현물 매수 + 선물 숏 (또는 반대) 으로 방향성 리스크 제거
-- 연환산 수익률 목표: 15~30% (펀딩비만으로)
+- 현물 매수 + 선물 숏 5x 레버리지로 방향성 리스크 제거 + 펀딩비 수입 극대화
+- 연환산 수익률 목표: **30~35%** (fa80_lev5_r30 기준)
 
 ### 진입 조건
 - 펀딩비 > 0.01% (연환산 ~11%)
@@ -162,7 +166,7 @@ docker compose --profile backtest run --rm backtester \
 
 - **Kill Switch 4단계** (전략 → Orchestrator → Execution → Telegram)
 - **BYBIT_TESTNET=true** (Phase 5 전까지 절대 변경 금지)
-- **max_leverage: 2** (하드 리밋)
+- **max_leverage: 5** (하드 리밋 — fa80_lev5_r30)
 - **출금 권한 없는 API 키**
 
 ---
@@ -221,7 +225,7 @@ cryptoengine/
 - `.env` 파일은 절대 git에 커밋하지 않음
 - `BYBIT_TESTNET=true` — Phase 4 완료 전까지 절대 변경 금지
 - API 키에 **출금 권한 없음** (의도적 설계)
-- 선물 레버리지 **2배 초과 금지**
+- 선물 레버리지 **5배 초과 금지** (현재 설정: fa80_lev5_r30)
 - Kill Switch 로직(`shared/kill_switch.py`) 절대 약화 금지
 
 ---

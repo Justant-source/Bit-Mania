@@ -35,12 +35,17 @@ related:
 ## 수익 구조
 
 ```
-수익 = 펀딩비 수입 - 거래 수수료 - 슬리피지 - 기회비용
+수익 = 펀딩비 수입 × leverage - 거래 수수료 - 슬리피지 - 기회비용
+     + 재투자 BTC 현물 평가이익 (reinvest_ratio > 0인 경우)
 ```
 
 - **펀딩레이트**: Bybit 기준 8시간마다 정산 (하루 3회)
-- **연환산 수익률**: 펀딩레이트 0.01% 기준 → 연 10.95%
-- **목표**: 연 15-30% (펀딩레이트가 높은 시기 선별 진입)
+- **연환산 수익률**: 펀딩레이트 0.01% × 5x 레버리지 기준 → 연 54.75%
+- **목표**: 연 **30-35%** (fa80_lev5_r30 백테스트 기준 CAGR +34.87%)
+- **레버리지 효과**: 5x 레버리지로 선물 명목금액 증폭 → 동일 자본 대비 펀딩비 수입 5배
+
+> [!tip] fa80_lev5_r30 백테스트 실적 (2020-04-01 ~ 2026-03-31, 6년)
+> CAGR **+34.87%** | Sharpe **3.583** | MDD **-4.52%** | 청산 **0회** | 최소마진비율 36.5x
 
 ## 진입 조건
 
@@ -108,11 +113,21 @@ related:
 
 ## 설정 파일
 
-`config/strategies/funding_arb.yaml` 참조
+`config/strategies/funding-arb.yaml` 참조
 
-### 주요 파라미터
+### 현재 적용 설정 (fa80_lev5_r30)
 
 ```yaml
+# 활성 설정: fa80_lev5_r30
+# CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회
+fa_capital_ratio: 0.80    # 전체 포트폴리오의 80%를 FA에 배분
+leverage: 5.0             # 선물 레그 5배 레버리지 (하드 리밋: 5x)
+reinvest_ratio: 0.30      # 펀딩비 수익의 30%를 현물 BTC 매수로 재투자
+
+# 후보 설정 (변경 시 .result/12. 리포트 참조)
+# fa80_lev4_r30: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 (보수적 차선책)
+# fa80_lev5_r50: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 (재투자 확대)
+
 entry:
   min_funding_rate_annualized: 15.0
   consecutive_intervals: 3
@@ -121,13 +136,26 @@ entry:
 position:
   sizing_mode: pct_equity
   pct_equity: 5.0
-  max_leverage: 3
+  max_leverage: 5          # fa80_lev5_r30 기준 하드 리밋
   max_concurrent_positions: 5
 
 exit:
   exit_on_rate_flip: true
   stop_loss_pct: 2.0
   take_profit_pct: 3.0
+```
+
+### 포지션 사이징 원리 (5x 레버리지)
+
+```
+Delta-neutral 포지션:
+  spot_qty = perp_qty (동일 수량)
+  
+  capital_factor = 1 + 1/leverage = 1 + 1/5 = 1.2
+  qty = allocated_capital * 0.95 / (price * 1.2)
+  
+  vs 2x leverage: capital_factor = 1.5
+  → 5x 레버리지에서 동일 자본으로 25% 더 많은 BTC 매수 가능
 ```
 
 ## 리스크 요소
@@ -138,15 +166,22 @@ exit:
 | Basis 발산 | 현물/선물 가격 괴리 | 최대 Spread 임계값 |
 | 유동성 부족 | 슬리피지 증가 | 최소 OI 요건 |
 | 거래소 장애 | 포지션 관리 불가 | [[architecture#Kill Switch 4단계|Kill Switch L3]] |
-| 마진 부족 | 강제 청산 위험 | 3배 마진 버퍼 |
+| 마진 부족 | 강제 청산 위험 | 최소마진비율 36.5x (5x 레버리지 기준) |
 | 한쪽 체결 실패 | 방향성 노출 | 3분 대기 + 청산 복구 |
+| 레버리지 5x 편측 체결 | 최악 자본 손실 14.85% | 즉시 청산 + Kill Switch |
+
+> [!warning] 5x 레버리지 모니터링 임계값
+> - 마진비율 < 10x → Telegram 경고
+> - 마진비율 < 5x → 포지션 축소 검토
+> - 마진비율 < 3x → 즉시 포지션 축소
 
 ## 백테스트 결과 해석
 
-- **Sharpe > 2.0**: 양호
-- **최대 낙폭 < 3%**: 양호
+- **Sharpe > 2.0**: 양호 (fa80_lev5_r30: 3.583 ✅)
+- **최대 낙폭 < 5%**: 양호 (fa80_lev5_r30: -4.52% ✅)
 - **승률 > 60%**: 양호
 - **Profit Factor > 2.0**: 양호
+- **마진비율 > 10x**: 안전 (fa80_lev5_r30 최소: 36.5x ✅)
 
 > [!seealso] 관련 문서
 > - [[architecture|시스템 아키텍처]] — 전체 서비스 구조
