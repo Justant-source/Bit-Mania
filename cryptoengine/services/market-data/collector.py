@@ -286,7 +286,7 @@ class MarketDataCollector:
                 async with self.db_pool.acquire() as conn:
                     await conn.execute(
                         """
-                        INSERT INTO ohlcv (exchange, symbol, timeframe, ts, open, high, low, close, volume)
+                        INSERT INTO ohlcv_history (exchange, symbol, timeframe, ts, open, high, low, close, volume)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                         ON CONFLICT (exchange, symbol, timeframe, ts) DO UPDATE
                         SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
@@ -327,7 +327,7 @@ class MarketDataCollector:
                 "exchange": self.exchange,
                 "symbol": self.symbol,
                 "rate": payload["fundingRate"],
-                "predicted_rate": payload.get("fundingRate"),
+                "predicted_rate": payload.get("nextFundingRate"),
                 "next_funding_time": payload.get("nextFundingTime"),
             }
             await self.redis.publish(funding_channel, json.dumps(funding_msg))
@@ -422,21 +422,32 @@ class MarketDataCollector:
         log.debug("long_short_ratio_polled", buy_ratio=ratio.get("buyRatio"))
 
     async def _poll_liquidations(self) -> None:
-        """Fetch recent liquidation data via Bybit REST API."""
-        url = f"{self._rest_base}/v5/market/recent-trade"
-        params = {"category": "linear", "symbol": self.symbol, "limit": "50"}
+        """Fetch recent liquidation data via Bybit's dedicated liquidation endpoint."""
+        # Use Bybit's dedicated liquidation endpoint
+        # GET /v5/market/liquidation returns actual forced liquidations
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "https://api.bybit.com/v5/market/liquidation",
+                    params={"category": "linear", "symbol": self.symbol, "limit": 200},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    data = await resp.json()
+            liq_list = data.get("result", {}).get("list", [])
+            # liq_list items have: price, side, size, time
+            liq_trades = [
+                {
+                    "price": float(item.get("price", 0)),
+                    "side": item.get("side", ""),
+                    "size": float(item.get("size", 0)),
+                    "ts": int(item.get("time", 0)),
+                }
+                for item in liq_list
+            ]
+        except Exception as exc:
+            log.warning("liquidation_fetch_error", exc=str(exc))
+            liq_trades = []
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
-
-        if data.get("retCode") != 0:
-            log.warning("liquidation_api_error", response=data)
-            return
-
-        trades = data.get("result", {}).get("list", [])
-        # Filter for liquidation trades (isBlockTrade flag or large-qty heuristic)
-        liq_trades = [t for t in trades if t.get("isBlockTrade", False)]
         if not liq_trades:
             return
 
@@ -445,10 +456,10 @@ class MarketDataCollector:
             msg = {
                 "exchange": self.exchange,
                 "symbol": self.symbol,
-                "price": lt.get("price"),
-                "qty": lt.get("size"),
-                "side": lt.get("side"),
-                "ts": lt.get("time"),
+                "price": lt["price"],
+                "qty": lt["size"],
+                "side": lt["side"],
+                "ts": lt["ts"],
             }
             await self.redis.publish(channel, json.dumps(msg))
 

@@ -368,6 +368,77 @@ class BotHandlers:
             ],
         }
 
+    # ── Command: /pause_all ───────────────────────────────────────
+
+    _ALL_STRATEGY_CHANNELS = [
+        "strategy:command:funding-arb",
+        "strategy:command:grid-trading",
+        "strategy:command:adaptive-dca",
+    ]
+
+    async def pause_all_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Stop all strategies (soft pause, positions retained)."""
+        if not _authorized(update):
+            return
+
+        try:
+            cmd = json.dumps({"action": "stop", "reason": "telegram_pause"})
+            for channel in self._ALL_STRATEGY_CHANNELS:
+                await self.redis.publish(channel, cmd)
+
+            await update.message.reply_text(  # type: ignore[union-attr]
+                "\u23f8 *All strategies paused.*\n"
+                "Stop command sent to: `funding-arb`, `grid-trading`, `adaptive-dca`.\n"
+                "_Positions are retained. Use /resume_all to restart._",
+                parse_mode="Markdown",
+            )
+            log.warning("pause_all_command_sent")
+
+        except Exception:
+            log.exception("pause_all_command_failed")
+            await update.message.reply_text(  # type: ignore[union-attr]
+                "\u274c Failed to pause strategies. Check system logs."
+            )
+
+    # ── Command: /resume_all ──────────────────────────────────────
+
+    async def resume_all_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        """Resume all strategies (orchestrator will re-issue capital allocation)."""
+        if not _authorized(update):
+            return
+
+        try:
+            # Check if kill switch is active before resuming
+            kill_active = await self.redis.get("ce:kill_switch:active")
+            if kill_active == "true":
+                await update.message.reply_text(  # type: ignore[union-attr]
+                    "\U0001f6a8 Kill switch is active. Clear it before resuming strategies.",
+                    parse_mode="Markdown",
+                )
+                return
+
+            cmd = json.dumps({"action": "start", "capital": 0})
+            for channel in self._ALL_STRATEGY_CHANNELS:
+                await self.redis.publish(channel, cmd)
+
+            await update.message.reply_text(  # type: ignore[union-attr]
+                "\u25b6\ufe0f *All strategies resumed.*\n"
+                "Start command sent to: `funding-arb`, `grid-trading`, `adaptive-dca`.\n"
+                "_Orchestrator will re-issue capital allocation on next cycle._",
+                parse_mode="Markdown",
+            )
+            log.info("resume_all_command_sent")
+
+        except Exception:
+            log.exception("resume_all_command_failed")
+            await update.message.reply_text(  # type: ignore[union-attr]
+                "\u274c Failed to resume strategies. Check system logs."
+            )
+
     # ── Alert Dispatcher ──────────────────────────────────────────
 
     async def dispatch_alert(

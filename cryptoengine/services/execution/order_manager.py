@@ -279,6 +279,16 @@ class OrderManager:
 
                 result: OrderResult = await self._connector.place_order(order)
 
+                # Notify safety guard of successful API response
+                try:
+                    await self._redis.set(
+                        "execution:last_api_response",
+                        str(int(__import__("time").monotonic() * 1000)),
+                        ex=60,
+                    )
+                except Exception:
+                    pass  # Non-critical
+
                 # Track the exchange order id
                 if result.order_id:
                     self._request_to_order[request_id] = result.order_id
@@ -301,6 +311,22 @@ class OrderManager:
 
             except Exception as exc:
                 last_error = str(exc)
+                exc_type = type(exc).__name__
+
+                # Non-retryable errors: fail immediately
+                non_retryable_keywords = (
+                    "AuthenticationError", "InsufficientFunds", "InvalidOrder",
+                    "BadSymbol", "PermissionDenied",
+                )
+                if any(kw in exc_type for kw in non_retryable_keywords):
+                    log.error(
+                        "order_non_retryable_error",
+                        request_id=request_id,
+                        error_type=exc_type,
+                        error=last_error,
+                    )
+                    break  # Do not retry
+
                 log.warning(
                     "order_attempt_failed",
                     request_id=request_id,
@@ -310,7 +336,9 @@ class OrderManager:
                 )
 
                 if attempt < self._max_retries:
-                    backoff = self._retry_backoff * attempt
+                    # Exponential backoff with jitter
+                    import random
+                    backoff = self._retry_backoff * (2 ** (attempt - 1)) + random.uniform(0, 0.1)
                     await asyncio.sleep(backoff)
 
         # All retries exhausted

@@ -26,12 +26,12 @@ services:
       retries: 5
       start_period: 30s
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-RedisPass2026!}
     volumes:
       - redisdata:/data
     healthcheck:
@@ -41,7 +41,7 @@ services:
       retries: 5
       start_period: 10s
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   # ── Core Services ───────────────────────────────────────────
   market-data:
