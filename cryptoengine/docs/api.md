@@ -14,7 +14,6 @@ related:
   - "[[architecture]]"
   - "[[runbook]]"
   - "[[strategies/funding_arb]]"
-  - "[[strategies/grid_trading]]"
   - "[[strategies/adaptive_dca]]"
 ---
 
@@ -63,7 +62,6 @@ OHLCV 캔들 데이터 배포. [[architecture#1. Market Data Collector|Market Da
 ```
 
 > [!note] 레짐별 전략 활성화
-> - `ranging` → [[strategies/grid_trading|그리드 트레이딩]] 활성화
 > - `trending_up/down` → [[strategies/funding_arb|펀딩비 차익거래]] 유지
 > - `volatile` → 전체 전략 축소
 
@@ -104,7 +102,6 @@ OHLCV 캔들 데이터 배포. [[architecture#1. Market Data Collector|Market Da
 
 > [!tip] 주문을 사용하는 전략
 > - [[strategies/funding_arb|펀딩비]]: 현물+선물 동시 주문
-> - [[strategies/grid_trading|그리드]]: 다수의 지정가 주문
 > - [[strategies/adaptive_dca|DCA]]: 시장가/지정가 매수 주문
 
 #### `order:result`
@@ -352,6 +349,5 @@ class MarketRegime(BaseModel):
 > - [[architecture|시스템 아키텍처]] — 서비스 구조 및 역할
 > - [[runbook|운영 매뉴얼]] — 인시던트 대응 및 문제 해결
 > - [[strategies/funding_arb|펀딩비 차익거래]] — 핵심 전략
-> - [[strategies/grid_trading|그리드 트레이딩]] — 보조 전략
 > - [[strategies/adaptive_dca|적응형 DCA]] — 보조 전략
 > - [[changelog|변경 이력]] — 버전별 변경사항

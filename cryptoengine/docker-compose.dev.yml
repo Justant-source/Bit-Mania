@@ -53,16 +53,6 @@ services:
     ports:
       - "5681:5678"   # debugpy
 
-  grid-trading:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/strategies/grid-trading/src:/app/src:ro
-    ports:
-      - "5682:5678"   # debugpy
-
   adaptive-dca:
     build:
       target: development

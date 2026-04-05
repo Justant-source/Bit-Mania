@@ -236,7 +236,6 @@ def _generate_llm_summary(
 - Sharpe 비율: {stats.get('sharpe_ratio', 0):.4f}
 - 거래 횟수: {stats.get('total_trades', 0)}
 - 펀딩비 수입: ${stats.get('funding_income', 0):,.2f}
-- 그리드 수입: ${stats.get('grid_income', 0):,.2f}
 - 승일/패일: {stats.get('win_days', 0)}/{stats.get('loss_days', 0)}
 - 거래일수: {stats.get('trading_days', 0)}
 """

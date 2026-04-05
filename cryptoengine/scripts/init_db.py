@@ -53,7 +53,6 @@ EXPECTED_TABLES = {
     "llm_judgments",
     "ohlcv_history",
     "funding_rate_history",
-    "grid_orders",
     "dca_purchases",
 }
 

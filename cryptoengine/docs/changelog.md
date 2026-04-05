@@ -10,7 +10,6 @@ aliases:
 related:
   - "[[architecture]]"
   - "[[strategies/funding_arb]]"
-  - "[[strategies/grid_trading]]"
   - "[[strategies/adaptive_dca]]"
 ---
 
@@ -67,7 +66,6 @@ related:
 
 #### 전략
 - **[[strategies/funding_arb|펀딩 레이트 차익거래]]**: 델타 중립 포지션 관리, Basis Spread State Machine, 펀딩비 추적
-- **[[strategies/grid_trading|그리드 트레이딩]]**: 기하급수/등차 그리드, 레짐 기반 활성화, 자동 리밸런싱
 - **[[strategies/adaptive_dca|적응형 DCA]]**: Fear & Greed 멀티플라이어, RSI/이동평균/변동성 기반 적응, 이익 실현 래더
 
 #### 오케스트레이터
@@ -125,13 +123,10 @@ related:
 
 #### 테스트
 - pytest 기반 테스트 스위트
-- 단위 테스트: 델타 중립, 그리드 계산, 레짐 감지, 리스크, Kill Switch, 주문 관리
 - 통합 테스트: Bybit 테스트넷, 실행 파이프라인, 펀딩 차익 E2E, 오케스트레이터 레짐
-- 백테스트: 펀딩 차익, 그리드 트레이딩, 복합 전략
 
 #### 문서
 - [[architecture|시스템 아키텍처 문서]]
-- 전략별 상세 문서 ([[strategies/funding_arb|펀딩 차익]], [[strategies/grid_trading|그리드 트레이딩]], [[strategies/adaptive_dca|적응형 DCA]])
 - [[runbook|운영 매뉴얼 (Runbook)]]
 - [[api|내부 API 문서]]
 - 변경 이력 (이 문서)

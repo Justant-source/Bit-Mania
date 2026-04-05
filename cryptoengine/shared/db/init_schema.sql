@@ -182,22 +182,6 @@ CREATE TABLE IF NOT EXISTS funding_rate_history (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_rate_lookup
     ON funding_rate_history(exchange, symbol, timestamp);
 
--- ──────────────── grid_orders ────────────────
-CREATE TABLE IF NOT EXISTS grid_orders (
-    id              BIGSERIAL PRIMARY KEY,
-    strategy_id     VARCHAR(50) NOT NULL,
-    grid_level      INTEGER NOT NULL,
-    side            VARCHAR(10) NOT NULL,
-    price           DECIMAL(20, 2) NOT NULL,
-    quantity        DECIMAL(20, 8) NOT NULL,
-    order_id        VARCHAR(100),
-    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    filled_at       TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_grid_orders_strategy ON grid_orders(strategy_id, status);
-
 -- ──────────────── dca_purchases ────────────────
 CREATE TABLE IF NOT EXISTS dca_purchases (
     id              BIGSERIAL PRIMARY KEY,

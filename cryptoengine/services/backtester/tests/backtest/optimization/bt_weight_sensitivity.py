@@ -54,18 +54,18 @@ START_DATE = "2023-04-01"
 END_DATE   = "2026-03-31"
 TEST_NAME  = "test_e_weight_sensitivity"
 
-# ── Stage 3 최적 가중치 기준 (FA, Grid, DCA, Cash) ───────────────────────────
-BASE_WEIGHTS: dict[str, tuple[float, float, float, float]] = {
-    "ranging":       (0.50, 0.00, 0.00, 0.50),
-    "trending_up":   (0.00, 0.00, 0.50, 0.50),
-    "trending_down": (0.00, 0.00, 0.00, 1.00),
-    "volatile":      (0.50, 0.00, 0.00, 0.50),
+# ── Stage 3 최적 가중치 기준 (FA, DCA, Cash) ────────────────────────────────
+BASE_WEIGHTS: dict[str, tuple[float, float, float]] = {
+    "ranging":       (0.50, 0.00, 0.50),
+    "trending_up":   (0.00, 0.50, 0.50),
+    "trending_down": (0.00, 0.00, 1.00),
+    "volatile":      (0.50, 0.00, 0.50),
 }
 
 # ── 레짐별 변동 테스트 정의 ──────────────────────────────────────────────────
 # 각 레짐에서 변동할 전략 인덱스와 5개 테스트 값
 #   (strategy_idx, test_values)
-#   strategy_idx: 0=FA, 1=Grid, 2=DCA, 3=Cash
+#   strategy_idx: 0=FA, 1=DCA, 2=Cash
 #   test_values: 활성 전략 비중 5개, Cash = 1 - active_weight (나머지 0 고정)
 REGIME_VARIATIONS: dict[str, dict[str, Any]] = {
     "ranging": {
@@ -111,33 +111,26 @@ def _build_weights_for_regime(
     regime: str,
     variation: dict[str, Any],
     active_value: float,
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float, float]:
     """레짐 기준 가중치에서 지정 전략 비중만 active_value로 변경, Cash = 1 - active_value."""
-    idx = variation["active_strategy_idx"]
-    # 기준 weights
-    fa, grid, dca, cash = BASE_WEIGHTS[regime]
-    weights = [fa, grid, dca, cash]
-
-    # 활성 전략 비중 변경
-    weights[idx] = active_value
-    # Cash = 1 - active_value (나머지 전략은 0으로 고정)
-    # (나머지 전략은 BASE_WEIGHTS에서 이미 0이라 가정하며, 합산 보정)
-    # 명시적으로 비활성 전략(grid 등)은 0으로 설정 후 cash 계산
     if regime in ("ranging", "volatile"):
-        # FA만 활성, Grid/DCA는 0
-        weights = [active_value, 0.0, 0.0, 1.0 - active_value]
+        # FA만 활성, DCA는 0
+        fa_w = active_value
+        dca_w = 0.0
     elif regime == "trending_up":
-        # DCA만 활성, FA/Grid는 0
-        weights = [0.0, 0.0, active_value, 1.0 - active_value]
+        # DCA만 활성, FA는 0
+        fa_w = 0.0
+        dca_w = active_value
     elif regime == "trending_down":
-        # FA 소량 투입, DCA/Grid는 0
-        weights = [active_value, 0.0, 0.0, 1.0 - active_value]
+        # FA 소량 투입, DCA는 0
+        fa_w = active_value
+        dca_w = 0.0
+    else:
+        fa_w = active_value
+        dca_w = 0.0
 
-    # cash >= 0 보정
-    if weights[3] < 0:
-        weights[3] = 0.0
-
-    return (weights[0], weights[1], weights[2], weights[3])
+    cash_w = max(0.0, 1.0 - fa_w - dca_w)
+    return (fa_w, dca_w, cash_w)
 
 
 async def save_sensitivity_result(

@@ -12,7 +12,6 @@ related:
   - "[[api]]"
   - "[[runbook]]"
   - "[[strategies/funding_arb]]"
-  - "[[strategies/grid_trading]]"
   - "[[strategies/adaptive_dca]]"
 ---
 
@@ -45,9 +44,9 @@ related:
     ┌──────▼──────┐   ┌──────▼──────┐
     │ Orchestrator│   │  Strategies │
     │  (Core)     │   │  ├ Funding  │
-    │  ├ Weight   │   │  ├ Grid     │
-    │  ├ Regime   │   │  └ DCA      │
-    │  └ Kill SW  │   └─────────────┘
+    │  ├ Weight   │   │  └ DCA      │
+    │  ├ Regime   │   └─────────────┘
+    │  └ Kill SW  │
     └──────┬──────┘
            │
     ┌──────▼──────┐   ┌─────────────┐
@@ -90,8 +89,6 @@ related:
 
 > [!important] 전략 가중치 배분
 > 오케스트레이터는 레짐에 따라 3개 전략의 자본 비중을 동적 조정합니다:
-> - `ranging` → [[strategies/grid_trading|그리드]] 비중 증가
-> - `trending` → [[strategies/funding_arb|펀딩비]] 비중 유지, 그리드 비활성화
 > - `volatile` → 현금 비중 증가, 전체 전략 축소
 
 ### 3. Execution Engine (`services/execution/`)
@@ -114,13 +111,7 @@ related:
 - 한쪽 체결 복구 로직 (3분 대기)
 - 재투자: 펀딩비 수익의 30%를 현물 BTC 매수로 자동 재투자
 
-#### 4b. [[strategies/grid_trading|Grid Trading]] (`services/strategies/grid-trading/`)
-- 횡보장에서 그리드 주문 배치 (**보조 전략**)
-- 기하급수/등차 그리드 지원
-- 변동성 기반 자동 활성화/비활성화
-- ATR 기반 그리드 범위 설정
-
-#### 4c. [[strategies/adaptive_dca|Adaptive DCA]] (`services/strategies/adaptive-dca/`)
+#### 4b. [[strategies/adaptive_dca|Adaptive DCA]] (`services/strategies/adaptive-dca/`)
 - Fear & Greed Index 기반 매수량 조절 (**보조 전략**)
 - RSI, 이동평균 이탈도, 변동성 기반 멀티플라이어
 - 이익 실현 래더 (15%/30%/50%/100% 수준)
@@ -248,6 +239,5 @@ cryptoengine/
 > - [[api|내부 API]] — Redis 채널, 메시지 포맷, REST 엔드포인트
 > - [[runbook|운영 매뉴얼]] — 시작/중지, 인시던트 대응, Kill Switch
 > - [[strategies/funding_arb|펀딩비 차익거래]] — 핵심 전략 상세
-> - [[strategies/grid_trading|그리드 트레이딩]] — 보조 전략 상세
 > - [[strategies/adaptive_dca|적응형 DCA]] — 보조 전략 상세
 > - [[changelog|변경 이력]] — 버전별 변경사항

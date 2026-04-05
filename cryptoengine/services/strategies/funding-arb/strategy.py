@@ -109,7 +109,12 @@ class FundingArbStrategy(BaseStrategy):
 
     async def on_start(self, capital: float, params: dict[str, Any]) -> None:
         """Initialise exchange connection and controllers."""
-        self._exchange = exchange_factory(self.exchange_id)
+        self._exchange = exchange_factory(
+            self.exchange_id,
+            api_key=os.environ.get("BYBIT_API_KEY", ""),
+            api_secret=os.environ.get("BYBIT_API_SECRET", ""),
+            testnet=os.environ.get("BYBIT_TESTNET", "true").lower() == "true",
+        )
         await self._exchange.connect()
 
         # Set isolated margin mode and leverage before any order placement
@@ -131,7 +136,6 @@ class FundingArbStrategy(BaseStrategy):
         self._funding_tracker = FundingTracker(
             strategy_id=self.strategy_id,
             symbol=self.perp_symbol,
-            redis=self._redis,
         )
         await self._funding_tracker.load_from_redis()
         self.register_controller("funding_tracker", self._funding_tracker)

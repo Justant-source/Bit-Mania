@@ -3,7 +3,7 @@
 ## 프로젝트 개요
 
 Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자동매매 시스템.
-**펀딩비 차익거래**를 핵심 전략으로, 그리드/DCA를 보조 전략으로 운영.
+**펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
 ## 현재 진행 상태 (2026-04-03 기준)
@@ -24,12 +24,11 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
 ```
 cryptoengine/
-├── docker-compose.yml          # 전체 스택 (12개 서비스)
+├── docker-compose.yml          # 전체 스택 (11개 서비스)
 ├── .env                        # API 키, DB 비밀번호 (git 제외)
 ├── config/
 │   ├── strategies/
 │   │   ├── funding-arb.yaml    # 펀딩비 전략 파라미터
-│   │   ├── grid-trading.yaml   # 그리드 전략 파라미터
 │   │   └── adaptive-dca.yaml   # DCA 전략 파라미터
 │   └── orchestrator.yaml       # 레짐별 가중치, Kill Switch 임계값
 ├── shared/                     # 모든 서비스 공유 라이브러리
@@ -46,7 +45,6 @@ cryptoengine/
     ├── strategies/
     │   ├── base_strategy.py    # BaseStrategy ABC (모든 전략 상속)
     │   ├── funding-arb/        # 핵심 전략: 델타 뉴트럴 + 펀딩비 수취
-    │   ├── grid-trading/       # 보조: 횡보 구간 그리드
     │   └── adaptive-dca/       # 보조: Fear&Greed 기반 적응형 DCA
     ├── llm-advisor/            # Claude Code 기반 시장 분석
     ├── telegram-bot/           # 알림 + 비상 명령
@@ -132,8 +130,6 @@ market-data collector.py의 `_on_trades()`에서 DB INSERT 제거됨.
 ### 8. 백테스터 스크립트
 - `scripts/seed_historical.py` — OHLCV + 펀딩비 히스토리 다운로드
 - `tests/backtest/bt_funding_arb.py` — 델타 뉴트럴 펀딩비 차익 백테스트
-- `tests/backtest/bt_grid.py` — EMA 필터 그리드 백테스트
-- `tests/backtest/bt_combined.py` — 복합 전략 (레짐 기반 가중치)
 - `scripts/phase4_health_check.py` — Phase 4 헬스체크 (8항목)
 
 ### 9. backtest_results 테이블

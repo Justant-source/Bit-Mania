@@ -11,7 +11,6 @@ aliases:
   - 펀딩비 차익거래
 related:
   - "[[architecture]]"
-  - "[[grid_trading]]"
   - "[[adaptive_dca]]"
   - "[[api]]"
   - "[[runbook]]"
@@ -28,7 +27,6 @@ related:
 무기한 선물(Perpetual Futures)의 펀딩레이트를 수취하기 위해 델타 중립(Delta-Neutral) 포지션을 유지하는 전략입니다. 현물 매수 + 무기한 선물 매도를 동시에 진행하여 방향성 리스크를 제거하고 펀딩비만 수취합니다.
 
 > [!tip] 다른 전략과의 관계
-> - [[grid_trading|그리드 트레이딩]]: 횡보장 보조 전략 (레짐이 `ranging`일 때 활성화)
 > - [[adaptive_dca|적응형 DCA]]: 장기 축적 보조 전략
 > - 전략 가중치는 [[architecture#2. Strategy Orchestrator|오케스트레이터]]가 레짐에 따라 동적 배분
 
@@ -187,6 +185,5 @@ Delta-neutral 포지션:
 > - [[architecture|시스템 아키텍처]] — 전체 서비스 구조
 > - [[api|내부 API]] — Redis 채널 및 메시지 포맷
 > - [[runbook|운영 매뉴얼]] — 인시던트 대응
-> - [[grid_trading|그리드 트레이딩]] — 횡보장 보조 전략
 > - [[adaptive_dca|적응형 DCA]] — 장기 축적 보조 전략
 > - [[changelog|변경 이력]] — 버전별 변경사항

@@ -35,7 +35,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-RedisPass2026!}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -125,29 +125,16 @@ services:
         condition: service_started
     environment:
       <<: *common-env
+      STRATEGY_ID: funding-arb-01
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
+      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
       interval: 60s
       timeout: 10s
       retries: 3
       start_period: 30s
-    volumes:
-      - ./config:/app/config:ro
-
-  grid-trading:
-    build:
-      context: .
-      dockerfile: services/strategies/grid-trading/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      market-data:
-        condition: service_started
-    environment:
-      <<: *common-env
     volumes:
       - ./config:/app/config:ro
 
@@ -165,6 +152,7 @@ services:
         condition: service_started
     environment:
       <<: *common-env
+      STRATEGY_ID: adaptive-dca-01
     volumes:
       - ./config:/app/config:ro
 
