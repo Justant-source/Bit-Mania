@@ -1,0 +1,376 @@
+{
+  "description": "Service Logs — 서비스별 구조화 로그 조회·분석",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"icon": "dashboard", "tags": [], "title": "System Health", "type": "link", "url": "/d/cryptoengine-health"},
+    {"icon": "dashboard", "tags": [], "title": "Main Cockpit", "type": "link", "url": "/d/cryptoengine-main"}
+  ],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "title": "로그 통계",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "선택 기간 내 총 로그 건수",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) as count FROM service_logs WHERE $__timeFilter(timestamp)",
+          "refId": "A"
+        }
+      ],
+      "title": "총 로그 수",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+      "id": 101,
+      "title": "로그 수 추이 및 에러 현황",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "5분 단위 레벨별 로그 수 추이",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "id": 2,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    $__timeGroup(timestamp,'5m') as \"time\",\n    level,\n    COUNT(*) as count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\nGROUP BY 1, level\nORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "로그 수 (레벨별)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "서비스별 ERROR/CRITICAL 로그 건수",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineWidth": 1,
+            "scaleDistribution": {"type": "linear"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "id": 3,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {"mode": "single", "sort": "none"},
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 200
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    service,\n    COUNT(*) as error_count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND level_no >= 40\nGROUP BY service\nORDER BY error_count DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "서비스별 에러 수",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+      "id": 102,
+      "title": "최근 ERROR / CRITICAL 로그",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "level_no >= 40 (ERROR, CRITICAL) 최근 50건",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "auto", "cellOptions": {"type": "auto"}}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Time"},
+            "properties": [
+              {"id": "custom.width", "value": 180},
+              {"id": "unit", "value": "time: YYYY-MM-DD HH:mm:ss"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Level"},
+            "properties": [
+              {"id": "custom.width", "value": 80},
+              {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+              {"id": "mappings", "value": [
+                {"options": {"ERROR":    {"color": "orange", "index": 0, "text": "ERROR"},
+                             "CRITICAL": {"color": "red",    "index": 1, "text": "CRITICAL"}},
+                 "type": "value"}
+              ]}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Stack Trace"},
+            "properties": [{"id": "custom.width", "value": 300}]
+          }
+        ]
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 15},
+      "id": 4,
+      "options": {"sortBy": [{"desc": true, "displayName": "Time"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    level as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    error_type as \"Error Type\",\n    error_stack as \"Stack Trace\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND level_no >= 40\n    AND ('$service' = 'All' OR service = '$service')\nORDER BY timestamp DESC\nLIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "최근 ERROR/CRITICAL 로그",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+      "id": 103,
+      "title": "이벤트 분석 및 전체 로그",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "이벤트명별 발생 빈도 Top 20",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "auto", "cellOptions": {"type": "auto"}}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Count"},
+            "properties": [
+              {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+              {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "blue", "value": null}, {"color": "green", "value": 10}, {"color": "orange", "value": 100}]}}
+            ]
+          }
+        ]
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 5,
+      "options": {"sortBy": [{"desc": true, "displayName": "Count"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    event as \"Event\",\n    COUNT(*) as \"Count\",\n    MAX(level) as \"Max Level\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\nGROUP BY event\nORDER BY 2 DESC\nLIMIT 20",
+          "refId": "A"
+        }
+      ],
+      "title": "이벤트 빈도 Top 20",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "전체 로그 상세 조회 (최신 500건)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "auto", "cellOptions": {"type": "auto"}}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Time"},
+            "properties": [
+              {"id": "custom.width", "value": 180},
+              {"id": "unit", "value": "time: YYYY-MM-DD HH:mm:ss"}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Level"},
+            "properties": [
+              {"id": "custom.width", "value": 80},
+              {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+              {"id": "mappings", "value": [
+                {"options": {
+                  "DEBUG":    {"color": "text",   "index": 0, "text": "DEBUG"},
+                  "INFO":     {"color": "green",  "index": 1, "text": "INFO"},
+                  "WARNING":  {"color": "yellow", "index": 2, "text": "WARNING"},
+                  "ERROR":    {"color": "orange", "index": 3, "text": "ERROR"},
+                  "CRITICAL": {"color": "red",    "index": 4, "text": "CRITICAL"}
+                }, "type": "value"}
+              ]}
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Context"},
+            "properties": [{"id": "custom.width", "value": 250}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Trace ID"},
+            "properties": [{"id": "custom.width", "value": 120}]
+          }
+        ]
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 32},
+      "id": 6,
+      "options": {"sortBy": [{"desc": true, "displayName": "Time"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    level as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    context::text as \"Context\",\n    error_type as \"Error Type\",\n    trace_id as \"Trace ID\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\n    AND ('$level' = 'All' OR level = '$level')\n    AND ('$event' = 'All' OR event = '$event')\nORDER BY timestamp DESC\nLIMIT 500",
+          "refId": "A"
+        }
+      ],
+      "title": "전체 로그 테이블",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["logs", "monitoring"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+        "definition": "SELECT DISTINCT service FROM service_logs ORDER BY service",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "multi": false,
+        "name": "service",
+        "options": [],
+        "query": "SELECT DISTINCT service FROM service_logs ORDER BY service",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {"selected": false, "text": "All", "value": "$__all"},
+        "hide": 0,
+        "includeAll": true,
+        "label": "Level",
+        "multi": false,
+        "name": "level",
+        "options": [
+          {"selected": true,  "text": "All",      "value": "$__all"},
+          {"selected": false, "text": "DEBUG",    "value": "DEBUG"},
+          {"selected": false, "text": "INFO",     "value": "INFO"},
+          {"selected": false, "text": "WARNING",  "value": "WARNING"},
+          {"selected": false, "text": "ERROR",    "value": "ERROR"},
+          {"selected": false, "text": "CRITICAL", "value": "CRITICAL"}
+        ],
+        "query": "All,DEBUG,INFO,WARNING,ERROR,CRITICAL",
+        "type": "custom"
+      },
+      {
+        "current": {},
+        "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+        "definition": "SELECT DISTINCT event FROM service_logs ORDER BY event",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Event",
+        "multi": false,
+        "name": "event",
+        "options": [],
+        "query": "SELECT DISTINCT event FROM service_logs ORDER BY event",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Service Logs",
+  "uid": "service-logs",
+  "version": 1
+}

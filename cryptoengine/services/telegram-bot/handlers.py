@@ -14,6 +14,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from formatters import format_alert, format_daily_report, format_pnl, format_position
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -69,10 +70,10 @@ class BotHandlers:
                 "\n".join(msg_parts),
                 parse_mode="Markdown",
             )
-            log.info("status_command_sent", chat_id=update.effective_chat.id)
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/status 명령 전송", chat_id=update.effective_chat.id)
 
         except Exception:
-            log.exception("status_command_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="/status 명령 실패")
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to fetch status. Check system logs."
             )
@@ -107,12 +108,13 @@ class BotHandlers:
                 parse_mode="Markdown",
             )
             log.warning(
-                "emergency_close_triggered",
+                KILL_SWITCH_TRIGGERED,
+                message="긴급 청산 발동",
                 triggered_by=update.effective_user.id if update.effective_user else "unknown",
             )
 
         except Exception:
-            log.exception("emergency_close_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="긴급 청산 실패")
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to trigger emergency close! Check system immediately."
             )
@@ -151,10 +153,10 @@ class BotHandlers:
                 f"_Use /status to confirm._",
                 parse_mode="Markdown",
             )
-            log.info("stop_command_sent", strategy_id=strategy_id)
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/stop 명령 전송", strategy_id=strategy_id)
 
         except Exception:
-            log.exception("stop_command_failed", strategy_id=strategy_id)
+            log.exception(SERVICE_HEALTH_FAIL, message="/stop 명령 실패", strategy_id=strategy_id)
             await update.message.reply_text(  # type: ignore[union-attr]
                 f"\u274c Failed to stop strategy `{strategy_id}`.",
                 parse_mode="Markdown",
@@ -204,10 +206,10 @@ class BotHandlers:
                 f"_Use /status to confirm._",
                 parse_mode="Markdown",
             )
-            log.info("start_command_sent", strategy_id=strategy_id)
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/start 명령 전송", strategy_id=strategy_id)
 
         except Exception:
-            log.exception("start_command_failed", strategy_id=strategy_id)
+            log.exception(SERVICE_HEALTH_FAIL, message="/start 명령 실패", strategy_id=strategy_id)
             await update.message.reply_text(  # type: ignore[union-attr]
                 f"\u274c Failed to start strategy `{strategy_id}`.",
                 parse_mode="Markdown",
@@ -261,10 +263,10 @@ class BotHandlers:
                 f"_Orchestrator will apply on next rebalance cycle._",
                 parse_mode="Markdown",
             )
-            log.info("weight_command_sent", strategy_id=strategy_id, weight_pct=weight_pct)
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/weight 명령 전송", strategy_id=strategy_id, weight_pct=weight_pct)
 
         except Exception:
-            log.exception("weight_command_failed", strategy_id=strategy_id)
+            log.exception(SERVICE_HEALTH_FAIL, message="/weight 명령 실패", strategy_id=strategy_id)
             await update.message.reply_text(  # type: ignore[union-attr]
                 f"\u274c Failed to set weight for `{strategy_id}`.",
                 parse_mode="Markdown",
@@ -287,10 +289,10 @@ class BotHandlers:
             await update.message.reply_text(  # type: ignore[union-attr]
                 msg, parse_mode="Markdown"
             )
-            log.info("report_command_sent", date=today)
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/report 명령 전송", date=today)
 
         except Exception:
-            log.exception("report_command_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="/report 명령 실패")
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to generate report. Check system logs."
             )
@@ -393,10 +395,10 @@ class BotHandlers:
                 "_Positions are retained. Use /resume_all to restart._",
                 parse_mode="Markdown",
             )
-            log.warning("pause_all_command_sent")
+            log.warning(TELEGRAM_COMMAND_RECEIVED, message="/pause_all 명령 전송")
 
         except Exception:
-            log.exception("pause_all_command_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="/pause_all 명령 실패")
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to pause strategies. Check system logs."
             )
@@ -430,10 +432,10 @@ class BotHandlers:
                 "_Orchestrator will re-issue capital allocation on next cycle._",
                 parse_mode="Markdown",
             )
-            log.info("resume_all_command_sent")
+            log.info(TELEGRAM_COMMAND_RECEIVED, message="/resume_all 명령 전송")
 
         except Exception:
-            log.exception("resume_all_command_failed")
+            log.exception(SERVICE_HEALTH_FAIL, message="/resume_all 명령 실패")
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to resume strategies. Check system logs."
             )
@@ -454,6 +456,6 @@ class BotHandlers:
                 text=msg,
                 parse_mode="Markdown",
             )
-            log.info("alert_dispatched", alert_type=alert_type)
+            log.info(TELEGRAM_NOTIFICATION_SENT, message="알림 전송 완료", alert_type=alert_type)
         except Exception:
-            log.exception("alert_dispatch_failed", alert_type=alert_type)
+            log.exception(SERVICE_HEALTH_FAIL, message="알림 전송 실패", alert_type=alert_type)

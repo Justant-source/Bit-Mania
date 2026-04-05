@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 
 import structlog
 
+from shared.log_events import *
+
 logger = structlog.get_logger()
 
 
@@ -88,7 +90,8 @@ class BasisSpreadStateMachine:
         if self.state == BasisState.CLOSED:
             if basis_spread >= self.min_divergence:
                 self._log.info(
-                    "basis_entry_signal",
+                    FA_ENTRY_CONDITION_MET,
+                    message="베이시스 진입 신호",
                     spread=round(basis_spread * 100, 4),
                     threshold=round(self.min_divergence * 100, 4),
                 )
@@ -98,7 +101,8 @@ class BasisSpreadStateMachine:
         # State is OPENED
         if basis_spread <= self.min_convergence:
             self._log.info(
-                "basis_exit_profit",
+                STRATEGY_SIGNAL,
+                message="베이시스 수렴, 익절 종료",
                 spread=round(basis_spread * 100, 4),
                 threshold=round(self.min_convergence * 100, 4),
             )
@@ -106,7 +110,8 @@ class BasisSpreadStateMachine:
 
         if basis_spread >= self.max_divergence:
             self._log.warning(
-                "basis_exit_risk",
+                STRATEGY_CIRCUIT_BREAKER,
+                message="베이시스 과도 확대, 리스크 종료",
                 spread=round(basis_spread * 100, 4),
                 threshold=round(self.max_divergence * 100, 4),
             )
@@ -124,7 +129,7 @@ class BasisSpreadStateMachine:
         self.state = BasisState.OPENED
         self._entry_time = datetime.now(timezone.utc)
         self.pnl = BasisPnL(entry_spread=entry_spread)
-        self._log.info("state_transition", from_state="closed", to_state="opened")
+        self._log.info(FA_POSITION_OPENED, message="상태 전환: closed → opened")
 
     def exit_position(self, exit_spread: float) -> BasisPnL:
         """Transition from OPENED -> CLOSED and finalize P&L.
@@ -140,9 +145,8 @@ class BasisSpreadStateMachine:
         self.state = BasisState.CLOSED
 
         self._log.info(
-            "state_transition",
-            from_state="opened",
-            to_state="closed",
+            FA_POSITION_CLOSED,
+            message="상태 전환: opened → closed",
             basis_pnl=round(self.pnl.basis_pnl * 100, 4),
             funding_pnl=round(self.pnl.funding_pnl, 6),
             total_pnl=round(self.pnl.total_pnl, 6),

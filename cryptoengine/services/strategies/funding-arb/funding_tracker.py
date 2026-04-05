@@ -17,6 +17,7 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
 from shared.redis_client import get_redis
 
 logger = structlog.get_logger()
@@ -137,7 +138,8 @@ class FundingTracker:
         )
 
         self._log.info(
-            "funding_payment_recorded",
+            FA_FUNDING_COLLECTED,
+            message="펀딩비 수취 기록",
             rate=rate,
             payment=payment,
             cumulative=self._cumulative_income,
@@ -183,7 +185,8 @@ class FundingTracker:
             self._cumulative_income += fp.payment
 
         self._log.info(
-            "funding_history_loaded",
+            SERVICE_STARTED,
+            message="펀딩 히스토리 로드 완료",
             count=len(self._payments),
             cumulative=self._cumulative_income,
         )

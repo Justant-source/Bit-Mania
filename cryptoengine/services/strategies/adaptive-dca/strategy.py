@@ -25,6 +25,8 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
+
 # Allow import of base_strategy from parent directory
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -100,7 +102,8 @@ class AdaptiveDCAStrategy(BaseStrategy):
         self.register_controller("scheduler", self._scheduler)
 
         self._log.info(
-            "strategy_started",
+            STRATEGY_STARTED,
+            message="적응형 DCA 전략 시작",
             capital=capital,
             symbol=self.symbol,
             btc_held=self._btc_held,
@@ -110,12 +113,12 @@ class AdaptiveDCAStrategy(BaseStrategy):
 
     async def on_stop(self, reason: str) -> None:
         """Disconnect exchange."""
-        self._log.info("strategy_stopping", reason=reason)
+        self._log.info(SERVICE_STOPPING, message="전략 종료 중", reason=reason)
 
         if self._exchange:
             await self._exchange.disconnect()
 
-        self._log.info("strategy_stopped", reason=reason)
+        self._log.info(STRATEGY_STOPPED, message="전략 종료 완료", reason=reason)
 
     async def get_status(self) -> StrategyStatus:
         return StrategyStatus(
@@ -129,7 +132,8 @@ class AdaptiveDCAStrategy(BaseStrategy):
     async def _rebalance(self, new_capital: float) -> None:
         """Base amount recalculates automatically from allocated_capital."""
         self._log.info(
-            "capital_updated",
+            STRATEGY_REBALANCE,
+            message="자본 업데이트",
             new_capital=new_capital,
             new_base_amount=new_capital * self.base_amount_pct,
         )
@@ -158,7 +162,8 @@ class AdaptiveDCAStrategy(BaseStrategy):
             return
 
         self._log.info(
-            "dca_tick",
+            STRATEGY_TICK,
+            message="DCA 틱 실행",
             fng_index=fng_index,
             action=str(action),
             current_price=current_price,
@@ -166,7 +171,7 @@ class AdaptiveDCAStrategy(BaseStrategy):
         )
 
         if action == "skip":
-            self._log.info("dca_skipped_greed", fng_index=fng_index)
+            self._log.info(DCA_MULTIPLIER_CALC, message="공포탐욕 탐욕 구간, DCA 스킵", fng_index=fng_index)
             # Record a "skip" so we don't retry this week
             await self._scheduler.record_purchase(
                 price=current_price,
@@ -211,7 +216,8 @@ class AdaptiveDCAStrategy(BaseStrategy):
         quantity = buy_amount / limit_price
 
         self._log.info(
-            "dca_buy",
+            DCA_PURCHASE,
+            message="DCA 매수 주문",
             fng_index=fng_index,
             multiplier=multiplier,
             buy_amount_usd=round(buy_amount, 2),
@@ -250,7 +256,7 @@ class AdaptiveDCAStrategy(BaseStrategy):
         assert self._scheduler is not None
 
         if self._btc_held <= 0:
-            self._log.info("dca_sell_skipped_no_holdings")
+            self._log.info(DCA_MULTIPLIER_CALC, message="DCA 매도 스킵: 보유 없음")
             await self._scheduler.record_purchase(
                 price=current_price,
                 quantity=0.0,
@@ -262,7 +268,8 @@ class AdaptiveDCAStrategy(BaseStrategy):
         sell_qty = self._btc_held * self.sell_fraction
 
         self._log.info(
-            "dca_sell",
+            DCA_TAKE_PROFIT,
+            message="DCA 익절 매도 (극단 탐욕)",
             fng_index=fng_index,
             sell_qty=sell_qty,
             total_held=self._btc_held,

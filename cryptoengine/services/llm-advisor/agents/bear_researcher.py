@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from services.llm_advisor.model_manager import ModelManager
+from shared.log_events import *
 from services.llm_advisor.prompt_templates.debate_prompts import BEAR_PROMPT
 
 log = structlog.get_logger(__name__)
@@ -41,10 +42,11 @@ class BearResearcher:
         result = await self._mm.invoke(prompt, context)
         if result:
             log.info(
-                "bear_research_complete",
+                LLM_ANALYSIS_COMPLETE,
+                message="약세 연구 완료",
                 thesis=result.get("thesis", "")[:80],
                 confidence=result.get("confidence"),
             )
         else:
-            log.warning("bear_research_failed")
+            log.warning(LLM_API_ERROR, message="약세 연구 실패")
         return result

@@ -13,6 +13,8 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 _JUDGMENT_KEY_PREFIX = "llm:judgment:"
@@ -56,11 +58,11 @@ class DailyReflection:
         """Full daily review: collect → compare → store."""
         today = datetime.now(timezone.utc).date()
         yesterday = today - timedelta(days=1)
-        log.info("daily_reflection_started", date=str(yesterday))
+        log.info(LLM_ANALYSIS_START, message="일일 반성 시작", date=str(yesterday))
 
         judgments = await self.collect_judgments(yesterday)
         if not judgments:
-            log.info("daily_reflection_no_judgments", date=str(yesterday))
+            log.info(LLM_ANALYSIS_COMPLETE, message="일일 반성 판단 없음", date=str(yesterday))
             return
 
         results = await self.compare_with_outcomes(judgments, yesterday)
@@ -68,7 +70,8 @@ class DailyReflection:
 
         success_count = sum(1 for r in results if r["label"] == "success")
         log.info(
-            "daily_reflection_complete",
+            LLM_ANALYSIS_COMPLETE,
+            message="일일 반성 완료",
             date=str(yesterday),
             total=len(results),
             successes=success_count,
@@ -102,11 +105,11 @@ class DailyReflection:
                     try:
                         judgments.append(json.loads(raw))
                     except json.JSONDecodeError:
-                        log.warning("invalid_judgment_json", key=key)
+                        log.warning(LLM_API_ERROR, message="잘못된 판단 JSON", key=key)
             if cursor == "0" or cursor == 0:
                 break
 
-        log.debug("judgments_collected", date=date_str, count=len(judgments))
+        log.debug(LLM_ANALYSIS_START, message="판단 수집 완료", date=date_str, count=len(judgments))
         return judgments
 
     async def compare_with_outcomes(
@@ -120,13 +123,13 @@ class DailyReflection:
         raw_outcome = await self._redis.get(outcome_key)
 
         if not raw_outcome:
-            log.warning("no_market_outcome_data", date=date_str)
+            log.warning(LLM_API_ERROR, message="시장 결과 데이터 없음", date=date_str)
             return []
 
         try:
             outcome = json.loads(raw_outcome)
         except json.JSONDecodeError:
-            log.warning("invalid_outcome_json", date=date_str)
+            log.warning(LLM_API_ERROR, message="잘못된 결과 JSON", date=date_str)
             return []
 
         actual_direction = _determine_direction(outcome)
@@ -208,7 +211,7 @@ class DailyReflection:
             ex=7 * 86400,
         )
 
-        log.info("reflection_results_stored", date=date_str, count=len(results))
+        log.info(LLM_ANALYSIS_COMPLETE, message="반성 결과 저장 완료", date=date_str, count=len(results))
 
 
 # ------------------------------------------------------------------

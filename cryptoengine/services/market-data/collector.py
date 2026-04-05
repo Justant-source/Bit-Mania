@@ -24,6 +24,8 @@ import structlog
 import websockets
 import websockets.exceptions
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ class MarketDataCollector:
 
     async def run(self, shutdown: asyncio.Event) -> None:
         """Top-level loop: run WS + REST pollers concurrently."""
-        log.info("collector_starting", symbol=self.symbol)
+        log.info(SERVICE_STARTED, message="collector starting", symbol=self.symbol)
         tasks = [
             asyncio.create_task(self._ws_loop(shutdown), name="ws_loop"),
             asyncio.create_task(self._rest_poll_loop(shutdown, self._poll_open_interest, REST_POLL_INTERVAL_OI), name="poll_oi"),
@@ -92,7 +94,7 @@ class MarketDataCollector:
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            log.info("collector_stopped")
+            log.info(SERVICE_STOPPED, message="collector stopped")
 
     # ------------------------------------------------------------------
     # WebSocket
@@ -111,7 +113,7 @@ class MarketDataCollector:
                 ) as ws:
                     self._reconnect_delay = BASE_RECONNECT_DELAY
                     await self._subscribe(ws)
-                    log.info("ws_connected", url=self._ws_url)
+                    log.info(MARKET_WS_CONNECTED, message="WebSocket connected", url=self._ws_url)
 
                     async for raw in ws:
                         if shutdown.is_set():
@@ -124,7 +126,7 @@ class MarketDataCollector:
                 ConnectionRefusedError,
                 OSError,
             ) as exc:
-                log.warning("ws_disconnected", error=str(exc), reconnect_in=self._reconnect_delay)
+                log.warning(MARKET_WS_DISCONNECTED, message="WebSocket disconnected", error=str(exc), reconnect_in=self._reconnect_delay)
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(self._reconnect_delay * 2, MAX_RECONNECT_DELAY)
             except asyncio.CancelledError:
@@ -132,7 +134,8 @@ class MarketDataCollector:
             except Exception:
                 exc_type, exc_val, _ = sys.exc_info()
                 log.error(
-                    "ws_unexpected_error",
+                    MARKET_WS_RECONNECTING,
+                    message="WebSocket unexpected error, reconnecting",
                     exc=str(exc_val),
                     exc_type=exc_type.__name__ if exc_type else "Unknown",
                 )
@@ -158,20 +161,20 @@ class MarketDataCollector:
 
         subscribe_msg = {"op": "subscribe", "args": topics}
         await ws.send(json.dumps(subscribe_msg))
-        log.info("ws_subscribed", topics=topics)
+        log.info(MARKET_WS_CONNECTED, message="WebSocket subscribed", topics=topics)
 
     async def _handle_message(self, raw: str | bytes) -> None:
         """Route incoming WS messages to the appropriate handler."""
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
-            log.warning("ws_invalid_json", raw=raw[:200])
+            log.warning(MARKET_WS_RECONNECTING, message="invalid JSON from WebSocket", raw=raw[:200])
             return
 
         # Pong / subscription confirmations
         if "op" in data:
             if data.get("success") is False:
-                log.error("ws_subscription_failed", data=data)
+                log.error(MARKET_WS_RECONNECTING, message="WebSocket subscription failed", data=data)
             return
 
         topic: str | None = data.get("topic")
@@ -220,7 +223,7 @@ class MarketDataCollector:
                 side = t["S"].lower()
                 ts_ms = int(t["T"])
             except (KeyError, ValueError, TypeError) as exc:
-                log.warning("trades_parse_error", exc=str(exc), raw=str(t)[:200])
+                log.warning(MARKET_TICKER_RECEIVED, message="trades parse error", exc=str(exc), raw=str(t)[:200])
                 continue
             trade_msg = {
                 "exchange": self.exchange,
@@ -237,7 +240,7 @@ class MarketDataCollector:
         # topic format: kline.{interval}.{symbol}
         parts = topic.split(".")
         if len(parts) < 2:
-            log.warning("kline_invalid_topic", topic=topic)
+            log.warning(MARKET_OHLCV_STORED, message="invalid kline topic", topic=topic)
             return
         bybit_tf = parts[1]
         tf = TF_MAP.get(bybit_tf, bybit_tf)
@@ -252,7 +255,7 @@ class MarketDataCollector:
                 volume = float(c["volume"])
                 ts_ms = int(c["start"])
             except (KeyError, ValueError, TypeError) as exc:
-                log.warning("kline_parse_error", exc=str(exc), raw=str(c)[:200])
+                log.warning(MARKET_OHLCV_STORED, message="kline parse error", exc=str(exc), raw=str(c)[:200])
                 continue
             confirmed = c.get("confirm", False)
             ohlcv = {
@@ -353,7 +356,7 @@ class MarketDataCollector:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("rest_poll_error", poller=poller_fn.__name__)
+                log.exception(SERVICE_HEALTH_FAIL, message="REST poll error", poller=poller_fn.__name__)
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=interval)
                 break
@@ -370,7 +373,7 @@ class MarketDataCollector:
                 data = await resp.json()
 
         if data.get("retCode") != 0:
-            log.warning("oi_api_error", response=data)
+            log.warning(SERVICE_HEALTH_FAIL, message="OI API error", response=data)
             return
 
         records = data.get("result", {}).get("list", [])
@@ -390,7 +393,7 @@ class MarketDataCollector:
             "open_interest": str(oi.get("openInterest", "")),
             "ts": str(oi.get("timestamp", "")),
         })
-        log.debug("oi_polled", open_interest=oi.get("openInterest"))
+        log.debug(MARKET_TICKER_RECEIVED, message="OI polled", open_interest=oi.get("openInterest"))
 
     async def _poll_long_short_ratio(self) -> None:
         """Fetch global long/short ratio from Bybit."""
@@ -402,7 +405,7 @@ class MarketDataCollector:
                 data = await resp.json()
 
         if data.get("retCode") != 0:
-            log.warning("ratio_api_error", response=data)
+            log.warning(SERVICE_HEALTH_FAIL, message="long/short ratio API error", response=data)
             return
 
         records = data.get("result", {}).get("list", [])
@@ -419,7 +422,7 @@ class MarketDataCollector:
             "ts": ratio.get("timestamp"),
         }
         await self.redis.publish(channel, json.dumps(msg))
-        log.debug("long_short_ratio_polled", buy_ratio=ratio.get("buyRatio"))
+        log.debug(MARKET_TICKER_RECEIVED, message="long/short ratio polled", buy_ratio=ratio.get("buyRatio"))
 
     async def _poll_liquidations(self) -> None:
         """Fetch recent liquidation data via Bybit's dedicated liquidation endpoint."""
@@ -445,7 +448,7 @@ class MarketDataCollector:
                 for item in liq_list
             ]
         except Exception as exc:
-            log.warning("liquidation_fetch_error", exc=str(exc))
+            log.warning(SERVICE_HEALTH_FAIL, message="liquidation fetch error", exc=str(exc))
             liq_trades = []
 
         if not liq_trades:
@@ -463,4 +466,4 @@ class MarketDataCollector:
             }
             await self.redis.publish(channel, json.dumps(msg))
 
-        log.debug("liquidations_polled", count=len(liq_trades))
+        log.debug(MARKET_TICKER_RECEIVED, message="liquidations polled", count=len(liq_trades))

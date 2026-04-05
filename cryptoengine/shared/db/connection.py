@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import logging
 import os
 
 import asyncpg
+import structlog
 
-logger = logging.getLogger(__name__)
+from shared.log_events import DB_POOL_CLOSED, DB_POOL_CREATED, DB_QUERY_SLOW
+
+log = structlog.get_logger(__name__)
 
 _pool: asyncpg.Pool | None = None
 
@@ -36,7 +38,7 @@ async def create_pool(
         max_size=max_size,
         command_timeout=30,
     )
-    logger.info("asyncpg pool created (min=%d, max=%d)", min_size, max_size)
+    log.info(DB_POOL_CREATED, message="DB 커넥션 풀 생성", min_size=min_size, max_size=max_size)
     return _pool
 
 
@@ -55,4 +57,4 @@ async def close_pool() -> None:
     if _pool is not None:
         await _pool.close()
         _pool = None
-        logger.info("asyncpg pool closed")
+        log.info(DB_POOL_CLOSED, message="DB 커넥션 풀 종료")

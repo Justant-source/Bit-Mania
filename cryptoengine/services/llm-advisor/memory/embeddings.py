@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 _DEFAULT_MODEL = "all-MiniLM-L6-v2"
@@ -33,9 +35,9 @@ class EmbeddingModel:
 
         from sentence_transformers import SentenceTransformer
 
-        log.info("loading_embedding_model", model=self._model_name)
+        log.info(LLM_ANALYSIS_START, message="임베딩 모델 로딩 중", model=self._model_name)
         self._model = SentenceTransformer(self._model_name)
-        log.info("embedding_model_loaded", model=self._model_name)
+        log.info(LLM_ANALYSIS_COMPLETE, message="임베딩 모델 로드 완료", model=self._model_name)
         return self._model
 
     # ------------------------------------------------------------------

@@ -17,6 +17,8 @@ from typing import Any, TypedDict
 import structlog
 from langgraph.graph import END, StateGraph
 
+from shared.log_events import *
+
 from services.llm_advisor.agents.bear_researcher import BearResearcher
 from services.llm_advisor.agents.bull_researcher import BullResearcher
 from services.llm_advisor.agents.risk_manager import RiskManager
@@ -97,13 +99,14 @@ class TradingAnalysisGraph:
                 decision["_debate_conclusion"] = final_state.get("debate_conclusion", {})
                 decision["_risk_assessment"] = final_state.get("risk_assessment", {})
                 log.info(
-                    "analysis_graph_complete",
+                    LLM_ANALYSIS_COMPLETE,
+                    message="분석 그래프 완료",
                     rating=decision.get("rating"),
                     confidence=decision.get("confidence"),
                 )
             return decision
         except Exception:
-            log.exception("analysis_graph_error")
+            log.exception(LLM_API_ERROR, message="분석 그래프 오류")
             return None
 
     # ------------------------------------------------------------------

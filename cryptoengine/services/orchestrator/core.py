@@ -26,6 +26,7 @@ from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
 from shared.kill_switch import KillLevel, KillSwitch
 from shared.models.strategy import StrategyCommand
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -87,7 +88,7 @@ class StrategyOrchestrator:
         redis_url = self._config.get("redis", {}).get("url", "redis://localhost:6379")
         self._redis = aioredis.from_url(redis_url, decode_responses=True)
         await self._redis.ping()
-        log.info("redis_connected", url=redis_url)
+        log.info(REDIS_CONNECTED, message="redis connected", url=redis_url)
 
         pg_dsn = self._config.get("postgres", {}).get("dsn")
         self._portfolio_monitor = PortfolioMonitor(self._redis, pg_dsn)
@@ -111,7 +112,7 @@ class StrategyOrchestrator:
         self._watchdog_task = asyncio.create_task(
             self._watchdog_loop(), name="service-watchdog"
         )
-        log.info("orchestrator_started", interval=self._loop_interval)
+        log.info(SERVICE_STARTED, message="orchestrator started", interval=self._loop_interval)
 
     async def stop(self) -> None:
         """Gracefully shut down the orchestrator."""
@@ -136,7 +137,7 @@ class StrategyOrchestrator:
             await self._portfolio_monitor.stop()
         if self._redis:
             await self._redis.aclose()
-        log.info("orchestrator_stopped")
+        log.info(SERVICE_STOPPED, message="orchestrator stopped")
 
     async def _run_loop(self) -> None:
         """Main orchestration loop executing every 5 minutes."""
@@ -146,17 +147,17 @@ class StrategyOrchestrator:
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("orchestration_cycle_error")
+                log.exception(ORCH_CYCLE_START, message="orchestration cycle error")
             await asyncio.sleep(self._loop_interval)
 
     async def _orchestration_cycle(self) -> None:
         """Single orchestration cycle."""
-        log.info("orchestration_cycle_start")
+        log.info(ORCH_CYCLE_START, message="orchestration cycle start")
 
         # 1. Receive market regime
         regime = await self._get_market_regime()
         self._current_regime = regime
-        log.info("regime_detected", regime=regime)
+        log.info(MARKET_REGIME_CHANGED, message="regime detected", regime=regime)
 
         # 2. Adjust strategy weights based on regime
         target_weights = self._weight_manager.get_target_weights(regime)
@@ -164,14 +165,15 @@ class StrategyOrchestrator:
             self._current_weights, target_weights
         )
         self._current_weights = smoothed_weights
-        log.info("weights_updated", weights=smoothed_weights, regime=regime)
+        log.info(ORCH_WEIGHT_CHANGED, message="weights updated", weights=smoothed_weights, regime=regime)
 
         # 3. Evaluate portfolio risk
         assert self._portfolio_monitor is not None
         portfolio_state = await self._portfolio_monitor.evaluate()
         self._total_equity = portfolio_state.total_equity
         log.info(
-            "portfolio_evaluated",
+            ORCH_CAPITAL_ALLOCATED,
+            message="portfolio evaluated",
             equity=portfolio_state.total_equity,
             daily_dd=portfolio_state.daily_drawdown,
             weekly_dd=portfolio_state.weekly_drawdown,
@@ -186,7 +188,8 @@ class StrategyOrchestrator:
         )
         if active_level > KillLevel.NONE:
             log.critical(
-                "kill_switch_triggered",
+                KILL_SWITCH_TRIGGERED,
+                message="kill switch triggered",
                 level=active_level.name,
                 reason=self._kill_switch.reason,
                 equity=portfolio_state.total_equity,
@@ -196,7 +199,7 @@ class StrategyOrchestrator:
 
         # If kill switch is still cooling down, skip allocations
         if self._kill_switch.is_triggered:
-            log.warning("kill_switch_cooldown", triggered_at=self._kill_switch.triggered_at)
+            log.warning(KILL_SWITCH_COOLDOWN, message="kill switch cooldown", triggered_at=self._kill_switch.triggered_at)
             return
 
         # 5. Issue capital allocation commands
@@ -204,7 +207,7 @@ class StrategyOrchestrator:
 
         # Cache current state in Redis
         await self._cache_orchestrator_state()
-        log.info("orchestration_cycle_complete")
+        log.info(ORCH_CYCLE_START, message="orchestration cycle complete")
 
     async def _get_market_regime(self) -> RegimeType:
         """Retrieve current market regime from Redis or ML model."""
@@ -217,14 +220,14 @@ class StrategyOrchestrator:
 
                 # Check dissimilarity index
                 if self._di_index and self._di_index.is_uncertain():
-                    log.warning("di_threshold_exceeded", regime="uncertain")
+                    log.warning(MARKET_REGIME_CHANGED, message="di threshold exceeded", regime="uncertain")
                     return "uncertain"
 
                 if confidence > 0.3:
                     return ml_regime
-                log.warning("ml_regime_low_confidence", confidence=confidence)
+                log.warning(MARKET_REGIME_CHANGED, message="ml regime low confidence", confidence=confidence)
             except Exception:
-                log.exception("ml_regime_prediction_failed")
+                log.exception(MARKET_REGIME_CHANGED, message="ml regime prediction failed")
 
         # Fallback: read from Redis (set by market-data service)
         raw = await self._redis.get("market:regime:current")
@@ -233,7 +236,7 @@ class StrategyOrchestrator:
                 data = json.loads(raw)
                 return data.get("regime", "ranging")
             except (json.JSONDecodeError, KeyError):
-                log.warning("invalid_regime_data", raw=raw)
+                log.warning(MARKET_REGIME_CHANGED, message="invalid regime data", raw=raw)
 
         return "ranging"
 
@@ -274,7 +277,7 @@ class StrategyOrchestrator:
                 params={"reason": "kill_switch"},
             )
             await self._redis.publish(channel, cmd.model_dump_json())
-            log.info("kill_switch_halt_sent", strategy=strategy_id)
+            log.info(KILL_SWITCH_TRIGGERED, message="kill switch halt sent", strategy=strategy_id)
 
         cooldown_min = self._kill_switch_config.get("cooldown_minutes", 60)
 
@@ -323,7 +326,8 @@ class StrategyOrchestrator:
             capped = min(total_equity, float(max_capital_usd))
             if capped < total_equity:
                 log.info(
-                    "capital_capped",
+                    ORCH_CAPITAL_ALLOCATED,
+                    message="capital capped",
                     actual_equity=total_equity,
                     cap=max_capital_usd,
                     deployed=capped,
@@ -358,7 +362,8 @@ class StrategyOrchestrator:
                 weight = weight * multiplier
                 if multiplier < 1.0:
                     log.warning(
-                        "drawdown_size_reduction",
+                        ORCH_DRAWDOWN_WARNING,
+                        message="drawdown size reduction",
                         strategy=strategy_id,
                         drawdown_pct=round(max_dd * 100, 2),
                         multiplier=multiplier,
@@ -376,7 +381,8 @@ class StrategyOrchestrator:
             )
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info(
-                "allocation_issued",
+                ORCH_CAPITAL_ALLOCATED,
+                message="allocation issued",
                 strategy=strategy_id,
                 weight=weight,
                 capital=allocated,
@@ -388,7 +394,7 @@ class StrategyOrchestrator:
 
         llm_cfg = self._config.get("llm_advisor", {})
         if not llm_cfg.get("enabled", True):
-            log.info("llm_advisor_disabled")
+            log.info(LLM_ANALYSIS_START, message="llm advisor disabled")
             return
 
         channel = llm_cfg.get("redis_channel", "llm:advisory")
@@ -397,7 +403,7 @@ class StrategyOrchestrator:
 
         pubsub = self._redis.pubsub()
         await pubsub.subscribe(channel)
-        log.info("llm_advisory_subscribed", channel=channel)
+        log.info(LLM_ANALYSIS_START, message="llm advisory subscribed", channel=channel)
 
         try:
             async for message in pubsub.listen():
@@ -410,7 +416,8 @@ class StrategyOrchestrator:
                     confidence = advisory.get("confidence", 0.0)
                     if confidence < min_confidence:
                         log.info(
-                            "llm_advisory_skipped_low_confidence",
+                            LLM_ANALYSIS_COMPLETE,
+                            message="llm advisory skipped low confidence",
                             confidence=confidence,
                         )
                         continue
@@ -420,12 +427,13 @@ class StrategyOrchestrator:
                         adjustments, max_adj, confidence
                     )
                     log.info(
-                        "llm_advisory_applied",
+                        LLM_WEIGHT_SUGGESTION,
+                        message="llm advisory applied",
                         confidence=confidence,
                         adjustments=adjustments,
                     )
                 except (json.JSONDecodeError, KeyError):
-                    log.warning("invalid_llm_advisory", data=message.get("data"))
+                    log.warning(LLM_API_ERROR, message="invalid llm advisory", data=message.get("data"))
         except asyncio.CancelledError:
             pass
         finally:
@@ -484,14 +492,15 @@ class StrategyOrchestrator:
                         if raw is None:
                             dead_services.append(service)
                             log.warning(
-                                "heartbeat_missing",
+                                SERVICE_HEALTH_FAIL,
+                                message="heartbeat missing",
                                 service=service,
                                 timeout_seconds=self._heartbeat_timeout_seconds,
                             )
                         else:
-                            log.debug("heartbeat_ok", service=service)
+                            log.debug(SERVICE_HEALTH_OK, message="heartbeat ok", service=service)
                     except Exception:
-                        log.warning("heartbeat_check_failed", service=service)
+                        log.warning(SERVICE_HEALTH_FAIL, message="heartbeat check failed", service=service)
 
                 # 전략 서비스 상태 키 확인
                 for service, key in strategy_key_map.items():
@@ -500,20 +509,22 @@ class StrategyOrchestrator:
                         if raw is None:
                             dead_services.append(service)
                             log.warning(
-                                "heartbeat_missing",
+                                SERVICE_HEALTH_FAIL,
+                                message="heartbeat missing",
                                 service=service,
                                 timeout_seconds=90,
                             )
                         else:
-                            log.debug("heartbeat_ok", service=service)
+                            log.debug(SERVICE_HEALTH_OK, message="heartbeat ok", service=service)
                     except Exception:
-                        log.warning("heartbeat_check_failed", service=service)
+                        log.warning(SERVICE_HEALTH_FAIL, message="heartbeat check failed", service=service)
 
                 # 핵심 서비스(execution-engine)가 죽은 경우 kill switch 발동
                 critical_dead = [s for s in dead_services if s == "execution-engine"]
                 if critical_dead:
                     log.critical(
-                        "dead_mans_switch_triggered",
+                        ORCH_DEAD_MAN_SWITCH,
+                        message="dead man's switch triggered",
                         dead_services=critical_dead,
                         action="triggering_kill_switch",
                     )
@@ -535,7 +546,8 @@ class StrategyOrchestrator:
                 elif dead_services:
                     # 비핵심 서비스 경고만
                     log.warning(
-                        "non_critical_services_missing_heartbeat",
+                        SERVICE_HEALTH_FAIL,
+                        message="non-critical services missing heartbeat",
                         dead_services=dead_services,
                     )
                     await self._redis.set(
@@ -561,7 +573,7 @@ class StrategyOrchestrator:
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("watchdog_loop_error")
+                log.exception(SERVICE_HEALTH_FAIL, message="watchdog loop error")
 
     # ------------------------------------------------------------------
     # Config hot-reload (7.5 개선사항)
@@ -589,14 +601,14 @@ class StrategyOrchestrator:
                     continue  # 변경 없음
 
                 # 파일 변경 감지!
-                log.info("config_change_detected", path=self._config_path, mtime=current_mtime)
+                log.info(ORCH_CONFIG_RELOADED, message="config change detected", path=self._config_path, mtime=current_mtime)
                 await self._reload_kill_switch_config()
                 self._config_mtime = current_mtime
 
             except asyncio.CancelledError:
                 break
             except Exception:
-                log.exception("config_reload_loop_error")
+                log.exception(ORCH_CONFIG_RELOADED, message="config reload loop error")
 
     async def _reload_kill_switch_config(self) -> None:
         """orchestrator.yaml에서 kill_switch 섹션만 리로드.
@@ -613,7 +625,7 @@ class StrategyOrchestrator:
             old_ks = self._kill_switch_config.copy()
 
             if new_ks == old_ks:
-                log.debug("config_reload_no_changes_in_kill_switch")
+                log.debug(ORCH_CONFIG_RELOADED, message="config reload no changes in kill switch")
                 return
 
             # 변경된 키 목록 로깅
@@ -625,7 +637,8 @@ class StrategyOrchestrator:
 
             self._kill_switch_config = new_ks
             log.info(
-                "kill_switch_config_reloaded",
+                ORCH_CONFIG_RELOADED,
+                message="kill switch config reloaded",
                 changed_keys=changed_keys,
                 new_values={k: new_ks.get(k) for k in changed_keys},
                 old_values={k: old_ks.get(k) for k in changed_keys},
@@ -645,7 +658,7 @@ class StrategyOrchestrator:
                         }
                     ),
                 )
-                log.info("config_reload_audit_published")
+                log.info(ORCH_CONFIG_RELOADED, message="config reload audit published")
 
             # orchestrator 설정도 동시에 리로드 (loop_interval 등)
             new_orch = new_config.get("orchestrator", {})
@@ -654,9 +667,9 @@ class StrategyOrchestrator:
             ):
                 self._loop_interval = new_orch.get("loop_interval_seconds", self._loop_interval)
                 self._orch_config = new_orch
-                log.info("orchestrator_loop_interval_reloaded", new_interval=self._loop_interval)
+                log.info(ORCH_CONFIG_RELOADED, message="orchestrator loop interval reloaded", new_interval=self._loop_interval)
 
         except FileNotFoundError:
-            log.warning("config_reload_file_not_found", path=self._config_path)
+            log.warning(ORCH_CONFIG_RELOADED, message="config reload file not found", path=self._config_path)
         except Exception:
-            log.exception("config_reload_failed", path=self._config_path)
+            log.exception(ORCH_CONFIG_RELOADED, message="config reload failed", path=self._config_path)

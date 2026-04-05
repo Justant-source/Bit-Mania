@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from collections.abc import AsyncIterator
 from typing import Any
 
 import redis.asyncio as aioredis
+import structlog
 
-logger = logging.getLogger(__name__)
+from shared.log_events import (
+    REDIS_CONNECTED,
+    REDIS_DISCONNECTED,
+    REDIS_PUBLISH_FAILED,
+    REDIS_RECONNECTING,
+)
+
+log = structlog.get_logger(__name__)
 
 
 class RedisClient:
@@ -37,7 +44,7 @@ class RedisClient:
             decode_responses=self._decode,
         )
         await self._redis.ping()
-        logger.info("redis connected (%s)", self._url)
+        log.info(REDIS_CONNECTED, message="Redis 연결 성공", url=self._url)
 
     async def disconnect(self) -> None:
         if self._pubsub is not None:
@@ -46,7 +53,7 @@ class RedisClient:
         if self._redis is not None:
             await self._redis.aclose()
             self._redis = None
-            logger.info("redis disconnected")
+            log.info(REDIS_DISCONNECTED, message="Redis 연결 끊김")
 
     @property
     def client(self) -> aioredis.Redis:
@@ -72,7 +79,7 @@ class RedisClient:
                 await self._redis.ping()
                 return
             except Exception:
-                logger.warning("redis ping failed — attempting reconnect")
+                log.warning(REDIS_RECONNECTING, message="Redis 재연결 시도 (ping 실패)", attempt=0)
                 await self._reset_connection()
 
         last_exc: Exception = ConnectionError("Redis unavailable")
@@ -80,11 +87,11 @@ class RedisClient:
             try:
                 self._redis = aioredis.from_url(self._url, decode_responses=self._decode)
                 await self._redis.ping()
-                logger.info("redis reconnected (attempt %d)", attempt)
+                log.info(REDIS_CONNECTED, message="Redis 재연결 성공", attempt=attempt)
                 return
             except Exception as exc:
                 last_exc = exc
-                logger.warning("redis reconnect attempt %d failed: %s", attempt, exc)
+                log.warning(REDIS_RECONNECTING, message="Redis 재연결 시도", attempt=attempt, error=str(exc))
                 await self._reset_connection()
                 if attempt < 3:
                     await asyncio.sleep(delay)
@@ -107,7 +114,7 @@ class RedisClient:
         try:
             return await self.client.publish(channel, payload)
         except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
-            logger.warning("redis publish failed (%s) — reconnecting", exc)
+            log.error(REDIS_PUBLISH_FAILED, message="Redis 발행 실패", channel=channel, error=str(exc))
             await self.ensure_connected()
             return await self.client.publish(channel, payload)
 
@@ -134,7 +141,7 @@ class RedisClient:
         try:
             return await self.client.get(key)
         except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
-            logger.warning("redis get failed (%s) — reconnecting", exc)
+            log.warning(REDIS_RECONNECTING, message="Redis get 실패 — 재연결", key=key, error=str(exc))
             await self.ensure_connected()
             return await self.client.get(key)
 
@@ -151,7 +158,7 @@ class RedisClient:
             else:
                 await self.client.set(key, payload)
         except (aioredis.ConnectionError, aioredis.TimeoutError, RuntimeError) as exc:
-            logger.warning("redis set failed (%s) — reconnecting", exc)
+            log.warning(REDIS_RECONNECTING, message="Redis set 실패 — 재연결", key=key, error=str(exc))
             await self.ensure_connected()
             if ttl is not None:
                 await self.client.setex(key, ttl, payload)

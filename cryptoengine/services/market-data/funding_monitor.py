@@ -19,6 +19,8 @@ import asyncpg
 import redis.asyncio as aioredis
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 COINGLASS_BASE_URL = "https://open-api.coinglass.com/public/v2"
@@ -71,7 +73,7 @@ class FundingMonitor:
 
     async def run(self, shutdown: asyncio.Event) -> None:
         """Launch concurrent funding-rate pollers."""
-        log.info("funding_monitor_starting", symbol=self.symbol)
+        log.info(SERVICE_STARTED, message="funding monitor starting", symbol=self.symbol)
 
         tasks = [
             asyncio.create_task(self._poll_loop(shutdown, self._poll_bybit_funding, POLL_INTERVAL_BYBIT), name="bybit_funding"),
@@ -84,7 +86,7 @@ class FundingMonitor:
                 )
             )
         else:
-            log.warning("coinglass_api_key_missing", msg="Multi-exchange funding comparison disabled")
+            log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass API key missing, multi-exchange funding comparison disabled")
 
         try:
             await asyncio.gather(*tasks)
@@ -92,7 +94,7 @@ class FundingMonitor:
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            log.info("funding_monitor_stopped")
+            log.info(SERVICE_STOPPED, message="funding monitor stopped")
 
     # ------------------------------------------------------------------
     # Polling loop
@@ -110,7 +112,7 @@ class FundingMonitor:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("funding_poll_error", poller=poll_fn.__name__)
+                log.exception(SERVICE_HEALTH_FAIL, message="funding poll error", poller=poll_fn.__name__)
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=interval)
                 break
@@ -131,7 +133,7 @@ class FundingMonitor:
                 data = await resp.json()
 
         if data.get("retCode") != 0:
-            log.warning("bybit_funding_api_error", response=data)
+            log.warning(SERVICE_HEALTH_FAIL, message="Bybit funding API error", response=data)
             return
 
         tickers = data.get("result", {}).get("list", [])
@@ -188,7 +190,7 @@ class FundingMonitor:
         # Alert check
         await self._check_alerts(rate, funding_msg)
 
-        log.debug("bybit_funding_polled", rate=rate)
+        log.debug(MARKET_FUNDING_RATE, message="Bybit funding polled", rate=rate)
 
     # ------------------------------------------------------------------
     # CoinGlass multi-exchange
@@ -208,12 +210,12 @@ class FundingMonitor:
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 if resp.status == 429:
-                    log.warning("coinglass_rate_limited")
+                    log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass rate limited")
                     return
                 data = await resp.json()
 
         if data.get("code") != "0" and data.get("success") is not True:
-            log.warning("coinglass_api_error", response=data)
+            log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass API error", response=data)
             return
 
         exchange_rates: dict[str, float] = {}
@@ -256,7 +258,8 @@ class FundingMonitor:
         )
 
         log.debug(
-            "coinglass_funding_polled",
+            MARKET_FUNDING_RATE,
+            message="CoinGlass funding polled",
             exchanges=len(exchange_rates),
             spread=agg_msg["spread"],
         )
@@ -294,7 +297,8 @@ class FundingMonitor:
 
         await self.redis.publish("alerts:funding", json.dumps(alert))
         log.warning(
-            "funding_alert",
+            MARKET_FUNDING_RATE,
+            message="funding rate alert",
             level=level,
             rate=rate,
             exchange=self.exchange,

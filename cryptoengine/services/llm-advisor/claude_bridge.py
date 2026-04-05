@@ -14,6 +14,8 @@ from typing import Any
 
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 _DEFAULT_TIMEOUT = 120
@@ -46,11 +48,11 @@ class ClaudeCodeBridge:
             try:
                 import anthropic
                 self._client = anthropic.AsyncAnthropic(api_key=self._api_key)
-                log.info("claude_bridge_using_anthropic_sdk")
+                log.info(LLM_ANALYSIS_START, message="Anthropic SDK 초기화 완료")
             except ImportError:
-                log.warning("anthropic_package_not_installed_using_fallback")
+                log.warning(LLM_API_ERROR, message="anthropic 패키지 없음, 룰 기반 폴백 사용")
         else:
-            log.warning("anthropic_api_key_missing_using_rule_based_fallback")
+            log.warning(LLM_API_ERROR, message="ANTHROPIC_API_KEY 없음, 룰 기반 폴백 사용")
 
     async def invoke(
         self,
@@ -64,7 +66,7 @@ class ClaudeCodeBridge:
             result = await self._invoke_sdk(task, context, timeout or self._timeout)
             if result is not None:
                 return result
-            log.warning("sdk_failed_falling_back_to_rule_based")
+            log.warning(LLM_API_ERROR, message="SDK 실패, 룰 기반 폴백으로 전환")
 
         return self._rule_based_analysis(context or {})
 
@@ -92,14 +94,14 @@ class ClaudeCodeBridge:
                 raw = msg.content[0].text if msg.content else ""
                 return self._parse_response(raw)
             except asyncio.TimeoutError:
-                log.warning("sdk_timeout", attempt=attempt)
+                log.warning(LLM_API_ERROR, message="SDK 타임아웃", attempt=attempt)
             except anthropic.RateLimitError:
-                log.warning("sdk_rate_limit", attempt=attempt)
+                log.warning(LLM_API_ERROR, message="SDK 레이트 리밋", attempt=attempt)
             except anthropic.APIError as exc:
-                log.error("sdk_api_error", error=str(exc))
+                log.error(LLM_API_ERROR, message="SDK API 오류", error=str(exc))
                 return None
             except Exception as exc:
-                log.error("sdk_unexpected_error", error=str(exc))
+                log.error(LLM_API_ERROR, message="SDK 예기치 않은 오류", error=str(exc))
                 return None
 
             if attempt < self._max_retries:

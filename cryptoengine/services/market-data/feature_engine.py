@@ -25,6 +25,7 @@ import pandas as pd
 import structlog
 import yaml
 
+from shared.log_events import *
 from indicators import (
     compute_adx,
     compute_atr,
@@ -71,10 +72,10 @@ class FeatureEngine:
         if config_path and Path(config_path).exists():
             with open(config_path) as f:
                 self.config: dict[str, Any] = yaml.safe_load(f)
-            log.info("feature_config_loaded", path=config_path)
+            log.info(SERVICE_HEALTH_OK, message="feature config loaded", path=config_path)
         else:
             self.config = DEFAULT_CONFIG
-            log.info("feature_config_default")
+            log.info(SERVICE_HEALTH_OK, message="using default feature config")
 
         self.timeframes: list[str] = self.config.get("timeframes", DEFAULT_CONFIG["timeframes"])
         self.symbols: list[str] = self.config.get("symbols", DEFAULT_CONFIG["symbols"])
@@ -114,14 +115,14 @@ class FeatureEngine:
 
         for symbol in self.symbols:
             if symbol not in ohlcv_data:
-                log.warning("feature_symbol_missing", symbol=symbol)
+                log.warning(SERVICE_HEALTH_FAIL, message="feature symbol missing", symbol=symbol)
                 continue
 
             sym_tag = symbol.replace("USDT", "").lower()
 
             for tf in self.timeframes:
                 if tf not in ohlcv_data[symbol]:
-                    log.warning("feature_tf_missing", symbol=symbol, tf=tf)
+                    log.warning(SERVICE_HEALTH_FAIL, message="feature timeframe missing", symbol=symbol, tf=tf)
                     continue
 
                 df = ohlcv_data[symbol][tf].copy()
@@ -151,7 +152,7 @@ class FeatureEngine:
         # Drop rows with all NaNs (warm-up period)
         features = features.dropna(how="all")
 
-        log.info("features_built", total_columns=len(features.columns), rows=len(features))
+        log.info(SERVICE_HEALTH_OK, message="features built", total_columns=len(features.columns), rows=len(features))
         return features
 
     async def build_features_async(

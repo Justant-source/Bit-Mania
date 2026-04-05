@@ -13,14 +13,14 @@ import signal
 
 import asyncpg
 import redis.asyncio as aioredis
-import logging
 import structlog
 
+from shared.logging_config import setup_logging
+from shared.log_writer import init_log_writer, close_log_writer
+from shared.log_events import *
 from engine import ExecutionEngine
 from position_tracker import PositionTracker
 from shared.exchange.factory import exchange_factory
-
-log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -41,22 +41,9 @@ BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 BYBIT_TESTNET = os.getenv("BYBIT_TESTNET", "true").lower() == "true"
 
+SERVICE_NAME = "execution-engine"
 
-def _configure_logging() -> None:
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.dev.ConsoleRenderer() if LOG_LEVEL == "DEBUG" else structlog.processors.JSONRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, LOG_LEVEL, logging.INFO)  # type: ignore[arg-type]
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+log = structlog.get_logger(__name__)
 
 
 async def _create_tables(pool: asyncpg.Pool) -> None:
@@ -106,13 +93,10 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
             CREATE INDEX IF NOT EXISTS idx_orders_strategy ON orders (strategy_id);
             """
         )
-    log.info("execution_tables_ensured")
+    log.info(SERVICE_HEALTH_OK, message="execution tables ensured")
 
 
 async def main() -> None:
-    _configure_logging()
-    log.info("execution_service_starting", exchange=EXCHANGE)
-
     # --- Connection pools ---
     db_pool: asyncpg.Pool = await asyncpg.create_pool(
         dsn=DB_DSN,
@@ -120,9 +104,14 @@ async def main() -> None:
         max_size=10,
         command_timeout=30,
     )
+    await init_log_writer(SERVICE_NAME, db_pool)
+    setup_logging(level=LOG_LEVEL, service_name=SERVICE_NAME, db_pool=db_pool)
+    log = structlog.get_logger()
+    log.info(SERVICE_STARTED, message="execution-engine 서비스 시작", exchange=EXCHANGE)
+
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await redis_client.ping()
-    log.info("connections_established", redis=REDIS_URL)
+    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=REDIS_URL)
 
     await _create_tables(db_pool)
 
@@ -156,7 +145,7 @@ async def main() -> None:
                 )
                 pathlib.Path("/tmp/heartbeat_ok").touch()
             except Exception:
-                log.warning("heartbeat_publish_failed", service=service_name)
+                log.warning(SERVICE_HEALTH_FAIL, message="heartbeat publish failed", service=service_name)
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=30)
             except asyncio.TimeoutError:
@@ -179,10 +168,10 @@ async def main() -> None:
                     300,  # 5분 TTL (60초마다 갱신하므로 충분)
                     _json.dumps(balance),
                 )
-                log.info("wallet_balance_published", total_usdt=balance.get("total", 0))
+                log.info(SERVICE_HEALTH_OK, message="wallet balance published", total_usdt=balance.get("total", 0))
                 await connector.disconnect()
             except Exception:
-                log.exception("wallet_balance_publish_failed")
+                log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed")
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=60)
             except asyncio.TimeoutError:
@@ -199,10 +188,10 @@ async def main() -> None:
         await connector.connect()
         balance = await connector.get_balance()
         await redis_client.setex("cache:wallet_balance", 300, _json.dumps(balance))
-        log.info("wallet_balance_published", total_usdt=balance.get("total", 0))
+        log.info(SERVICE_HEALTH_OK, message="wallet balance published (initial)", total_usdt=balance.get("total", 0))
         await connector.disconnect()
     except Exception:
-        log.exception("wallet_balance_publish_failed")
+        log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed (initial)")
 
     # --- Execution engine ---
     engine = ExecutionEngine(
@@ -219,7 +208,7 @@ async def main() -> None:
     shutdown_event = asyncio.Event()
 
     def _signal_handler() -> None:
-        log.info("shutdown_signal_received")
+        log.info(SERVICE_STOPPING, message="shutdown signal received")
         shutdown_event.set()
 
     loop = asyncio.get_running_loop()
@@ -234,18 +223,19 @@ async def main() -> None:
         asyncio.create_task(_heartbeat_publisher(shutdown_event), name="heartbeat_publisher"),
     ]
 
-    log.info("execution_tasks_launched", count=len(tasks))
+    log.info(SERVICE_STARTED, message="execution tasks launched", count=len(tasks))
 
     await shutdown_event.wait()
-    log.info("shutting_down_tasks")
+    log.info(SERVICE_STOPPING, message="execution-engine 서비스 종료 중")
 
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
 
     await redis_client.aclose()
+    log.info(SERVICE_STOPPED, message="execution-engine 서비스 종료")
+    await close_log_writer()
     await db_pool.close()
-    log.info("execution_service_stopped")
 
 
 if __name__ == "__main__":

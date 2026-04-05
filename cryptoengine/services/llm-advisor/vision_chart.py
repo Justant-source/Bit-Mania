@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 _CHART_DIR = Path(tempfile.gettempdir()) / "cryptoengine_charts"
@@ -107,7 +109,7 @@ class ChartAnalyzer:
             ),
         )
 
-        log.info("chart_generated", path=str(output_path))
+        log.info(LLM_ANALYSIS_START, message="차트 생성 완료", path=str(output_path))
         return output_path
 
     # ------------------------------------------------------------------
@@ -128,7 +130,7 @@ class ChartAnalyzer:
         """
         image_path = Path(image_path)
         if not image_path.exists():
-            log.error("chart_image_not_found", path=str(image_path))
+            log.error(LLM_API_ERROR, message="차트 이미지 없음", path=str(image_path))
             return self._empty_analysis()
 
         # Read and base64-encode the image for the prompt
@@ -165,17 +167,17 @@ class ChartAnalyzer:
 
             if proc.returncode != 0:
                 err = (stderr or b"").decode(errors="replace").strip()
-                log.warning("chart_analysis_cli_error", error=err)
+                log.warning(LLM_API_ERROR, message="차트 분석 CLI 오류", error=err)
                 return self._empty_analysis()
 
             raw = (stdout or b"").decode(errors="replace")
             return self._parse_analysis(raw)
 
         except asyncio.TimeoutError:
-            log.warning("chart_analysis_timeout")
+            log.warning(LLM_API_ERROR, message="차트 분석 타임아웃")
             return self._empty_analysis()
         except Exception:
-            log.exception("chart_analysis_error")
+            log.exception(LLM_API_ERROR, message="차트 분석 오류")
             return self._empty_analysis()
 
     # ------------------------------------------------------------------
@@ -209,7 +211,7 @@ class ChartAnalyzer:
             except json.JSONDecodeError:
                 pass
 
-        log.warning("chart_analysis_parse_failed")
+        log.warning(LLM_API_ERROR, message="차트 분석 파싱 실패")
         return ChartAnalyzer._empty_analysis()
 
     @staticmethod

@@ -22,6 +22,7 @@ import structlog
 from order_manager import OrderManager
 from position_tracker import PositionTracker
 from safety import SafetyGuard
+from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
@@ -75,7 +76,7 @@ class ExecutionEngine:
 
     async def run(self, shutdown: asyncio.Event) -> None:
         """Main event loop — subscribe and process order requests."""
-        log.info("execution_engine_starting")
+        log.info(SERVICE_STARTED, message="execution engine starting")
 
         await self._order_manager.initialize()
 
@@ -93,17 +94,17 @@ class ExecutionEngine:
                 try:
                     payload = json.loads(msg["data"])
                 except (json.JSONDecodeError, TypeError):
-                    log.warning("invalid_order_message", raw=str(msg.get("data", ""))[:200])
+                    log.warning(ORDER_RECEIVED, message="invalid order message", raw=str(msg.get("data", ""))[:200])
                     continue
 
                 request_id = payload.get("request_id")
                 if not request_id:
-                    log.warning("order_missing_request_id", payload=payload)
+                    log.warning(ORDER_RECEIVED, message="order missing request_id", payload=payload)
                     continue
 
                 # Idempotency
                 if request_id in self._processed_ids:
-                    log.debug("order_duplicate_skipped", request_id=request_id)
+                    log.debug(ORDER_DUPLICATE_SKIPPED, message="order duplicate skipped", request_id=request_id)
                     continue
 
                 self._processed_ids.add(request_id)
@@ -127,7 +128,7 @@ class ExecutionEngine:
             await asyncio.gather(*self._active_tasks.values(), return_exceptions=True)
             await pubsub.unsubscribe("order:request")
             await pubsub.aclose()
-            log.info("execution_engine_stopped")
+            log.info(SERVICE_STOPPED, message="execution engine stopped")
 
     # ------------------------------------------------------------------
     # Order processing pipeline
@@ -138,7 +139,7 @@ class ExecutionEngine:
         request_id = payload["request_id"]
 
         async with self._semaphore:
-            log.info("order_processing_start", request_id=request_id, side=payload.get("side"), qty=payload.get("quantity"))
+            log.info(ORDER_RECEIVED, message="order processing start", request_id=request_id, side=payload.get("side"), qty=payload.get("quantity"))
 
             # --- Safety checks ---
             try:
@@ -147,7 +148,7 @@ class ExecutionEngine:
                     await self._publish_rejection(request_id, reason)
                     return
             except Exception:
-                log.exception("safety_check_error", request_id=request_id)
+                log.exception(ORDER_SAFETY_FAILED, message="safety check error", request_id=request_id)
                 await self._publish_rejection(request_id, "safety_check_internal_error")
                 return
 
@@ -166,10 +167,10 @@ class ExecutionEngine:
                     break
                 except asyncio.TimeoutError:
                     last_error = "order_timeout"
-                    log.warning("order_timeout", request_id=request_id, attempt=attempt)
+                    log.warning(ORDER_TIMEOUT, message="order timeout", request_id=request_id, attempt=attempt)
                 except Exception as exc:
                     last_error = str(exc)
-                    log.warning("order_attempt_failed", request_id=request_id, attempt=attempt, error=last_error)
+                    log.warning(ORDER_RETRY, message="order attempt failed", request_id=request_id, attempt=attempt, error=last_error)
 
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_BACKOFF * attempt)
@@ -186,7 +187,8 @@ class ExecutionEngine:
                 await self.position_tracker.on_order_fill(result)
 
             log.info(
-                "order_processing_complete",
+                ORDER_FILLED,
+                message="order processing complete",
                 request_id=request_id,
                 order_id=result.get("order_id"),
                 status=result.get("status"),
@@ -223,7 +225,7 @@ class ExecutionEngine:
                     result.get("fee", 0),
                 )
         except Exception:
-            log.exception("result_persist_error", request_id=result.get("request_id"))
+            log.exception(ORDER_REJECTED, message="result persist error", request_id=result.get("request_id"))
 
     async def _publish_rejection(self, request_id: str, reason: str) -> None:
         """Publish a rejected OrderResult."""
@@ -238,7 +240,7 @@ class ExecutionEngine:
             "reason": reason,
         }
         await self.redis.publish("order:result", json.dumps(result))
-        log.warning("order_rejected", request_id=request_id, reason=reason)
+        log.warning(ORDER_REJECTED, message="order rejected", request_id=request_id, reason=reason)
 
         try:
             async with self.db_pool.acquire() as conn:
@@ -252,7 +254,7 @@ class ExecutionEngine:
                     self.exchange,
                 )
         except Exception:
-            log.exception("rejection_persist_error", request_id=request_id)
+            log.exception(ORDER_REJECTED, message="rejection persist error", request_id=request_id)
 
     # ------------------------------------------------------------------
     # Housekeeping
@@ -264,4 +266,4 @@ class ExecutionEngine:
         for rid in done:
             task = self._active_tasks.pop(rid)
             if task.exception() and not isinstance(task.exception(), asyncio.CancelledError):
-                log.error("order_task_exception", request_id=rid, error=str(task.exception()))
+                log.error(ORDER_REJECTED, message="order task exception", request_id=rid, error=str(task.exception()))

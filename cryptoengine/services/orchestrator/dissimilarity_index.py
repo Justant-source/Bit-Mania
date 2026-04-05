@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 import structlog
 
+from shared.log_events import *
+
 log = structlog.get_logger(__name__)
 
 
@@ -60,7 +62,8 @@ class DissimilarityIndex:
 
         self._is_fitted = True
         log.info(
-            "dissimilarity_index_fitted",
+            SERVICE_HEALTH_OK,
+            message="dissimilarity index fitted",
             features=len(self._train_means),
         )
 
@@ -111,14 +114,16 @@ class DissimilarityIndex:
                 if z > self._std_multiplier
             }
             log.warning(
-                "dissimilarity_index_high",
+                SERVICE_HEALTH_FAIL,
+                message="dissimilarity index high",
                 di=round(self._current_di, 4),
                 threshold=self._threshold,
                 outlier_features=outlier_features,
             )
         else:
             log.debug(
-                "dissimilarity_index_ok",
+                SERVICE_HEALTH_OK,
+                message="dissimilarity index ok",
                 di=round(self._current_di, 4),
                 threshold=self._threshold,
             )
