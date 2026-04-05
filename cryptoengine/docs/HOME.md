@@ -13,7 +13,7 @@ aliases:
 
 > [!abstract] 프로젝트 개요
 > Bybit 테스트넷 기반 비트코인 선물 자동매매 시스템.
-> **펀딩비 차익거래**를 핵심 전략으로, 그리드/DCA를 보조 전략으로 운영.
+> **펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 
 ---
 
@@ -33,16 +33,13 @@ aliases:
 ```mermaid
 graph TD
     O[오케스트레이터<br/>레짐 기반 가중치] --> F[펀딩비 차익거래<br/>핵심 전략]
-    O --> G[그리드 트레이딩<br/>보조 전략]
     O --> D[적응형 DCA<br/>보조 전략]
     
     M[Market Data<br/>레짐 감지] --> O
     F --> E[Execution Engine]
-    G --> E
     D --> E
     
     style F fill:#4CAF50,color:#fff
-    style G fill:#2196F3,color:#fff
     style D fill:#FF9800,color:#fff
     style O fill:#9C27B0,color:#fff
 ```
@@ -55,19 +52,18 @@ graph TD
 ### 보조 전략
 | 전략 | 최적 환경 | 특징 |
 |------|-----------|------|
-| [[strategies/grid_trading\|그리드 트레이딩]] | 횡보장 (ranging) | BB Width < 0.06 시 활성화 |
 | [[strategies/adaptive_dca\|적응형 DCA]] | 장기 상승 추세 | Fear & Greed 기반 매수량 조절 |
 
 ---
 
 ## 전략 간 관계
 
-| 시장 레짐 | 펀딩비 | 그리드 | DCA | 현금 |
-|-----------|--------|--------|-----|------|
-| Ranging | 유지 | **활성화** | 일반 | 낮음 |
-| Trending Up | 유지 | 비활성화 | 축소 | 낮음 |
-| Trending Down | 유지 | 비활성화 | **공격적** | 중간 |
-| Volatile | 축소 | 비활성화 | 축소 | **높음** |
+| 시장 레짐 | 펀딩비 | DCA | 현금 |
+|-----------|--------|-----|------|
+| Ranging | **주력** | 일반 | 낮음 |
+| Trending Up | 유지 | 축소 | 낮음 |
+| Trending Down | 유지 | **공격적** | 중간 |
+| Volatile | 축소 | 축소 | **높음** |
 
 ---
 

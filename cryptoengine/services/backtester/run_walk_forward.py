@@ -1,6 +1,6 @@
 """Stage 4: Walk-Forward 검증 실행 및 DB 저장
 
-3개 전략(funding_arb, grid_trading, combined)에 대해 walk-forward를 실행하고
+2개 전략(funding_arb, combined)에 대해 walk-forward를 실행하고
 결과를 walk_forward_results 테이블에 저장한다.
 
 기본 설정:
@@ -20,7 +20,7 @@
   python run_walk_forward.py \
       --start 2025-07-01 --end 2026-03-31 \
       --train-days 120 --test-days 30 \
-      --strategies funding_arb grid_trading combined
+      --strategies funding_arb combined
 """
 
 from __future__ import annotations
@@ -568,7 +568,7 @@ def _parse_args() -> argparse.Namespace:
         "--strategies",
         nargs="+",
         default=["funding_arb", "adaptive_dca", "combined_v2"],
-        choices=["funding_arb", "grid_trading", "adaptive_dca", "adaptive_dca_graduated", "combined", "combined_v2"],
+        choices=["funding_arb", "adaptive_dca", "adaptive_dca_graduated", "combined", "combined_v2"],
         help="실행할 전략 목록",
     )
     parser.add_argument(

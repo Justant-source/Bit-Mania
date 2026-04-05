@@ -18,7 +18,6 @@
 | | `strategy-orchestrator` | 커스텀 빌드 | 전략 조율, 자본 배분, 레짐 기반 가중치 |
 | | `execution-engine` | 커스텀 빌드 | 주문 실행, 포지션 추적, 안전 검증 (healthcheck: `/tmp/heartbeat_ok`) |
 | **전략** | `funding-arb` | 커스텀 빌드 | 핵심 전략: 델타 뉴트럴 + 펀딩비 수취 (healthcheck: `/tmp/heartbeat_ok`) |
-| | `grid-trading` | 커스텀 빌드 | 보조 전략: 횡보 구간 그리드 매매 |
 | | `adaptive-dca` | 커스텀 빌드 | 보조 전략: Fear&Greed 기반 적응형 DCA |
 | **인텔리전스** | `llm-advisor` | 커스텀 빌드 | Anthropic SDK 기반 시장 분석 |
 | | `telegram-bot` | 커스텀 빌드 | 알림 전송 + 비상 명령 수신 |
@@ -82,7 +81,6 @@ CMD ["python", "main.py"]
 ```
 postgres (healthy) ─┬─ market-data ─┬─ strategy-orchestrator
                     │               ├─ funding-arb
-redis (healthy) ────┤               ├─ grid-trading
                     │               └─ adaptive-dca
                     ├─ execution-engine
                     ├─ dashboard
@@ -153,7 +151,6 @@ x-common-env: &common-env
 | 파일 | 용도 |
 |------|------|
 | `config/strategies/funding-arb.yaml` | 펀딩비 전략 파라미터 (임계값, 헤지 비율 등) |
-| `config/strategies/grid-trading.yaml` | 그리드 전략 파라미터 (간격, 주문 수 등) |
 | `config/strategies/adaptive-dca.yaml` | DCA 전략 파라미터 (투자 주기, 비율 등) |
 | `config/orchestrator.yaml` | 레짐별 가중치, Kill Switch 임계값 |
 
@@ -273,7 +270,6 @@ vim config/orchestrator.yaml  # max_daily_drawdown_pct 값 수정
 ### 비상 정지 (emergency) 상세
 
 1. `execution-engine`에서 `emergency_close_all` 실행 (전 포지션 청산)
-2. `funding-arb`, `grid-trading`, `adaptive-dca`, `strategy-orchestrator` 중지
 3. `execution-engine`은 포지션 모니터링을 위해 계속 실행
 4. 대시보드(`http://localhost:3000`)에서 상태 확인
 
@@ -313,7 +309,6 @@ make up-dev
 | strategy-orchestrator | 5679 |
 | execution-engine | 5680 |
 | funding-arb | 5681 |
-| grid-trading | 5682 |
 | adaptive-dca | 5683 |
 | llm-advisor | 5684 |
 | telegram-bot | 5685 |
@@ -386,7 +381,6 @@ healthcheck:
 ```
 
 각 서비스는 30초마다 `/tmp/heartbeat_ok` 파일을 touch하여 하트비트를 증명한다.
-나머지 서비스(grid-trading, adaptive-dca 등)에도 동일하게 적용 가능하다.
 
 ### 컨테이너 리소스 제한
 

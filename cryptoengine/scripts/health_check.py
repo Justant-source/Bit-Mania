@@ -67,7 +67,6 @@ EXPECTED_CONTAINERS = [
     "strategy-orchestrator",
     "execution-engine",
     "funding-arb",
-    "grid-trading",
     "telegram-bot",
     "dashboard",
 ]

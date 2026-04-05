@@ -197,8 +197,6 @@ IDLE -> MONITORING -> ENTRY_READY -> POSITION_OPEN -> EXIT_PENDING -> IDLE
 
 ## 3. 그리드 트레이딩 (보조 전략)
 
-**디렉터리**: `services/strategies/grid-trading/`
-**설정**: `config/strategies/grid-trading.yaml`
 
 ### 개념
 
@@ -253,7 +251,6 @@ IDLE -> MONITORING -> ENTRY_READY -> POSITION_OPEN -> EXIT_PENDING -> IDLE
 ### 컴포넌트 구조
 
 ```
-grid-trading/
 ├── main.py             # 엔트리포인트
 ├── strategy.py         # GridTradingStrategy(BaseStrategy) 구현
 ├── grid_calculator.py  # 그리드 레벨 계산 (기하/산술), 간격 조정

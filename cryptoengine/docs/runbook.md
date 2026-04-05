@@ -14,7 +14,6 @@ related:
   - "[[architecture]]"
   - "[[api]]"
   - "[[strategies/funding_arb]]"
-  - "[[strategies/grid_trading]]"
   - "[[strategies/adaptive_dca]]"
 ---
 
@@ -190,7 +189,6 @@ docker compose restart strategy-orchestrator
 - **복구**: 쿨다운(4시간) 후 자동 재개
 - **영향 받는 전략**:
   - [[strategies/funding_arb|펀딩비]]: 델타 중립 해제 → 양쪽 레그 청산
-  - [[strategies/grid_trading|그리드]]: 전 그리드 주문 취소
   - [[strategies/adaptive_dca|DCA]]: 매수 일시 중지
 - **확인**:
   ```bash
@@ -377,6 +375,5 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine \
 > - [[architecture|시스템 아키텍처]] — 서비스 구조 및 역할
 > - [[api|내부 API]] — Redis 채널, 메시지 포맷, REST 엔드포인트
 > - [[strategies/funding_arb|펀딩비 차익거래]] — 핵심 전략
-> - [[strategies/grid_trading|그리드 트레이딩]] — 보조 전략
 > - [[strategies/adaptive_dca|적응형 DCA]] — 보조 전략
 > - [[changelog|변경 이력]] — 버전별 변경사항

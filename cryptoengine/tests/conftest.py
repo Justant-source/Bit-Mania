@@ -292,7 +292,7 @@ def sample_portfolio_state() -> PortfolioState:
                 position_count=1,
             ),
             StrategySnapshot(
-                strategy_id="grid_01",
+                strategy_id="adaptive_dca_01",
                 allocated_capital=4000.0,
                 current_pnl=40.0,
                 position_count=5,

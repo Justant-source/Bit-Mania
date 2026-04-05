@@ -27,14 +27,14 @@ from shared.models.position import PortfolioState
 # ---------------------------------------------------------------------------
 
 DEFAULT_WEIGHT_MATRIX = {
-    "ranging": {"funding_arb": 0.25, "grid": 0.40, "dca": 0.15, "cash": 0.20},
-    "trending_up": {"funding_arb": 0.15, "grid": 0.05, "dca": 0.50, "cash": 0.30},
-    "trending_down": {"funding_arb": 0.20, "grid": 0.05, "dca": 0.10, "cash": 0.65},
-    "volatile": {"funding_arb": 0.10, "grid": 0.05, "dca": 0.05, "cash": 0.80},
-    "uncertain": {"funding_arb": 0.05, "grid": 0.00, "dca": 0.05, "cash": 0.90},
+    "ranging": {"funding_arb": 0.65, "dca": 0.15, "cash": 0.20},
+    "trending_up": {"funding_arb": 0.20, "dca": 0.50, "cash": 0.30},
+    "trending_down": {"funding_arb": 0.25, "dca": 0.10, "cash": 0.65},
+    "volatile": {"funding_arb": 0.15, "dca": 0.05, "cash": 0.80},
+    "uncertain": {"funding_arb": 0.05, "dca": 0.05, "cash": 0.90},
 }
 
-STRATEGY_KEYS = ("funding_arb", "grid", "dca", "cash")
+STRATEGY_KEYS = ("funding_arb", "dca", "cash")
 
 
 class WeightManager:
@@ -104,26 +104,26 @@ def wm():
 class TestRegimeChangeWeights:
     def test_ranging_weights(self, wm):
         weights = wm.get_target_weights("ranging")
-        assert weights["grid"] == 0.40
+        assert weights["funding_arb"] == 0.65
         assert weights["cash"] == 0.20
         assert sum(weights.values()) == pytest.approx(1.0)
 
     def test_volatile_weights(self, wm):
         weights = wm.get_target_weights("volatile")
         assert weights["cash"] == 0.80
-        assert weights["grid"] == 0.05
+        assert weights["funding_arb"] == 0.15
         assert sum(weights.values()) == pytest.approx(1.0)
 
-    def test_regime_change_shifts_grid_weight(self, wm):
+    def test_regime_change_shifts_funding_arb_weight(self, wm):
         ranging = wm.get_target_weights("ranging")
         volatile = wm.get_target_weights("volatile")
-        assert volatile["grid"] < ranging["grid"]
+        assert volatile["funding_arb"] < ranging["funding_arb"]
         assert volatile["cash"] > ranging["cash"]
 
     def test_trending_up_favors_dca(self, wm):
         weights = wm.get_target_weights("trending_up")
         assert weights["dca"] == 0.50
-        assert weights["dca"] > weights["grid"]
+        assert weights["dca"] > weights["funding_arb"]
 
     def test_trending_down_high_cash(self, wm):
         weights = wm.get_target_weights("trending_down")
@@ -150,9 +150,9 @@ class TestSmoothTransition:
         volatile = wm.get_target_weights("volatile")
 
         step1 = wm.smooth_transition(ranging, volatile)
-        # Grid should be between ranging (0.40) and volatile (0.05)
-        assert step1["grid"] < ranging["grid"]
-        assert step1["grid"] > volatile["grid"]
+        # funding_arb should be between ranging (0.65) and volatile (0.15)
+        assert step1["funding_arb"] < ranging["funding_arb"]
+        assert step1["funding_arb"] > volatile["funding_arb"]
 
         # Cash should increase but not jump to 0.80
         assert step1["cash"] > ranging["cash"]
@@ -170,8 +170,8 @@ class TestSmoothTransition:
             assert current[k] == pytest.approx(target[k], abs=0.02)
 
     def test_small_changes_ignored(self, wm):
-        current = {"funding_arb": 0.25, "grid": 0.40, "dca": 0.15, "cash": 0.20}
-        target = {"funding_arb": 0.26, "grid": 0.39, "dca": 0.15, "cash": 0.20}
+        current = {"funding_arb": 0.65, "dca": 0.15, "cash": 0.20}
+        target = {"funding_arb": 0.66, "dca": 0.14, "cash": 0.20}
         smoothed = wm.smooth_transition(current, target)
         # Changes < 2% should not move
         assert smoothed["funding_arb"] == pytest.approx(current["funding_arb"], abs=0.001)
@@ -190,15 +190,15 @@ class TestSmoothTransition:
 
 class TestKillSwitchOverride:
     def test_kill_switch_sets_all_cash(self):
-        emergency = {"funding_arb": 0.0, "grid": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
         assert emergency["cash"] == 1.0
         assert sum(v for k, v in emergency.items() if k != "cash") == 0.0
 
     def test_kill_switch_overrides_current_weights(self, wm):
         current = wm.get_target_weights("ranging")
-        assert current["grid"] > 0  # non-zero before kill
+        assert current["funding_arb"] > 0  # non-zero before kill
 
-        emergency = {"funding_arb": 0.0, "grid": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
         # After kill switch, weights should be emergency
         for k in STRATEGY_KEYS:
             assert emergency.get(k, 0) == (1.0 if k == "cash" else 0.0)
@@ -211,26 +211,26 @@ class TestKillSwitchOverride:
 class TestLLMAdjustments:
     def test_llm_adjustment_applied(self, wm):
         wm.apply_llm_adjustments(
-            {"grid": 0.10, "cash": -0.10},
+            {"funding_arb": 0.10, "cash": -0.10},
             max_adj=0.15,
             confidence=0.8,
         )
         adjusted = wm.get_adjusted_weights("ranging")
         base = DEFAULT_WEIGHT_MATRIX["ranging"]
-        assert adjusted["grid"] > base["grid"]
+        assert adjusted["funding_arb"] > base["funding_arb"]
 
     def test_llm_adjustment_clamped(self, wm):
         wm.apply_llm_adjustments(
-            {"grid": 0.50},  # exceeds max
+            {"funding_arb": 0.50},  # exceeds max
             max_adj=0.15,
             confidence=0.9,
         )
         # Internal adjustment should be 0.15 * 0.9 = 0.135
-        assert wm._llm_adj["grid"] == pytest.approx(0.135, abs=0.001)
+        assert wm._llm_adj["funding_arb"] == pytest.approx(0.135, abs=0.001)
 
     def test_llm_low_confidence_skipped(self, wm):
         wm.apply_llm_adjustments(
-            {"grid": 0.10},
+            {"funding_arb": 0.10},
             max_adj=0.15,
             confidence=0.3,  # below 0.5
         )
@@ -238,7 +238,7 @@ class TestLLMAdjustments:
 
     def test_adjusted_weights_normalized(self, wm):
         wm.apply_llm_adjustments(
-            {"funding_arb": 0.10, "grid": 0.10, "cash": -0.10},
+            {"funding_arb": 0.10, "dca": 0.05, "cash": -0.10},
             max_adj=0.15,
             confidence=0.7,
         )

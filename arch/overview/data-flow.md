@@ -118,7 +118,6 @@ CREATE TABLE funding_rates (
 | 레짐 | 조건 | 설명 |
 |------|------|------|
 | `volatile` | ATR > 평균ATR x 2.0 | 극단적 변동성 -- 방어 모드 |
-| `ranging` | ADX < 20 AND BB폭 < 중앙값 | 횡보 구간 -- 그리드 전략 유리 |
 | `trending_up` | ADX > 25 AND 종가 > EMA20 | 상승 추세 |
 | `trending_down` | ADX > 25 AND 종가 < EMA20 | 하락 추세 |
 | `uncertain` | DI(Dissimilarity Index) 초과 | ML 모델 불확실 -- 현금 비중 확대 |
@@ -151,7 +150,6 @@ CREATE TABLE funding_rates (
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
 | `strategy:funding_arb:command` | orchestrator | funding-arb | `AllocationCommand { strategy_id, allocated_capital, weight, regime, max_drawdown, timestamp }` |
-| `strategy:grid:command` | orchestrator | grid-trading | `AllocationCommand` (동일 구조) |
 | `strategy:dca:command` | orchestrator | adaptive-dca | `AllocationCommand` (동일 구조) |
 
 ### 2.3 주문 실행 채널

@@ -172,7 +172,7 @@ class BotHandlers:
         if not context.args:
             await update.message.reply_text(  # type: ignore[union-attr]
                 "Usage: `/start <strategy_id>`\n"
-                "Example: `/start grid_trading`",
+                "Example: `/start funding_arb`",
                 parse_mode="Markdown",
             )
             return
@@ -372,7 +372,6 @@ class BotHandlers:
 
     _ALL_STRATEGY_CHANNELS = [
         "strategy:command:funding-arb",
-        "strategy:command:grid-trading",
         "strategy:command:adaptive-dca",
     ]
 
@@ -390,7 +389,7 @@ class BotHandlers:
 
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u23f8 *All strategies paused.*\n"
-                "Stop command sent to: `funding-arb`, `grid-trading`, `adaptive-dca`.\n"
+                "Stop command sent to: `funding-arb`, `adaptive-dca`.\n"
                 "_Positions are retained. Use /resume_all to restart._",
                 parse_mode="Markdown",
             )
@@ -427,7 +426,7 @@ class BotHandlers:
 
             await update.message.reply_text(  # type: ignore[union-attr]
                 "\u25b6\ufe0f *All strategies resumed.*\n"
-                "Start command sent to: `funding-arb`, `grid-trading`, `adaptive-dca`.\n"
+                "Start command sent to: `funding-arb`, `adaptive-dca`.\n"
                 "_Orchestrator will re-issue capital allocation on next cycle._",
                 parse_mode="Markdown",
             )

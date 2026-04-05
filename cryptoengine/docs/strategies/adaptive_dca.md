@@ -12,7 +12,6 @@ aliases:
 related:
   - "[[architecture]]"
   - "[[funding_arb]]"
-  - "[[grid_trading]]"
   - "[[api]]"
   - "[[runbook]]"
 ---
@@ -29,7 +28,6 @@ related:
 
 > [!tip] 다른 전략과의 관계
 > - [[funding_arb|펀딩비 차익거래]]: 핵심 전략 — 방향성 없는 수익, DCA는 방향성(롱) 수익
-> - [[grid_trading|그리드 트레이딩]]: 횡보장 보조 — DCA와 병행하여 다양한 시장 환경 커버
 > - 자본 배분은 [[architecture#2. Strategy Orchestrator|오케스트레이터]]가 레짐에 따라 관리
 
 ## 수익 구조
@@ -202,5 +200,4 @@ max_combined_multiplier: 5.0   # 최대 5.0배
 > - [[api|내부 API]] — Redis 채널 및 메시지 포맷
 > - [[runbook|운영 매뉴얼]] — 인시던트 대응
 > - [[funding_arb|펀딩비 차익거래]] — 핵심 전략
-> - [[grid_trading|그리드 트레이딩]] — 횡보장 보조 전략
 > - [[changelog|변경 이력]] — 버전별 변경사항

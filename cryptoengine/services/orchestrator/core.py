@@ -25,28 +25,18 @@ from services.orchestrator.portfolio_monitor import PortfolioMonitor
 from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
 from shared.kill_switch import KillLevel, KillSwitch
+from shared.models.strategy import StrategyCommand
 
 log = structlog.get_logger(__name__)
 
-StrategyName = Literal["funding_arb", "grid", "dca", "cash"]
+StrategyName = Literal["funding_arb", "dca", "cash"]
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
 
 STRATEGY_CHANNELS: dict[str, str] = {
-    "funding_arb": "strategy:command:funding-arb",
-    "grid": "strategy:command:grid-trading",
-    "dca": "strategy:command:adaptive-dca",
+    "funding_arb": "strategy:command:funding-arb-01",
+    "dca": "strategy:command:adaptive-dca-01",
 }
 
-
-class AllocationCommand(BaseModel):
-    """Capital allocation directive sent to a strategy."""
-
-    strategy_id: str
-    allocated_capital: float
-    weight: float
-    regime: str
-    max_drawdown: float | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class StrategyOrchestrator:
@@ -85,7 +75,6 @@ class StrategyOrchestrator:
             "execution-engine",
             "market-data",
             "funding-arb",
-            "grid-trading",
             "adaptive-dca",
         ]
 
@@ -274,16 +263,15 @@ class StrategyOrchestrator:
         if self._redis is None:
             return
 
-        emergency_weights = {"funding_arb": 0.0, "grid": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency_weights = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
         self._current_weights = emergency_weights
 
         for strategy_id, channel in STRATEGY_CHANNELS.items():
-            cmd = AllocationCommand(
+            cmd = StrategyCommand(
                 strategy_id=strategy_id,
+                action="stop",
                 allocated_capital=0.0,
-                weight=0.0,
-                regime="volatile",
-                max_drawdown=0.0,
+                params={"reason": "kill_switch"},
             )
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info("kill_switch_halt_sent", strategy=strategy_id)
@@ -379,12 +367,12 @@ class StrategyOrchestrator:
                     )
 
             allocated = total_equity * weight
-            cmd = AllocationCommand(
+            cmd = StrategyCommand(
                 strategy_id=strategy_id,
+                action="start",
                 allocated_capital=round(allocated, 2),
-                weight=round(weight, 4),
-                regime=self._current_regime,
                 max_drawdown=self._kill_switch_config.get("max_daily_drawdown_pct", 5.0),
+                params={"weight": round(weight, 4), "regime": self._current_regime},
             )
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info(
@@ -473,9 +461,8 @@ class StrategyOrchestrator:
 
         # 전략 서비스 ID → Redis 키 매핑
         strategy_key_map: dict[str, str] = {
-            "funding-arb": "strategy:status:funding-arb",
-            "grid-trading": "strategy:status:grid-trading",
-            "adaptive-dca": "strategy:status:adaptive-dca",
+            "funding-arb": "strategy:status:funding-arb-01",
+            "adaptive-dca": "strategy:status:adaptive-dca-01",
         }
         # 인프라 서비스: heartbeat:{service} 키 사용
         infra_services = ["execution-engine", "market-data"]

@@ -150,31 +150,28 @@ async def load_best_regime_method(pool: asyncpg.Pool) -> str | None:
 
 def generate_weight_candidates(
     step: float = 0.05,
-) -> list[tuple[float, float, float, float]]:
+) -> list[tuple[float, float, float]]:
     """0.05 단위, 합=1.0, 제약조건:
       - cash >= 0.10
-      - funding_arb, grid, dca 각각 <= 0.50
-      - 4-tuple (funding_arb, grid, dca, cash)
+      - funding_arb, dca 각각 <= 0.80
+      - 3-tuple (funding_arb, dca, cash)
     """
-    candidates: list[tuple[float, float, float, float]] = []
+    candidates: list[tuple[float, float, float]] = []
     vals = [round(v * step, 10) for v in range(0, int(1.0 / step) + 1)]
 
     for fa in vals:
-        if fa > 0.50:
+        if fa > 0.80:
             continue
-        for g in vals:
-            if g > 0.50:
+        for dca in vals:
+            if dca > 0.80:
                 continue
-            for dca in vals:
-                if dca > 0.50:
-                    continue
-                cash = round(1.0 - fa - g - dca, 10)
-                if cash < 0.10 or cash > 1.0:
-                    continue
-                # 합 검증
-                if abs(fa + g + dca + cash - 1.0) > 1e-9:
-                    continue
-                candidates.append((fa, g, dca, cash))
+            cash = round(1.0 - fa - dca, 10)
+            if cash < 0.10 or cash > 1.0:
+                continue
+            # 합 검증
+            if abs(fa + dca + cash - 1.0) > 1e-9:
+                continue
+            candidates.append((fa, dca, cash))
 
     return candidates
 
@@ -324,7 +321,7 @@ def precompute_strategy_curves(
     bridge = FreqtradeBridge()
     curves: dict[str, list[float]] = {}
 
-    for strategy_name in ["funding_arb", "grid_trading", "adaptive_dca"]:
+    for strategy_name in ["funding_arb", "adaptive_dca"]:
         r = bridge.run_backtest(
             strategy=strategy_name,
             ohlcv=ohlcv,
@@ -342,7 +339,7 @@ def precompute_strategy_curves(
 
 def combine_curves_from_cache(
     curves: dict[str, list[float]],
-    weights: tuple[float, float, float, float],
+    weights: tuple[float, float, float],
     initial_capital: float = INITIAL_CAPITAL,
     ohlcv: pd.DataFrame | None = None,
 ) -> BacktestResult:
@@ -350,10 +347,10 @@ def combine_curves_from_cache(
     from freqtrade_bridge import (_compute_drawdown, _compute_daily_returns,
                                   _compute_sharpe, _compute_sortino, _drawdown_series)
 
-    fa_w, g_w, dca_w, cash_w = weights
+    fa_w, dca_w, cash_w = weights
 
     # 최소 길이 기준으로 맞춤
-    active = [(fa_w, "funding_arb"), (g_w, "grid_trading"), (dca_w, "adaptive_dca")]
+    active = [(fa_w, "funding_arb"), (dca_w, "adaptive_dca")]
     active_with_data = [(w, curves[s]) for w, s in active if w > 0 and s in curves]
 
     if not active_with_data:
@@ -409,11 +406,11 @@ def combine_curves_from_cache(
 def run_weighted_backtest(
     ohlcv: pd.DataFrame,
     funding: pd.DataFrame,
-    weights: tuple[float, float, float, float],
+    weights: tuple[float, float, float],
     initial_capital: float = INITIAL_CAPITAL,
     _cached_curves: dict[str, list[float]] | None = None,
 ) -> BacktestResult:
-    """4개 전략에 가중치를 적용해 자본 분배 후 백테스트 실행.
+    """3개 전략에 가중치를 적용해 자본 분배 후 백테스트 실행.
 
     _cached_curves가 제공되면 미리 계산된 정규화 equity curve를 사용.
     제공되지 않으면 직접 실행 (느림, 하위 호환성 유지).
@@ -421,12 +418,11 @@ def run_weighted_backtest(
     if _cached_curves is not None:
         return combine_curves_from_cache(_cached_curves, weights, initial_capital, ohlcv)
 
-    fa_w, g_w, dca_w, cash_w = weights
+    fa_w, dca_w, cash_w = weights
     bridge = FreqtradeBridge()
 
     strategies = [
         ("funding_arb",  fa_w),
-        ("grid_trading", g_w),
         ("adaptive_dca", dca_w),
     ]
 
@@ -610,12 +606,12 @@ async def save_optimization_result(
     pool: asyncpg.Pool,
     regime: str,
     variant: str,
-    weights: tuple[float, float, float, float],
+    weights: tuple[float, float, float],
     result: BacktestResult,
     score: float,
     start_dt: datetime,
 ) -> None:
-    fa_w, g_w, dca_w, cash_w = weights
+    fa_w, dca_w, cash_w = weights
 
     monthly_returns: dict[str, float] = {}
     if result.daily_returns:
@@ -631,7 +627,6 @@ async def save_optimization_result(
         "variant": variant,
         "weights": {
             "funding_arb": fa_w,
-            "grid": g_w,
             "dca": dca_w,
             "cash": cash_w,
         },
@@ -655,7 +650,7 @@ async def save_optimization_result(
             variant,
             regime,
             fa_w,
-            g_w,
+            0.0,
             dca_w,
             cash_w,
             _safe_float(result.sharpe_ratio),
@@ -670,7 +665,7 @@ async def save_optimization_result(
         "saved_weight_result",
         regime=regime,
         variant=variant,
-        weights=f"FA={fa_w:.2f}/G={g_w:.2f}/DCA={dca_w:.2f}/C={cash_w:.2f}",
+        weights=f"FA={fa_w:.2f}/DCA={dca_w:.2f}/C={cash_w:.2f}",
         sharpe=round(_safe_float(result.sharpe_ratio), 3),
         score=round(_safe_float(score), 4),
     )
@@ -731,7 +726,7 @@ async def main() -> None:
     # ── 전체 데이터 준비 (레짐별 데이터 부족 시 대체용) ─────────────────
     all_data = {"all": (ohlcv, funding)}
 
-    # ── 레짐별 그리드 서치 + 기준선 비교 ───────────────────────────────
+    # ── 레짐별 파라미터 서치 + 기준선 비교 ──────────────────────────────
     summary_rows: list[dict] = []
 
     # 처리할 레짐 목록 (레짐별 + "all" fallback)
@@ -751,10 +746,10 @@ async def main() -> None:
         cached_curves = precompute_strategy_curves(sub_ohlcv, sub_funding, INITIAL_CAPITAL)
         log.info("strategy_curves_ready", regime=regime, strategies=list(cached_curves.keys()))
 
-        # ── 그리드 서치 (캐시 활용 — 수학적 조합만 수행) ────────────────
+        # ── 파라미터 서치 (캐시 활용 — 수학적 조합만 수행) ──────────────
         log.info("grid_search_start", regime=regime, candidates=len(candidates))
         best_score  = -999.0
-        best_weights: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25)
+        best_weights: tuple[float, float, float] = (0.45, 0.10, 0.45)
         best_result: BacktestResult | None = None
 
         for i, w in enumerate(candidates):
@@ -830,16 +825,16 @@ async def main() -> None:
     print("Stage 3: 가중치 최적화 결과")
     print("=" * 110)
     print(
-        f"{'레짐':<14} {'변형':<22} {'FA':>5} {'Grid':>5} {'DCA':>5} {'Cash':>5} "
+        f"{'레짐':<14} {'변형':<22} {'FA':>5} {'DCA':>5} {'Cash':>5} "
         f"{'Sharpe':>8} {'MaxDD%':>8} {'연수익%':>8} {'양수월':>8}"
     )
-    print("-" * 110)
+    print("-" * 100)
 
     for r in summary_rows:
-        fa_w, g_w, dca_w, cash_w = r["weights"]
+        fa_w, dca_w, cash_w = r["weights"]
         print(
             f"{r['regime']:<14} {r['variant']:<22} "
-            f"{fa_w:>5.2f} {g_w:>5.2f} {dca_w:>5.2f} {cash_w:>5.2f} "
+            f"{fa_w:>5.2f} {dca_w:>5.2f} {cash_w:>5.2f} "
             f"{r['sharpe']:>8.3f} {r['max_dd']:>8.2f} "
             f"{r['annual_ret']:>8.2f} {r['pos_months']:>8.3f}"
         )
@@ -854,14 +849,14 @@ async def main() -> None:
     print("=" * 110)
 
     # ── 레짐별 최우수 가중치 요약 ─────────────────────────────────────
-    print("\n[레짐별 최우수 가중치 (그리드 서치)]")
-    print(f"{'레짐':<16} {'FA':>6} {'Grid':>6} {'DCA':>6} {'Cash':>6} {'Sharpe':>8}")
-    print("-" * 55)
+    print("\n[레짐별 최우수 가중치 (파라미터 서치)]")
+    print(f"{'레짐':<16} {'FA':>6} {'DCA':>6} {'Cash':>6} {'Sharpe':>8}")
+    print("-" * 50)
     for r in summary_rows:
         if r["variant"] == "grid_search_optimal":
-            fa_w, g_w, dca_w, cash_w = r["weights"]
+            fa_w, dca_w, cash_w = r["weights"]
             print(
-                f"{r['regime']:<16} {fa_w:>6.2f} {g_w:>6.2f} "
+                f"{r['regime']:<16} {fa_w:>6.2f} "
                 f"{dca_w:>6.2f} {cash_w:>6.2f} {r['sharpe']:>8.3f}"
             )
 

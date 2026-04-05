@@ -146,8 +146,7 @@ class ClaudeCodeBridge:
             "debate_conclusion": f"Neutral stance recommended given current {regime} regime.",
             "risk_assessment": "Risk managed via kill switch and 2x leverage cap.",
             "weight_adjustments": {
-                "funding_arb": 0.5 if funding_rate > 0.0002 else 0.3,
-                "grid_trading": 0.3 if regime == "ranging" else 0.1,
+                "funding_arb": 0.7 if funding_rate > 0.0002 else 0.5,
                 "adaptive_dca": 0.2,
             },
             "risk_flags": risk_flags,

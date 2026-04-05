@@ -60,7 +60,7 @@ FEE_RATE        = 0.00055
 TEST_NAME       = "test_i_regime_transition"
 
 # ── FA weights by regime (Phase 4 final — DCA disabled) ──────────────────────
-# Cash weight = 1.0 - FA weight  (grid/DCA removed per orchestrator.yaml)
+# Cash weight = 1.0 - FA weight  (DCA disabled per orchestrator.yaml)
 FA_WEIGHTS: dict[str, float] = {
     "ranging":       0.50,
     "trending_up":   0.20,

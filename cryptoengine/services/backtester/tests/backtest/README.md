@@ -81,8 +81,7 @@ result = engine.run()
 
 | 파일 | 테스트 | 설명 |
 |------|--------|------|
-| `combined/bt_combined_basic.py` | FA + 그리드 기본 복합 | ATR 레짐 감지, trending/ranging 비율 조정 |
-| `combined/bt_fa_plus_tf.py` | [Stage 2] FA + 추세추종 결합 | 레짐별 가중치 그리드 서치, 7종 포트폴리오 비교 |
+| `combined/bt_fa_plus_tf.py` | [Stage 2] FA + 추세추종 결합 | 레짐별 가중치 파라미터 서치, 7종 포트폴리오 비교 |
 | `combined/bt_fa_tf_onchain.py` | [Stage 3] FA + TF + 펀딩비 필터 | 온체인 필터 대신 펀딩비 필터 적용 효과 |
 | `combined/bt_optimal_combination.py` | **[Test 12D]** 최적 조합 탐색 11종 | FA비율 × 레버리지 × 재투자 교차 최적화 |
 | `combined/bt_fa80_extended.py` | **[Test 12D2]** FA80 확장 18종 | FA80 lev3~5x × reinvest30~90%, FA90 재투자 확장 포함 |
@@ -129,8 +128,6 @@ result = engine.run()
 
 | 파일 | 최적화 대상 | 설명 |
 |------|------------|------|
-| `optimization/bt_grid.py` | 그리드 전략 기본 백테스트 | ATR 기반 그리드, EMA(20) 추세 필터 |
-| `optimization/bt_grid_replacement.py` | [Test D] 그리드 대체 후보 3종 | mean_reversion, basis_spread, vol_selling |
 | `optimization/bt_dca_variants.py` | [Test C] DCA 추세 필터 4종 | baseline, EMA50, 이중필터, graduated |
 | `optimization/bt_dca_v2_redesign.py` | [Test I] DCA v2 재설계 6종 | RSI+EMA, RSI+MACD 등 WF 검증 내장 |
 | `optimization/bt_weight_sensitivity.py` | [Test E] 레짐별 가중치 민감도 | Stage 3 최적 가중치 ±20% 안정성 |

@@ -187,7 +187,7 @@ def _parse_args() -> argparse.Namespace:
         "--strategy",
         type=str,
         default="funding_arb",
-        choices=["funding_arb", "grid_trading", "adaptive_dca", "combined"],
+        choices=["funding_arb", "adaptive_dca", "combined"],
         help="Strategy to backtest",
     )
     parser.add_argument("--symbol", type=str, default="BTCUSDT", help="Trading pair")

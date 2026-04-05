@@ -3,8 +3,8 @@
 Bybit 테스트넷 기반 비트코인 선물 자동매매 시스템
 
 - **핵심 전략**: 델타 뉴트럴 펀딩비 차익거래 (선물 숏 + 현물 롱)
-- **보조 전략**: 그리드 트레이딩, 적응형 DCA
-- **인프라**: Docker Compose 기반 12개 마이크로서비스
+- **보조 전략**: 적응형 DCA
+- **인프라**: Docker Compose 기반 11개 마이크로서비스
 
 > **현재 상태**: Phase 4 테스트넷 포워드 테스트 진행 중  
 > **목표**: 테스트넷 검증 → 소액($500) 실전 → 공개 퍼포먼스 대시보드
@@ -22,8 +22,7 @@ Bybit 테스트넷 기반 비트코인 선물 자동매매 시스템
 │   PostgreSQL   pub/sub    execution-engine ──→ Bybit API         │
 │       ↑           ↕              ↑                               │
 │   grafana     llm-advisor   funding-arb                          │
-│   dashboard   telegram-bot  grid-trading                         │
-│                             adaptive-dca                         │
+│   dashboard   telegram-bot  adaptive-dca                         │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -35,7 +34,6 @@ market-data                     — WebSocket 데이터 수집 + 레짐 감지
 execution-engine                — 주문 실행 + 포지션 관리
 strategy-orchestrator           — 전략 조율 + 자본 배분
 funding-arb                     — 핵심: 델타 뉴트럴 펀딩비 차익
-grid-trading                    — 보조: EMA 필터 그리드
 adaptive-dca                    — 보조: Fear&Greed DCA
 llm-advisor                     — Claude 기반 시장 분석
 telegram-bot                    — 알림 + 비상 명령
@@ -49,7 +47,6 @@ backtester                      — 백테스트 엔진
 | `strategy-orchestrator` | 시장 레짐 기반 전략 가중치 조율, Kill Switch 관리 | — |
 | `execution-engine` | 주문 실행, 포지션 추적, 안전 검증 | — |
 | `funding-arb` | 핵심 전략: 델타 뉴트럴 + 펀딩비 수취 | — |
-| `grid-trading` | 보조 전략: EMA 필터 그리드 | — |
 | `adaptive-dca` | 보조 전략: Fear & Greed 기반 BTC 적립 | — |
 | `llm-advisor` | Claude 기반 시장 분석 및 일일 회고 | — |
 | `telegram-bot` | 알림 발송, 비상 청산 명령 수신 | — |
@@ -135,8 +132,6 @@ docker compose --profile backtest run --rm backtester \
 | 전략 | 수익률 | Sharpe | MDD |
 |------|--------|--------|-----|
 | 펀딩비 차익 (델타 뉴트럴) | +40.9% | 54.81 | -0.14% |
-| 그리드 (EMA 필터) | +12,986% | 8.60 | -23.87% |
-| 복합 전략 | +327.7% | 9.63 | -6.2% |
 
 > 테스트넷 데이터 기반. 실전 성능은 다를 수 있음.
 
@@ -208,7 +203,7 @@ cryptoengine/
 │   ├── market-data/
 │   ├── orchestrator/
 │   ├── execution/
-│   ├── strategies/   # funding-arb, grid-trading, adaptive-dca
+│   ├── strategies/   # funding-arb, adaptive-dca
 │   ├── llm-advisor/
 │   ├── telegram-bot/
 │   ├── dashboard/

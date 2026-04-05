@@ -222,7 +222,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 make emergency
 
 # 방법 3: 직접 명령
-docker compose stop funding-arb grid-trading adaptive-dca execution-engine
+docker compose stop funding-arb adaptive-dca execution-engine
 ```
 
 ### 특정 서비스만 재시작

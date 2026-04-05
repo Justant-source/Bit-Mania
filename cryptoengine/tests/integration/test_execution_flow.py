@@ -190,7 +190,7 @@ class TestFullExecutionFlow:
     async def test_sell_order_flow(self, pipeline, mock_exchange):
         sell_payload = {
             "request_id": "int-test-sell-001",
-            "strategy_id": "grid_01",
+            "strategy_id": "funding_arb_01",
             "exchange": "bybit",
             "symbol": "BTC/USDT:USDT",
             "side": "sell",
@@ -243,8 +243,8 @@ class TestExecutionWithErrors:
             "price": 65000.0,
         }
         p2 = {
-            "request_id": "grid-001",
-            "strategy_id": "grid_trading",
+            "request_id": "dca-001",
+            "strategy_id": "adaptive_dca",
             "exchange": "bybit",
             "symbol": "ETH/USDT:USDT",
             "side": "sell",
@@ -259,5 +259,5 @@ class TestExecutionWithErrors:
         assert r1 is not None
         assert r2 is not None
         assert r1["strategy_id"] == "funding_arb"
-        assert r2["strategy_id"] == "grid_trading"
+        assert r2["strategy_id"] == "adaptive_dca"
         assert len(pipeline._tracker.fills) == 2

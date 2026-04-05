@@ -41,6 +41,9 @@ entry:
 #   fa80_lev4_r30: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 MDD -3.64% (보수적 차선책)
 #   fa80_lev5_r50: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 MDD -7.13% (재투자 확대)
 
+# Exchange configuration
+exchange: bybit
+
 # FA capital ratio: fraction of total portfolio allocated to this strategy.
 # Orchestrator should honor this when distributing capital.
 fa_capital_ratio: 0.80
