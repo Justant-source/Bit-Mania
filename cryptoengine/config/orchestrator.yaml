@@ -61,31 +61,32 @@ regime_detection:
 # ── Weight Matrix ─────────────────────────────────────────────
 # Rows = market regime, Columns = strategy allocation weight.
 # Each row must sum to 1.0.
+# 그리드 트레이딩 완전 제거 (Test B/D 결과: Walk-Forward Sharpe -0.581, consistency 0.000)
+# 최종 포트폴리오: FA + graduated DCA + 현금 (Test H 기반, 2026-04-05)
 weights:
-  # Stage 3 그리드 서치 최적값 (2026-04-05 백테스트 결과 반영)
+  # 횡보: FA 지배적 (Test E 횡보 Sharpe 2.72), DCA 소량
   ranging:
     funding_arb: 0.50
-    grid_trading: 0.00
-    adaptive_dca: 0.00
-    cash_reserve: 0.50
+    adaptive_dca: 0.10
+    cash_reserve: 0.40
 
+  # 상승추세: graduated DCA 강함 (Test C +13.89%), FA 보조
   trending_up:
-    funding_arb: 0.00
-    grid_trading: 0.00
-    adaptive_dca: 0.50    # 상승장 DCA 지배적
-    cash_reserve: 0.50
+    funding_arb: 0.20
+    adaptive_dca: 0.40
+    cash_reserve: 0.40
 
+  # 하락추세: Cash 90% 방어, FA 10% 유지 (Test E: 소량 FA가 소폭 개선)
   trending_down:
-    funding_arb: 0.10     # Test E 민감도 분석: 0.10~0.15 이하 제한 (음수 펀딩비 리스크)
-    grid_trading: 0.00
+    funding_arb: 0.10
     adaptive_dca: 0.00
     cash_reserve: 0.90
 
+  # 고변동: FA 40% + Cash 60% (Test E volatile FA Sharpe 2.63)
   volatile:
-    funding_arb: 0.50
-    grid_trading: 0.00
+    funding_arb: 0.40
     adaptive_dca: 0.00
-    cash_reserve: 0.50
+    cash_reserve: 0.60
 
 # ── Weight Transition ─────────────────────────────────────────
 transition:

@@ -363,6 +363,8 @@ class _BacktestEngine:
         self._equity_curve: list[float] = [initial_capital]
         self._trades: list[TradeRecord] = []
         self._position: dict[str, Any] | None = None
+        self._next_size_ratio: float = 1.0  # combined_v2 포지션 크기 비율
+        self._pending_combined_src: str | None = None  # combined_v2 시그널 출처
 
     # ------------------------------------------------------------------
 
@@ -374,9 +376,16 @@ class _BacktestEngine:
         for idx in range(20, len(bars)):  # skip warm-up period
             bar = bars.iloc[idx]
             lookback = bars.iloc[max(0, idx - 200) : idx + 1]
+            self._next_size_ratio = 1.0  # reset per bar
             signal = handler(bar, lookback, idx)
 
-            if signal == "buy" and self._position is None:
+            # Tuple signal: ("buy"|"sell", ratio) — allows size override
+            if isinstance(signal, tuple) and len(signal) == 2 and signal[0] in ("buy", "sell"):
+                side, ratio = signal
+                if self._position is None:
+                    self._next_size_ratio = float(ratio)
+                    self._open_position(bar, side, idx)
+            elif signal == "buy" and self._position is None:
                 self._open_position(bar, "buy", idx)
             elif signal == "sell" and self._position is None:
                 self._open_position(bar, "sell", idx)
@@ -405,7 +414,9 @@ class _BacktestEngine:
             "funding_arb": self._signal_funding_arb,
             "grid_trading": self._signal_grid,
             "adaptive_dca": self._signal_dca,
+            "adaptive_dca_graduated": self._signal_dca_graduated,
             "combined": self._signal_combined,
+            "combined_v2": self._signal_combined_v2,
         }
         return handlers.get(self._strategy, self._signal_funding_arb)
 
@@ -574,15 +585,95 @@ class _BacktestEngine:
                 return "close"
         return None
 
+    def _signal_dca_graduated(self, bar: Any, lookback: pd.DataFrame, idx: int) -> str | tuple | None:
+        """Graduated DCA: EMA50/EMA200 기반 포지션 크기 자동 조정.
+
+        Test C 최우수 변형 (baseline 대비 +34.3%p 개선):
+          price > EMA50  → 전체 크기 매수 (ratio=1.0)
+          price > EMA200 → 절반 크기 매수 (ratio=0.5)
+          price ≤ EMA200 → 진입 건너뜀 (강한 하락장 방어)
+
+        청산: TP +5% 또는 SL -3%
+        """
+        closes = pd.Series(lookback["close"].values.astype(float))
+        price = float(bar["close"])
+
+        ema50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        ema200 = float(closes.ewm(span=200, adjust=False).mean().iloc[-1])
+
+        if idx % 24 == 0 and self._position is None:
+            if price > ema50:
+                return "buy"  # 전체 크기
+            elif price > ema200:
+                return ("buy", 0.5)  # 절반 크기
+            # EMA200 이하: 건너뜀
+            return None
+
+        if self._position is not None:
+            pnl_pct = self._unrealized_pnl(bar) / self._initial_capital
+            if pnl_pct > 0.05 or pnl_pct < -0.03:
+                return "close"
+        return None
+
+    def _signal_combined_v2(self, bar: Any, lookback: pd.DataFrame, idx: int) -> str | tuple | None:
+        """Combined v2: FA 우선 + graduated DCA 보조 (그리드 완전 제거).
+
+        포트폴리오 설계 (Test H 기준):
+          FA     : 50% 자본 (횡보/고변동 레짐)
+          DCA    : 10% 자본 (상승 추세)
+          현금   : 나머지
+
+        구현 방식 (단일 포지션 엔진):
+          1. FA 진입 신호 → 50% 크기로 포지션 오픈
+          2. FA 신호 없을 때 → graduated DCA를 10% 크기로 매수
+          3. 청산: FA 역전 3회 또는 DCA TP/SL
+        """
+        # ── FA 시그널 우선 체크 ──────────────────────────────────────────
+        fa_sig = self._signal_funding_arb(bar, lookback, idx)
+
+        if self._position is not None:
+            src = self._position.get("combined_v2_src", "fa")
+            if fa_sig == "close" and src == "fa":
+                return "close"
+            if src == "dca":
+                dca_sig = self._signal_dca_graduated(bar, lookback, idx)
+                if dca_sig == "close":
+                    return "close"
+            return None
+
+        # 포지션 없음
+        if fa_sig in ("buy", "sell"):
+            # FA 진입: 50% 자본
+            self._next_size_ratio = 0.50
+            # 포지션에 출처 표시 (이후 close 신호 라우팅용)
+            self._pending_combined_src = "fa"
+            return fa_sig
+
+        # FA 없으면 graduated DCA (10% 자본)
+        dca_sig = self._signal_dca_graduated(bar, lookback, idx)
+        if dca_sig == "buy":
+            self._next_size_ratio = 0.10
+            self._pending_combined_src = "dca"
+            return "buy"
+        elif isinstance(dca_sig, tuple) and dca_sig[0] == "buy":
+            self._next_size_ratio = 0.10 * dca_sig[1]
+            self._pending_combined_src = "dca"
+            return "buy"
+
+        return None
+
     # ------------------------------------------------------------------
     # Position management
     # ------------------------------------------------------------------
 
     def _open_position(self, bar: Any, side: str, idx: int = 0) -> None:
         entry = float(bar["close"])
-        size = (self._equity * 0.95) / entry  # 95% capital utilisation
+        size = (self._equity * 0.95 * self._next_size_ratio) / entry  # 95% * ratio
         fee = entry * size * self._fee_rate
         self._equity -= fee
+
+        is_delta_neutral = self._strategy in ("funding_arb", "combined_v2") and \
+                           getattr(self, "_pending_combined_src", None) != "dca"
 
         self._position = {
             "side": side,
@@ -593,11 +684,14 @@ class _BacktestEngine:
             "fee_paid": fee,
             # funding_arb: +1 = short perp (positive funding), -1 = long perp (negative funding)
             "funding_direction": 1 if side == "sell" else -1,
-            # 델타 뉴트럴 여부: funding_arb는 두 레그가 가격 리스크를 상쇄
-            "delta_neutral": self._strategy == "funding_arb",
+            # 델타 뉴트럴 여부: funding_arb / combined_v2 FA 레그
+            "delta_neutral": is_delta_neutral,
             # 누적 펀딩 수취/지불액 추적 (trade PnL 보고용)
             "funding_accumulated": 0.0,
+            # combined_v2: 시그널 출처 추적 (fa / dca)
+            "combined_v2_src": getattr(self, "_pending_combined_src", None),
         }
+        self._pending_combined_src = None  # reset
 
     def _close_position(self, bar: Any) -> None:
         if self._position is None:
