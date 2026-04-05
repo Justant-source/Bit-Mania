@@ -50,7 +50,15 @@ cryptoengine/
     ├── llm-advisor/            # Claude Code 기반 시장 분석
     ├── telegram-bot/           # 알림 + 비상 명령
     ├── dashboard/              # 내부(3000) + 공개(3001) 대시보드
-    ├── backtester/             # Freqtrade 기반 백테스트
+    ├── backtester/             # 백테스트 엔진 + 스킬셋
+    │   ├── main.py             # 진입점
+    │   ├── freqtrade_bridge.py # Freqtrade 연동 어댑터
+    │   ├── walk_forward.py     # 워크포워드 분석기
+    │   ├── report_generator.py # HTML/MD 리포트 생성
+    │   ├── weight_optimizer.py # 레짐별 가중치 최적화
+    │   ├── regime_accuracy.py  # 레짐 감지 정확도 평가
+    │   ├── scripts/            # 데이터 수집·시드·헬스체크
+    │   └── tests/backtest/     # ★ 백테스트 스킬셋 (아래 참조)
     └── grafana (이미지)        # 모니터링 대시보드 (포트 3002)
 ```
 
@@ -156,6 +164,61 @@ DB_PASSWORD=CryptoEngine2026!
 
 # Grafana: http://localhost:3002
 # 로그인: admin / GrafanaAdmin2026!
+```
+
+## 백테스트 스킬셋 규칙 ★ 중요
+
+백테스트 스크립트는 **스킬셋**으로 관리한다. 새 스크립트 작성 전 반드시 아래 절차를 따른다.
+
+### 1. 기존 스킬 확인 (필수)
+```
+services/backtester/tests/backtest/README.md
+```
+이 파일이 스킬 인덱스다. 새 스크립트를 작성하기 전에 **반드시 이 파일을 읽어**
+기존에 동일하거나 유사한 스크립트가 있는지 확인한다.
+
+### 2. 새 스크립트 위치 (필수)
+모든 백테스트 Python 파일은 `services/backtester/tests/backtest/<카테고리>/` 에 생성한다.
+**루트 레벨(`services/backtester/*.py`)에 테스트 스크립트를 절대 생성하지 않는다.**
+
+| 목적 | 카테고리 디렉토리 |
+|------|----------------|
+| FA 단독 성과·파라미터·레버리지·재투자 | `fa/` |
+| 레짐 감지 로직 개선·비교 | `regime/` |
+| 복수 전략 조합·자본배분 | `combined/` |
+| 추세추종 전략 | `trend/` |
+| 극단 시나리오 검증 | `stress/` |
+| 데이터 탐색·수수료 분석 | `analysis/` |
+| 파라미터 그리드서치·최적화 | `optimization/` |
+
+### 3. 공유 유틸리티 사용 (필수)
+새 스크립트에서 아래 중복 구현을 금지한다. 반드시 `core/`를 임포트한다:
+```python
+from tests.backtest.core import (
+    load_ohlcv, load_funding,   # DB 데이터 로드
+    sharpe, mdd, cagr, safe_float, monthly_returns,  # 지표 계산
+    make_pool, save_result,     # DB 연결·저장
+    FAEngine, SimpleBacktester, # 엔진
+)
+```
+
+### 4. README 업데이트 (필수)
+`tests/backtest/README.md`를 반드시 업데이트해야 하는 시점:
+- 새 스크립트 **추가** → 해당 카테고리 테이블에 행 추가
+- 기존 스크립트 **수정** (파라미터·목적 변경) → 해당 행 업데이트
+- 스크립트 **삭제** → 해당 행 제거
+- **실행 이력 요약** 테이블에 중요 결과 추가
+
+### 5. Docker 실행 명령
+```bash
+# 단일 스크립트 실행
+docker compose --profile backtest run --rm backtester \
+  python tests/backtest/<카테고리>/<스크립트>.py
+
+# 이미지 재빌드 후 실행 (새 파일 추가 시)
+docker compose --profile backtest build --no-cache backtester && \
+docker compose --profile backtest run --rm backtester \
+  python tests/backtest/<카테고리>/<스크립트>.py
 ```
 
 ## 코드 작업 시 주의사항
