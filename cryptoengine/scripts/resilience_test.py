@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -434,7 +434,7 @@ def main() -> int:
     suite = TestSuite()
 
     print(f"\n{ANSI_YELLOW}CryptoEngine Resilience Test{ANSI_RESET}")
-    print(f"Started at: {datetime.now(tz=timezone.utc).isoformat()}")
+    print(f"Started at: {datetime.now(tz=timezone.utc).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%dT%H:%M:%S+09:00')}")
     print(f"Service filter: {args.service}")
     print("=" * 50)
 

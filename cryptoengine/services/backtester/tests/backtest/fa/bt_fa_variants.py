@@ -22,7 +22,7 @@ from typing import Any
 import asyncpg
 import pandas as pd
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 from freqtrade_bridge import (
     BacktestResult,
     TradeRecord,
@@ -465,7 +465,7 @@ async def main() -> None:
     structlog.configure(
         processors=[
             structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
+            kst_timestamper,
             structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

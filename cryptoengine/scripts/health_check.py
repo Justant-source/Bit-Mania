@@ -33,11 +33,11 @@ from typing import Any
 import logging
 
 import structlog
-
+from shared.timezone_utils import kst_timestamper
 structlog.configure(
     processors=[
         structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
+        kst_timestamper,
         structlog.dev.ConsoleRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

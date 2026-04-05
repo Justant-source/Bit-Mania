@@ -13,6 +13,8 @@ from typing import Any
 
 import structlog
 
+from shared.timezone_utils import kst_timestamper  # noqa: E402
+
 # ── correlation ID ContextVar ────────────────────────────────────────────
 
 _correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
@@ -182,7 +184,7 @@ def setup_logging(
         _add_correlation_id,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
+        kst_timestamper,  # UTC 저장, KST 표시 (+09:00)
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
         # DB writer: fire-and-forget, placed before final renderer
@@ -205,6 +207,12 @@ def setup_logging(
     )
 
     formatter = structlog.stdlib.ProcessorFormatter(
+        # foreign_pre_chain: stdlib(third-party) 로거도 KST 타임스탬프 적용
+        foreign_pre_chain=[
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            kst_timestamper,
+        ],
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.EventRenamer("msg"),
