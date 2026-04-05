@@ -4,7 +4,7 @@ x-common-env: &common-env
   DB_NAME: cryptoengine
   DB_USER: cryptoengine
   DB_PASSWORD: ${DB_PASSWORD}
-  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-RedisPass2026!}@redis:6379}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   ENVIRONMENT: ${ENVIRONMENT:-testnet}
 
@@ -363,7 +363,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      REDIS_ADDR: redis://redis:6379
+      REDIS_ADDR: redis://:${REDIS_PASSWORD:-RedisPass2026!}@redis:6379
     expose:
       - "9121"
     deploy:
