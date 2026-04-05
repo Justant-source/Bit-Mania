@@ -1,0 +1,612 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "cryptoengine-postgres"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 50, 50, 1)",
+        "name": "Kill Switch",
+        "rawQuery": "SELECT triggered_at AS time, 'L' || level || ': ' || reason AS text FROM kill_switch_events ORDER BY triggered_at",
+        "showIn": 0
+      }
+    ]
+  },
+  "description": "CryptoEngine 핵심 모니터 — 포트폴리오·포지션·전략·LLM 리포트",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "icon": "doc",
+      "tags": [],
+      "title": "LLM 리포트 목록",
+      "type": "link",
+      "url": "/d/cryptoengine-llm-reports/llm-리포트-목록"
+    }
+  ],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "포트폴리오 현황",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "currencyUSD",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT close AS \"BTC 현재가\" FROM ohlcv_history WHERE symbol = 'BTCUSDT' AND timeframe = '1m' ORDER BY timestamp DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "BTC 현재가",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 0.0001 }
+            ]
+          },
+          "unit": "percentunit",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rate AS \"펀딩비\" FROM funding_rate_history WHERE symbol = 'BTCUSDT' ORDER BY timestamp DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "현재 펀딩비",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT total_equity AS \"총 자산\" FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "총 자산 (USDT)",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": -10 },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "currencyUSD",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT unrealized_pnl AS \"미실현 손익\" FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "미실현 손익",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "전략 상태",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "trending_up":   { "color": "green",  "index": 0, "text": "↑ 상승추세" },
+                           "trending_down": { "color": "red",    "index": 1, "text": "↓ 하락추세" },
+                           "ranging":       { "color": "blue",   "index": 2, "text": "↔ 횡보" },
+                           "volatile":      { "color": "orange", "index": 3, "text": "⚡ 변동성" },
+                           "trending":      { "color": "green",  "index": 4, "text": "↑ 추세" },
+                           "unknown":       { "color": "gray",   "index": 5, "text": "? 불명" }
+              }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] },
+          "unit": "string"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 6 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT regime AS \"현재 레짐\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "현재 레짐",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "strong_buy":  { "color": "dark-green", "index": 0, "text": "강력 매수 ▲▲" },
+                           "buy":         { "color": "green",      "index": 1, "text": "매수 ▲" },
+                           "hold":        { "color": "yellow",     "index": 2, "text": "보유 ─" },
+                           "sell":        { "color": "orange",     "index": 3, "text": "매도 ▼" },
+                           "strong_sell": { "color": "red",        "index": 4, "text": "강력 매도 ▼▼" }
+              }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "gray", "value": null }] },
+          "unit": "string"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 6 },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rating AS \"LLM 판단\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM 판단",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "green",  "value": 70 }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 6 },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(confidence * 100, 1) AS \"신뢰도\" FROM llm_reports ORDER BY created_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM 신뢰도",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+      "id": 102,
+      "title": "현재 포지션",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "방향" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": { "buy":  { "color": "green", "index": 0, "text": "LONG  ▲" },
+                               "sell": { "color": "red",   "index": 1, "text": "SHORT ▼" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "미실현PnL" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" },
+              { "id": "decimals", "value": 4 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "진입가" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "현재가" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 11 },
+      "id": 8,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  strategy_id AS \"전략\",\n  symbol AS \"심볼\",\n  side AS \"방향\",\n  ROUND(size::numeric, 4) AS \"수량(BTC)\",\n  ROUND(entry_price::numeric, 2) AS \"진입가\",\n  ROUND(current_price::numeric, 2) AS \"현재가\",\n  ROUND(unrealized_pnl::numeric, 4) AS \"미실현PnL\",\n  ROUND(leverage::numeric, 1) AS \"레버리지\",\n  opened_at AS \"진입시간\"\nFROM positions\nWHERE closed_at IS NULL\nORDER BY opened_at DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "현재 포지션 (오픈)",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 103,
+      "title": "최근 주문",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": false,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "방향" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": { "buy":  { "color": "green", "index": 0, "text": "매수" },
+                               "sell": { "color": "red",   "index": 1, "text": "매도" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "가격" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 2 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "손익" },
+            "properties": [
+              { "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 4 },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "상태" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": { "filled":    { "color": "green",  "index": 0 },
+                               "cancelled": { "color": "gray",   "index": 1 },
+                               "rejected":  { "color": "red",    "index": 2 },
+                               "pending":   { "color": "yellow", "index": 3 }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 9,
+      "options": {
+        "cellHeight": "sm",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"시간\",\n  strategy_id AS \"전략\",\n  symbol AS \"심볼\",\n  side AS \"방향\",\n  order_type AS \"주문유형\",\n  ROUND(quantity::numeric, 4) AS \"수량\",\n  ROUND(price::numeric, 2) AS \"가격\",\n  ROUND(pnl::numeric, 4) AS \"손익\",\n  status AS \"상태\"\nFROM trades\nORDER BY created_at DESC\nLIMIT 25",
+          "refId": "A"
+        }
+      ],
+      "title": "최근 주문 이력",
+      "type": "table"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 104,
+      "title": "LLM 자산 리포트",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "filterable": false,
+            "inspect": true,
+            "width": 120
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "판단" },
+            "properties": [{
+              "id": "mappings",
+              "value": [
+                { "options": { "strong_buy":  { "color": "dark-green", "index": 0, "text": "강력매수" },
+                               "buy":         { "color": "green",      "index": 1, "text": "매수" },
+                               "hold":        { "color": "yellow",     "index": 2, "text": "보유" },
+                               "sell":        { "color": "orange",     "index": 3, "text": "매도" },
+                               "strong_sell": { "color": "red",        "index": 4, "text": "강력매도" }
+                  }, "type": "value" }
+              ]
+            }, { "id": "custom.cellOptions", "value": { "type": "color-text" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "신뢰도" },
+            "properties": [{ "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "BTC가격" },
+            "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "decimals", "value": 0 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "리포트 요약" },
+            "properties": [
+              { "id": "custom.width", "value": 700 },
+              { "id": "custom.cellOptions", "value": { "type": "auto", "wrapText": true } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 29 },
+      "id": 10,
+      "options": {
+        "cellHeight": "md",
+        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "showHeader": true
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  created_at AS \"분석 시간\",\n  rating AS \"판단\",\n  ROUND(confidence * 100, 1) AS \"신뢰도\",\n  regime AS \"레짐\",\n  ROUND(btc_price::numeric, 0) AS \"BTC가격\",\n  COALESCE(\n    (asset_report::json->>'full_report'),\n    SUBSTRING(reasoning, 1, 400)\n  ) AS \"리포트 요약\"\nFROM llm_reports\nORDER BY created_at DESC\nLIMIT 5",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM 자산 리포트 이력 (최근 5건)",
+      "type": "table"
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["cryptoengine", "cockpit", "core"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "CryptoEngine 핵심 모니터",
+  "uid": "cryptoengine-cockpit",
+  "version": 1
+}

@@ -235,6 +235,8 @@ CREATE TABLE IF NOT EXISTS llm_reports (
     -- 추천 액션
     weight_adjustments JSONB,
     risk_flags         JSONB,
+    -- 6시간 자산 리포트 (한국어 서술형)
+    asset_report       TEXT,
     -- 메타
     created_at        TIMESTAMPTZ DEFAULT NOW()
 );

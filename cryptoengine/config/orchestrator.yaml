@@ -139,6 +139,10 @@ kill_switch:
 
 # ── Portfolio Risk ────────────────────────────────────────────
 risk:
+  # Hard cap on total capital the orchestrator will deploy (USD).
+  # Set to 1_000 for Phase 4 testnet trial run.
+  # Set to null (or remove) to use full account balance.
+  max_capital_usd: 1_000
   # Maximum total leverage across all strategies
   max_total_leverage: 5.0
   # Maximum single strategy allocation (percentage)
