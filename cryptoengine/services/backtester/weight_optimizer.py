@@ -642,15 +642,14 @@ async def save_optimization_result(
         await conn.execute(
             """
             INSERT INTO weight_optimization_results
-                (variant, regime, funding_arb_weight, grid_weight, dca_weight, cash_weight,
+                (variant, regime, funding_arb_weight, dca_weight, cash_weight,
                  sharpe_ratio, max_drawdown_pct, total_return_pct,
                  pct_positive_months, composite_score, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
             """,
             variant,
             regime,
             fa_w,
-            0.0,
             dca_w,
             cash_w,
             _safe_float(result.sharpe_ratio),
@@ -747,14 +746,14 @@ async def main() -> None:
         log.info("strategy_curves_ready", regime=regime, strategies=list(cached_curves.keys()))
 
         # ── 파라미터 서치 (캐시 활용 — 수학적 조합만 수행) ──────────────
-        log.info("grid_search_start", regime=regime, candidates=len(candidates))
+        log.info("param_search_start", regime=regime, candidates=len(candidates))
         best_score  = -999.0
         best_weights: tuple[float, float, float] = (0.45, 0.10, 0.45)
         best_result: BacktestResult | None = None
 
         for i, w in enumerate(candidates):
             if i % 100 == 0:
-                log.info("grid_search_progress",
+                log.info("param_search_progress",
                          regime=regime,
                          progress=f"{i}/{len(candidates)}",
                          best_score=round(best_score, 4))
@@ -772,19 +771,19 @@ async def main() -> None:
                             regime=regime, weights=w, error=str(exc))
                 continue
 
-        log.info("grid_search_complete",
+        log.info("param_search_complete",
                  regime=regime,
                  best_weights=best_weights,
                  best_score=round(best_score, 4))
 
         if best_result is not None:
             await save_optimization_result(
-                pool, regime, "grid_search_optimal",
+                pool, regime, "param_search_optimal",
                 best_weights, best_result, best_score, START,
             )
             summary_rows.append({
                 "regime":   regime,
-                "variant":  "grid_search_optimal",
+                "variant":  "param_search_optimal",
                 "weights":  best_weights,
                 "sharpe":   _safe_float(best_result.sharpe_ratio),
                 "max_dd":   _safe_float(best_result.max_drawdown_pct),
@@ -853,7 +852,7 @@ async def main() -> None:
     print(f"{'레짐':<16} {'FA':>6} {'DCA':>6} {'Cash':>6} {'Sharpe':>8}")
     print("-" * 50)
     for r in summary_rows:
-        if r["variant"] == "grid_search_optimal":
+        if r["variant"] == "param_search_optimal":
             fa_w, dca_w, cash_w = r["weights"]
             print(
                 f"{r['regime']:<16} {fa_w:>6.2f} "

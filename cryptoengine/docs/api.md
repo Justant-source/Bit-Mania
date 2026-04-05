@@ -170,9 +170,8 @@ OHLCV 캔들 데이터 배포. [[architecture#1. Market Data Collector|Market Da
   "confidence": 0.72,
   "weight_adjustments": {
     "funding_arb": 0.05,
-    "grid": -0.05,
-    "dca": 0.03,
-    "cash": -0.03
+    "adaptive_dca": 0.03,
+    "cash": -0.08
   },
   "reasoning": "시장 저점 구간으로 판단...",
   "regime_assessment": "ranging_to_trending_up"
