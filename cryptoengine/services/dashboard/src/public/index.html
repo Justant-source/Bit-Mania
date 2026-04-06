@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CryptoEngine 통합 모니터</title>
+  <link rel="stylesheet" href="/css/regime.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── page-level overrides ── */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: #0f3460;
+      border-bottom: 1px solid #1a4a8a;
+      flex-wrap: wrap;
+    }
+    .nav-bar h1 { margin: 0; font-size: 1.1rem; color: #e0e0e0; flex: 1; }
+    .nav-bar a {
+      color: #90caf9;
+      text-decoration: none;
+      font-size: 0.82rem;
+      padding: 4px 10px;
+      border: 1px solid #1565c0;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .nav-bar a:hover { background: #1565c0; }
+    .nav-bar a.active { background: #1565c0; color: #fff; }
+
+    .kill-switch-banner {
+      display: none;
+      background: #b71c1c;
+      color: #fff;
+      text-align: center;
+      padding: 8px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .kill-switch-banner.active { display: block; }
+
+    .section { padding: 16px 20px; }
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #90caf9;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #1a4a8a;
+      padding-bottom: 6px;
+    }
+
+    /* ── stat cards ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .stat-card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .stat-card .label { font-size: 0.7rem; color: #90a4ae; margin-bottom: 4px; }
+    .stat-card .value { font-size: 1.25rem; font-weight: 700; color: #e0e0e0; }
+    .stat-card .sub   { font-size: 0.68rem; color: #78909c; margin-top: 2px; }
+    .value.positive { color: #4caf50; }
+    .value.negative { color: #f44336; }
+    .value.warning  { color: #ff9800; }
+    .value.info     { color: #2196f3; }
+
+    /* ── two-column layout ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .data-table th {
+      background: #0f3460;
+      color: #90caf9;
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+    }
+    .data-table td { padding: 6px 10px; border-bottom: 1px solid #1a2a4a; color: #cfd8dc; }
+    .data-table tr:hover td { background: #1a2a4a; }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    .badge.long  { background: #1b5e20; color: #a5d6a7; }
+    .badge.short { background: #b71c1c; color: #ffcdd2; }
+    .badge.ok    { background: #1b5e20; color: #a5d6a7; }
+    .badge.warn  { background: #e65100; color: #ffe0b2; }
+    .badge.error { background: #b71c1c; color: #ffcdd2; }
+    .badge.running  { background: #0d47a1; color: #bbdefb; }
+    .badge.stopped  { background: #424242; color: #bdbdbd; }
+
+    /* ── chart container ── */
+    .chart-box {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 14px;
+    }
+    .chart-box canvas { width: 100% !important; }
+
+    /* ── regime mini card ── */
+    .regime-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .regime-chip {
+      flex: 1 1 120px;
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .regime-chip .r-label { font-size: 0.65rem; color: #90a4ae; margin-bottom: 3px; }
+    .regime-chip .r-value { font-size: 0.95rem; font-weight: 700; }
+    .regime-chip.ranging   .r-value { color: #2196f3; }
+    .regime-chip.trending_up   .r-value { color: #4caf50; }
+    .regime-chip.trending_down .r-value { color: #f44336; }
+    .regime-chip.volatile  .r-value { color: #ff9800; }
+    .regime-chip.trending  .r-value { color: #8bc34a; }
+    .regime-chip.unknown   .r-value { color: #9e9e9e; }
+
+    /* ── footer ── */
+    .footer {
+      text-align: center;
+      font-size: 0.65rem;
+      color: #546e7a;
+      padding: 10px;
+      border-top: 1px solid #1a2a4a;
+    }
+
+    .last-updated { font-size: 0.65rem; color: #546e7a; margin-top: 4px; }
+    .spinner { display: inline-block; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Kill Switch Banner -->
+<div id="killBanner" class="kill-switch-banner">
+  ⚠ KILL SWITCH 활성화 — 모든 거래 중단됨
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+  <h1>⚡ CryptoEngine 통합 모니터</h1>
+  <a href="/" class="active">메인</a>
+  <a href="/regime">레짐 상세</a>
+  <a href="http://localhost:3002/d/cryptoengine-cockpit" target="_blank">Grafana 코크핏</a>
+  <a href="http://localhost:3002/d/cryptoengine-assets" target="_blank">자산 개요</a>
+  <a href="http://localhost:3002/d/cryptoengine-health" target="_blank">시스템 헬스</a>
+  <span id="clockDisplay" style="margin-left:auto; font-size:0.8rem; color:#90a4ae;"></span>
+</div>
+
+<!-- ── 1. 포트폴리오 현황 ── -->
+<div class="section">
+  <div class="section-title">포트폴리오 현황</div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="label">총 자산 (USDT)</div>
+      <div class="value" id="totalEquity">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">미실현 손익</div>
+      <div class="value" id="unrealizedPnl">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Kill Switch</div>
+      <div class="value" id="killStatus">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">DB 지연</div>
+      <div class="value" id="dbLatency">—</div>
+      <div class="sub">Redis: <span id="redisLatency">—</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">서비스 가동 시간</div>
+      <div class="value" id="uptime">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">마지막 시장 데이터</div>
+      <div class="value" id="lastTick" style="font-size:0.85rem;">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 2. 레짐 현황 + PnL 차트 ── -->
+<div class="section">
+  <div class="two-col">
+
+    <!-- 레짐 요약 (D-3 통합) -->
+    <div>
+      <div class="section-title">시장 레짐 <a href="/regime" style="font-size:0.7rem; color:#64b5f6; text-decoration:none;">▸ 상세 보기</a></div>
+      <div class="regime-row">
+        <div class="regime-chip" id="rawRegimeChip">
+          <div class="r-label">원시 레짐</div>
+          <div class="r-value">—</div>
+        </div>
+        <div class="regime-chip" id="confirmedRegimeChip">
+          <div class="r-label">확정 레짐</div>
+          <div class="r-value">—</div>
+        </div>
+        <div class="regime-chip" id="activeRegimeChip">
+          <div class="r-label">적용 레짐</div>
+          <div class="r-value">—</div>
+        </div>
+      </div>
+      <div class="regime-row">
+        <div class="regime-chip">
+          <div class="r-label">FA 비중</div>
+          <div class="r-value" id="faAlloc">—</div>
+        </div>
+        <div class="regime-chip">
+          <div class="r-label">연속 횟수</div>
+          <div class="r-value" id="consecCount">—</div>
+        </div>
+        <div class="regime-chip">
+          <div class="r-label">ADX</div>
+          <div class="r-value" id="adxVal">—</div>
+        </div>
+      </div>
+
+      <!-- 전략 상태 -->
+      <div class="section-title" style="margin-top:14px;">전략 상태</div>
+      <table class="data-table" id="strategyTable">
+        <thead>
+          <tr>
+            <th>전략</th>
+            <th>상태</th>
+            <th>마지막 업데이트</th>
+          </tr>
+        </thead>
+        <tbody id="strategyBody">
+          <tr><td colspan="3" style="color:#546e7a; text-align:center;">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PnL 차트 -->
+    <div>
+      <div class="section-title">누적 손익 (30일)</div>
+      <div class="chart-box" style="height:280px;">
+        <canvas id="pnlChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 3. 현재 포지션 ── -->
+<div class="section">
+  <div class="section-title">현재 포지션 (오픈)</div>
+  <div style="overflow-x:auto;">
+    <table class="data-table" id="positionsTable">
+      <thead>
+        <tr>
+          <th>전략</th>
+          <th>심볼</th>
+          <th>방향</th>
+          <th>수량(BTC)</th>
+          <th>진입가</th>
+          <th>레버리지</th>
+          <th>미실현 PnL</th>
+          <th>청산가</th>
+          <th>진입 시간</th>
+        </tr>
+      </thead>
+      <tbody id="positionBody">
+        <tr><td colspan="9" style="color:#546e7a; text-align:center;">로딩 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── 4. PnL 드로다운 차트 ── -->
+<div class="section">
+  <div class="section-title">드로다운 (30일)</div>
+  <div class="chart-box" style="height:180px;">
+    <canvas id="drawdownChart"></canvas>
+  </div>
+</div>
+
+<!-- ── 5. LLM 최근 분석 ── -->
+<div class="section">
+  <div class="section-title">LLM 최근 판단 <a href="http://localhost:3002/d/cryptoengine-llm" target="_blank" style="font-size:0.7rem; color:#64b5f6; text-decoration:none;">▸ Grafana 상세</a></div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>시간</th>
+          <th>판단</th>
+          <th>신뢰도</th>
+          <th>레짐</th>
+          <th>요약</th>
+        </tr>
+      </thead>
+      <tbody id="llmBody">
+        <tr><td colspan="5" style="color:#546e7a; text-align:center;">로딩 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  CryptoEngine v4 | 내부 대시보드 (포트 3000) | 자동 갱신: 10초
+  <span id="pageLastUpdated"></span>
+</div>
+
+<script>
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function fmt(v, digits = 2) {
+  if (v == null || v === '') return '—';
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  return n.toLocaleString('ko-KR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function fmtUSD(v, digits = 2) {
+  const s = fmt(v, digits);
+  return s === '—' ? '—' : '$' + s;
+}
+
+function fmtPct(v) {
+  if (v == null) return '—';
+  return (parseFloat(v) * 100).toFixed(1) + '%';
+}
+
+function fmtUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function relTime(ts) {
+  if (!ts) return '—';
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return diff + '초 전';
+  if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+  return Math.floor(diff / 3600) + '시간 전';
+}
+
+function colorClass(v) {
+  const n = parseFloat(v);
+  if (isNaN(n)) return '';
+  return n > 0 ? 'positive' : n < 0 ? 'negative' : '';
+}
+
+function regimeLabel(r) {
+  const map = {
+    trending_up:   '↑ 상승추세',
+    trending_down: '↓ 하락추세',
+    ranging:       '↔ 횡보',
+    volatile:      '⚡ 변동성',
+    trending:      '↑ 추세',
+    unknown:       '? 불명',
+  };
+  return map[r] || (r || '—');
+}
+
+function ratingLabel(r) {
+  const map = {
+    strong_buy:  '강력매수 ▲▲',
+    buy:         '매수 ▲',
+    hold:        '보유 ─',
+    sell:        '매도 ▼',
+    strong_sell: '강력매도 ▼▼',
+  };
+  return map[r] || r || '—';
+}
+
+function ratingColor(r) {
+  return { strong_buy: '#4caf50', buy: '#8bc34a', hold: '#ffd740', sell: '#ff9800', strong_sell: '#f44336' }[r] || '#90a4ae';
+}
+
+// ─── charts ─────────────────────────────────────────────────────────────────
+
+const pnlCtx = document.getElementById('pnlChart').getContext('2d');
+const pnlChart = new Chart(pnlCtx, {
+  type: 'line',
+  data: { labels: [], datasets: [{
+    label: '누적 손익',
+    data: [],
+    borderColor: '#4caf50',
+    backgroundColor: 'rgba(76,175,80,0.08)',
+    tension: 0.3,
+    fill: true,
+    pointRadius: 2,
+  }] },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#78909c', maxTicksLimit: 8 }, grid: { color: '#1a2a4a' } },
+      y: { ticks: { color: '#78909c', callback: v => '$' + v.toLocaleString() }, grid: { color: '#1a2a4a' } },
+    },
+  },
+});
+
+const ddCtx = document.getElementById('drawdownChart').getContext('2d');
+const ddChart = new Chart(ddCtx, {
+  type: 'line',
+  data: { labels: [], datasets: [{
+    label: '드로다운 (%)',
+    data: [],
+    borderColor: '#f44336',
+    backgroundColor: 'rgba(244,67,54,0.10)',
+    tension: 0.3,
+    fill: true,
+    pointRadius: 2,
+  }] },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#78909c', maxTicksLimit: 8 }, grid: { color: '#1a2a4a' } },
+      y: {
+        ticks: { color: '#78909c', callback: v => v.toFixed(1) + '%' },
+        grid: { color: '#1a2a4a' },
+        max: 0,
+      },
+    },
+  },
+});
+
+// ─── fetch & render ──────────────────────────────────────────────────────────
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function updateSystem() {
+  try {
+    const d = await fetchJSON('/api/system');
+    const eq = d.portfolio_equity;
+    document.getElementById('totalEquity').textContent = eq != null ? '$' + fmt(eq) : '—';
+    document.getElementById('killStatus').textContent = d.kill_switch_active ? '⚠ 활성' : '정상';
+    document.getElementById('killStatus').className = 'value ' + (d.kill_switch_active ? 'negative' : 'positive');
+    document.getElementById('dbLatency').textContent = d.database?.latency_ms + 'ms';
+    document.getElementById('dbLatency').className = 'value ' + (d.database?.latency_ms > 200 ? 'warning' : 'positive');
+    document.getElementById('redisLatency').textContent = d.redis?.latency_ms + 'ms';
+    document.getElementById('uptime').textContent = fmtUptime(d.uptime_seconds || 0);
+    document.getElementById('lastTick').textContent = relTime(d.last_market_tick);
+
+    const banner = document.getElementById('killBanner');
+    banner.classList.toggle('active', !!d.kill_switch_active);
+  } catch (e) { console.warn('system fetch failed', e); }
+}
+
+async function updatePositions() {
+  try {
+    const d = await fetchJSON('/api/positions');
+    const tbody = document.getElementById('positionBody');
+    if (!d.positions || d.positions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="color:#546e7a; text-align:center;">오픈 포지션 없음</td></tr>';
+
+      // unrealizedPnl from system
+      return;
+    }
+    let totalUPnl = 0;
+    tbody.innerHTML = d.positions.map(p => {
+      const upnl = parseFloat(p.unrealized_pnl) || 0;
+      totalUPnl += upnl;
+      const upnlClass = upnl >= 0 ? 'positive' : 'negative';
+      return `<tr>
+        <td>${p.strategy_id || '—'}</td>
+        <td>${p.symbol}</td>
+        <td><span class="badge ${p.side === 'buy' ? 'long' : 'short'}">${p.side === 'buy' ? 'LONG ▲' : 'SHORT ▼'}</span></td>
+        <td>${fmt(p.size, 4)}</td>
+        <td>${fmtUSD(p.entry_price)}</td>
+        <td>${fmt(p.leverage, 1)}x</td>
+        <td class="${upnlClass}">${fmtUSD(p.unrealized_pnl, 4)}</td>
+        <td>${fmtUSD(p.liquidation_price)}</td>
+        <td>${relTime(p.opened_at)}</td>
+      </tr>`;
+    }).join('');
+
+    const el = document.getElementById('unrealizedPnl');
+    el.textContent = fmtUSD(totalUPnl, 4);
+    el.className = 'value ' + (totalUPnl >= 0 ? 'positive' : 'negative');
+  } catch (e) { console.warn('positions fetch failed', e); }
+}
+
+async function updatePnL() {
+  try {
+    const d = await fetchJSON('/api/pnl?days=30');
+    if (!d.pnl || d.pnl.length === 0) return;
+
+    const labels = d.pnl.map(r => r.date?.slice(5)); // MM-DD
+    const cumPnl = d.pnl.map(r => parseFloat(r.cumulative_pnl) || 0);
+    const ddPct  = d.pnl.map(r => parseFloat(r.drawdown_pct) || 0);
+
+    pnlChart.data.labels = labels;
+    pnlChart.data.datasets[0].data = cumPnl;
+    pnlChart.update('none');
+
+    ddChart.data.labels = labels;
+    ddChart.data.datasets[0].data = ddPct;
+    ddChart.update('none');
+
+    // unrealized from last row if no open positions
+    const last = d.pnl[d.pnl.length - 1];
+    const upnlEl = document.getElementById('unrealizedPnl');
+    if (upnlEl.textContent === '—' && last) {
+      upnlEl.textContent = fmtUSD(last.unrealized_pnl, 4);
+      upnlEl.className = 'value ' + colorClass(last.unrealized_pnl);
+    }
+  } catch (e) { console.warn('pnl fetch failed', e); }
+}
+
+async function updateStrategies() {
+  try {
+    const d = await fetchJSON('/api/strategies');
+    const tbody = document.getElementById('strategyBody');
+    if (!d.strategies || d.strategies.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="color:#546e7a; text-align:center;">전략 상태 없음</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.strategies.map(s => {
+      const statusOk = s.status === 'running' || s.status === 'active';
+      return `<tr>
+        <td>${s.strategy_id || s.id || '—'}</td>
+        <td><span class="badge ${statusOk ? 'running' : 'stopped'}">${s.status || '—'}</span></td>
+        <td>${relTime(s.updated_at || s.timestamp)}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { console.warn('strategies fetch failed', e); }
+}
+
+async function updateRegime() {
+  try {
+    const d = await fetchJSON('/api/internal/regime/current');
+
+    function setChip(id, regime, label) {
+      const chip = document.getElementById(id);
+      chip.className = 'regime-chip ' + (regime || 'unknown');
+      chip.querySelector('.r-value').textContent = label || regimeLabel(regime);
+    }
+
+    setChip('rawRegimeChip', d.raw_regime, regimeLabel(d.raw_regime));
+    setChip('confirmedRegimeChip', d.confirmed_regime, regimeLabel(d.confirmed_regime));
+    setChip('activeRegimeChip', d.confirmed_regime, regimeLabel(d.confirmed_regime));
+
+    document.getElementById('consecCount').textContent = (d.consecutive_count ?? '—') + '회';
+    document.getElementById('adxVal').textContent = d.indicators?.adx != null ? fmt(d.indicators.adx, 1) : '—';
+
+    if (d.fa_allocation != null) {
+      document.getElementById('faAlloc').textContent = fmt(d.fa_allocation * 100, 1) + '%';
+    }
+  } catch (e) { console.warn('regime fetch failed', e); }
+}
+
+async function updateLLM() {
+  try {
+    const d = await fetchJSON('/api/llm?limit=5');
+    const tbody = document.getElementById('llmBody');
+    if (!d.analyses || d.analyses.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="color:#546e7a; text-align:center;">LLM 분석 없음</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.analyses.map(a => {
+      const label = ratingLabel(a.rating);
+      const color = ratingColor(a.rating);
+      const conf  = a.confidence != null ? (parseFloat(a.confidence) * 100).toFixed(0) + '%' : '—';
+      const summary = (a.bull_summary || a.reasoning || '').substring(0, 100);
+      return `<tr>
+        <td>${relTime(a.created_at)}</td>
+        <td style="color:${color}; font-weight:700;">${label}</td>
+        <td>${conf}</td>
+        <td>${a.regime || '—'}</td>
+        <td style="color:#90a4ae;">${summary}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { console.warn('llm fetch failed', e); }
+}
+
+// ─── clock ──────────────────────────────────────────────────────────────────
+
+function updateClock() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  document.getElementById('clockDisplay').textContent = kst.toISOString().replace('T', ' ').slice(0, 19) + ' KST';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── main loop ───────────────────────────────────────────────────────────────
+
+async function refreshAll() {
+  await Promise.allSettled([
+    updateSystem(),
+    updatePositions(),
+    updateStrategies(),
+    updateRegime(),
+    updateLLM(),
+  ]);
+  document.getElementById('pageLastUpdated').textContent = ' | 갱신: ' + new Date().toLocaleTimeString('ko-KR');
+}
+
+async function refreshCharts() {
+  await updatePnL();
+}
+
+// initial
+refreshAll();
+refreshCharts();
+
+// fast: system/positions/regime/strategies every 10s
+setInterval(refreshAll, 10_000);
+// slow: PnL charts every 5 minutes
+setInterval(refreshCharts, 300_000);
+</script>
+</body>
+</html>

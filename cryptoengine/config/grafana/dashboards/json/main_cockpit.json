@@ -578,6 +578,108 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 105,
+      "title": "에쿼티 커브 & 드로다운",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "시간에 따른 총 자산 변화(에쿼티 커브). portfolio_snapshots 기준 시계열.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "USDT",
+            "axisPlacement": "auto",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 32 },
+      "id": 20,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max", "min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  snapshot_at AS time,\n  total_equity AS \"총 자산\"\nFROM portfolio_snapshots\nWHERE $__timeFilter(snapshot_at)\nORDER BY snapshot_at ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "에쿼티 커브 (총 자산 추이)",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+      "description": "일별 드로다운(%). 0%에서 음수 방향으로 표시됩니다. MDD 모니터링 전용.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#f44336", "mode": "fixed" },
+          "custom": {
+            "axisLabel": "Drawdown %",
+            "axisPlacement": "auto",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": -3 },
+              { "color": "yellow", "value": -1 }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 2,
+          "max": 0
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 32 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["min"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres" },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  (date::text || 'T00:00:00Z')::timestamptz AS time,\n  ROUND(drawdown_pct::numeric, 2) AS \"드로다운\"\nFROM daily_pnl\nWHERE date >= CURRENT_DATE - INTERVAL '90 days'\nORDER BY date ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "드로다운 (%) — 최근 90일",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
       "id": 104,
       "title": "LLM 자산 리포트",
       "type": "row"
@@ -629,7 +731,7 @@
           }
         ]
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 32 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 43 },
       "id": 10,
       "options": {
         "cellHeight": "md",
