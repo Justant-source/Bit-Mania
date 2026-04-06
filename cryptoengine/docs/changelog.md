@@ -21,6 +21,71 @@ related:
 
 ---
 
+## [1.4.0] - 2026-04-06
+
+### 추가 (Added)
+
+#### 레짐 모니터링 대시보드 (`173c8f3`)
+- DB: `regime_raw_log` (5분 캔들별 원시 레짐), `regime_transitions` (확정 레짐 변경) 테이블 추가 (migration 004)
+- market-data: 매 5분 캔들마다 `regime_raw_log` 저장, 확정 변경 시 `regime_transitions` 기록
+- orchestrator: 가중치 전환 진행률(5-cycle EMA) 추적, `orchestrator:weight_transition` Redis 채널 발행
+- dashboard: `/regime` 엔드포인트 4개 + 6-섹션 레짐 대시보드 (http://localhost:3000/regime, 5초 폴링, Chart.js)
+
+#### Telegram 파일 관리 + 인라인 키보드 UI (`b93beb6`)
+- `.md` 파일 업로드 → 자동으로 `.request/` 디렉토리에 저장
+- 새 명령어: `/requests` (요청 파일 목록), `/results` (결과 리포트 목록), `/get <파일명>` (파일 다운로드)
+- `/help` 명령어에 인라인 키보드(한 번 탭으로 명령 실행) 추가
+- `/results` — 다운로드 버튼이 달린 결과 리포트 목록 제공
+
+#### startup gap recovery + 복원력 자동화 테스트 (`66dda3f`)
+- `collector.py`: 기동 시 `backfill_ohlcv_gaps()` — OHLCV 공백 감지 후 Bybit REST로 최대 48h 복구 (5개 타임프레임)
+- `funding_monitor.py`: 기동 시 `backfill_funding_gaps()` — 펀딩비율 공백 감지 후 최대 3일 복구
+- `scripts/resilience_test.py`: market-data, execution-engine, redis kill+restart 자동화 테스트 (데이터 연속성 및 포지션 보존 검증)
+- Makefile: `resilience-test`, `resilience-test-market-data`, `resilience-test-execution` 타겟 추가
+
+#### Phase 5 실전 전환 안전장치 (`1348a12`)
+- `position_tracker.py`: `reconcile_positions()` 10분마다 실행 — 내부 상태와 거래소 실제 포지션 비교, 불일치 시 `position:reconcile_event` 채널로 발행
+- `bybit.py`: `get_trading_fees()` (VIP 등급별), `get_min_order_sizes()` 추가
+- `log_events.py`: `POSITION_RECONCILE_OK/MISMATCH/FIXED`, `FEE_TIER_UPDATED/MISMATCH` 이벤트 추가
+- `scripts/phase5_preflight.py`: 8개 항목 점검 스크립트 (환경변수, API 연결, 잔고, 수수료, 최소 주문 크기, 레버리지, 오픈 포지션, DB)
+
+#### PostgreSQL 자동 백업 + 컨테이너 리소스 제한 + 인프라 Grafana 알림 (`1940aa7`)
+- `pg-backup` 서비스: crond 기반 일일 `pg_dump` (02:00 KST), 7일 보존, `pg-backups` 볼륨
+- `scripts/pg_backup.sh`, `pg_backup_entrypoint.sh`: 백업 로직 및 cron 엔트리포인트
+- Makefile: `backup`, `backup-list`, `backup-restore` 명령 추가
+- `docker-compose.yml`: 전체 서비스 `deploy.resources.limits` 적용 (~3.8GB 총 예산)
+- `alert_rules.yaml`: 인프라 경고 4개 추가 (CPU >85%, 메모리 <15%, 디스크 <10%, Redis >80%)
+
+#### 통합 구조화 로깅 시스템 (`5cfb66e`)
+- `shared/log_events.py`: 전략 이벤트 코드 정의 (95개 이벤트)
+- `shared/log_writer.py`: 비동기 DB 로그 라이터 (배치 처리, 큐 기반)
+- `shared/logging_config.py`: structlog 기반 표준 로깅 설정 (JSON 형식 + KST 타임스탬프)
+- DB migration `003_service_logs.sql`: `service_logs` 테이블 추가
+- 모든 서비스에 구조화 DB 로깅 통합
+
+### 변경 (Changed)
+
+#### KST 타임존 유틸리티 + 로그 타임스탬프 KST 전환 (`d11e8e4`)
+- `shared/timezone_utils.py`: KST 변환 유틸리티 추가 (152줄, `to_kst()`, `now_kst()` 등)
+- 모든 서비스 로그 타임스탬프 UTC → KST 표시로 전환 (43개 파일)
+
+#### OHLCV 보존 정책 스크립트 + 오케스트레이터 수정 (`4171d8f`)
+- `scripts/ohlcv_retention.py`: 타임프레임별 보존 기한 초과 데이터 자동 삭제 + VACUUM ANALYZE
+  - 1m→30일, 5m→90일, 15m→180일, 1h→365일, 4h→730일
+- `orchestrator/core.py`: `portfolio_snapshot_interval_seconds` 하드코딩(900s) → config 파일에서 읽도록 수정
+
+### 수정 (Fixed)
+
+#### Redis 인증 오류 수정 (`dbae0a4`)
+- `docker-compose.yml`: `REDIS_URL` fallback에 `${REDIS_PASSWORD}` 포함 (`.env` 없이도 인증 가능)
+- `redis-exporter` `REDIS_ADDR` 하드코딩 제거 → 패스워드 포함 URL 사용
+- `.env.example`: `REDIS_PASSWORD` 항목 추가 및 `REDIS_URL` 예시 업데이트
+
+#### Service Logs Grafana 대시보드 필터 오류 수정 (`1c2f75a`)
+- `service-logs.json`: service, level, event 템플릿 변수에 `allValue: "All"` 추가 → "All" 선택 시 `No data` 오류 해결
+
+---
+
 ## [1.1.0] - 2026-04-05
 
 ### 변경 (Changed)

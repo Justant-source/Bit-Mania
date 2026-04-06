@@ -6,12 +6,17 @@ Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자
 **펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
-## 현재 진행 상태 (2026-04-03 기준)
+## 현재 진행 상태 (2026-04-06 기준)
 
 - Phase 0 완료: Docker, PostgreSQL, Redis, Grafana 기동
 - Phase 1 완료: Bybit 테스트넷 API 키 설정 (10,000 USDT)
-- Phase 2 진행 중: market-data, execution-engine, funding-arb, strategy-orchestrator 기동
-- Phase 3 예정: 백테스트 (6개월 히스토리 데이터 다운로드 → Sharpe ≥ 2.0 확인)
+- Phase 2 완료: 서비스 기동 + 연결 검증, Redis Pub/Sub 데이터 흐름 확인
+- Phase 3 완료: 백테스트 (6년 히스토리 데이터, fa80_lev5_r30 채택, CAGR +34.87% Sharpe 3.583)
+- Phase 4 진행 중: 테스트넷 포워드 테스트, 안전장치 구축 중
+  - 완료: 통합 구조화 로깅, KST 타임스탬프, OHLCV 보존 정책, 자동 백업 (pg-backup)
+  - 완료: startup gap recovery, 복원력 테스트 자동화, 포지션 정합성 체크 (reconciliation)
+  - 완료: 레짐 모니터링 대시보드, Telegram 파일 관리 + 인라인 키보드
+  - 완료: Phase 5 preflight 스크립트 (8개 항목 점검)
 
 ## 핵심 원칙
 
@@ -23,7 +28,7 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
 ```
 cryptoengine/
-├── docker-compose.yml          # 전체 스택 (10개 서비스)
+├── docker-compose.yml          # 전체 스택 (17개 서비스)
 ├── .env                        # API 키, DB 비밀번호 (git 제외)
 ├── config/
 │   ├── strategies/
@@ -36,7 +41,11 @@ cryptoengine/
 │   ├── db/                     # asyncpg 풀, Repository 패턴
 │   ├── redis_client.py         # Redis Pub/Sub 헬퍼
 │   ├── config_loader.py        # YAML 설정 로더 (절대경로 지원)
-│   └── kill_switch.py          # Kill Switch 공통 로직
+│   ├── kill_switch.py          # Kill Switch 공통 로직
+│   ├── log_events.py           # 이벤트 코드 정의 (95개)
+│   ├── log_writer.py           # 비동기 DB 로그 라이터 (큐 기반)
+│   ├── logging_config.py       # structlog 표준 설정 (KST 타임스탬프)
+│   └── timezone_utils.py       # KST 타임존 유틸리티
 └── services/
     ├── market-data/            # WebSocket 데이터 수집, 레짐 감지
     ├── orchestrator/           # 전략 조율, 자본 배분, 레짐 기반 가중치
@@ -143,12 +152,15 @@ COPY services/strategies/base_strategy.py /app/
 - `positions` — 현재/과거 포지션
 - `funding_payments` — 펀딩비 수취 기록
 - `funding_rate_history` — 펀딩비 히스토리
-- `ohlcv_history` — OHLCV 캔들 데이터
+- `ohlcv_history` — OHLCV 캔들 데이터 (보존 정책: 타임프레임별 자동 삭제)
 - `portfolio_snapshots` — 시간별 포트폴리오 스냅샷
 - `daily_reports` — 일별 수익/지표 집계
 - `kill_switch_events` — Kill Switch 발동 이력
 - `strategy_states` — 전략 상태 스냅샷
 - `llm_judgments` — LLM 분석 결과
+- `service_logs` — 전 서비스 구조화 이벤트 로그 (migration 003)
+- `regime_raw_log` — 5분 캔들별 원시 레짐 감지 결과 (migration 004)
+- `regime_transitions` — 확정 레짐 전환 이벤트 (migration 004)
 
 ## 환경 변수 (.env)
 
@@ -232,10 +244,11 @@ docker compose --profile backtest run --rm backtester \
      - `fa80_lev5_r50`: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 (재투자 확대)
 5. **공유 라이브러리 수정 시**: `shared/` 변경은 모든 서비스 이미지 재빌드 필요
 
-## 다음 작업 (Phase 2 완료 → Phase 3)
+## 다음 작업 (Phase 4 진행 중)
 
-1. strategy-orchestrator equity 0 문제 → execution-engine이 잔고를 Redis에 발행하는지 확인
-2. market-data WebSocket `orderbook.25` 구독 실패 → `orderbook.1`로 변경
-3. `docker compose ps`에서 모든 서비스 Restarting 없이 Running 유지 확인
-4. `ohlcv_history` 테이블에 데이터 쌓이는지 확인
-5. 백테스트용 히스토리 데이터 다운로드 스크립트 실행
+1. 7개 시나리오 체크리스트 완료 (`arch/PHASE4_MONITORING.md` 참조)
+2. 7일 이상 무중단 운영 확인 (Restarting 없이 Running 유지)
+3. `scripts/phase5_preflight.py` 모든 항목 PASS 확인
+4. `make resilience-test`로 복원력 검증
+5. Telegram 모든 알림 유형 수신 확인
+6. Phase 5 진입 전 명시적 승인 후 `BYBIT_TESTNET=false` 전환
