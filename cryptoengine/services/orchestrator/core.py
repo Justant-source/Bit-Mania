@@ -67,6 +67,14 @@ class StrategyOrchestrator:
         self._current_regime: RegimeType = "ranging"
         self._current_weights: dict[str, float] = {}
         self._total_equity: float = 0.0
+
+        # 가중치 전환 추적
+        self._previous_weights: dict[str, float] = {}
+        self._target_weights: dict[str, float] = {}
+        self._transition_cycle_count: int = 0
+        self._transition_started_at: str | None = None
+        self._in_transition: bool = False
+
         self._running = False
         self._task: asyncio.Task[None] | None = None
         self._llm_advisory_task: asyncio.Task[None] | None = None
@@ -162,10 +170,27 @@ class StrategyOrchestrator:
 
         # 2. Adjust strategy weights based on regime
         target_weights = self._weight_manager.get_target_weights(regime)
+
+        # 전환 추적: 목표 가중치가 크게 바뀐 경우 새 전환 시작
+        if self._is_new_transition(target_weights):
+            self._previous_weights = dict(self._current_weights)
+            self._target_weights = dict(target_weights)
+            self._transition_cycle_count = 0
+            self._transition_started_at = datetime.now(timezone.utc).isoformat()
+            self._in_transition = True
+
         smoothed_weights = self._weight_manager.smooth_transition(
             self._current_weights, target_weights
         )
         self._current_weights = smoothed_weights
+
+        # 전환 진행 카운터 업데이트
+        if self._in_transition:
+            self._transition_cycle_count += 1
+            # 5사이클(25분) 후 또는 목표와 충분히 가까워지면 전환 완료
+            if self._transition_cycle_count >= 5 or self._is_near_target(smoothed_weights, target_weights):
+                self._in_transition = False
+
         log.info(ORCH_WEIGHT_CHANGED, message="weights updated", weights=smoothed_weights, regime=regime)
 
         # 3. Evaluate portfolio risk
@@ -454,11 +479,44 @@ class StrategyOrchestrator:
                 "level": self._kill_switch.level.name,
                 "reason": self._kill_switch.reason,
             },
+            "weight_transition": {
+                "in_progress": self._in_transition,
+                "current_step": min(self._transition_cycle_count, 5),
+                "total_steps": 5,
+                "previous_weights": self._previous_weights,
+                "target_weights": self._target_weights,
+                "current_weights": self._current_weights,
+                "started_at": self._transition_started_at,
+            },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         await self._redis.set(
             "orchestrator:state", json.dumps(state), ex=600
         )
+
+        # orchestrator:weight_transition 별도 키에도 발행 (대시보드용)
+        transition_data = state["weight_transition"]
+        await self._redis.set(
+            "orchestrator:weight_transition",
+            json.dumps(transition_data),
+            ex=600,
+        )
+
+    def _is_new_transition(self, new_target: dict[str, float]) -> bool:
+        """목표 가중치가 현재 목표와 유의미하게 다른지 확인."""
+        if not self._target_weights:
+            return bool(self._current_weights)
+        for key in new_target:
+            if abs(new_target.get(key, 0.0) - self._target_weights.get(key, 0.0)) > 0.05:
+                return True
+        return False
+
+    def _is_near_target(self, current: dict[str, float], target: dict[str, float]) -> bool:
+        """현재 가중치가 목표에 충분히 가까운지 확인 (모든 전략 1% 이내)."""
+        for key in target:
+            if abs(current.get(key, 0.0) - target.get(key, 0.0)) > 0.01:
+                return False
+        return True
 
     async def _watchdog_loop(self) -> None:
         """모니터링 서비스들의 하트비트를 60초마다 체크.

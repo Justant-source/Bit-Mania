@@ -65,6 +65,7 @@ class RegimeDetector:
         self._consecutive_count: int = 0
         self._confirmed_regime: str | None = None
         self._confirmation_threshold: int = 3
+        self._last_confirmed_regime: str | None = None
 
     # ------------------------------------------------------------------
     # Public
@@ -240,13 +241,24 @@ class RegimeDetector:
         }
 
         await self.redis.publish("market:regime", json.dumps(regime_msg))
-        await self.redis.hset("cache:regime", mapping={k: str(v) for k, v in regime_msg.items()})
+        now_iso = datetime.now(tz=timezone.utc).isoformat()
+        cache_mapping = {k: str(v) for k, v in regime_msg.items()}
+        cache_mapping["raw_regime_at"] = now_iso
+        cache_mapping["consecutive_count"] = str(self._consecutive_count)
+        if self._confirmed_regime:
+            cache_mapping["confirmed_regime"] = self._confirmed_regime
+        await self.redis.hset("cache:regime", mapping=cache_mapping)
 
         # 확정 시점에 별도 채널 발행 및 Redis 키 갱신
         if newly_confirmed:
             confirmed_msg = {**regime_msg, "reason": change_reason}
             await self.redis.publish("market:regime:confirmed", json.dumps(confirmed_msg))
             await self.redis.set("market:regime:confirmed", json.dumps(confirmed_msg), ex=3600)
+            confirmed_now_iso = datetime.now(tz=timezone.utc).isoformat()
+            await self.redis.hset("cache:regime", mapping={
+                "confirmed_regime": regime,
+                "confirmed_at": confirmed_now_iso,
+            })
             log.info(
                 MARKET_REGIME_CHANGED,
                 message="regime confirmed",
@@ -275,6 +287,38 @@ class RegimeDetector:
                 is_confirmed,
                 change_reason,
             )
+
+            # regime_raw_log 저장 (매 캔들마다)
+            await conn.execute(
+                """
+                INSERT INTO regime_raw_log
+                  (symbol, regime, confidence, adx, atr, bb_width, is_confirmed, consecutive_count)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                """,
+                self.symbol,
+                regime,
+                confidence,
+                round(float(current_adx), 4),
+                round(float(current_atr), 4),
+                round(float(bb_width), 6),
+                is_confirmed,
+                self._consecutive_count,
+            )
+
+            # regime_transitions 저장 (확정 레짐이 변경될 때만)
+            if newly_confirmed and regime != self._last_confirmed_regime:
+                old_regime = self._last_confirmed_regime if self._last_confirmed_regime else "unknown"
+                await conn.execute(
+                    """
+                    INSERT INTO regime_transitions
+                      (symbol, previous_regime, new_regime, transition_type, confirmed, confirmed_at)
+                    VALUES ($1, $2, $3, 'confirmed', TRUE, NOW())
+                    """,
+                    self.symbol,
+                    old_regime,
+                    regime,
+                )
+                self._last_confirmed_regime = regime
 
         if regime != self._last_regime:
             log.info(

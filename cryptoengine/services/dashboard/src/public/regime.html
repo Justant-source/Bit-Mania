@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>레짐 대시보드 — CryptoEngine</title>
+  <link rel="stylesheet" href="/css/regime.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>레짐 모니터링</h1>
+      <span id="last-updated">갱신 중...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- 섹션 1: 현재 상태 카드 5개 -->
+    <section class="cards">
+      <div class="card" id="card-raw-regime">
+        <div class="card-title">원시 레짐</div>
+        <div class="card-value" id="raw-regime-value">—</div>
+        <div class="card-sub" id="raw-regime-at">—</div>
+      </div>
+      <div class="card" id="card-confirmed-regime">
+        <div class="card-title">확정 레짐</div>
+        <div class="card-value" id="confirmed-regime-value">—</div>
+        <div class="card-sub" id="confirmed-regime-count">—</div>
+      </div>
+      <div class="card" id="card-active-regime">
+        <div class="card-title">전략 적용 레짐</div>
+        <div class="card-value" id="active-regime-value">—</div>
+        <div class="card-sub" id="active-regime-sub">—</div>
+      </div>
+      <div class="card" id="card-transition">
+        <div class="card-title">가중치 전환</div>
+        <div class="card-value" id="transition-value">—</div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="transition-progress" style="width: 0%"></div>
+        </div>
+      </div>
+      <div class="card" id="card-fa-pct">
+        <div class="card-title">현재 FA 비중</div>
+        <div class="card-value" id="fa-pct-value">—</div>
+        <div class="card-sub" id="fa-usd-value">—</div>
+      </div>
+    </section>
+
+    <!-- 섹션 2: 원시 레짐 타임라인 (24시간) -->
+    <section class="chart-section">
+      <div class="section-header">
+        <h2>원시 레짐 타임라인 (최근 24시간)</h2>
+      </div>
+      <div id="raw-timeline-bar" class="timeline-bar-container"></div>
+      <div id="raw-timeline-summary" class="timeline-summary"></div>
+    </section>
+
+    <!-- 섹션 3: 확정 레짐 시계열 (7일) -->
+    <section class="chart-section">
+      <div class="section-header">
+        <h2>확정 레짐 + BTC 가격 (7일)</h2>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="confirmed-chart" height="200"></canvas>
+      </div>
+    </section>
+
+    <!-- 섹션 4: 가중치 전환 상태 -->
+    <section class="transition-section">
+      <div class="section-header">
+        <h2>가중치 전환 상태</h2>
+      </div>
+      <div id="transition-status-label" class="transition-status-label">데이터 없음</div>
+      <div class="progress-bar large">
+        <div class="progress-fill" id="weight-transition-progress" style="width: 0%"></div>
+      </div>
+      <table id="weight-table">
+        <thead>
+          <tr>
+            <th>전략</th>
+            <th>이전</th>
+            <th>현재</th>
+            <th>목표</th>
+          </tr>
+        </thead>
+        <tbody id="weight-table-body">
+          <tr>
+            <td colspan="4" class="no-data">데이터 없음</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 섹션 5: 자본 배분 -->
+    <section class="allocation-section">
+      <div class="section-header">
+        <h2>포지션 &amp; 자본 배분</h2>
+      </div>
+      <div class="allocation-layout">
+        <div class="allocation-chart-wrapper">
+          <canvas id="allocation-chart" width="300" height="300"></canvas>
+        </div>
+        <div id="allocation-detail" class="allocation-detail">데이터 없음</div>
+      </div>
+    </section>
+
+    <!-- 섹션 6: 전환 이력 테이블 -->
+    <section class="history-section">
+      <div class="section-header">
+        <h2>레짐 전환 이력</h2>
+      </div>
+      <div id="history-stats" class="history-stats"></div>
+      <div class="table-wrapper">
+        <table id="history-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>시각</th>
+              <th>이전 레짐</th>
+              <th>새 레짐</th>
+              <th>유형</th>
+              <th>확정</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body">
+            <tr>
+              <td colspan="6" class="no-data">데이터 없음</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/regime-dashboard.js"></script>
+</body>
+</html>

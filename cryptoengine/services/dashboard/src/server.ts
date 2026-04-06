@@ -8,10 +8,12 @@
 
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { Pool } from "pg";
 import Redis from "ioredis";
 import { createInternalRouter } from "./routes/internal";
 import { createPublicRouter } from "./routes/public";
+import { createRegimeRouter } from "./routes/regime";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -55,6 +57,17 @@ async function main(): Promise<void> {
   internalApp.use(express.json());
 
   internalApp.use("/api", createInternalRouter(pool, redis));
+
+  // Regime dashboard static files
+  internalApp.use(express.static(path.join(__dirname, "../public")));
+
+  // Regime API routes
+  internalApp.use("/api/internal/regime", createRegimeRouter(pool, redis));
+
+  // Regime page
+  internalApp.get("/regime", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public/regime.html"));
+  });
 
   internalApp.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "dashboard-internal" });
