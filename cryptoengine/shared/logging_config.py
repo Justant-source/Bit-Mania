@@ -123,7 +123,7 @@ def _make_db_log_processor(min_db_level: int):
 
             asyncio.ensure_future(
                 writer.write_log(
-                    level=level_str,
+                    level=level_str.upper(),
                     level_no=level_no,
                     event=str(event),
                     message=str(message) if message is not None else None,

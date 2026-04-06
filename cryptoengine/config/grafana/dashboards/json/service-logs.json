@@ -38,7 +38,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COUNT(*) as count FROM service_logs WHERE $__timeFilter(timestamp)",
+          "rawSql": "SELECT COUNT(*) as count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\n    AND UPPER(level) = COALESCE(NULLIF('${level}', 'All'), UPPER(level))",
           "refId": "A"
         }
       ],
@@ -94,7 +94,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    $__timeGroup(timestamp,'5m') as \"time\",\n    level,\n    COUNT(*) as count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\nGROUP BY 1, level\nORDER BY 1",
+          "rawSql": "SELECT\n    $__timeGroup(timestamp,'5m') as \"time\",\n    UPPER(level) as level,\n    COUNT(*) as count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\n    AND UPPER(level) = COALESCE(NULLIF('${level}', 'All'), UPPER(level))\nGROUP BY 1, UPPER(level)\nORDER BY 1",
           "refId": "A"
         }
       ],
@@ -143,7 +143,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    service,\n    COUNT(*) as error_count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND level_no >= 40\nGROUP BY service\nORDER BY error_count DESC",
+          "rawSql": "SELECT\n    service,\n    COUNT(*) as error_count\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\n    AND level_no >= 40\nGROUP BY service\nORDER BY error_count DESC",
           "refId": "A"
         }
       ],
@@ -201,7 +201,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    level as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    error_type as \"Error Type\",\n    error_stack as \"Stack Trace\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND level_no >= 40\n    AND ('$service' = 'All' OR service = '$service')\nORDER BY timestamp DESC\nLIMIT 50",
+          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    UPPER(level) as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    error_type as \"Error Type\",\n    error_stack as \"Stack Trace\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND level_no >= 40\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\nORDER BY timestamp DESC\nLIMIT 50",
           "refId": "A"
         }
       ],
@@ -243,7 +243,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    event as \"Event\",\n    COUNT(*) as \"Count\",\n    MAX(level) as \"Max Level\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\nGROUP BY event\nORDER BY 2 DESC\nLIMIT 20",
+          "rawSql": "SELECT\n    event as \"Event\",\n    COUNT(*) as \"Count\",\n    UPPER(MAX(level)) as \"Max Level\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\n    AND UPPER(level) = COALESCE(NULLIF('${level}', 'All'), UPPER(level))\nGROUP BY event\nORDER BY 2 DESC\nLIMIT 20",
           "refId": "A"
         }
       ],
@@ -302,7 +302,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    level as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    context::text as \"Context\",\n    error_type as \"Error Type\",\n    trace_id as \"Trace ID\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND ('$service' = 'All' OR service = '$service')\n    AND ('$level' = 'All' OR level = '$level')\n    AND ('$event' = 'All' OR event = '$event')\nORDER BY timestamp DESC\nLIMIT 500",
+          "rawSql": "SELECT\n    timestamp as \"Time\",\n    service as \"Service\",\n    UPPER(level) as \"Level\",\n    event as \"Event\",\n    message as \"Message\",\n    context::text as \"Context\",\n    error_type as \"Error Type\",\n    trace_id as \"Trace ID\"\nFROM service_logs\nWHERE $__timeFilter(timestamp)\n    AND service = COALESCE(NULLIF('${docker}', 'All'), service)\n    AND UPPER(level) = COALESCE(NULLIF('${level}', 'All'), UPPER(level))\n    AND event = COALESCE(NULLIF('${event}', 'All'), event)\nORDER BY timestamp DESC\nLIMIT 500",
           "refId": "A"
         }
       ],
@@ -316,32 +316,37 @@
   "templating": {
     "list": [
       {
-        "allValue": "All",
-        "current": {},
-        "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
-        "definition": "SELECT DISTINCT service FROM service_logs ORDER BY service",
+        "allValue": null,
+        "current": {"selected": true, "text": "All", "value": "All"},
         "hide": 0,
-        "includeAll": true,
-        "label": "Service",
+        "includeAll": false,
+        "label": "Docker Service",
         "multi": false,
-        "name": "service",
-        "options": [],
-        "query": "SELECT DISTINCT service FROM service_logs ORDER BY service",
-        "refresh": 2,
-        "regex": "",
-        "sort": 1,
-        "type": "query"
+        "name": "docker",
+        "options": [
+          {"selected": true,  "text": "All",                  "value": "All"},
+          {"selected": false, "text": "adaptive-dca",         "value": "adaptive-dca"},
+          {"selected": false, "text": "cryptoengine",         "value": "cryptoengine"},
+          {"selected": false, "text": "execution-engine",     "value": "execution-engine"},
+          {"selected": false, "text": "funding-arb",          "value": "funding-arb"},
+          {"selected": false, "text": "llm-advisor",          "value": "llm-advisor"},
+          {"selected": false, "text": "market-data",          "value": "market-data"},
+          {"selected": false, "text": "strategy-orchestrator","value": "strategy-orchestrator"},
+          {"selected": false, "text": "telegram-bot",         "value": "telegram-bot"}
+        ],
+        "query": "All,adaptive-dca,cryptoengine,execution-engine,funding-arb,llm-advisor,market-data,strategy-orchestrator,telegram-bot",
+        "type": "custom"
       },
       {
-        "allValue": "All",
-        "current": {"selected": false, "text": "All", "value": "$__all"},
+        "allValue": null,
+        "current": {"selected": true, "text": "All", "value": "All"},
         "hide": 0,
-        "includeAll": true,
+        "includeAll": false,
         "label": "Level",
         "multi": false,
         "name": "level",
         "options": [
-          {"selected": true,  "text": "All",      "value": "$__all"},
+          {"selected": true,  "text": "All",      "value": "All"},
           {"selected": false, "text": "DEBUG",    "value": "DEBUG"},
           {"selected": false, "text": "INFO",     "value": "INFO"},
           {"selected": false, "text": "WARNING",  "value": "WARNING"},
@@ -352,17 +357,17 @@
         "type": "custom"
       },
       {
-        "allValue": "All",
-        "current": {},
+        "allValue": null,
+        "current": {"selected": true, "text": "All", "value": "All"},
         "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
-        "definition": "SELECT DISTINCT event FROM service_logs ORDER BY event",
+        "definition": "SELECT 'All' as event UNION SELECT DISTINCT event FROM service_logs ORDER BY 1",
         "hide": 0,
-        "includeAll": true,
+        "includeAll": false,
         "label": "Event",
         "multi": false,
         "name": "event",
         "options": [],
-        "query": "SELECT DISTINCT event FROM service_logs ORDER BY event",
+        "query": "SELECT 'All' as event UNION SELECT DISTINCT event FROM service_logs ORDER BY 1",
         "refresh": 2,
         "regex": "",
         "sort": 1,
@@ -370,10 +375,10 @@
       }
     ]
   },
-  "time": {"from": "now-1h", "to": "now"},
+  "time": {"from": "now-6h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
   "title": "Service Logs",
   "uid": "service-logs",
-  "version": 1
+  "version": 3
 }
