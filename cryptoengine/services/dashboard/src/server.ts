@@ -6,7 +6,7 @@
  * - Port 3001 (public):   Delayed performance data (10-minute delay)
  */
 
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
 import { Pool } from "pg";
@@ -33,6 +33,27 @@ const DB_CONFIG = {
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const INTERNAL_PORT = parseInt(process.env.DASHBOARD_INTERNAL_PORT || "3000", 10);
 const PUBLIC_PORT = parseInt(process.env.DASHBOARD_PUBLIC_PORT || "3001", 10);
+const API_KEY = process.env.DASHBOARD_API_KEY || "";
+
+// ---------------------------------------------------------------------------
+// Auth middleware (D-4: internal API key guard)
+// Skipped when DASHBOARD_API_KEY is not set (backward-compatible).
+// ---------------------------------------------------------------------------
+
+function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!API_KEY) {
+    next();
+    return;
+  }
+  const provided =
+    (req.headers["x-api-key"] as string | undefined) ||
+    (req.query.api_key as string | undefined);
+  if (provided && provided === API_KEY) {
+    next();
+    return;
+  }
+  res.status(401).json({ error: "Unauthorized", message: "Valid X-Api-Key header required" });
+}
 
 // ---------------------------------------------------------------------------
 // Bootstrap
@@ -56,13 +77,18 @@ async function main(): Promise<void> {
   internalApp.use(cors());
   internalApp.use(express.json());
 
-  internalApp.use("/api", createInternalRouter(pool, redis));
+  internalApp.use("/api", apiKeyAuth, createInternalRouter(pool, redis));
 
-  // Regime dashboard static files
+  // Regime dashboard static files (no auth for static assets & HTML pages)
   internalApp.use(express.static(path.join(__dirname, "../public")));
 
-  // Regime API routes
-  internalApp.use("/api/internal/regime", createRegimeRouter(pool, redis));
+  // Regime API routes (protected)
+  internalApp.use("/api/internal/regime", apiKeyAuth, createRegimeRouter(pool, redis));
+
+  // Main dashboard
+  internalApp.get("/", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public/index.html"));
+  });
 
   // Regime page
   internalApp.get("/regime", (_req, res) => {
