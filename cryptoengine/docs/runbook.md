@@ -240,14 +240,20 @@ docker compose restart strategy-orchestrator
 
 ### 백업
 
-```bash
-# 일일 백업 (cronjob 권장)
-pg_dump -U cryptoengine -d cryptoengine \
-  -F c -f /backup/cryptoengine_$(date +%Y%m%d).dump
+`pg-backup` 서비스가 매일 02:00 KST에 자동 백업을 실행합니다 (7일 보존).
 
-# 복원
-pg_restore -U cryptoengine -d cryptoengine \
-  /backup/cryptoengine_20260401.dump
+```bash
+# 수동 백업 실행
+make backup
+
+# 백업 파일 목록 확인
+make backup-list
+
+# 백업으로 복원
+make backup-restore
+
+# 직접 명령 (pg-backups 볼륨 내)
+docker compose exec pg-backup ls /backups/
 ```
 
 ### 마이그레이션

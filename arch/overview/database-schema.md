@@ -17,7 +17,7 @@
 - **connection.py**: 싱글턴 asyncpg 풀 관리 (`create_pool()`, `get_pool()`, `close_pool()`)
 - **repository.py**: `_BaseRepo` 기반 비동기 Repository 패턴 — `_fetchrow()`, `_fetch()`, `_execute()` 등 공통 메서드 제공
 - **init_schema.sql**: DDL 스크립트 (Docker 초기화 시 실행)
-- **migrations/**: Alembic 버전 관리 (001_initial_schema, 002_llm_reports)
+- **migrations/**: Alembic 버전 관리 (001_initial_schema, 002_llm_reports, 003_service_logs, 004_regime_dashboard)
 
 ### DSN 구성
 
@@ -334,6 +334,64 @@ LLM Advisor의 전체 분석 리포트. 대시보드에서 리스트 및 상세 
 
 ---
 
+### 2.13b service_logs (서비스 구조화 로그) — migration 003
+
+모든 서비스의 구조화 이벤트 로그. Grafana Service Logs 대시보드 소스.
+
+| 컬럼 | 타입 | 제약 조건 | 설명 |
+|------|------|-----------|------|
+| `id` | BIGSERIAL | **PK** | 자동 증가 ID |
+| `service` | VARCHAR(50) | NOT NULL | 서비스 이름 (market-data, funding-arb 등) |
+| `level` | VARCHAR(10) | NOT NULL | 로그 레벨 (INFO, WARNING, ERROR, CRITICAL) |
+| `event` | VARCHAR(100) | NOT NULL | 이벤트 코드 (shared/log_events.py 참조) |
+| `message` | TEXT | | 사람이 읽을 수 있는 메시지 |
+| `data` | JSONB | | 추가 컨텍스트 데이터 |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | 기록 시각 |
+
+**인덱스:**
+- `idx_service_logs_service` — (service, created_at)
+- `idx_service_logs_level` — (level, created_at)
+- `idx_service_logs_event` — (event, created_at)
+
+---
+
+### 2.13c regime_raw_log (원시 레짐 로그) — migration 004
+
+market-data 서비스가 매 5분 캔들마다 기록하는 원시 레짐 감지 결과.
+
+| 컬럼 | 타입 | 제약 조건 | 설명 |
+|------|------|-----------|------|
+| `id` | BIGSERIAL | **PK** | 자동 증가 ID |
+| `symbol` | VARCHAR(20) | NOT NULL | 심볼 (BTCUSDT) |
+| `raw_regime` | VARCHAR(20) | NOT NULL | 원시 레짐 (trending/ranging/volatile) |
+| `confidence` | DECIMAL(5,3) | | 감지 신뢰도 |
+| `indicators` | JSONB | | 판단 근거 지표 (adx, atr_ratio, bb_width) |
+| `candle_time` | TIMESTAMPTZ | NOT NULL | 캔들 시작 시각 |
+| `recorded_at` | TIMESTAMPTZ | DEFAULT NOW() | 기록 시각 |
+
+**인덱스:**
+- `idx_regime_raw_symbol_time` — (symbol, candle_time)
+
+---
+
+### 2.13d regime_transitions (확정 레짐 전환) — migration 004
+
+레짐이 확정 변경될 때만 기록되는 이벤트 로그.
+
+| 컬럼 | 타입 | 제약 조건 | 설명 |
+|------|------|-----------|------|
+| `id` | BIGSERIAL | **PK** | 자동 증가 ID |
+| `symbol` | VARCHAR(20) | NOT NULL | 심볼 |
+| `from_regime` | VARCHAR(20) | | 이전 레짐 |
+| `to_regime` | VARCHAR(20) | NOT NULL | 새 레짐 |
+| `confidence` | DECIMAL(5,3) | | 전환 신뢰도 |
+| `transitioned_at` | TIMESTAMPTZ | DEFAULT NOW() | 전환 확정 시각 |
+
+**인덱스:**
+- `idx_regime_transitions_symbol_time` — (symbol, transitioned_at)
+
+---
+
 ### 2.14 dca_purchases (DCA 매입 기록)
 
 Fear & Greed 지수 기반 적응형 DCA 전략의 매입 기록.
@@ -380,10 +438,10 @@ daily_reports.dca_value ← dca_purchases 집계
 
 ### 현재 상태
 
-- 데이터 보존 정책: 미적용 (모든 데이터 무기한 보존)
+- 데이터 보존 정책: `scripts/ohlcv_retention.py` — 타임프레임별 자동 삭제 (1m→30일, 5m→90일, 15m→180일, 1h→365일, 4h→730일)
 - 파티셔닝: 미적용
 - 아카이빙: 미적용
-- 백업: Docker 볼륨 기반 (`pgdata` 볼륨)
+- 백업: `pg-backup` 서비스 — 일일 `pg_dump` (02:00 KST), 7일 보존, `pg-backups` Docker 볼륨
 
 ### 테이블별 데이터 증가 예상
 

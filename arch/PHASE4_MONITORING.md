@@ -90,6 +90,46 @@ docker compose --profile backtest run --rm backtester python scripts/phase4_heal
 
 ---
 
+### 7. 레짐 대시보드 확인
+
+```bash
+# 브라우저에서 확인
+open http://localhost:3000/regime
+```
+
+확인 포인트:
+- 현재 레짐 표시 (confirmed_regime: trending/ranging/volatile)
+- 5분 타임라인에서 raw 레짐 추이
+- 확정 레짐 전환 이력 (regime_transitions 테이블)
+- 오케스트레이터 가중치 전환 진행률 (5-cycle EMA)
+
+---
+
+### 8. 포지션 정합성 (Reconciliation) 확인
+
+```bash
+docker compose logs execution-engine | grep "reconcile"
+```
+
+확인 포인트:
+- 10분마다 `POSITION_RECONCILE_OK` 로그 확인
+- `POSITION_RECONCILE_MISMATCH` 발생 시 즉시 원인 파악
+- `position:reconcile_event` Redis 채널로 불일치 세부정보 발행됨
+
+---
+
+### 9. 백업 상태 확인
+
+```bash
+make backup-list
+```
+
+확인 포인트:
+- 당일 자동 백업 파일(02:00 KST) 존재 여부
+- 7일 이내 백업 7개 이상 유지
+
+---
+
 ## 7개 시나리오 체크리스트
 
 Phase 4에서 아래 7개 시나리오를 모두 검증해야 Phase 5로 진행 가능합니다.
@@ -255,4 +295,26 @@ docker compose up -d
 
 ---
 
-*최종 업데이트: Phase 4 준비 완료 (2026-04-03)*
+---
+
+## Phase 5 진입 전 최종 점검: `phase5_preflight.py`
+
+```bash
+docker compose --profile backtest run --rm backtester python scripts/phase5_preflight.py
+```
+
+8개 항목 자동 점검:
+1. 환경변수 (`BYBIT_TESTNET`, API 키 존재 여부)
+2. Bybit API 연결
+3. 계정 잔고
+4. 수수료 등급 확인
+5. 최소 주문 크기 확인
+6. 레버리지 설정 일치
+7. 오픈 포지션 상태
+8. DB 연결 및 최근 데이터
+
+**모든 항목 PASS + 7개 시나리오 완료 후에만 `BYBIT_TESTNET=false` 전환 진행.**
+
+---
+
+*최종 업데이트: Phase 4 안전장치 및 모니터링 강화 완료 (2026-04-06)*
