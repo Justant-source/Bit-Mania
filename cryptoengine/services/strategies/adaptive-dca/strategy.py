@@ -87,7 +87,12 @@ class AdaptiveDCAStrategy(BaseStrategy):
 
     async def on_start(self, capital: float, params: dict[str, Any]) -> None:
         """Initialise exchange, F&G collector, and scheduler."""
-        self._exchange = exchange_factory(self.exchange_id)
+        self._exchange = exchange_factory(
+            "bybit",
+            api_key=os.environ.get("BYBIT_API_KEY", ""),
+            api_secret=os.environ.get("BYBIT_API_SECRET", ""),
+            testnet=os.environ.get("BYBIT_TESTNET", "true").lower() == "true",
+        )
         await self._exchange.connect()
 
         self._fng_collector = FearGreedCollector(redis=self._redis)
