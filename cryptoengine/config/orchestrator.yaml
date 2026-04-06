@@ -61,19 +61,21 @@ regime_detection:
 # ── Weight Matrix ─────────────────────────────────────────────
 # Rows = market regime, Columns = strategy allocation weight.
 # Each row must sum to 1.0.
-# 포트폴리오: FA + Adaptive DCA + 현금 (Test H 기반, 2026-04-05)
+# 포트폴리오: FA 단독 + 현금 (2026-04-05 확정)
+# DCA 6년 Walk-Forward 실패 (consistency 0.409, 2022 MDD -42%) → 가중치 0 고정
+# Phase 4 이후 4주 테스트넷 운영 결과에 따라 DCA 추가 여부 재결정
 weights:
-  # 횡보: FA 지배적 (Test E 횡보 Sharpe 2.72), DCA 소량
+  # 횡보: FA 지배적 (Test E 횡보 Sharpe 2.72)
   ranging:
     funding_arb: 0.50
-    adaptive_dca: 0.10
-    cash_reserve: 0.40
+    adaptive_dca: 0.00
+    cash_reserve: 0.50
 
-  # 상승추세: graduated DCA 강함 (Test C +13.89%), FA 보조
+  # 상승추세: 현금 80% 방어, FA 20% 유지
   trending_up:
     funding_arb: 0.20
-    adaptive_dca: 0.40
-    cash_reserve: 0.40
+    adaptive_dca: 0.00
+    cash_reserve: 0.80
 
   # 하락추세: Cash 90% 방어, FA 10% 유지 (Test E: 소량 FA가 소폭 개선)
   trending_down:
