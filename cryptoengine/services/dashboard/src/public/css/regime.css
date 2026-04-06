@@ -1,0 +1,538 @@
+/* regime.css — CryptoEngine 레짐 대시보드 다크 테마 */
+
+/* ── 리셋 & 기본 ─────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface-2: #1e2d50;
+  --border: #2a2a4a;
+  --text: #e0e0e0;
+  --text-muted: #9e9e9e;
+  --text-dim: #6a6a8a;
+  --accent: #4a90d9;
+
+  /* 레짐 색상 */
+  --ranging: #2196f3;
+  --trending-up: #4caf50;
+  --trending-down: #f44336;
+  --volatile: #ff9800;
+  --uncertain: #9e9e9e;
+}
+
+html {
+  font-size: 14px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── 헤더 ────────────────────────────────────────────────── */
+
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 1.5rem;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+#last-updated {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ── 메인 레이아웃 ───────────────────────────────────────── */
+
+main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── 섹션 공통 ───────────────────────────────────────────── */
+
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.section-header {
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── 섹션 1: 카드 5개 ────────────────────────────────────── */
+
+.cards {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.card {
+  flex: 1 1 170px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border);
+  transition: background 0.3s;
+}
+
+/* 레짐별 카드 상단 색 */
+.card.ranging::before       { background: var(--ranging); }
+.card.trending-up::before   { background: var(--trending-up); }
+.card.trending-down::before { background: var(--trending-down); }
+.card.volatile::before      { background: var(--volatile); }
+.card.uncertain::before     { background: var(--uncertain); }
+
+.card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.card-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.4rem;
+}
+
+.card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ── Pulse 애니메이션 ─────────────────────────────────────── */
+
+@keyframes pulse-border {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.6); }
+  50%  { box-shadow: 0 0 0 6px rgba(255, 152, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0); }
+}
+
+.pulse {
+  animation: pulse-border 2s ease-in-out infinite;
+  border-color: var(--volatile) !important;
+}
+
+/* ── 프로그레스 바 ───────────────────────────────────────── */
+
+.progress-bar {
+  background: var(--border);
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.progress-bar.large {
+  height: 12px;
+  border-radius: 6px;
+  margin: 0.75rem 0 1rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #60c0ff);
+  border-radius: inherit;
+  transition: width 0.5s ease;
+}
+
+/* ── 섹션 2: 원시 타임라인 ───────────────────────────────── */
+
+.timeline-bar-container {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  background: var(--border);
+}
+
+.timeline-cell {
+  height: 100%;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+  cursor: default;
+}
+
+.timeline-cell:hover {
+  opacity: 0.8 !important;
+  outline: 1px solid rgba(255,255,255,0.5);
+}
+
+.timeline-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.summary-stats {
+  color: var(--text-dim);
+}
+
+.no-data-msg {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+  width: 100%;
+}
+
+/* ── 레짐 뱃지 ───────────────────────────────────────────── */
+
+.regime-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--uncertain);
+}
+
+.regime-badge.ranging       { background: var(--ranging); }
+.regime-badge.trending-up   { background: var(--trending-up); }
+.regime-badge.trending-down { background: var(--trending-down); }
+.regime-badge.volatile      { background: var(--volatile); }
+.regime-badge.uncertain     { background: var(--uncertain); }
+
+/* ── 섹션 3: 확정 레짐 차트 ─────────────────────────────── */
+
+.chart-section { }
+
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.confirmed-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ── 섹션 4: 가중치 전환 ─────────────────────────────────── */
+
+.transition-section { }
+
+.transition-status-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 0.75rem;
+}
+
+.transition-status-label.in-progress {
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--volatile);
+  border: 1px solid rgba(255, 152, 0, 0.4);
+}
+
+.transition-status-label.stable {
+  background: rgba(76, 175, 80, 0.1);
+  color: var(--trending-up);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+/* ── 테이블 공통 ─────────────────────────────────────────── */
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+thead th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(255,255,255,0.025);
+}
+
+tbody tr:hover {
+  background: var(--surface-2);
+}
+
+tbody tr.unconfirmed {
+  opacity: 0.65;
+}
+
+tbody td {
+  padding: 0.55rem 0.75rem;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.no-data {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 1.5rem !important;
+}
+
+/* ── 섹션 5: 자본 배분 ───────────────────────────────────── */
+
+.allocation-section { }
+
+.allocation-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.allocation-chart-wrapper {
+  flex-shrink: 0;
+}
+
+.allocation-detail {
+  flex: 1;
+  min-width: 200px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.alloc-total {
+  font-size: 1rem;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.alloc-total strong {
+  color: var(--accent);
+}
+
+.alloc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.alloc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alloc-label {
+  flex: 1;
+  color: var(--text);
+}
+
+.alloc-val {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ── 섹션 6: 전환 이력 ───────────────────────────────────── */
+
+.history-section { }
+
+.history-stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.stat-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-item {
+  color: var(--text);
+}
+
+.stat-item.fake {
+  color: var(--volatile);
+}
+
+.stat-item strong {
+  color: var(--accent);
+}
+
+.stat-item.fake strong {
+  color: var(--volatile);
+}
+
+/* 확정/미확정 뱃지 */
+.badge-yes {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(76, 175, 80, 0.2);
+  color: var(--trending-up);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.badge-no {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(244, 67, 54, 0.15);
+  color: var(--trending-down);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+/* ── 반응형 ──────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  main {
+    padding: 1rem;
+  }
+
+  .cards {
+    flex-direction: column;
+  }
+
+  .card {
+    flex: 1 1 auto;
+  }
+
+  .allocation-layout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .history-stats {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
