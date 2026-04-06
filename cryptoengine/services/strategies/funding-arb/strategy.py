@@ -138,6 +138,7 @@ class FundingArbStrategy(BaseStrategy):
         self._funding_tracker = FundingTracker(
             strategy_id=self.strategy_id,
             symbol=self.perp_symbol,
+            redis=self._redis,
         )
         await self._funding_tracker.load_from_redis()
         self.register_controller("funding_tracker", self._funding_tracker)

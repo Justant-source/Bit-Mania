@@ -62,11 +62,12 @@ class FundingPayment:
 class FundingTracker:
     """Track funding rate payments and provide timing-based guards."""
 
-    def __init__(self, strategy_id: str, symbol: str = "BTC/USDT:USDT") -> None:
+    def __init__(self, strategy_id: str, symbol: str = "BTC/USDT:USDT", redis=None) -> None:
         self.strategy_id = strategy_id
         self.symbol = symbol
         self._payments: list[FundingPayment] = []
         self._cumulative_income: float = 0.0
+        self._redis = redis
         self._log = logger.bind(component="funding_tracker", strategy_id=strategy_id)
 
     # ── timing helpers ──────────────────────────────────────────────────
@@ -169,9 +170,11 @@ class FundingTracker:
 
     async def load_from_redis(self) -> None:
         """Hydrate state from Redis on startup."""
-        redis = await get_redis()
+        redis_client = self._redis or get_redis()
+        if not redis_client.is_healthy:
+            await redis_client.ensure_connected()
         key = f"funding:payments:{self.strategy_id}"
-        raw_entries = await redis.lrange(key, 0, -1)
+        raw_entries = await redis_client.client.lrange(key, 0, -1)
         for raw in raw_entries:
             data = json.loads(raw)
             fp = FundingPayment(
