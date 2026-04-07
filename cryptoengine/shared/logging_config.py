@@ -103,7 +103,13 @@ def _make_db_log_processor(min_db_level: int):
             error_type: str | None = None
             error_stack: str | None = None
             exc_info = event_dict.get("exc_info")
-            if exc_info and exc_info is not True:
+            # exc_info=True means "use current sys.exc_info()" — resolve it here
+            if exc_info is True:
+                import sys as _sys
+                exc_info = _sys.exc_info()
+                if exc_info[0] is None:
+                    exc_info = None
+            if exc_info:
                 try:
                     if isinstance(exc_info, tuple) and len(exc_info) == 3:
                         exc_cls, exc_val, exc_tb = exc_info
@@ -232,5 +238,12 @@ def setup_logging(
     root_logger.setLevel(log_level)
 
     # Silence noisy third-party loggers
-    for noisy in ("ccxt", "ccxt.base.exchange", "asyncio", "websockets"):
+    for noisy in (
+        "ccxt", "ccxt.base.exchange",
+        "asyncio",
+        "websockets", "websockets.client", "websockets.server",
+        "aioredis",
+        "asyncpg", "asyncpg.pool",
+        "telegram", "telegram.ext", "httpx", "hpack",
+    ):
         logging.getLogger(noisy).setLevel(logging.WARNING)

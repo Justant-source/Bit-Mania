@@ -154,6 +154,7 @@ async def main() -> None:
     async def _balance_publisher(shutdown: asyncio.Event) -> None:
         """Refresh wallet balance in Redis every 60 s so orchestrator never sees 0."""
         while not shutdown.is_set():
+            connector = None
             try:
                 connector = exchange_factory(
                     EXCHANGE,
@@ -169,29 +170,40 @@ async def main() -> None:
                     _json.dumps(balance),
                 )
                 log.info(SERVICE_HEALTH_OK, message="wallet balance published", total_usdt=balance.get("total", 0))
-                await connector.disconnect()
             except Exception:
                 log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed")
+            finally:
+                if connector is not None:
+                    try:
+                        await connector.disconnect()
+                    except Exception:
+                        pass
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=60)
             except asyncio.TimeoutError:
                 pass
 
     # 최초 1회 즉시 실행
+    _init_connector = None
     try:
-        connector = exchange_factory(
+        _init_connector = exchange_factory(
             EXCHANGE,
             api_key=BYBIT_API_KEY,
             api_secret=BYBIT_API_SECRET,
             testnet=BYBIT_TESTNET,
         )
-        await connector.connect()
-        balance = await connector.get_balance()
+        await _init_connector.connect()
+        balance = await _init_connector.get_balance()
         await redis_client.setex("cache:wallet_balance", 300, _json.dumps(balance))
         log.info(SERVICE_HEALTH_OK, message="wallet balance published (initial)", total_usdt=balance.get("total", 0))
-        await connector.disconnect()
     except Exception:
         log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed (initial)")
+    finally:
+        if _init_connector is not None:
+            try:
+                await _init_connector.disconnect()
+            except Exception:
+                pass
 
     # --- Execution engine ---
     engine = ExecutionEngine(
