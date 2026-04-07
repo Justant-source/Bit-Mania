@@ -10,6 +10,7 @@ import asyncio
 import os
 import pathlib
 import signal
+from typing import Any
 
 import asyncpg
 import redis.asyncio as aioredis
@@ -96,6 +97,49 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
     log.info(SERVICE_HEALTH_OK, message="execution tables ensured")
 
 
+async def _verify_initial_balance(
+    connector: Any,
+    expected_usd: float,
+    tolerance_pct: float = 5.0,
+) -> bool:
+    """Phase 5: 시작 시 잔고가 예상값과 일치하는지 검증.
+
+    Args:
+        connector: 거래소 커넥터 (connect() 완료 상태)
+        expected_usd: 예상 초기 잔고 (EXPECTED_INITIAL_BALANCE_USD)
+        tolerance_pct: 허용 오차 % (기본 5%)
+
+    Returns:
+        True = 검증 통과 (차이가 tolerance 이내)
+        False = 검증 실패 (시작 거부 권장)
+    """
+    try:
+        balance = await connector.get_balance()
+        actual_usdt = float(balance.get("total", balance.get("USDT", {}).get("total", 0)) or 0)
+        diff_pct = abs(actual_usdt - expected_usd) / expected_usd * 100 if expected_usd > 0 else 0
+        log.info(
+            SERVICE_HEALTH_OK,
+            message="Phase5 잔고 검증",
+            expected_usd=expected_usd,
+            actual_usdt=round(actual_usdt, 4),
+            diff_pct=round(diff_pct, 2),
+        )
+        if diff_pct > tolerance_pct:
+            log.error(
+                SERVICE_HEALTH_FAIL,
+                message="Phase5 잔고 불일치 — 시작 거부",
+                expected_usd=expected_usd,
+                actual_usdt=round(actual_usdt, 4),
+                diff_pct=round(diff_pct, 2),
+                tolerance_pct=tolerance_pct,
+            )
+            return False
+        return True
+    except Exception as exc:
+        log.warning(SERVICE_HEALTH_FAIL, message="Phase5 잔고 조회 실패 (검증 건너뜀)", exc=str(exc))
+        return True  # 조회 실패 시 차단하지 않음 (보수적이지 않은 선택이지만 가용성 우선)
+
+
 async def main() -> None:
     # --- Connection pools ---
     db_pool: asyncpg.Pool = await asyncpg.create_pool(
@@ -114,6 +158,57 @@ async def main() -> None:
     log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=REDIS_URL)
 
     await _create_tables(db_pool)
+
+    # ── Phase 5: 초기 잔고 검증 ──────────────────────────────
+    # EXPECTED_INITIAL_BALANCE_USD > 0 이고 메인넷(BYBIT_TESTNET=false)이면 검증
+    _expected_balance = float(os.getenv("EXPECTED_INITIAL_BALANCE_USD", "0"))
+    _is_mainnet = not BYBIT_TESTNET
+    if _expected_balance > 0 and _is_mainnet:
+        log.info(SERVICE_HEALTH_OK, message="Phase5 잔고 검증 시작",
+                 expected_usd=_expected_balance, testnet=BYBIT_TESTNET)
+        _verify_connector = exchange_factory(
+            EXCHANGE,
+            api_key=BYBIT_API_KEY,
+            api_secret=BYBIT_API_SECRET,
+            testnet=BYBIT_TESTNET,
+        )
+        try:
+            await _verify_connector.connect()
+            _balance_ok = await _verify_initial_balance(_verify_connector, _expected_balance)
+        finally:
+            try:
+                await _verify_connector.disconnect()
+            except Exception:
+                pass
+
+        if not _balance_ok:
+            # Telegram 알림 시도
+            try:
+                import json as _json
+                _r = aioredis.from_url(REDIS_URL, decode_responses=True)
+                await _r.publish("ce:alerts:anomaly", _json.dumps({
+                    "type": "anomaly",
+                    "message": (
+                        f"⛔ Phase 5 잔고 불일치\n"
+                        f"예상: ${_expected_balance:.2f}\n"
+                        f"실제: 조회 결과 불일치\n"
+                        "execution-engine 시작 거부됨 — 잔고 확인 필요"
+                    ),
+                    "severity": "critical",
+                }))
+                await _r.aclose()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Phase 5 잔고 불일치: EXPECTED_INITIAL_BALANCE_USD={_expected_balance} "
+                "와 실제 잔고가 5% 이상 차이남 — 시작 거부. "
+                "잔고 확인 후 EXPECTED_INITIAL_BALANCE_USD 수정 또는 unset."
+            )
+        log.info(SERVICE_HEALTH_OK, message="Phase5 잔고 검증 통과")
+    elif _expected_balance == 0 and _is_mainnet:
+        log.warning(SERVICE_HEALTH_FAIL,
+                    message="Phase5 잔고 검증 건너뜀 — EXPECTED_INITIAL_BALANCE_USD 미설정",
+                    recommendation="Phase 5에서는 EXPECTED_INITIAL_BALANCE_USD=200 설정 권장")
 
     # --- Position tracker (sync on startup) ---
     position_tracker = PositionTracker(

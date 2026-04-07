@@ -80,6 +80,29 @@ class FundingArbStrategy(BaseStrategy):
         self._reinvested_btc: float = 0.0
         self._total_reinvested_usd: float = 0.0
 
+        # Phase 5 small-capital overrides
+        # If PHASE5_MODE=true OR BYBIT_TESTNET=false, apply phase5 section from config.
+        _phase5_enabled = (
+            os.environ.get("PHASE5_MODE", "false").lower() == "true"
+            or os.environ.get("BYBIT_TESTNET", "true").lower() == "false"
+        )
+        _p5 = config.get("phase5", {}) if _phase5_enabled else {}
+
+        # Apply phase5 overrides (fallback to base config values)
+        self._phase5_mode: bool = _phase5_enabled
+        self._sizing_mode: str = _p5.get("sizing_mode", config.get("position", {}).get("sizing_mode", "pct_equity"))
+        self._fixed_notional_usd: float = float(_p5.get("fixed_notional_usd", config.get("position", {}).get("fixed_notional_usd", 150.0)))
+        self._pct_equity: float = float(_p5.get("pct_equity", config.get("position", {}).get("pct_equity", 5.0))) / 100.0
+        self._min_position_usd: float = float(_p5.get("min_position_usd", config.get("position", {}).get("min_position_usd", 100.0)))
+        self._max_concurrent_positions: int = int(_p5.get("max_concurrent_positions", config.get("position", {}).get("max_concurrent_positions", 5)))
+
+        # Phase5 overrides for leverage, fa_capital_ratio, reinvest_ratio
+        if _phase5_enabled and _p5:
+            if "fa_capital_ratio" in _p5:
+                self.fa_capital_ratio = float(_p5["fa_capital_ratio"])
+            if "reinvest_ratio" in _p5:
+                self.reinvest_ratio = float(_p5["reinvest_ratio"])
+
         # Fee rates (Bybit: spot taker 0.01%, perp taker 0.055%)
         self.spot_fee_rate: float = config.get("fees", {}).get("spot_fee_rate", 0.0001)
         self.perp_fee_rate: float = config.get("fees", {}).get("perp_fee_rate", 0.00055)
@@ -169,6 +192,10 @@ class FundingArbStrategy(BaseStrategy):
             fa_capital_ratio=self.fa_capital_ratio,
             reinvest_ratio=self.reinvest_ratio,
             position_recovered=recovered,
+            phase5_mode=self._phase5_mode,
+            sizing_mode=self._sizing_mode,
+            fixed_notional_usd=self._fixed_notional_usd if self._sizing_mode != "pct_equity" else None,
+            max_concurrent_positions=self._max_concurrent_positions,
         )
 
     async def on_stop(self, reason: str) -> None:
@@ -333,6 +360,12 @@ class FundingArbStrategy(BaseStrategy):
                 spread=round(basis_spread * 100, 4),
                 threshold=round(self.max_spread_entry * 100, 4),
             )
+            return False
+
+        # Phase5: max_concurrent_positions 제한 (1 in phase5 mode)
+        # 현재 open 포지션이 있으면 추가 진입 차단
+        if self._basis_sm.is_open:
+            self._log.debug("max_positions_reached", limit=self._max_concurrent_positions)
             return False
 
         return True
@@ -829,19 +862,43 @@ class FundingArbStrategy(BaseStrategy):
     def _calculate_position_size(self, price: float) -> float:
         """Determine BTC quantity for delta-neutral position (spot qty = perp qty).
 
-        Capital allocation model (fa80_lev5_r30):
-          - allocated_capital = orchestrator-assigned capital (already reflects fa_capital_ratio)
-          - With leverage L on perp: margin_needed = qty * price / L
-          - Total capital = spot_value + perp_margin = qty * price * (1 + 1/L)
-          - Solving: qty = usable / (price * (1 + 1/L))
+        Sizing modes:
+        - ``pct_equity`` (default): allocated_capital × pct_equity / (price × leverage_factor)
+        - ``fixed_notional``: fixed USD notional / (price × leverage_factor)  — Phase 5 소액 모드
+        - ``min_viable``: uses exchange minimum order size (fallback to fixed_notional)
 
-        At 5x leverage: capital_factor = 1.2  → 20% more BTC per dollar vs 2x (factor=1.5)
+        Phase 5 mode (PHASE5_MODE=true or BYBIT_TESTNET=false) applies phase5 config overrides.
         """
         if price <= 0:
             return 0.0
-        usable_capital = self.allocated_capital * 0.95  # 5% buffer for fees/slippage
+
         leverage_factor = 1.0 + (1.0 / self.leverage) if self.leverage > 0 else 2.0
-        return usable_capital / (price * leverage_factor)
+
+        if self._sizing_mode == "fixed_notional":
+            # Phase 5: 고정 명목가 모드 ($150 등)
+            usable_notional = self._fixed_notional_usd * 0.95  # 5% 수수료/슬리피지 버퍼
+            qty = usable_notional / (price * leverage_factor)
+        elif self._sizing_mode == "min_viable":
+            # 거래소 최소 주문 크기 기반 (fixed_notional과 동일, min_position_usd 사용)
+            usable_notional = self._min_position_usd * 0.95
+            qty = usable_notional / (price * leverage_factor)
+        else:
+            # pct_equity (기본 모드)
+            usable_capital = self.allocated_capital * self._pct_equity * 0.95
+            qty = usable_capital / (price * leverage_factor)
+
+        # 최소 유효 수량 검증: notional이 min_position_usd 이상이어야 진입
+        notional = qty * price
+        if notional < self._min_position_usd:
+            self._log.debug(
+                "position_size_below_minimum",
+                notional=round(notional, 2),
+                min_usd=self._min_position_usd,
+                sizing_mode=self._sizing_mode,
+            )
+            return 0.0  # 진입 차단
+
+        return qty
 
     async def _place_and_track(self, order: OrderRequest) -> OrderResult | None:
         """Place order via execution engine (Redis) for safety validation.

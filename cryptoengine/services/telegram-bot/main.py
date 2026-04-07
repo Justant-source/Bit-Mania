@@ -86,6 +86,18 @@ _DEDUP_ALERT_TYPES = frozenset({"kill_switch", "anomaly"})
 
 HEARTBEAT_INTERVAL_SECONDS = 30 * 60  # 30 minutes
 
+# ── Phase 5 강화 모니터링 ─────────────────────────────────────
+# BYBIT_TESTNET=false AND STRICT_MONITORING_HOURS > 0 이면 활성화
+_TESTNET = os.getenv("BYBIT_TESTNET", "true").lower() == "true"
+STRICT_MONITORING_HOURS: float = float(os.getenv("STRICT_MONITORING_HOURS", "0"))
+STRICT_MONITORING_ENABLED: bool = (
+    not _TESTNET and STRICT_MONITORING_HOURS > 0
+)
+# STRICT 모드에서의 마진비율 경고 임계값 (기본 10x → 20x로 보수적)
+STRICT_MARGIN_WARN_THRESHOLD: float = float(os.getenv("STRICT_MARGIN_WARN_THRESHOLD", "20"))
+# Phase 5: 잔고 검증 기준 (EXPECTED_INITIAL_BALANCE_USD)
+EXPECTED_INITIAL_BALANCE_USD: float = float(os.getenv("EXPECTED_INITIAL_BALANCE_USD", "0"))
+
 
 async def _heartbeat_task(
     redis_client: aioredis.Redis,
@@ -285,6 +297,109 @@ async def _scheduled_report_task(
         log.info(SERVICE_STOPPING, message="일일 리포트 스케줄러 취소됨")
 
 
+async def _strict_monitoring_task(
+    redis_client: aioredis.Redis,
+    bot: object,
+    shutdown_event: asyncio.Event,
+    start_time: float,
+) -> None:
+    """Phase 5 강화 모니터링 태스크.
+
+    매 1시간마다 강제 상태 리포트를 전송하고, STRICT_MONITORING_HOURS 경과 후
+    자동으로 일반 모드 전환 안내를 전송한다.
+    """
+    import time as _time
+    import json as _json
+
+    REPORT_INTERVAL = 3600  # 1시간
+    log.info("strict_monitoring_started", hours=STRICT_MONITORING_HOURS)
+
+    # 시작 알림
+    try:
+        await bot.send_message(  # type: ignore[attr-defined]
+            chat_id=TELEGRAM_CHAT_ID,
+            text=(
+                "🔴 *Phase 5 강화 모니터링 활성*\n"
+                f"• 배치 알림 비활성 → 모든 알림 즉시 전송\n"
+                f"• 마진비율 < {STRICT_MARGIN_WARN_THRESHOLD:.0f}x 경고\n"
+                f"• 1시간마다 강제 상태 리포트\n"
+                f"• {STRICT_MONITORING_HOURS:.0f}시간 후 자동 해제"
+            ),
+            parse_mode="Markdown",
+        )
+    except Exception:
+        log.exception("strict_monitoring_start_notify_failed")
+
+    report_count = 0
+    while not shutdown_event.is_set():
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=REPORT_INTERVAL)
+            break  # shutdown
+        except asyncio.TimeoutError:
+            pass  # 1시간 경과 → 리포트 전송
+
+        elapsed_hours = (_time.monotonic() - start_time) / 3600
+
+        # STRICT_MONITORING_HOURS 경과 시 자동 해제
+        if elapsed_hours >= STRICT_MONITORING_HOURS:
+            try:
+                await bot.send_message(  # type: ignore[attr-defined]
+                    chat_id=TELEGRAM_CHAT_ID,
+                    text=(
+                        "✅ *Phase 5 강화 모니터링 자동 해제*\n"
+                        f"• {STRICT_MONITORING_HOURS:.0f}시간 경과 → 일반 모드 전환\n"
+                        "• 마진비율 경고 임계값: 10x (표준)\n"
+                        "• 알림 배치 모드 복귀는 서비스 재시작 필요"
+                    ),
+                    parse_mode="Markdown",
+                )
+                log.info("strict_monitoring_auto_released", elapsed_hours=elapsed_hours)
+            except Exception:
+                log.exception("strict_monitoring_release_notify_failed")
+            break
+
+        # 1시간 주기 상태 리포트
+        report_count += 1
+        try:
+            portfolio_raw = await redis_client.get("ce:portfolio:state")
+            portfolio = _json.loads(portfolio_raw) if portfolio_raw else {}
+            equity = portfolio.get("total_equity", 0.0)
+            daily_pnl = portfolio.get("daily_pnl", 0.0)
+            daily_pnl_pct = (daily_pnl / equity * 100) if equity > 0 else 0.0
+
+            positions_raw = await redis_client.get("ce:positions:all")
+            positions = _json.loads(positions_raw) if positions_raw else []
+            position_count = len(positions) if isinstance(positions, list) else 0
+
+            # 마진비율 체크
+            margin_warn = ""
+            for pos in (positions if isinstance(positions, list) else []):
+                margin_ratio = pos.get("margin_ratio", 999)
+                if margin_ratio < STRICT_MARGIN_WARN_THRESHOLD:
+                    margin_warn = f"\n⚠️ *마진비율 경고*: {margin_ratio:.1f}x < {STRICT_MARGIN_WARN_THRESHOLD:.0f}x"
+
+            balance_note = ""
+            if EXPECTED_INITIAL_BALANCE_USD > 0:
+                change = equity - EXPECTED_INITIAL_BALANCE_USD
+                change_pct = (change / EXPECTED_INITIAL_BALANCE_USD * 100)
+                balance_note = f"\n• 시작 잔고 대비: {change:+.2f} USD ({change_pct:+.1f}%)"
+
+            await bot.send_message(  # type: ignore[attr-defined]
+                chat_id=TELEGRAM_CHAT_ID,
+                text=(
+                    f"📊 *Phase 5 상태 리포트 #{report_count}*\n"
+                    f"• 경과: {elapsed_hours:.1f}h / {STRICT_MONITORING_HOURS:.0f}h\n"
+                    f"• 자산: {equity:.2f} USDT{balance_note}\n"
+                    f"• 일간 PnL: {daily_pnl:+.2f} USD ({daily_pnl_pct:+.2f}%)\n"
+                    f"• 포지션: {position_count}개{margin_warn}"
+                ),
+                parse_mode="Markdown",
+            )
+            log.info("strict_monitoring_report_sent", report_count=report_count, elapsed_hours=elapsed_hours)
+        except Exception:
+            log.exception("strict_monitoring_report_failed")
+
+
 async def main() -> None:
     """Start the Telegram bot and Redis alert subscriber."""
     # --- Connection pools (created before logging so we can pass db_pool) ---
@@ -351,10 +466,12 @@ async def main() -> None:
     await app.updater.start_polling(drop_pending_updates=True)  # type: ignore[union-attr]
 
     # T-1: Wire AlertDispatcher now that app.bot is available
+    # STRICT_MONITORING 모드에서는 배치 비활성화 (모든 알림 즉시 전송)
+    _effective_batch_window = 0.0 if STRICT_MONITORING_ENABLED else BATCH_WINDOW_SECONDS
     dispatcher = AlertDispatcher(
         bot=app.bot,
         chat_id=TELEGRAM_CHAT_ID,
-        batch_window_seconds=BATCH_WINDOW_SECONDS,
+        batch_window_seconds=_effective_batch_window,
         max_messages_per_minute=MAX_MESSAGES_PER_MINUTE,
         min_trade_size_usd=MIN_TRADE_SIZE_USD,
     )
@@ -362,9 +479,10 @@ async def main() -> None:
     log.info(
         SERVICE_STARTED,
         message="AlertDispatcher 설정 완료",
-        batch_window=BATCH_WINDOW_SECONDS,
+        batch_window=_effective_batch_window,
         max_per_min=MAX_MESSAGES_PER_MINUTE,
         min_trade_usd=MIN_TRADE_SIZE_USD,
+        strict_monitoring=STRICT_MONITORING_ENABLED,
     )
 
     subscriber_task = asyncio.create_task(
@@ -380,6 +498,21 @@ async def main() -> None:
         _scheduled_report_task(handlers, app.bot, shutdown_event, SCHEDULE_UTC),
         name="report_scheduler",
     )
+
+    # T-6: Phase 5 강화 모니터링 (STRICT_MONITORING_ENABLED일 때만)
+    import time as _time_module
+    _strict_start = _time_module.monotonic()
+    strict_task: asyncio.Task | None = None
+    if STRICT_MONITORING_ENABLED:
+        strict_task = asyncio.create_task(
+            _strict_monitoring_task(redis_client, app.bot, shutdown_event, _strict_start),
+            name="strict_monitoring",
+        )
+        log.info(
+            "strict_monitoring_mode_active",
+            hours=STRICT_MONITORING_HOURS,
+            margin_warn_threshold=STRICT_MARGIN_WARN_THRESHOLD,
+        )
 
     log.info(
         SERVICE_STARTED,
@@ -402,7 +535,11 @@ async def main() -> None:
     subscriber_task.cancel()
     heartbeat_task.cancel()
     scheduler_task.cancel()
-    await asyncio.gather(subscriber_task, heartbeat_task, scheduler_task, return_exceptions=True)
+    gather_tasks = [subscriber_task, heartbeat_task, scheduler_task]
+    if strict_task is not None:
+        strict_task.cancel()
+        gather_tasks.append(strict_task)
+    await asyncio.gather(*gather_tasks, return_exceptions=True)
 
     await app.updater.stop()  # type: ignore[union-attr]
     await app.stop()
