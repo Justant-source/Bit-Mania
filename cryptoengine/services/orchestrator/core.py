@@ -62,13 +62,13 @@ class StrategyOrchestrator:
 
         ks_cfg = self._kill_switch_config
         cooldown_min = ks_cfg.get("cooldown_minutes", 60)
-        self._kill_switch = KillSwitch(
-            daily_limit=-(ks_cfg.get("max_daily_drawdown_pct", 5.0) / 100.0),
-            weekly_limit=-(ks_cfg.get("max_weekly_drawdown_pct", 10.0) / 100.0),
-            monthly_limit=-(ks_cfg.get("max_monthly_drawdown_pct", 15.0) / 100.0),
-            cooldown_hours=cooldown_min / 60.0,
-            on_trigger=self._on_kill_switch_trigger,
+
+        # Phase 5 소액 실전 감지: PHASE5_MODE=true 또는 BYBIT_TESTNET=false 시 활성화
+        self._phase5_mode: bool = (
+            os.environ.get("PHASE5_MODE", "false").lower() == "true"
+            or os.environ.get("BYBIT_TESTNET", "true").lower() == "false"
         )
+        self._kill_switch = self._build_kill_switch(ks_cfg, cooldown_min)
         self._current_regime: RegimeType = "ranging"
         self._current_weights: dict[str, float] = {}
         self._total_equity: float = 0.0
@@ -95,6 +95,38 @@ class StrategyOrchestrator:
         self._config_path: str = os.environ.get("CONFIG_PATH", "/app/config/orchestrator.yaml")
         self._config_mtime: float = 0.0
         self._config_reload_task: asyncio.Task[None] | None = None
+
+    def _build_kill_switch(self, ks_cfg: dict[str, Any], cooldown_min: float) -> KillSwitch:
+        """KillSwitch 인스턴스를 생성한다.
+
+        Phase 5 모드에서는 kill_switch.phase5 섹션의 완화된 퍼센트 임계값과
+        절대값 USD 임계값을 함께 사용한다 (AND 조건).
+        """
+        if self._phase5_mode and "phase5" in ks_cfg:
+            p5 = ks_cfg["phase5"]
+            log.info(
+                SERVICE_STARTED,
+                message="Phase 5 모드 감지 — 절대값 임계값 KillSwitch 초기화",
+                daily_pct=p5.get("max_daily_drawdown_pct", 5.0),
+                daily_abs_usd=p5.get("max_daily_loss_abs_usd", 10),
+            )
+            return KillSwitch(
+                daily_limit=-(p5.get("max_daily_drawdown_pct", 5.0) / 100.0),
+                weekly_limit=-(p5.get("max_weekly_drawdown_pct", 10.0) / 100.0),
+                monthly_limit=-(p5.get("max_monthly_drawdown_pct", 15.0) / 100.0),
+                cooldown_hours=cooldown_min / 60.0,
+                on_trigger=self._on_kill_switch_trigger,
+                daily_loss_abs_usd=float(p5.get("max_daily_loss_abs_usd", 10)),
+                weekly_loss_abs_usd=float(p5.get("max_weekly_loss_abs_usd", 20)),
+                monthly_loss_abs_usd=float(p5.get("max_monthly_loss_abs_usd", 30)),
+            )
+        return KillSwitch(
+            daily_limit=-(ks_cfg.get("max_daily_drawdown_pct", 5.0) / 100.0),
+            weekly_limit=-(ks_cfg.get("max_weekly_drawdown_pct", 10.0) / 100.0),
+            monthly_limit=-(ks_cfg.get("max_monthly_drawdown_pct", 15.0) / 100.0),
+            cooldown_hours=cooldown_min / 60.0,
+            on_trigger=self._on_kill_switch_trigger,
+        )
 
     async def start(self) -> None:
         """Initialize connections and begin the orchestration loop."""
@@ -216,6 +248,7 @@ class StrategyOrchestrator:
             portfolio_state,
             monthly_drawdown=monthly_dd,
             system_healthy=True,
+            equity_at_open=portfolio_state.total_equity,  # Phase 5 절대값 계산 기준
         )
         if active_level > KillLevel.NONE:
             log.critical(
@@ -722,12 +755,16 @@ class StrategyOrchestrator:
             ]
 
             self._kill_switch_config = new_ks
+            # Kill switch 인스턴스 재생성 (Phase 5 포함)
+            new_cooldown_min = new_ks.get("cooldown_minutes", 60)
+            self._kill_switch = self._build_kill_switch(new_ks, new_cooldown_min)
             log.info(
                 ORCH_CONFIG_RELOADED,
                 message="kill switch config reloaded",
                 changed_keys=changed_keys,
                 new_values={k: new_ks.get(k) for k in changed_keys},
                 old_values={k: old_ks.get(k) for k in changed_keys},
+                phase5_mode=self._phase5_mode,
             )
 
             # Redis에 감사 로그 발행
