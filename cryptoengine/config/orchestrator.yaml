@@ -138,6 +138,21 @@ kill_switch:
   # Cooldown before strategies can be re-enabled (minutes)
   cooldown_minutes: 60
 
+  # ── Phase 5 소액 실전 임계값 ────────────────────────────────
+  # BYBIT_TESTNET=false 또는 PHASE5_MODE=true 시 오케스트레이터가 이 값으로
+  # KillSwitch를 초기화해야 한다. 절대값 + 퍼센트 AND 조건으로 노이즈 오발동 방지.
+  phase5:
+    # 퍼센트 임계값 완화 (소액 자본 노이즈 대응)
+    max_daily_drawdown_pct: 5.0     # 1% → 5%
+    max_weekly_drawdown_pct: 10.0   # 3% → 10%
+    max_monthly_drawdown_pct: 15.0  # 5% → 15%
+    # 절대값 임계값 ($200 기준)
+    max_daily_loss_abs_usd: 10      # $200의 5%
+    max_weekly_loss_abs_usd: 20     # $200의 10%
+    max_monthly_loss_abs_usd: 30    # $200의 15%
+    # 발동 조건: pct AND abs 둘 다 초과 시 (OR가 아닌 AND)
+    trigger_mode: and               # 'and' | 'or' (기본: and)
+
 # ── Portfolio Risk ────────────────────────────────────────────
 risk:
   # Hard cap on total capital the orchestrator will deploy (USD).

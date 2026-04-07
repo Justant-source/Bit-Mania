@@ -140,3 +140,31 @@ slippage:
   twap_threshold_usd: 5_000
   # TWAP execution window (seconds)
   twap_duration_seconds: 300
+
+# ── Phase 5 Overrides ────────────────────────────────────────
+# BYBIT_TESTNET=false 또는 PHASE5_MODE=true 시 자동 적용.
+# 소액 실전 ($200 USDT) 환경에 맞게 조정된 보수적 설정.
+#
+# sizing_mode: fixed_notional — 거래소 최소 주문 대비 충분한 명목가 직접 지정
+# fixed_notional_usd: 150 — $200 자본의 75% (25% 안전 버퍼)
+# max_concurrent_positions: 1 — 동시 포지션 1개만 (소액 리스크 관리)
+# fa_capital_ratio: 0.75 — 0.80 → 0.75 (추가 버퍼)
+# reinvest_ratio: 0.0 — 재투자 비활성 (소액에서 무의미)
+# min_position_usd: 50 — 100 → 50 (Bybit BTCUSDT 최소 $65 기준 하향)
+#
+# Phase 5 진입 조건 강화 (수수료/슬리피지 현실 반영):
+# 수수료 왕복 0.13% + 슬리피지 0.06% = 총 비용 0.17%
+# → 최소 2회 펀딩 수취에 BEP: 연 25% 기준 0.0091%/8h × 2 = 0.0182% > 0.17% (BTC 변동 무시)
+phase5:
+  sizing_mode: fixed_notional
+  fixed_notional_usd: 150       # $200 × 75% (안전 버퍼)
+  max_concurrent_positions: 1   # 동시 포지션 1개 (소액 리스크 관리)
+  fa_capital_ratio: 0.75        # 0.80 → 0.75
+  reinvest_ratio: 0.0           # 재투자 비활성 (소액에선 무의미)
+  min_position_usd: 50          # Bybit 최소 주문 $65 기준 하향 조정
+
+  # Phase 5 진입 조건 강화 (수수료 현실 반영: 왕복 ~0.17%)
+  entry:
+    min_funding_rate_annualized: 25.0   # 15% → 25% (BEP 2회 수취 기준)
+    min_funding_rate: 0.00012           # 0.0001 → 0.00012 (8h 기준 0.012%)
+    consecutive_intervals: 4            # 3 → 4 (더 보수적)

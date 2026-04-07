@@ -57,6 +57,11 @@ class KillSwitch:
         monthly_limit: float = -0.05,
         cooldown_hours: float = 4.0,
         on_trigger: Any | None = None,
+        # Phase 5: 절대값 임계값 (None이면 퍼센트만 사용)
+        # 퍼센트 AND 절대값 둘 다 초과해야 발동 (노이즈 오발동 방지)
+        daily_loss_abs_usd: float | None = None,
+        weekly_loss_abs_usd: float | None = None,
+        monthly_loss_abs_usd: float | None = None,
     ) -> None:
         self.daily_limit = daily_limit
         self.weekly_limit = weekly_limit
@@ -65,6 +70,12 @@ class KillSwitch:
 
         # callback: async def on_trigger(level, reason) or None
         self._on_trigger = on_trigger
+
+        # Absolute loss limits (USD) — Phase 5 소액 운영 시 노이즈 발동 방지
+        # None이면 퍼센트 체크만 사용 (기존 동작)
+        self.daily_loss_abs_usd = daily_loss_abs_usd
+        self.weekly_loss_abs_usd = weekly_loss_abs_usd
+        self.monthly_loss_abs_usd = monthly_loss_abs_usd
 
         self._active_level: KillLevel = KillLevel.NONE
         self._triggered_at: datetime | None = None
@@ -98,8 +109,13 @@ class KillSwitch:
         *,
         monthly_drawdown: float = 0.0,
         system_healthy: bool = True,
+        equity_at_open: float = 0.0,     # Phase 5: 절대값 계산 기준 (당일 시작 자본)
     ) -> KillLevel:
         """Evaluate all kill-switch conditions and trigger if needed.
+
+        Absolute-value mode (Phase 5): when ``daily_loss_abs_usd`` etc. are set,
+        BOTH the percentage threshold AND the absolute threshold must be breached
+        before triggering.  This prevents noise-triggered stops with tiny capital.
 
         Returns the highest active kill level.
         """
@@ -119,26 +135,61 @@ class KillSwitch:
                 )
                 return self._active_level
 
-            # Level 2 — portfolio drawdown
-            if portfolio.daily_drawdown <= self.daily_limit:
-                await self._trigger(
-                    KillLevel.PORTFOLIO,
-                    f"Daily drawdown {portfolio.daily_drawdown:.2%} breached limit {self.daily_limit:.2%}",
+            # Level 2 — portfolio drawdown (절대값 + 퍼센트 혼합 체크)
+            ref_equity = equity_at_open if equity_at_open > 0 else 1.0
+
+            # Daily check
+            pct_breach_daily = portfolio.daily_drawdown <= self.daily_limit
+            if self.daily_loss_abs_usd is not None:
+                daily_loss_usd = abs(portfolio.daily_drawdown) * ref_equity
+                abs_breach_daily = daily_loss_usd >= self.daily_loss_abs_usd
+                should_trigger_daily = pct_breach_daily and abs_breach_daily
+                reason_daily = (
+                    f"Daily drawdown {portfolio.daily_drawdown:.2%} ({daily_loss_usd:.2f} USD) "
+                    f"breached pct={self.daily_limit:.2%} AND abs={self.daily_loss_abs_usd:.2f} USD"
                 )
+            else:
+                should_trigger_daily = pct_breach_daily
+                reason_daily = f"Daily drawdown {portfolio.daily_drawdown:.2%} breached limit {self.daily_limit:.2%}"
+
+            if should_trigger_daily:
+                await self._trigger(KillLevel.PORTFOLIO, reason_daily)
                 return self._active_level
 
-            if portfolio.weekly_drawdown <= self.weekly_limit:
-                await self._trigger(
-                    KillLevel.PORTFOLIO,
-                    f"Weekly drawdown {portfolio.weekly_drawdown:.2%} breached limit {self.weekly_limit:.2%}",
+            # Weekly check
+            pct_breach_weekly = portfolio.weekly_drawdown <= self.weekly_limit
+            if self.weekly_loss_abs_usd is not None:
+                weekly_loss_usd = abs(portfolio.weekly_drawdown) * ref_equity
+                abs_breach_weekly = weekly_loss_usd >= self.weekly_loss_abs_usd
+                should_trigger_weekly = pct_breach_weekly and abs_breach_weekly
+                reason_weekly = (
+                    f"Weekly drawdown {portfolio.weekly_drawdown:.2%} ({weekly_loss_usd:.2f} USD) "
+                    f"breached pct={self.weekly_limit:.2%} AND abs={self.weekly_loss_abs_usd:.2f} USD"
                 )
+            else:
+                should_trigger_weekly = pct_breach_weekly
+                reason_weekly = f"Weekly drawdown {portfolio.weekly_drawdown:.2%} breached limit {self.weekly_limit:.2%}"
+
+            if should_trigger_weekly:
+                await self._trigger(KillLevel.PORTFOLIO, reason_weekly)
                 return self._active_level
 
-            if monthly_drawdown <= self.monthly_limit:
-                await self._trigger(
-                    KillLevel.PORTFOLIO,
-                    f"Monthly drawdown {monthly_drawdown:.2%} breached limit {self.monthly_limit:.2%}",
+            # Monthly check
+            pct_breach_monthly = monthly_drawdown <= self.monthly_limit
+            if self.monthly_loss_abs_usd is not None:
+                monthly_loss_usd = abs(monthly_drawdown) * ref_equity
+                abs_breach_monthly = monthly_loss_usd >= self.monthly_loss_abs_usd
+                should_trigger_monthly = pct_breach_monthly and abs_breach_monthly
+                reason_monthly = (
+                    f"Monthly drawdown {monthly_drawdown:.2%} ({monthly_loss_usd:.2f} USD) "
+                    f"breached pct={self.monthly_limit:.2%} AND abs={self.monthly_loss_abs_usd:.2f} USD"
                 )
+            else:
+                should_trigger_monthly = pct_breach_monthly
+                reason_monthly = f"Monthly drawdown {monthly_drawdown:.2%} breached limit {self.monthly_limit:.2%}"
+
+            if should_trigger_monthly:
+                await self._trigger(KillLevel.PORTFOLIO, reason_monthly)
                 return self._active_level
 
             return KillLevel.NONE
