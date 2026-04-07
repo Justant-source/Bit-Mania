@@ -174,7 +174,7 @@ related:
 | 레벨 | 조건 | 동작 |
 |------|------|------|
 | L1 Strategy | 개별 전략 낙폭 초과 | 해당 전략 중지 |
-| L2 Portfolio | 일일 **-1%**, 주간 **-3%**, 월간 **-5%** | 전체 포지션 청산 |
+| L2 Portfolio | 일일 **-5%**, 주간 **-10%**, 월간 **-15%** (`orchestrator.yaml` 기준). Phase 5: 퍼센트 AND 절대값 USD AND 조건 ($10/$20/$30) | 전체 포지션 청산 |
 | L3 System | API 오류, 인프라 장애 | 시장가 전량 청산 |
 | L4 Manual | 텔레그램 `/kill` 명령 | 즉시 전량 청산, 수동 복구만 허용 |
 
@@ -226,10 +226,13 @@ cryptoengine/
 │   ├── exchange/              # 거래소 커넥터 (ABC + 구현)
 │   ├── db/                    # asyncpg 연결 + 리포지토리
 │   ├── risk.py                # 리스크 계산 유틸
-│   ├── kill_switch.py         # 4단계 Kill Switch
+│   ├── kill_switch.py         # 4단계 Kill Switch (Phase 5: 절대값 AND 조건)
 │   ├── redis_client.py        # Redis 클라이언트
 │   ├── config_loader.py       # YAML 로더
-│   └── logging_config.py      # structlog 설정
+│   ├── log_events.py          # 이벤트 코드 정의 (95개)
+│   ├── log_writer.py          # 비동기 DB 로그 라이터
+│   ├── timezone_utils.py      # KST 타임존 유틸리티
+│   └── logging_config.py      # structlog 설정 (KST 타임스탬프)
 ├── services/                  # 마이크로서비스
 │   ├── market-data/
 │   ├── orchestrator/
@@ -240,11 +243,15 @@ cryptoengine/
 │   ├── dashboard/
 │   └── backtester/
 ├── scripts/                   # 운영 스크립트
+│   ├── phase5_preflight.py    # Phase 5 진입 전 점검
+│   ├── switch_to_mainnet.py   # 메인넷 전환 (9단계)
+│   └── switch_to_testnet.py   # 테스트넷 롤백 (6단계)
 ├── tests/                     # 테스트 스위트
 │   ├── unit/
 │   ├── integration/
 │   └── backtest/
-└── docs/                      # 문서
+└── docs/                      # 운영 문서
+    └── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP
 ```
 
 > [!seealso] 관련 문서

@@ -209,7 +209,9 @@ make logs-funding-arb
 
 ```
 Level 1  개별 전략 손절      전략 자체 로직으로 포지션 축소
-Level 2  일일/주간 한도      일 -1% 또는 주 -3% 도달 시 해당 전략 자동 정지
+Level 2  일일/주간 한도      일 -5% 도달 시 해당 전략 자동 정지
+                            Phase 5 모드: 퍼센트 AND 절대값 USD 둘 다 초과해야 발동
+                            (노이즈 오발동 방지 — 일 $10 / 주 $20 / 월 $30 절대 임계값)
 Level 3  헬스체크 실패       서비스 무응답 시 전체 마켓 포지션 청산
 Level 4  수동 비상 정지      Telegram /emergency_close 또는 make emergency
                             └─ ACK 확인: 오케스트레이터 처리 후 5초 내 확인 메시지 전송
@@ -229,7 +231,7 @@ Level 4  수동 비상 정지      Telegram /emergency_close 또는 make emergen
 | 2 | 완료 | 서비스 기동 + 연결 검증, Redis Pub/Sub 데이터 흐름 확인 |
 | 3 | 완료 | 백테스트 -- 6년 히스토리 데이터 (2020-2026), fa80_lev5_r30 채택 |
 | 4 | **진행 중** | 테스트넷 포워드 테스트 -- FA 단독 운영, 현금 50% 버퍼 |
-| 5 | 예정 | 소액 실전 ($500, BYBIT_TESTNET=false 전환) |
+| 5 | **준비 완료** | 소액 실전 ($200 USDT, `switch_to_mainnet.py` → BYBIT_TESTNET=false 전환) |
 | 6 | 예정 | 공개 퍼포먼스 대시보드 + 유튜브 |
 
 ### Phase 3 백테스트 결과 (6년, 2020-2026)
@@ -280,7 +282,13 @@ cryptoengine/
 │   └── backtester/           # 백테스트 엔진
 ├── arch/                     # 아키텍처 설계 문서
 ├── tests/                    # 테스트
-└── scripts/                  # DB 초기화, 데이터 시딩
+├── scripts/                  # 운영 스크립트
+│   ├── phase5_preflight.py   # Phase 5 진입 전 8개 항목 점검
+│   ├── switch_to_mainnet.py  # 메인넷 전환 (9단계, 이중 확인)
+│   ├── switch_to_testnet.py  # 테스트넷 롤백 (6단계, 백업 복원)
+│   └── ...                   # DB 초기화, 데이터 시딩 등
+└── docs/                     # 운영 문서
+    └── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP
 ```
 
 ---

@@ -6,13 +6,14 @@
 
 ## 1. Docker Compose 스택 개요
 
-모든 서비스는 단일 `docker-compose.yml`로 관리되며, 총 **15개 서비스**가 7개 그룹으로 구성된다.
+모든 서비스는 단일 `docker-compose.yml`로 관리되며, 총 **19개 서비스**가 7개 그룹으로 구성된다.
 
 ### 서비스 그룹
 
 | 그룹 | 서비스 | 이미지/빌드 | 역할 |
 |------|--------|------------|------|
 | **인프라** | `postgres` | `postgres:16-alpine` | 거래 기록, 포지션, 펀딩비 등 영구 저장소 |
+| | `pg-backup` | 커스텀 빌드 | 매일 02:00 KST `pg_dump` 자동 백업, 7일 보존 |
 | | `redis` | `redis:7-alpine` | Pub/Sub 메시지 브로커, 실시간 상태 캐시 |
 | **코어** | `market-data` | 커스텀 빌드 | WebSocket 데이터 수집, 시장 레짐 감지 (healthcheck: `/tmp/heartbeat_ok`) |
 | | `strategy-orchestrator` | 커스텀 빌드 | 전략 조율, 자본 배분, 레짐 기반 가중치 |
@@ -27,6 +28,8 @@
 | | `node-exporter` | `prom/node-exporter:v1.8.0` | 호스트 시스템 메트릭 |
 | | `redis-exporter` | `oliver006/redis_exporter:latest` | Redis 메트릭 |
 | **분석** | `backtester` | 커스텀 빌드 | 온디맨드 백테스트 (profile: `backtest`) |
+| | `log-retention` | 커스텀 빌드 | 매일 03:00 KST `service_logs` 보존 정책 실행 |
+| | `wf-scheduler` | 커스텀 빌드 | 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 |
 
 ### 빌드 컨텍스트
 
@@ -382,9 +385,9 @@ healthcheck:
 
 각 서비스는 30초마다 `/tmp/heartbeat_ok` 파일을 touch하여 하트비트를 증명한다.
 
-### 컨테이너 리소스 제한
+### 컨테이너 리소스 제한 ✅ 구현됨
 
-메모리/CPU 제한이 없어 하나의 서비스가 호스트 리소스를 독점할 수 있다.
+v1.4.0에서 전체 서비스 `deploy.resources.limits` 적용 완료 (~3.8GB 총 예산).
 
 ```yaml
 deploy:
@@ -429,11 +432,13 @@ services:
 docker compose build --build-arg VERSION=$(git rev-parse --short HEAD)
 ```
 
-### PostgreSQL 백업
+### PostgreSQL 백업 ✅ 구현됨
 
-`pgdata` 볼륨에 대한 정기 백업 전략이 없다. `pg_dump` 크론잡 또는 WAL 아카이빙을 설정해야 한다.
+v1.4.0에서 `pg-backup` 서비스 추가. 매일 02:00 KST 자동 `pg_dump`, 7일 보존.
 
 ```bash
-# 일간 백업 예시
-docker compose exec postgres pg_dump -U cryptoengine cryptoengine | gzip > backup_$(date +%Y%m%d).sql.gz
+# 수동 백업 및 복원
+make backup         # 즉시 백업 실행
+make backup-list    # 백업 파일 목록
+make backup-restore # 백업 복원
 ```

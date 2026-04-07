@@ -21,6 +21,75 @@ related:
 
 ---
 
+## [1.6.1] - 2026-04-07
+
+### 추가 (Added)
+
+#### orchestrator/core.py: Phase 5 Kill Switch 연결
+- `_build_kill_switch()` 헬퍼 메서드 신규 추가 — `PHASE5_MODE` / `BYBIT_TESTNET` 감지 후 적절한 KillSwitch 인스턴스 생성
+- Phase 5 감지 시 `orchestrator.yaml`의 `kill_switch.phase5` 섹션에서 완화된 퍼센트 임계값과 절대값 USD 임계값을 읽어 KillSwitch 초기화 (AND 조건)
+- `_orchestration_cycle()`: `kill_switch.check()` 호출에 `equity_at_open=portfolio_state.total_equity` 전달 (절대값 계산 기준)
+- `_reload_kill_switch_config()`: 핫 리로드 시 KillSwitch 인스턴스 재생성으로 설정 변경 즉시 반영
+
+---
+
+## [1.6.0] - 2026-04-07
+
+### 추가 (Added)
+
+#### Phase 5 소액 실전 전환 ($200 USDT) 사전 개발
+
+##### 1.1 포지션 사이징 재설계 (`services/strategies/funding-arb/strategy.py`)
+- `fixed_notional` 사이징 모드 추가: `$150` 고정 명목가 (= $200 × 75% 안전 버퍼)
+- `min_viable` 사이징 모드 추가: `min_position_usd` 기반 최소 수량
+- Phase 5 자동 활성화: `PHASE5_MODE=true` 또는 `BYBIT_TESTNET=false` 시 `phase5` config 섹션 적용
+  - `max_concurrent_positions: 1` (5 → 1, 소액 리스크 관리)
+  - `min_position_usd: 50` (100 → 50, Bybit 최소 주문 대응)
+
+##### 1.2 Kill Switch 절대값 임계값 (`shared/kill_switch.py`)
+- `daily_loss_abs_usd`, `weekly_loss_abs_usd`, `monthly_loss_abs_usd` 파라미터 추가
+- AND 조건: 퍼센트 임계값 AND 절대값 USD 임계값 둘 다 초과해야 발동 (노이즈 오발동 방지)
+- `None`(기본값) 시 기존 퍼센트 전용 동작 유지 (하위 호환)
+- `check()` 메서드에 `equity_at_open` 키워드 파라미터 추가
+
+##### 1.3 진입 조건 강화 (`services/strategies/funding-arb/funding_tracker.py`)
+- `estimate_net_profit_per_cycle()`: 왕복 수수료/슬리피지 고려 후 순수익, BEP 사이클 수 계산
+- `is_entry_net_profitable()`: BEP 사이클 수 <= 기준(기본 2회) 여부 반환
+- `config/strategies/funding-arb.yaml` phase5 진입 조건: `min_funding_rate_annualized: 25.0`, `consecutive_intervals: 4`
+
+##### 1.4 메인넷 전환 스크립트 (`scripts/`)
+- `switch_to_mainnet.py` (273줄, 9단계): `.env` 백업 → API 키 검증 → 오픈 포지션 확인 → 메인넷 잔고 조회 → 이중 확인(`yes I am sure` + `MAINNET`) → `BYBIT_TESTNET=false` 설정 → Redis 캐시 클리어
+- `switch_to_testnet.py` (184줄, 6단계): 현재 `.env` 백업 → 테스트넷 백업 자동 탐색 → `rollback` 확인 → 복원 + `BYBIT_TESTNET=true` 강제 → Redis 캐시 클리어
+
+##### 1.5 STRICT_MONITORING 모드 (`services/telegram-bot/main.py`)
+- 활성화 조건: `BYBIT_TESTNET=false AND STRICT_MONITORING_HOURS=24`
+- `AlertDispatcher batch_window_seconds=0` → 모든 알림 즉시 전송
+- 매 1시간마다 강제 상태 리포트 (자산, PnL, 포지션, 마진비율)
+- 마진비율 < `STRICT_MARGIN_WARN_THRESHOLD` (기본 20x) → 경고
+- `EXPECTED_INITIAL_BALANCE_USD` 대비 변동 표시
+- `STRICT_MONITORING_HOURS` 경과 시 자동 해제 알림
+
+##### 1.6 비상 수동 청산 SOP (`docs/EMERGENCY_MANUAL_CLOSE.md`)
+- 사용 시점 판단 기준, Bybit 앱/웹 청산 절차 (모바일 + PC)
+- 스탑마켓 미체결 주문 취소, 봇 복구 후 DB/Redis 정리 명령
+- **휴대폰 저장용 5단계 빠른 참조 블록**
+
+##### 1.7 잔고 동기화 검증 (`services/execution/main.py`)
+- `EXPECTED_INITIAL_BALANCE_USD > 0 AND BYBIT_TESTNET=false` 시 시작 시 잔고 검증
+- 실제 잔고 ↔ 기대 잔고 차이 > 5% → `RuntimeError` (시작 거부) + Redis Telegram 알림 발행
+
+#### 테스트
+- `services/backtester/tests/unit/test_phase5.py` 신규 (407줄, 16개 테스트)
+  - `TestPositionSizing` (8개): fixed_notional, min_viable, pct_equity, 레버리지 비교
+  - `TestFundingTrackerNetProfit` (6개): 순수익 계산, BEP, 진입 판단
+  - `TestKillSwitchAbsoluteThreshold` (5개): AND 조건 4케이스 + 레거시 동작
+
+#### 설정
+- `config/strategies/funding-arb.yaml`: `phase5:` 섹션 추가 (+28줄)
+- `config/orchestrator.yaml`: `kill_switch.phase5:` 서브섹션 추가 (+15줄)
+
+---
+
 ## [1.5.1] - 2026-04-07
 
 ### 수정 (Fixed)

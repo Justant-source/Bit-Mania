@@ -22,6 +22,14 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
   - 완료: log-retention 서비스 (보존 정책 자동화), wf-scheduler 서비스 (월간 WF 자동화)
   - 완료: SafetyGuard 유닛 테스트 27개, Telegram 포매터 테스트 59개
   - 완료: 배포 재시작 시 포지션 자동 복구 (service_shutdown → Redis 저장 → 재시작 후 복원, 불필요한 청산 수수료 제거)
+  - 완료: Phase 5 포지션 사이징 재설계 (`fixed_notional` 모드, $150 고정 명목가, 소액 최소 주문 대응)
+  - 완료: Kill Switch 절대값 임계값 (퍼센트 AND 절대값 USD 둘 다 초과해야 발동, 수수료 노이즈 오발동 방지)
+  - 완료: 진입 조건 강화 (연 25% / 4회 연속 / NetProfitabilityCheck BEP 2회)
+  - 완료: 메인넷 전환 스크립트 (`scripts/switch_to_mainnet.py` 9단계, `scripts/switch_to_testnet.py` 6단계 롤백)
+  - 완료: STRICT_MONITORING 모드 (24시간 강화 모니터링, 1시간 강제 리포트, 마진비율 경고)
+  - 완료: 비상 수동 청산 SOP 문서 (`docs/EMERGENCY_MANUAL_CLOSE.md`, 휴대폰 저장용 5단계 요약 포함)
+  - 완료: 잔고 동기화 검증 (`EXPECTED_INITIAL_BALANCE_USD` 기반, 5% 이상 차이 시 시작 거부)
+  - 완료: orchestrator/core.py Phase 5 Kill Switch 연결 (`_build_kill_switch()`, `equity_at_open` 전달)
 
 ## 핵심 원칙
 
@@ -46,11 +54,19 @@ cryptoengine/
 │   ├── db/                     # asyncpg 풀, Repository 패턴
 │   ├── redis_client.py         # Redis Pub/Sub 헬퍼
 │   ├── config_loader.py        # YAML 설정 로더 (절대경로 지원)
-│   ├── kill_switch.py          # Kill Switch 공통 로직
+│   ├── kill_switch.py          # Kill Switch 공통 로직 (Phase 5: 절대값 AND 조건 지원)
 │   ├── log_events.py           # 이벤트 코드 정의 (95개)
 │   ├── log_writer.py           # 비동기 DB 로그 라이터 (큐 기반)
 │   ├── logging_config.py       # structlog 표준 설정 (KST 타임스탬프)
-│   └── timezone_utils.py       # KST 타임존 유틸리티
+│   ├── timezone_utils.py       # KST 타임존 유틸리티
+│   └── risk.py                 # 레버리지 검증, 포지션 크기 계산
+├── docs/
+│   └── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP (휴대폰 저장용 5단계 포함)
+├── scripts/
+│   ├── phase5_preflight.py     # Phase 5 진입 전 8개 항목 점검
+│   ├── switch_to_mainnet.py    # 메인넷 전환 스크립트 (9단계, 이중 확인)
+│   ├── switch_to_testnet.py    # 테스트넷 롤백 스크립트 (6단계, 백업 복원)
+│   └── ...                     # 기타 운영 스크립트
 └── services/
     ├── market-data/            # WebSocket 데이터 수집, 레짐 감지
     ├── orchestrator/           # 전략 조율, 자본 배분, 레짐 기반 가중치
@@ -71,7 +87,9 @@ cryptoengine/
     │   ├── regime_accuracy.py  # 레짐 감지 정확도 평가
     │   ├── scripts/            # 데이터 수집·시드·헬스체크
     │   │   └── monthly_wf_runner.py  # 월간 WF 분석 파이프라인
-    │   └── tests/backtest/     # ★ 백테스트 스킬셋 (아래 참조)
+    │   ├── tests/backtest/     # ★ 백테스트 스킬셋 (아래 참조)
+    │   └── tests/unit/         # 유닛 테스트
+    │       └── test_phase5.py  # Phase 5 유닛 테스트 16개
     ├── log-retention/          # service_logs 보존 정책 자동 실행 (매일 03:00 KST)
     ├── wf-scheduler/           # 월간 WF 자동 실행 (매월 1일 02:00 KST)
     └── grafana (이미지)        # 모니터링 대시보드 (포트 3002)
@@ -306,4 +324,7 @@ docker compose --profile backtest run --rm backtester \
 5. Telegram 모든 알림 유형 수신 확인 (Kill Switch ACK 포함)
 6. stoploss_on_exchange 정상 동작 확인 (진입/청산/재시작 시나리오)
 7. Walk-Forward 월간 파이프라인 1회 이상 정상 완료 확인
-8. Phase 5 진입 전 명시적 승인 후 `BYBIT_TESTNET=false` 전환
+8. **Phase 5 진입 준비 완료** — `scripts/switch_to_mainnet.py` 실행 후 `BYBIT_TESTNET=false` 전환
+   - `EXPECTED_INITIAL_BALANCE_USD=200` 설정 필수 (잔고 검증)
+   - `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
+   - `PHASE5_MODE=true` 설정 (fixed_notional 사이징, 절대값 Kill Switch 활성화)

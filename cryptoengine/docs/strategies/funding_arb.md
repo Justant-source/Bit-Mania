@@ -143,6 +143,26 @@ exit:
   take_profit_pct: 3.0
 ```
 
+### Phase 5 소액 실전 오버라이드 (`PHASE5_MODE=true` 또는 `BYBIT_TESTNET=false` 시 자동 적용)
+
+```yaml
+phase5:
+  sizing_mode: fixed_notional   # pct_equity → fixed_notional
+  fixed_notional_usd: 150       # $200 × 75% 안전 버퍼
+  max_concurrent_positions: 1   # 5 → 1 (소액 리스크 관리)
+  fa_capital_ratio: 0.75        # 0.80 → 0.75
+  reinvest_ratio: 0.0           # 재투자 비활성 (소액에서 무의미)
+  min_position_usd: 50          # 100 → 50 (Bybit 최소 주문 대응)
+
+  # 진입 조건 강화 (수수료 왕복 0.17% 현실 반영)
+  entry:
+    min_funding_rate_annualized: 25.0   # 15% → 25% (BEP 2회 수취 기준)
+    min_funding_rate: 0.00012           # 0.0001 → 0.00012 (8h 기준 0.012%)
+    consecutive_intervals: 4            # 3 → 4 (더 보수적)
+```
+
+**NetProfitabilityCheck** (`funding_tracker.py`): 진입 전 수수료/슬리피지 왕복 0.17% 기준으로 BEP 사이클 수 계산 후, 2회 이내에 BEP 달성 가능한 경우에만 진입 허용.
+
 ### 포지션 사이징 원리 (5x 레버리지)
 
 ```
