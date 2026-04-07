@@ -108,7 +108,7 @@ related:
 - **현재 설정**: fa80_lev5_r30 (FA 80% + 레버리지 5x + 재투자 30%)
   - CAGR +34.87% | Sharpe 3.583 | MDD -4.52% (6년 백테스트, Test 12 Stage D2)
 - Basis Spread State Machine으로 진입/청산 결정
-- 한쪽 체결 복구 로직 (3분 대기)
+- 한쪽 체결 복구 로직 (1분 대기, v1.5.0에서 3분 → 1분 단축)
 - 재투자: 펀딩비 수익의 30%를 현물 BTC 매수로 자동 재투자
 
 #### 4b. [[strategies/adaptive_dca|Adaptive DCA]] (`services/strategies/adaptive-dca/`)
@@ -146,10 +146,16 @@ related:
 - `funding_payments` — 펀딩비 수취 기록 ([[strategies/funding_arb|펀딩비 전략]] 전용)
 - `portfolio_snapshots` — 포트폴리오 스냅샷
 - `daily_reports` — 일일 리포트 (LLM 요약 포함)
-- `ohlcv_history` — OHLCV 히스토리
+- `ohlcv_history` — OHLCV 캔들 (타임프레임별 보존 정책: 1m 30일 / 5m 90일 / 15m 180일 / 1h 365일 / 4h 730일)
 - `funding_rate_history` — 펀딩레이트 히스토리
 - `kill_switch_events` — Kill Switch 이벤트
 - `llm_judgments` — LLM 판단 기록
+- `llm_reports` — LLM 리포트 (migration 002)
+- `service_logs` — 전 서비스 구조화 이벤트 로그 (migration 003, DEBUG 7일 / INFO 30일 / WARNING 90일 / ERROR 365일 보존)
+- `regime_raw_log` — 5분 캔들별 원시 레짐 감지 결과 (migration 004)
+- `regime_transitions` — 확정 레짐 전환 이벤트 (migration 004)
+- `strategy_states` — 전략 상태 스냅샷
+- `dca_purchases` — DCA 매입 이력
 
 > [!tip] DB 관리
 > 백업, 마이그레이션, 성능 최적화 절차는 [[runbook#데이터베이스 관리|운영 매뉴얼]] 참조
@@ -168,7 +174,7 @@ related:
 | 레벨 | 조건 | 동작 |
 |------|------|------|
 | L1 Strategy | 개별 전략 낙폭 초과 | 해당 전략 중지 |
-| L2 Portfolio | 일일 -5%, 주간 -10%, 월간 -15% | 전체 포지션 청산 |
+| L2 Portfolio | 일일 **-1%**, 주간 **-3%**, 월간 **-5%** | 전체 포지션 청산 |
 | L3 System | API 오류, 인프라 장애 | 시장가 전량 청산 |
 | L4 Manual | 텔레그램 `/kill` 명령 | 즉시 전량 청산, 수동 복구만 허용 |
 
@@ -185,6 +191,12 @@ related:
 - Walk-Forward Analysis: 슬라이딩 윈도우 (훈련 180일 / 테스트 90일)
 - Monte Carlo 시뮬레이션: 수익/Sharpe/낙폭 신뢰구간
 - HTML/Markdown 리포트 자동 생성
+- 스킬셋 29개 (`tests/backtest/`: fa/, regime/, combined/, trend/, stress/, analysis/, optimization/)
+
+## 자동화 서비스
+- **pg-backup**: 매일 02:00 KST PostgreSQL 자동 백업 (`pg_dump`), 7일 보존
+- **log-retention**: 매일 03:00 KST `service_logs` 보존 정책 실행 (레벨별 자동 삭제)
+- **wf-scheduler**: 매월 1일 02:00 KST Walk-Forward 분석 자동 실행, 결과 Telegram 전송
 
 ## 배포
 

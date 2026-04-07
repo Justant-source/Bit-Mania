@@ -65,7 +65,7 @@ class BybitConnector(ExchangeConnector):
         try:
             await self._exchange.load_markets()
             self._connected = True
-            log.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
+            log.info("bybit connector ready (testnet=%s)", getattr(self._exchange, "sandbox", False))
         except Exception:
             # Clean up the aiohttp session created during load_markets() to prevent leaks
             try:

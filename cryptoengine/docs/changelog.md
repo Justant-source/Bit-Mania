@@ -21,6 +21,19 @@ related:
 
 ---
 
+## [1.5.1] - 2026-04-07
+
+### 수정 (Fixed)
+
+#### phase5_preflight.py / bybit.py: `sandbox` 속성 안전 접근
+- `connector._exchange.sandbox` → `getattr(connector._exchange, "sandbox", False)`
+- CCXT 버전에 따라 `sandbox` 속성이 없을 경우 AttributeError 방지
+
+#### backtester Dockerfile: 스크립트 경로 누락 수정
+- `COPY scripts /app/scripts` 추가 — backtester 컨테이너에서 `scripts/phase5_preflight.py` 등 최상위 스크립트 접근 가능
+
+---
+
 ## [1.5.0] - 2026-04-07
 
 ### 추가 (Added)

@@ -131,7 +131,7 @@ async def check_api_connectivity(connector: Any) -> CheckResult:
         return CheckResult(
             "api_connectivity", True,
             f"메인넷 API 연결 성공 (BTC 현재가: ${last_price:,.2f})",
-            {"btc_price": last_price, "testnet": connector._exchange.sandbox},
+            {"btc_price": last_price, "testnet": getattr(connector._exchange, "sandbox", False)},
         )
     except Exception as exc:
         return CheckResult(

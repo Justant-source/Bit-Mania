@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backtester service files
 COPY services/backtester /app
 
+# Copy top-level scripts (phase5_preflight, etc.)
+COPY scripts /app/scripts
+
 # Make shared package available
 COPY shared /app/shared
 
