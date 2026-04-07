@@ -50,7 +50,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 | 포트 |
 |--------|------|------|
-| **telegram-bot** | 실시간 알림 전송 (AlertDispatcher: 배치·레이트리밋·dedup) + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림 + ACK 확인. 30분 간격 시스템 하트비트 전송. 일일 리포트 자동 전송 (08:00, 20:00 UTC) | - |
+| **telegram-bot** | 실시간 알림 전송 (AlertDispatcher: 배치·레이트리밋·dedup) + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림 + ACK 확인. 30분 간격 시스템 하트비트 전송. 일일 리포트 자동 전송 (08:00, 20:00 UTC). Phase 5: STRICT_MONITORING 모드 (24시간 강화 모니터링, 1시간 강제 상태 리포트, 마진비율 경고) | - |
 | **dashboard** | Express.js 기반 웹 대시보드. 내부용(상세 지표)과 공개용(요약) 분리 | 3000 (내부), 3001 (공개) |
 | **grafana** | Grafana 10.4 기반 모니터링 대시보드. PostgreSQL + Prometheus 데이터소스. 공개 대시보드 기능 활성화 | 3002 |
 
@@ -75,7 +75,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 | `db/` | asyncpg 커넥션 풀 관리, Repository 패턴 구현 |
 | `redis_client.py` | Redis 싱글턴 연결 관리 (`get_redis()` / `close_redis()`), Pub/Sub 헬퍼. 자동 재연결 (`ensure_connected()`, 최대 3회, 지수 백오프), `get/set/publish`의 ConnectionError 시 1회 자동 재시도 |
 | `config_loader.py` | YAML 설정 파일 로더. 절대경로 지원, 환경변수 치환 |
-| `kill_switch.py` | Kill Switch 공통 로직. 4단계 계층 (경고 → 축소 → 청산 → 전면중지) |
+| `kill_switch.py` | Kill Switch 공통 로직. 4단계 계층 (경고 → 축소 → 청산 → 전면중지). Phase 5: 절대값 USD 임계값 AND 조건 지원 (`daily_loss_abs_usd` 등) |
 | `log_events.py` | 이벤트 코드 정의 (95개) + `EVENT_LEVELS` dict (이벤트별 권장 로그 레벨) |
 | `log_writer.py` | 비동기 DB 로그 라이터. 배치 처리, 큐 기반. dropped_count 카운터 |
 | `logging_config.py` | structlog 기반 구조화 로깅 설정 (JSON + KST 타임스탬프) |
@@ -171,3 +171,5 @@ config/
 - **주문 Rate Limiting**: 전략별 초당 2회 / 분당 30회 제한 (기본값, 설정 가능)
 - **Redis Fail-Closed**: Redis 3회 연속 연결 실패 시 신규 주문 전면 차단. 로컬 메모리 캐시(TTL 60초)로 일시적 단절 완충
 - **설정 핫 리로드**: `orchestrator.yaml`의 kill_switch 임계값을 서비스 재시작 없이 변경 가능 (최대 30초 반영)
+- **Phase 5 모드**: `PHASE5_MODE=true` 또는 `BYBIT_TESTNET=false` 시 소액 실전용 안전장치 자동 활성화 — fixed_notional 사이징, Kill Switch 절대값 AND 조건, STRICT_MONITORING, 시작 시 잔고 검증
+- **비상 SOP**: `docs/EMERGENCY_MANUAL_CLOSE.md` — 봇 응답 없을 때 Bybit 앱/웹으로 수동 청산하는 5단계 절차

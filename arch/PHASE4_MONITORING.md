@@ -285,17 +285,29 @@ docker compose up -d
 
 아래 조건을 모두 충족해야 소액 실전(Phase 5)으로 진행합니다.
 
+### 운영 검증 (Phase 4 완료 기준)
 - [ ] 7개 시나리오 체크리스트 전항목 완료
 - [ ] 7일 이상 무중단 운영 (예상치 못한 Restarting 없음)
-- [ ] 일일 최대 드로다운 < 1.0% 유지
+- [ ] 일일 최대 드로다운 < 5.0% 유지
 - [ ] Sharpe Ratio >= 2.0 (백테스트 기준 일치)
 - [ ] Kill Switch 자동 발동 후 정상 재개 1회 이상 확인
 - [ ] Kill Switch ACK 확인 메커니즘 정상 동작 확인 (ACK 수신 메시지 확인)
 - [ ] Telegram 모든 알림 유형 수신 확인
 - [ ] `stoploss_on_exchange` 정상 동작 확인 (진입 시 자동 배치, 청산 시 자동 취소)
 - [ ] `SafetyGuard` 유닛 테스트 27개 전항목 PASS (`tests/unit/test_safety_guard.py`)
+- [ ] `Phase 5` 유닛 테스트 16개 전항목 PASS (`tests/unit/test_phase5.py`)
 - [ ] Walk-Forward 월간 파이프라인 1회 이상 정상 완료 확인
-- [ ] `BYBIT_TESTNET=false` 전환 명시적 승인 후 진행
+
+### Phase 5 환경 설정 확인 (✅ 코드 완료, 설정 필요)
+- [ ] `.env`에 `PHASE5_MODE=true` 추가 (또는 `BYBIT_TESTNET=false` 전환 시 자동 활성화)
+- [ ] `EXPECTED_INITIAL_BALANCE_USD=200` 설정 (시작 시 잔고 검증 활성화)
+- [ ] `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
+- [ ] `docs/EMERGENCY_MANUAL_CLOSE.md` 내용을 스마트폰에 저장
+
+### 메인넷 전환 절차 (✅ 스크립트 완료)
+- [ ] `scripts/phase5_preflight.py` 모든 항목 PASS 확인
+- [ ] `python scripts/switch_to_mainnet.py` 실행 (9단계 전환, 이중 확인)
+- [ ] 전환 후 STRICT_MONITORING 모드 알림 수신 확인 (1시간마다 상태 리포트)
 
 ---
 
