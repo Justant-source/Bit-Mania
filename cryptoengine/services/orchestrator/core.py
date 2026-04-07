@@ -24,7 +24,12 @@ from services.orchestrator.dissimilarity_index import DissimilarityIndex
 from services.orchestrator.portfolio_monitor import PortfolioMonitor
 from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
-from shared.kill_switch import KillLevel, KillSwitch
+from shared.kill_switch import (
+    KillLevel,
+    KillSwitch,
+    KILL_SWITCH_ACK_CHANNEL,
+    KILL_SWITCH_ACK_TIME_KEY,
+)
 from shared.models.strategy import StrategyCommand
 from shared.log_events import *
 
@@ -319,6 +324,28 @@ class StrategyOrchestrator:
                     "cooldown_minutes": cooldown_min,
                 }
             ),
+        )
+
+        # ACK: 텔레그램 봇이 수신 확인을 기다리는 채널에 ACK 발행
+        ack_payload = json.dumps(
+            {
+                "acked_by": "orchestrator",
+                "level": level.name,
+                "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        await self._redis.publish(KILL_SWITCH_ACK_CHANNEL, ack_payload)
+        await self._redis.set(
+            KILL_SWITCH_ACK_TIME_KEY,
+            datetime.now(timezone.utc).isoformat(),
+            ex=3600,
+        )
+        log.info(
+            KILL_SWITCH_ACK_SENT,
+            message="kill switch ACK 발행 완료",
+            level=level.name,
+            reason=reason,
         )
 
         # Cache state

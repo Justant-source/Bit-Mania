@@ -10,12 +10,16 @@ import asyncio
 import json
 import os
 import signal
+from datetime import datetime, timezone
+from pathlib import Path
 
 import asyncpg
 import redis.asyncio as aioredis
 import structlog
+import yaml
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
+from dispatcher import AlertDispatcher
 from handlers import BotHandlers
 from shared.log_events import *
 from shared.logging_config import setup_logging
@@ -30,6 +34,30 @@ log = structlog.get_logger(__name__)
 SERVICE_NAME = "telegram-bot"
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID", "0"))
+
+# Load telegram.yaml for dispatcher and scheduler settings
+_TELEGRAM_YAML = Path(os.getenv("TELEGRAM_CONFIG", "/app/config/telegram.yaml"))
+
+def _load_telegram_config() -> dict:
+    """Load telegram.yaml, return empty dict on any error."""
+    try:
+        if _TELEGRAM_YAML.exists():
+            with open(_TELEGRAM_YAML) as f:
+                return yaml.safe_load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+_tg_cfg = _load_telegram_config()
+_msg_cfg = _tg_cfg.get("telegram", {}).get("messages", {})
+_trade_cfg = _tg_cfg.get("telegram", {}).get("notifications", {}).get("trades", {})
+_schedule_cfg = _tg_cfg.get("telegram", {}).get("notifications", {}).get("portfolio", {})
+
+BATCH_WINDOW_SECONDS: float = float(_msg_cfg.get("batch_window_seconds", 5))
+MAX_MESSAGES_PER_MINUTE: int = int(_msg_cfg.get("max_messages_per_minute", 30))
+MIN_TRADE_SIZE_USD: float = float(_trade_cfg.get("min_trade_size_usd", 50))
+# List of "HH:MM" strings in UTC for automatic daily report (T-5)
+SCHEDULE_UTC: list[str] = _schedule_cfg.get("schedule_utc", ["08:00", "20:00"])
 
 DB_DSN = (
     f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
@@ -48,7 +76,12 @@ ALERT_CHANNELS = [
     "ce:alerts:kill_switch",
     "ce:alerts:anomaly",
     "ce:alerts:daily_report",
+    "ce:alerts:grafana",   # Grafana AlertManager → dashboard webhook → 여기로 통합
 ]
+
+# Alert types that may arrive from both Grafana and the bot itself.
+# For these types, fingerprint-based dedup (120s TTL) prevents duplicate sends.
+_DEDUP_ALERT_TYPES = frozenset({"kill_switch", "anomaly"})
 
 
 HEARTBEAT_INTERVAL_SECONDS = 30 * 60  # 30 minutes
@@ -97,13 +130,33 @@ async def _heartbeat_task(
         log.info(SERVICE_STOPPING, message="하트비트 태스크 취소됨")
 
 
+async def _dedup_check(redis_client: aioredis.Redis, alert_type: str, fingerprint: str) -> bool:
+    """중복 알림 확인. True면 전송해도 됨, False면 이미 전송된 중복.
+
+    Redis SET NX + TTL 120초를 사용하여 동일 fingerprint의 알림이
+    120초 내 두 번 전달되면 두 번째를 스킵한다.
+    """
+    key = f"dedup:alert:{alert_type}:{fingerprint}"
+    result = await redis_client.set(key, "1", nx=True, ex=120)
+    return result is not None  # None이면 이미 존재 → 중복
+
+
 async def _redis_alert_subscriber(
     redis_client: aioredis.Redis,
     handlers: BotHandlers,
     bot: object,
     shutdown_event: asyncio.Event,
 ) -> None:
-    """Subscribe to Redis pub/sub channels and forward alerts to Telegram."""
+    """Subscribe to Redis pub/sub channels and forward alerts to Telegram.
+
+    중복 제거:
+    - ce:alerts:grafana와 ce:alerts:kill_switch/anomaly 등이 동시에 오면
+      동일 alert_type + fingerprint 기반 120초 dedup으로 한 번만 전송.
+    - Grafana 페이로드에는 `fingerprint` 필드가 포함되어 있고,
+      봇 자체 알림은 alert_type을 fingerprint로 사용 (분 단위 버킷).
+    """
+    import hashlib
+
     pubsub = redis_client.pubsub()
     await pubsub.subscribe(*ALERT_CHANNELS)
     log.info(REDIS_CONNECTED, message="Redis 알림 구독 시작", channels=ALERT_CHANNELS)
@@ -126,8 +179,28 @@ async def _redis_alert_subscriber(
                 log.warning(SERVICE_HEALTH_FAIL, message="잘못된 알림 JSON", channel=channel, raw=data_raw)
                 continue
 
-            # Determine alert type from channel name
-            alert_type = channel.split(":")[-1] if ":" in channel else "generic"
+            # alert_type: Grafana 채널은 data 내 alert_type 사용, 나머지는 채널명 suffix
+            if channel == "ce:alerts:grafana":
+                alert_type = data.get("alert_type", "grafana_unknown")
+            else:
+                alert_type = channel.split(":")[-1] if ":" in channel else "generic"
+
+            # Dedup: kill_switch, anomaly는 Grafana와 봇 양쪽에서 올 수 있음
+            if alert_type in _DEDUP_ALERT_TYPES:
+                # Grafana fingerprint 우선 사용, 없으면 alert_type + 1분 버킷
+                raw_fp = data.get("fingerprint") or alert_type
+                minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+                fingerprint = hashlib.md5(f"{raw_fp}:{minute_bucket}".encode()).hexdigest()[:16]
+
+                if not await _dedup_check(redis_client, alert_type, fingerprint):
+                    log.info(
+                        TELEGRAM_NOTIFICATION_SENT,
+                        message="중복 알림 스킵",
+                        alert_type=alert_type,
+                        channel=channel,
+                        fingerprint=fingerprint,
+                    )
+                    continue
 
             await handlers.dispatch_alert(bot, alert_type, data)
             log.debug(TELEGRAM_NOTIFICATION_SENT, message="알림 전달", channel=channel, alert_type=alert_type)
@@ -137,6 +210,79 @@ async def _redis_alert_subscriber(
     finally:
         await pubsub.unsubscribe(*ALERT_CHANNELS)
         await pubsub.aclose()
+
+
+async def _scheduled_report_task(
+    handlers: BotHandlers,
+    bot: object,
+    shutdown_event: asyncio.Event,
+    schedule_utc: list[str],
+) -> None:
+    """T-5: Send daily report automatically at each UTC time in schedule_utc.
+
+    Waits until the next scheduled time, sends the report, then repeats.
+    Checks every 30 seconds to avoid missing a window.
+    """
+    from formatters import format_daily_report
+
+    log.info(
+        SERVICE_STARTED,
+        message="일일 리포트 스케줄러 시작",
+        schedule_utc=schedule_utc,
+    )
+
+    # Track which (date, time_str) pairs have been sent to avoid duplicates
+    sent: set[tuple[str, str]] = set()
+
+    try:
+        while not shutdown_event.is_set():
+            now_utc = datetime.now(timezone.utc)
+            date_str = now_utc.strftime("%Y-%m-%d")
+            hm = now_utc.strftime("%H:%M")
+
+            for time_str in schedule_utc:
+                key = (date_str, time_str)
+                if key in sent:
+                    continue
+                # Check if we are within 1-minute window of the scheduled time
+                sched_h, sched_m = map(int, time_str.split(":"))
+                sched_minutes = sched_h * 60 + sched_m
+                now_minutes = now_utc.hour * 60 + now_utc.minute
+                # Allow a 1-minute send window
+                if sched_minutes <= now_minutes <= sched_minutes + 1:
+                    try:
+                        report = await handlers._build_daily_report(date_str)
+                        msg = format_daily_report(report)
+                        await bot.send_message(  # type: ignore[attr-defined]
+                            chat_id=TELEGRAM_CHAT_ID,
+                            text=msg,
+                            parse_mode="Markdown",
+                        )
+                        sent.add(key)
+                        log.info(
+                            TELEGRAM_NOTIFICATION_SENT,
+                            message="일일 리포트 자동 전송",
+                            date=date_str,
+                            schedule_utc=time_str,
+                        )
+                    except Exception:
+                        log.exception(
+                            SERVICE_HEALTH_FAIL,
+                            message="일일 리포트 자동 전송 실패",
+                            schedule_utc=time_str,
+                        )
+
+            # Purge old sent keys (only keep today's)
+            sent = {k for k in sent if k[0] == date_str}
+
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=30)
+                break  # shutdown requested
+            except asyncio.TimeoutError:
+                pass  # normal — check again
+
+    except asyncio.CancelledError:
+        log.info(SERVICE_STOPPING, message="일일 리포트 스케줄러 취소됨")
 
 
 async def main() -> None:
@@ -163,7 +309,7 @@ async def main() -> None:
     await redis_client.ping()
     log.info(REDIS_CONNECTED, message="Redis 연결 완료", redis=REDIS_URL)
 
-    # --- Handlers ---
+    # --- Handlers (dispatcher wired in after bot is available) ---
     handlers = BotHandlers(redis_client=redis_client, db_pool=db_pool)
 
     # --- Telegram application ---
@@ -204,6 +350,23 @@ async def main() -> None:
     await app.start()
     await app.updater.start_polling(drop_pending_updates=True)  # type: ignore[union-attr]
 
+    # T-1: Wire AlertDispatcher now that app.bot is available
+    dispatcher = AlertDispatcher(
+        bot=app.bot,
+        chat_id=TELEGRAM_CHAT_ID,
+        batch_window_seconds=BATCH_WINDOW_SECONDS,
+        max_messages_per_minute=MAX_MESSAGES_PER_MINUTE,
+        min_trade_size_usd=MIN_TRADE_SIZE_USD,
+    )
+    handlers.set_dispatcher(dispatcher)
+    log.info(
+        SERVICE_STARTED,
+        message="AlertDispatcher 설정 완료",
+        batch_window=BATCH_WINDOW_SECONDS,
+        max_per_min=MAX_MESSAGES_PER_MINUTE,
+        min_trade_usd=MIN_TRADE_SIZE_USD,
+    )
+
     subscriber_task = asyncio.create_task(
         _redis_alert_subscriber(redis_client, handlers, app.bot, shutdown_event),
         name="redis_subscriber",
@@ -212,17 +375,34 @@ async def main() -> None:
         _heartbeat_task(redis_client, app.bot, shutdown_event),
         name="heartbeat",
     )
+    # T-5: Scheduled daily report
+    scheduler_task = asyncio.create_task(
+        _scheduled_report_task(handlers, app.bot, shutdown_event, SCHEDULE_UTC),
+        name="report_scheduler",
+    )
 
-    log.info(SERVICE_STARTED, message="텔레그램 봇 실행 중", chat_id=TELEGRAM_CHAT_ID)
+    log.info(
+        SERVICE_STARTED,
+        message="텔레그램 봇 실행 중",
+        chat_id=TELEGRAM_CHAT_ID,
+        schedule_utc=SCHEDULE_UTC,
+    )
 
     # Wait for shutdown
     await shutdown_event.wait()
     log.info(SERVICE_STOPPING, message="종료 중")
 
+    # Flush any pending batched alerts before shutdown
+    try:
+        await dispatcher.flush_all()
+    except Exception:
+        log.exception(SERVICE_HEALTH_FAIL, message="종료 전 알림 플러시 실패")
+
     # Cleanup
     subscriber_task.cancel()
     heartbeat_task.cancel()
-    await asyncio.gather(subscriber_task, heartbeat_task, return_exceptions=True)
+    scheduler_task.cancel()
+    await asyncio.gather(subscriber_task, heartbeat_task, scheduler_task, return_exceptions=True)
 
     await app.updater.stop()  # type: ignore[union-attr]
     await app.stop()

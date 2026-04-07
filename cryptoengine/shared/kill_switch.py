@@ -28,6 +28,14 @@ from shared.log_events import (
 )
 from shared.models.position import PortfolioState
 
+# Redis key/channel constants for Kill Switch ACK protocol
+KILL_SWITCH_CHANNEL = "ce:kill_switch"
+KILL_SWITCH_ACTIVE_KEY = "ce:kill_switch:active"
+KILL_SWITCH_ACK_CHANNEL = "ce:kill_switch:ack"
+KILL_SWITCH_ACK_TIME_KEY = "ce:kill_switch:ack_time"
+KILL_SWITCH_ACK_TIMEOUT_SECONDS = 5
+KILL_SWITCH_ACK_MAX_RETRIES = 3
+
 log = structlog.get_logger(__name__)
 
 

@@ -112,7 +112,7 @@ docker compose logs execution-engine | grep "reconcile"
 ```
 
 확인 포인트:
-- 10분마다 `POSITION_RECONCILE_OK` 로그 확인
+- 3분마다 `POSITION_RECONCILE_OK` 로그 확인
 - `POSITION_RECONCILE_MISMATCH` 발생 시 즉시 원인 파악
 - `position:reconcile_event` Redis 채널로 불일치 세부정보 발행됨
 
@@ -162,7 +162,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 ---
 
 ### 시나리오 3: One-side Fill 복구 (편향 체결 대응)
-- [ ] 한 쪽 레그만 체결되는 상황이 발생하면 3분 대기 후 자동 취소/복구
+- [ ] 한 쪽 레그만 체결되는 상황이 발생하면 1분 대기 후 자동 취소/복구
 - [ ] 로그에서 `one_side_fill_recovery` 이벤트 확인
 - [ ] 복구 후 포지션 잔여물이 없는지 확인 (`positions` WHERE status='partial')
 
@@ -290,7 +290,11 @@ docker compose up -d
 - [ ] 일일 최대 드로다운 < 1.0% 유지
 - [ ] Sharpe Ratio >= 2.0 (백테스트 기준 일치)
 - [ ] Kill Switch 자동 발동 후 정상 재개 1회 이상 확인
+- [ ] Kill Switch ACK 확인 메커니즘 정상 동작 확인 (ACK 수신 메시지 확인)
 - [ ] Telegram 모든 알림 유형 수신 확인
+- [ ] `stoploss_on_exchange` 정상 동작 확인 (진입 시 자동 배치, 청산 시 자동 취소)
+- [ ] `SafetyGuard` 유닛 테스트 27개 전항목 PASS (`tests/unit/test_safety_guard.py`)
+- [ ] Walk-Forward 월간 파이프라인 1회 이상 정상 완료 확인
 - [ ] `BYBIT_TESTNET=false` 전환 명시적 승인 후 진행
 
 ---
@@ -317,4 +321,24 @@ docker compose --profile backtest run --rm backtester python scripts/phase5_pref
 
 ---
 
-*최종 업데이트: Phase 4 안전장치 및 모니터링 강화 완료 (2026-04-06)*
+## Walk-Forward 월간 파이프라인 확인
+
+`wf-scheduler` 서비스가 매월 1일 02:00 KST에 자동으로 Walk-Forward 분석을 실행합니다.
+
+```bash
+# wf-scheduler 로그 확인
+docker compose logs wf-scheduler
+
+# 월간 WF 결과 수동 실행 (필요 시)
+docker compose --profile backtest run --rm backtester \
+  python services/backtester/scripts/monthly_wf_runner.py
+```
+
+확인 포인트:
+- 분석 완료 후 Telegram으로 결과 요약 수신 여부
+- 이전 달 파라미터 대비 변경 사항 확인
+- `wf-scheduler` 서비스 상태가 `exited (0)` (정상 종료) 인지 확인
+
+---
+
+*최종 업데이트: Phase 4 안전장치 및 모니터링 강화 완료 (2026-04-07)*

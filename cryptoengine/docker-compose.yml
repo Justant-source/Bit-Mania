@@ -59,6 +59,29 @@ services:
           cpus: "0.5"
           memory: 128M
 
+  log-retention:
+    image: postgres:16-alpine
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: cryptoengine
+      DB_USER: cryptoengine
+      DB_PASSWORD: ${DB_PASSWORD}
+      LOG_RETENTION_CRON: ${LOG_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
+      RETENTION_ON_STARTUP: ${RETENTION_ON_STARTUP:-false}
+    volumes:
+      - ./scripts/log_retention.sh:/scripts/log_retention.sh:ro
+      - ./scripts/log_retention_entrypoint.sh:/scripts/log_retention_entrypoint.sh:ro
+    entrypoint: ["sh", "/scripts/log_retention_entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 64M
+
   redis:
     image: redis:7-alpine
     restart: always
@@ -426,6 +449,44 @@ services:
         limits:
           cpus: "2.0"
           memory: 1G
+
+  # ── Walk-Forward 월간 스케줄러 ──────────────────────────────────
+  wf-scheduler:
+    build:
+      context: .
+      dockerfile: services/backtester/Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      PYTHONPATH: /app
+      MONTHLY_WF_CRON: ${MONTHLY_WF_CRON:-0 17 1 * *}   # 매월 1일 02:00 KST
+      WF_ON_STARTUP: ${WF_ON_STARTUP:-false}
+      WF_SYMBOL: ${WF_SYMBOL:-BTCUSDT}
+      WF_CAPITAL: ${WF_CAPITAL:-10000.0}
+      WF_LOOKBACK_DAYS: ${WF_LOOKBACK_DAYS:-180}
+      WF_TRAIN_DAYS: ${WF_TRAIN_DAYS:-120}
+      WF_TEST_DAYS: ${WF_TEST_DAYS:-60}
+      WF_MC_RUNS: ${WF_MC_RUNS:-200}
+      WF_FA_RATIO: ${WF_FA_RATIO:-0.80}
+      WF_LEVERAGE: ${WF_LEVERAGE:-5.0}
+      WF_REINVEST: ${WF_REINVEST:-0.30}
+      WF_MIN_FUNDING: ${WF_MIN_FUNDING:-0.0001}
+    volumes:
+      - ./config:/app/config:ro
+      - ./backtest-results:/app/results
+    entrypoint: ["sh", "/app/scripts/wf_entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
 
 volumes:
   pgdata:

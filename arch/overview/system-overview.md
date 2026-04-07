@@ -12,7 +12,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 ## 2. 서비스 레이어 구성
 
-총 **16개 Docker Compose 서비스**가 6개 레이어로 분류된다.
+총 **19개 Docker Compose 서비스**가 6개 레이어로 분류된다.
 
 ### 2.1 Infrastructure (인프라)
 
@@ -30,7 +30,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 |--------|------|
 | **market-data** | Bybit WebSocket으로 실시간 시세, 펀딩비, 오더북 수신. OHLCV 캔들 저장. 시장 레짐(trending/ranging/volatile) 감지 후 Redis 발행 |
 | **strategy-orchestrator** | 시장 레짐에 따라 전략별 자본 배분 가중치 조정. Kill Switch 4단계 계층 관리. 전략 시작/정지 명령 발행 |
-| **execution-engine** | 주문 요청 수신 후 Bybit API로 실행. 포지션 추적, 안전 검증(레버리지 2배 제한), 체결/취소 알림 발행 |
+| **execution-engine** | 주문 요청 수신 후 Bybit API로 실행. 포지션 추적, 안전 검증(레버리지 제한), 체결/취소 알림 발행. `stoploss_manager.py`로 거래소 스탑로스 주문 자동 배치/취소/복구 |
 
 ### 2.3 Strategy (전략)
 
@@ -49,7 +49,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 | 포트 |
 |--------|------|------|
-| **telegram-bot** | 실시간 알림 전송 + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림. 30분 간격 시스템 하트비트(자본 + 포지션 수) 전송 | - |
+| **telegram-bot** | 실시간 알림 전송 (AlertDispatcher: 배치·레이트리밋·dedup) + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림 + ACK 확인. 30분 간격 시스템 하트비트 전송. 일일 리포트 자동 전송 (08:00, 20:00 UTC) | - |
 | **dashboard** | Express.js 기반 웹 대시보드. 내부용(상세 지표)과 공개용(요약) 분리 | 3000 (내부), 3001 (공개) |
 | **grafana** | Grafana 10.4 기반 모니터링 대시보드. PostgreSQL + Prometheus 데이터소스. 공개 대시보드 기능 활성화 | 3002 |
 
@@ -58,6 +58,8 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 | 서비스 | 역할 |
 |--------|------|
 | **backtester** | Freqtrade 브릿지 기반 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 결과는 `./backtest-results`에 저장 |
+| **log-retention** | 매일 03:00 KST `service_logs` 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일) |
+| **wf-scheduler** | 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 (`monthly_wf_runner.py`). 결과 요약 Telegram 전송 |
 
 ---
 

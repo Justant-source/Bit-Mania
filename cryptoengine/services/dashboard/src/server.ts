@@ -14,6 +14,7 @@ import Redis from "ioredis";
 import { createInternalRouter } from "./routes/internal";
 import { createPublicRouter } from "./routes/public";
 import { createRegimeRouter } from "./routes/regime";
+import { createGrafanaWebhookRouter } from "./routes/grafana_webhook";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -78,6 +79,9 @@ async function main(): Promise<void> {
   internalApp.use(express.json());
 
   internalApp.use("/api", apiKeyAuth, createInternalRouter(pool, redis));
+
+  // Grafana webhook — no auth (Docker network internal, trusted source only)
+  internalApp.use("/grafana-webhook", createGrafanaWebhookRouter(redis));
 
   // Regime dashboard static files (no auth for static assets & HTML pages)
   internalApp.use(express.static(path.join(__dirname, "../public")));
