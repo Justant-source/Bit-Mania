@@ -22,6 +22,7 @@ import structlog
 from order_manager import OrderManager
 from position_tracker import PositionTracker
 from safety import SafetyGuard
+from stoploss_manager import StopLossManager
 from shared.log_events import *
 
 log = structlog.get_logger(__name__)
@@ -45,6 +46,7 @@ class ExecutionEngine:
         redis: aioredis.Redis,
         db_pool: asyncpg.Pool,
         position_tracker: PositionTracker,
+        stop_loss_pct: float = 0.02,
     ) -> None:
         self.exchange = exchange
         self.redis = redis
@@ -64,6 +66,10 @@ class ExecutionEngine:
             db_pool=db_pool,
             exchange=exchange,
         )
+        # StopLossManager is initialised after OrderManager so it can share
+        # the same ExchangeConnector instance via _order_manager._connector.
+        self._stoploss_manager: StopLossManager | None = None
+        self._stop_loss_pct = stop_loss_pct
 
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_ORDERS)
         self._processed_ids: set[str] = set()  # idempotency guard
@@ -79,6 +85,27 @@ class ExecutionEngine:
         log.info(SERVICE_STARTED, message="execution engine starting")
 
         await self._order_manager.initialize()
+
+        # Wire up StopLossManager now that the connector is initialised
+        self._stoploss_manager = StopLossManager(
+            connector=self._order_manager._connector,
+            redis=self.redis,
+            exchange_id=self.exchange,
+            stop_loss_pct=self._stop_loss_pct,
+        )
+
+        # Recover stop-loss orders for any open positions from before restart
+        open_positions = [
+            {
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "entry_price": pos.entry_price,
+                "size": pos.size,
+            }
+            for pos in self.position_tracker.get_all_positions().values()
+        ]
+        if open_positions:
+            await self._stoploss_manager.recover_stop_losses(open_positions)
 
         pubsub = self.redis.pubsub()
         await pubsub.subscribe("order:request")
@@ -186,6 +213,9 @@ class ExecutionEngine:
             if result.get("status") in ("new", "partially_filled", "filled"):
                 await self.position_tracker.on_order_fill(result)
 
+            # --- Stop-loss management ---
+            await self._handle_stoploss(payload, result)
+
             log.info(
                 ORDER_FILLED,
                 message="order processing complete",
@@ -255,6 +285,68 @@ class ExecutionEngine:
                 )
         except Exception:
             log.exception(ORDER_REJECTED, message="rejection persist error", request_id=request_id)
+
+    # ------------------------------------------------------------------
+    # Stop-loss lifecycle
+    # ------------------------------------------------------------------
+
+    async def _handle_stoploss(
+        self,
+        payload: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        """Place or cancel the exchange-native stop-loss based on order outcome.
+
+        Rules:
+        - Entry order (reduce_only=False) that filled → place a new SL
+        - Exit order  (reduce_only=True)  that filled → cancel existing SL
+        - Any non-filled status → no SL action
+        """
+        if self._stoploss_manager is None:
+            return
+
+        status = result.get("status", "")
+        if status != "filled":
+            return
+
+        symbol = payload.get("symbol") or result.get("symbol", "")
+        reduce_only = payload.get("reduce_only", False)
+
+        try:
+            if reduce_only:
+                # Position is being closed — remove the stop-loss
+                await self._stoploss_manager.cancel_stop_loss(symbol)
+            else:
+                # New position (or size increase) — attach a stop-loss
+                filled_price = result.get("filled_price")
+                filled_qty = result.get("filled_qty", 0.0)
+                if not filled_price or not filled_qty:
+                    log.warning(
+                        ORDER_FILLED,
+                        message="cannot place SL: missing filled_price or filled_qty",
+                        request_id=payload.get("request_id"),
+                        symbol=symbol,
+                    )
+                    return
+
+                # Determine position side from order side:
+                # buy order → long position; sell order → short position
+                order_side = payload.get("side", "buy")
+                position_side = "long" if order_side == "buy" else "short"
+
+                await self._stoploss_manager.place_stop_loss(
+                    symbol=symbol,
+                    side=position_side,
+                    entry_price=float(filled_price),
+                    quantity=float(filled_qty),
+                )
+        except Exception:
+            log.exception(
+                ORDER_REJECTED,
+                message="stop-loss management error (non-fatal)",
+                request_id=payload.get("request_id"),
+                symbol=symbol,
+            )
 
     # ------------------------------------------------------------------
     # Housekeeping

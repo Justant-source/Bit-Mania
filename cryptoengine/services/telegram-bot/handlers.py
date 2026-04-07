@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -15,7 +16,21 @@ import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from formatters import format_alert, format_daily_report, format_pnl, format_position
+from dispatcher import AlertDispatcher
+from formatters import (
+    compute_max_drawdown,
+    compute_sharpe_annualized,
+    format_alert,
+    format_daily_report,
+    format_pnl,
+    format_position,
+)
+from shared.kill_switch import (
+    KILL_SWITCH_ACK_CHANNEL,
+    KILL_SWITCH_ACK_TIME_KEY,
+    KILL_SWITCH_ACK_TIMEOUT_SECONDS,
+    KILL_SWITCH_ACK_MAX_RETRIES,
+)
 from shared.log_events import *
 
 log = structlog.get_logger(__name__)
@@ -38,16 +53,64 @@ def _authorized(update: Update) -> bool:
 class BotHandlers:
     """Command and alert handlers for the CryptoEngine Telegram bot."""
 
-    def __init__(self, redis_client: aioredis.Redis, db_pool: asyncpg.Pool) -> None:
+    def __init__(
+        self,
+        redis_client: aioredis.Redis,
+        db_pool: asyncpg.Pool,
+        dispatcher: AlertDispatcher | None = None,
+    ) -> None:
         self.redis = redis_client
         self.db_pool = db_pool
+        # AlertDispatcher is injected from main.py after bot is initialized.
+        # Until set, dispatch_alert falls back to the legacy inline send.
+        self._dispatcher: AlertDispatcher | None = dispatcher
+
+    def set_dispatcher(self, dispatcher: AlertDispatcher) -> None:
+        """Attach an AlertDispatcher after the bot object is available."""
+        self._dispatcher = dispatcher
+
+    # ── T-4: Sharpe + monthly DD query ───────────────────────────
+
+    async def _fetch_30d_metrics(self) -> dict[str, float]:
+        """Query last-30-day daily returns from portfolio_snapshots.
+
+        Returns dict with ``sharpe_30d`` and ``monthly_max_dd`` keys,
+        or empty dict when data is unavailable.
+        """
+        try:
+            async with self.db_pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT snapshot_at, total_equity
+                    FROM portfolio_snapshots
+                    WHERE snapshot_at >= NOW() - INTERVAL '30 days'
+                    ORDER BY snapshot_at ASC
+                    """,
+                )
+            if len(rows) < 2:
+                return {}
+
+            equities = [float(r["total_equity"]) for r in rows]
+            # Compute daily returns from hourly/periodic snapshots
+            daily_returns: list[float] = []
+            for i in range(1, len(equities)):
+                if equities[i - 1] > 0:
+                    daily_returns.append((equities[i] - equities[i - 1]) / equities[i - 1])
+
+            sharpe = compute_sharpe_annualized(daily_returns) if daily_returns else 0.0
+            max_dd = compute_max_drawdown(equities)
+            return {"sharpe_30d": sharpe, "monthly_max_dd": max_dd}
+
+        except Exception:
+            log.exception(SERVICE_HEALTH_FAIL, message="30일 지표 조회 실패")
+            return {}
 
     # ── Command: /status ─────────────────────────────────────────
 
     async def status_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Full position + PnL summary."""
+        """Full position + PnL summary with Sharpe and monthly drawdown (T-4)."""
         if not _authorized(update):
             return
 
@@ -60,6 +123,11 @@ class BotHandlers:
                 return
 
             portfolio = json.loads(portfolio_raw)
+
+            # T-4: enrich portfolio dict with 30-day Sharpe and monthly max DD
+            metrics = await self._fetch_30d_metrics()
+            portfolio.update(metrics)
+
             positions_raw = await self.redis.get("ce:positions:all")
             positions = json.loads(positions_raw) if positions_raw else []
 
@@ -89,41 +157,145 @@ class BotHandlers:
     async def emergency_close_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Close all positions immediately (Level 4 Kill Switch)."""
+        """Close all positions immediately (Level 4 Kill Switch).
+
+        프로토콜:
+        1. ce:kill_switch PUBLISH + ce:kill_switch:active SET (기존 로직, 즉시 실행)
+        2. 5초 대기 후 ce:kill_switch:ack_time 키 확인
+        3. ACK 수신 시 확인 메시지 전송
+        4. ACK 미수신 시 경고 메시지 + 최대 3회 재전송 시도
+        """
         if not _authorized(update):
             return
+
+        triggered_by = str(update.effective_user.id if update.effective_user else "unknown")
 
         try:
             kill_switch_msg = json.dumps(
                 {
                     "level": 4,
                     "trigger_reason": "manual_telegram_command",
-                    "triggered_by": str(update.effective_user.id if update.effective_user else "unknown"),
+                    "triggered_by": triggered_by,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
+
+            # ── Step 1: Kill Switch 즉시 발동 (fire-and-forget 유지) ──
             await self.redis.publish("ce:kill_switch", kill_switch_msg)
             await self.redis.set("ce:kill_switch:active", "true")
+
+            # ACK 대기 전 이전 ACK 타임스탬프를 스냅샷으로 기록
+            prev_ack_time = await self.redis.get(KILL_SWITCH_ACK_TIME_KEY)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 "\U0001f6a8 *EMERGENCY CLOSE INITIATED*\n\n"
                 "Level 4 Kill Switch activated.\n"
                 "All positions will be market-closed immediately.\n"
                 "All strategies will be halted.\n\n"
-                "_Use /status to monitor closure progress._",
+                f"_ACK 확인 중... ({KILL_SWITCH_ACK_TIMEOUT_SECONDS}초 대기)_",
                 parse_mode="Markdown",
             )
             log.warning(
                 KILL_SWITCH_TRIGGERED,
                 message="긴급 청산 발동",
-                triggered_by=update.effective_user.id if update.effective_user else "unknown",
+                triggered_by=triggered_by,
             )
+
+            # ── Step 2: ACK 대기 및 확인 ──
+            ack_received = await self._wait_for_kill_switch_ack(prev_ack_time)
+
+            if ack_received:
+                await update.effective_message.reply_text(  # type: ignore[union-attr]
+                    "\u2705 *Kill Switch 수신 확인*\n\n"
+                    "오케스트레이터가 Kill Switch를 수신하고 청산을 시작했습니다.\n"
+                    "_Use /status to monitor closure progress._",
+                    parse_mode="Markdown",
+                )
+                log.info(
+                    KILL_SWITCH_ACK_SENT,
+                    message="kill switch ACK 수신 확인",
+                    triggered_by=triggered_by,
+                )
+            else:
+                # ACK 미수신 — 최대 KILL_SWITCH_ACK_MAX_RETRIES회 재전송 시도
+                retry_success = False
+                for attempt in range(1, KILL_SWITCH_ACK_MAX_RETRIES + 1):
+                    log.error(
+                        KILL_SWITCH_ACK_MISSING,
+                        message="kill switch ACK 미수신, 재전송 시도",
+                        attempt=attempt,
+                        max_retries=KILL_SWITCH_ACK_MAX_RETRIES,
+                        triggered_by=triggered_by,
+                    )
+                    await update.effective_message.reply_text(  # type: ignore[union-attr]
+                        f"\u26a0\ufe0f *ACK 미수신 — 재전송 중 ({attempt}/{KILL_SWITCH_ACK_MAX_RETRIES})*\n\n"
+                        "오케스트레이터 응답 없음. Kill Switch는 이미 SET 상태입니다.\n"
+                        "재전송 중...",
+                        parse_mode="Markdown",
+                    )
+
+                    prev_ack_time = await self.redis.get(KILL_SWITCH_ACK_TIME_KEY)
+                    await self.redis.publish("ce:kill_switch", kill_switch_msg)
+                    ack_received = await self._wait_for_kill_switch_ack(prev_ack_time)
+
+                    if ack_received:
+                        retry_success = True
+                        await update.effective_message.reply_text(  # type: ignore[union-attr]
+                            f"\u2705 *Kill Switch 수신 확인 (재전송 {attempt}회)*\n\n"
+                            "오케스트레이터가 Kill Switch를 수신하고 청산을 시작했습니다.\n"
+                            "_Use /status to monitor closure progress._",
+                            parse_mode="Markdown",
+                        )
+                        log.info(
+                            KILL_SWITCH_ACK_SENT,
+                            message="kill switch ACK 수신 확인 (재시도 성공)",
+                            attempt=attempt,
+                            triggered_by=triggered_by,
+                        )
+                        break
+
+                if not retry_success:
+                    log.error(
+                        KILL_SWITCH_ACK_MISSING,
+                        message="kill switch ACK 최종 미수신 — 수동 확인 필요",
+                        max_retries=KILL_SWITCH_ACK_MAX_RETRIES,
+                        triggered_by=triggered_by,
+                    )
+                    await update.effective_message.reply_text(  # type: ignore[union-attr]
+                        "\u26a0\ufe0f *ACK 미수신 — 수동 확인 필요*\n\n"
+                        "Kill Switch는 SET 상태이지만, 오케스트레이터 응답이 없습니다.\n\n"
+                        "즉시 수행하세요:\n"
+                        "\u2022 `/status` 로 포지션 확인\n"
+                        "\u2022 오케스트레이터 서비스 상태 확인\n"
+                        "\u2022 필요 시 수동 청산",
+                        parse_mode="Markdown",
+                    )
 
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="긴급 청산 실패")
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 "\u274c Failed to trigger emergency close! Check system immediately."
             )
+
+    async def _wait_for_kill_switch_ack(self, prev_ack_time: str | None) -> bool:
+        """ce:kill_switch:ack_time 키가 prev_ack_time 이후 갱신됐는지 폴링 확인.
+
+        KILL_SWITCH_ACK_TIMEOUT_SECONDS 동안 0.5초 간격으로 폴링한다.
+        ACK는 오케스트레이터가 kill switch 수신 즉시 SET하므로, 키가
+        갱신되면 True를 반환한다. 타임아웃 시 False 반환.
+        """
+        poll_interval = 0.5
+        elapsed = 0.0
+
+        while elapsed < KILL_SWITCH_ACK_TIMEOUT_SECONDS:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+            current_ack_time = await self.redis.get(KILL_SWITCH_ACK_TIME_KEY)
+            if current_ack_time and current_ack_time != prev_ack_time:
+                return True
+
+        return False
 
     # ── Command: /stop [strategy] ─────────────────────────────────
 
@@ -304,7 +476,12 @@ class BotHandlers:
             )
 
     async def _build_daily_report(self, date_str: str) -> dict[str, Any]:
-        """Build daily report from database."""
+        """Build daily report from database.
+
+        T-3: funding_earned includes both DB funding_payments AND any amount
+        accumulated in the in-memory FundingAccumulator that has not yet been
+        persisted (e.g. received within the current batch window).
+        """
         async with self.db_pool.acquire() as conn:
             # Get trade summary for the day
             row = await conn.fetchrow(
@@ -326,7 +503,7 @@ class BotHandlers:
             total_fees = float(row["total_fees"]) if row else 0.0
             win_rate = (wins / total_trades * 100) if total_trades > 0 else 0.0
 
-            # Get funding earned
+            # Get funding earned from DB
             funding_row = await conn.fetchrow(
                 """
                 SELECT COALESCE(SUM(payment), 0) AS funding_earned
@@ -335,7 +512,13 @@ class BotHandlers:
                 """,
                 date_str,
             )
-            funding_earned = float(funding_row["funding_earned"]) if funding_row else 0.0
+            funding_db = float(funding_row["funding_earned"]) if funding_row else 0.0
+
+            # T-3: Add in-memory accumulated funding (not yet in DB)
+            funding_accumulated = 0.0
+            if self._dispatcher is not None:
+                funding_accumulated = self._dispatcher.funding.get_daily_total(date_str)
+            funding_earned = funding_db + funding_accumulated
 
             # Get ending equity
             portfolio_raw = await self.redis.get("ce:portfolio:state")
@@ -356,13 +539,20 @@ class BotHandlers:
                 date_str,
             )
 
+        # T-4: compute Sharpe and max DD for the report period
+        metrics = await self._fetch_30d_metrics()
+
+        # After including in daily report, reset the daily accumulator
+        if self._dispatcher is not None:
+            self._dispatcher.funding.reset_day(date_str)
+
         return {
             "date": date_str,
             "total_pnl": total_pnl,
             "total_trades": total_trades,
             "win_rate": win_rate,
-            "sharpe_ratio": 0.0,  # Computed by separate analytics job
-            "max_drawdown": 0.0,
+            "sharpe_ratio": metrics.get("sharpe_30d", 0.0),
+            "max_drawdown": metrics.get("monthly_max_dd", 0.0),
             "ending_equity": ending_equity,
             "total_fees": total_fees,
             "funding_earned": funding_earned,
@@ -735,7 +925,15 @@ class BotHandlers:
         alert_type: str,
         data: dict[str, Any],
     ) -> None:
-        """Send an alert message to the authorized chat."""
+        """Route an alert through AlertDispatcher (T-1, T-3).
+
+        Falls back to direct inline send when no dispatcher is configured.
+        """
+        if self._dispatcher is not None:
+            await self._dispatcher.dispatch(alert_type, data)
+            return
+
+        # Legacy fallback (no dispatcher configured)
         try:
             msg = format_alert(alert_type, data)
             await bot.send_message(
@@ -743,6 +941,6 @@ class BotHandlers:
                 text=msg,
                 parse_mode="Markdown",
             )
-            log.info(TELEGRAM_NOTIFICATION_SENT, message="알림 전송 완료", alert_type=alert_type)
+            log.info(TELEGRAM_NOTIFICATION_SENT, message="알림 전송 완료 (fallback)", alert_type=alert_type)
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="알림 전송 실패", alert_type=alert_type)

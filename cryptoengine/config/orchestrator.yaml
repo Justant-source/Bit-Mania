@@ -161,7 +161,7 @@ llm_advisor:
   # Minimum confidence to apply LLM weight adjustments
   min_confidence: 0.5
   # Maximum weight adjustment from LLM (percentage points)
-  max_adjustment: 0.15
+  max_adjustment: 0.05  # Phase 4 안전값: AI 환각 시 최대 5%p 오차 허용 (실전 전 0.15→0.05 축소)
   # Redis channel for LLM advisories
   redis_channel: "llm:advisory"
 

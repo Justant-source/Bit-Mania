@@ -22,6 +22,7 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
     try {
       const period = (req.query.period as string) || "daily";
 
+      // $1 = delay minutes (parameterized to prevent future SQL injection if value becomes dynamic)
       let query: string;
       switch (period) {
         case "weekly":
@@ -33,7 +34,7 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
               MIN(equity) AS min_equity,
               MAX(equity) AS max_equity
             FROM daily_pnl
-            WHERE date <= NOW() - INTERVAL '${PUBLIC_DELAY_MINUTES} minutes'
+            WHERE date <= NOW() - ($1 * INTERVAL '1 minute')
             GROUP BY period
             ORDER BY period DESC
             LIMIT 52
@@ -48,7 +49,7 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
               MIN(equity) AS min_equity,
               MAX(equity) AS max_equity
             FROM daily_pnl
-            WHERE date <= NOW() - INTERVAL '${PUBLIC_DELAY_MINUTES} minutes'
+            WHERE date <= NOW() - ($1 * INTERVAL '1 minute')
             GROUP BY period
             ORDER BY period DESC
             LIMIT 24
@@ -63,13 +64,13 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
               equity AS min_equity,
               equity AS max_equity
             FROM daily_pnl
-            WHERE date <= NOW() - INTERVAL '${PUBLIC_DELAY_MINUTES} minutes'
+            WHERE date <= NOW() - ($1 * INTERVAL '1 minute')
             ORDER BY date DESC
             LIMIT 90
           `;
       }
 
-      const result = await pool.query(query);
+      const result = await pool.query(query, [PUBLIC_DELAY_MINUTES]);
 
       return res.json({
         period,
@@ -88,15 +89,16 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
     try {
       const days = parseInt((req.query.days as string) || "365", 10);
 
+      // $1 = lookback days, $2 = delay minutes
       const result = await pool.query(
         `
         SELECT date, equity, cumulative_pnl, drawdown_pct
         FROM daily_pnl
         WHERE date >= CURRENT_DATE - $1::int
-          AND date <= NOW() - INTERVAL '${PUBLIC_DELAY_MINUTES} minutes'
+          AND date <= NOW() - ($2 * INTERVAL '1 minute')
         ORDER BY date ASC
         `,
-        [days]
+        [days, PUBLIC_DELAY_MINUTES]
       );
 
       return res.json({
@@ -115,14 +117,16 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
   router.get("/stats", async (_req: Request, res: Response) => {
     try {
       // Sharpe ratio and max drawdown from daily_pnl
-      const statsResult = await pool.query(`
+      // $1 = delay minutes
+      const statsResult = await pool.query(
+        `
         WITH daily AS (
           SELECT
             total_pnl,
             drawdown_pct
           FROM daily_pnl
           WHERE date >= CURRENT_DATE - 90
-            AND date <= NOW() - INTERVAL '${PUBLIC_DELAY_MINUTES} minutes'
+            AND date <= NOW() - ($1 * INTERVAL '1 minute')
         )
         SELECT
           CASE
@@ -133,7 +137,9 @@ export function createPublicRouter(pool: Pool, redis: Redis): Router {
           COALESCE(MIN(drawdown_pct), 0) AS max_drawdown_pct,
           COUNT(*) AS trading_days
         FROM daily
-      `);
+        `,
+        [PUBLIC_DELAY_MINUTES]
+      );
 
       const stats = statsResult.rows[0] || {
         sharpe_ratio: 0,

@@ -4,8 +4,15 @@ Strategy: long on the exchange paying the lowest funding, short on the
 exchange paying the highest funding.  Requires multi-exchange connectors
 and CoinGlass comparison data.
 
-This module is **disabled by default** and will be activated in Phase 2.
+This module is **PERMANENTLY DISABLED until Phase 2 is explicitly started**.
+Feature flag: CROSS_EXCHANGE_ENABLED env var must be set to "1" to activate.
+Without the env var, all methods are no-ops regardless of config.
 """
+
+import os as _os
+
+# Hard feature flag — requires explicit env var to enable (prevents accidental activation)
+_FEATURE_ENABLED: bool = _os.environ.get("CROSS_EXCHANGE_ENABLED", "0") == "1"
 
 from __future__ import annotations
 
@@ -64,7 +71,8 @@ class CrossExchangeArbitrage:
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         config = config or {}
-        self.enabled: bool = config.get("enabled", False)
+        # Feature flag takes precedence over config — env var must be "1" to enable
+        self.enabled: bool = _FEATURE_ENABLED and config.get("enabled", False)
         self.min_rate_spread: float = config.get("min_rate_spread", 0.0005)  # 0.05%
         self.coinglass_api_key: str = config.get("coinglass_api_key", "")
         self.supported_exchanges: list[str] = config.get(

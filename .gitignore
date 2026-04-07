@@ -1,6 +1,11 @@
 node_modules/
-/.idea/
+.idea/
 /.request/
 /.result/
-/.idea/
 /cryptoengine/.env
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd

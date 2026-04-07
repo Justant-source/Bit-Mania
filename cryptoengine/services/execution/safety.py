@@ -21,6 +21,7 @@ import asyncpg
 import redis.asyncio as aioredis
 import structlog
 
+from shared.kill_switch import KILL_SWITCH_ACTIVE_KEY
 from shared.log_events import *
 
 log = structlog.get_logger(__name__)
@@ -216,6 +217,11 @@ class SafetyGuard:
                 )
                 return False, reason
 
+        # 0b. Kill Switch check — block all orders when kill switch is active
+        passed, reason = await self._check_kill_switch(payload)
+        if not passed:
+            return False, reason
+
         # 1. Max order size
         passed, reason = await self._check_max_order_size(payload)
         if not passed:
@@ -280,6 +286,49 @@ class SafetyGuard:
     # ------------------------------------------------------------------
     # Individual checks
     # ------------------------------------------------------------------
+
+    async def _check_kill_switch(
+        self, payload: dict[str, Any]
+    ) -> tuple[bool, str]:
+        """Block all new orders while the system-wide Kill Switch is active.
+
+        Reads the ``ce:kill_switch:active`` key from Redis.  Treats any Redis
+        error as *fail-closed* (order blocked) to ensure safety even when
+        connectivity is degraded.
+        """
+        try:
+            raw = await self._redis.get(KILL_SWITCH_ACTIVE_KEY)
+            if raw is not None:
+                active = str(raw).strip().lower()
+                if active in ("1", "true", "yes"):
+                    reason = "kill_switch_active: all orders blocked by Kill Switch"
+                    log.error(
+                        ORDER_SAFETY_FAILED,
+                        message="safety kill switch active",
+                        request_id=payload.get("request_id"),
+                        reason=reason,
+                    )
+                    return False, reason
+            return True, ""
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            self._record_redis_connection_error("kill_switch", exc)
+            # Fail-closed: if we cannot check kill switch status, block the order
+            reason = f"kill_switch_check_failed: redis error={exc}"
+            log.error(
+                ORDER_SAFETY_FAILED,
+                message="safety kill switch check failed — fail-closed",
+                request_id=payload.get("request_id"),
+                error=str(exc),
+            )
+            return False, reason
+        except Exception as exc:
+            log.warning(
+                ORDER_SAFETY_FAILED,
+                message="kill switch check unexpected error — fail-closed",
+                request_id=payload.get("request_id"),
+                error=str(exc),
+            )
+            return False, f"kill_switch_check_error: {exc}"
 
     async def _check_max_order_size(
         self, payload: dict[str, Any]

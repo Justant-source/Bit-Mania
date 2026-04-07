@@ -2,8 +2,57 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
+
+
+# ── Metric helpers ────────────────────────────────────────────────────────────
+
+def _safe_float(v: Any, default: float = 0.0) -> float:
+    """Convert value to float, returning default on None/error."""
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def compute_sharpe_annualized(daily_returns: list[float]) -> float:
+    """Compute annualized Sharpe ratio from a list of daily return fractions.
+
+    Returns 0.0 when there are fewer than 2 data points or stddev is zero.
+    """
+    if len(daily_returns) < 2:
+        return 0.0
+    n = len(daily_returns)
+    mean = sum(daily_returns) / n
+    variance = sum((r - mean) ** 2 for r in daily_returns) / (n - 1)
+    if variance <= 0:
+        return 0.0
+    stddev = math.sqrt(variance)
+    sharpe_daily = mean / stddev
+    return sharpe_daily * math.sqrt(252)
+
+
+def compute_max_drawdown(equities: list[float]) -> float:
+    """Compute maximum drawdown (%) from a sequence of equity values.
+
+    Returns 0.0 when fewer than 2 values are provided.
+    """
+    if len(equities) < 2:
+        return 0.0
+    peak = equities[0]
+    max_dd = 0.0
+    for eq in equities:
+        if eq > peak:
+            peak = eq
+        if peak > 0:
+            dd = (peak - eq) / peak * 100
+            if dd > max_dd:
+                max_dd = dd
+    return max_dd
 
 
 def format_position(position: dict[str, Any]) -> str:
@@ -24,12 +73,17 @@ def format_position(position: dict[str, Any]) -> str:
 
 
 def format_pnl(portfolio: dict[str, Any]) -> str:
-    """Format portfolio PnL summary."""
-    equity = portfolio.get("total_equity", 0.0)
-    unrealized = portfolio.get("unrealized_pnl", 0.0)
-    realized = portfolio.get("realized_pnl_today", 0.0)
-    daily_dd = portfolio.get("daily_drawdown", 0.0)
-    weekly_dd = portfolio.get("weekly_drawdown", 0.0)
+    """Format portfolio PnL summary.
+
+    Optional keys in *portfolio* (added by T-4 enrichment in handlers):
+    - ``sharpe_30d``   — annualized Sharpe from last 30 days (float)
+    - ``monthly_max_dd`` — max drawdown over last 30 days (float, %)
+    """
+    equity = _safe_float(portfolio.get("total_equity"))
+    unrealized = _safe_float(portfolio.get("unrealized_pnl"))
+    realized = _safe_float(portfolio.get("realized_pnl_today"))
+    daily_dd = _safe_float(portfolio.get("daily_drawdown"))
+    weekly_dd = _safe_float(portfolio.get("weekly_drawdown"))
     total = unrealized + realized
 
     total_emoji = "\U0001f4c8" if total >= 0 else "\U0001f4c9"
@@ -45,12 +99,22 @@ def format_pnl(portfolio: dict[str, Any]) -> str:
         f"\u26a0\ufe0f Daily DD: `{daily_dd:.2f}%`  |  Weekly DD: `{weekly_dd:.2f}%`",
     ]
 
+    # T-4: Sharpe ratio and monthly max drawdown (only shown when available)
+    sharpe_30d = portfolio.get("sharpe_30d")
+    monthly_max_dd = portfolio.get("monthly_max_dd")
+    if sharpe_30d is not None or monthly_max_dd is not None:
+        sharpe_val = _safe_float(sharpe_30d)
+        dd_val = _safe_float(monthly_max_dd)
+        lines.append(
+            f"\U0001f4c9 Sharpe(30d): `{sharpe_val:.2f}`  |  Monthly Max DD: `{dd_val:.2f}%`"
+        )
+
     strategies = portfolio.get("strategies", [])
     if strategies:
         lines.append("")
         lines.append("*Strategy Breakdown:*")
         for s in strategies:
-            s_pnl = s.get("current_pnl", 0.0)
+            s_pnl = _safe_float(s.get("current_pnl"))
             s_emoji = "\U0001f7e2" if s_pnl >= 0 else "\U0001f534"
             lines.append(
                 f"  {s_emoji} {s.get('strategy_id', 'N/A')}: "
@@ -151,9 +215,9 @@ def _format_exit_alert(data: dict[str, Any]) -> str:
 
 
 def _format_funding_alert(data: dict[str, Any]) -> str:
-    rate = data.get("rate", 0.0)
+    rate = _safe_float(data.get("rate"))
     rate_annual = rate * 3 * 365 * 100  # 8h intervals
-    payment = data.get("payment", 0.0)
+    payment = _safe_float(data.get("payment"))
     payment_emoji = "\U0001f4b5" if payment >= 0 else "\U0001f4b8"
     return (
         f"{payment_emoji} *Funding Payment*\n"

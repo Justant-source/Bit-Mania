@@ -205,6 +205,53 @@ docker compose --profile backtest run --rm backtester \
 
 ---
 
+## Walk-Forward 월간 자동 파이프라인
+
+### `scripts/monthly_wf_runner.py` — 월간 자동 WF 실행기
+
+매월 1일 02:00 KST(UTC 17:00)에 자동 실행되는 Walk-Forward 분석 파이프라인.
+
+**실행 방식:**
+```bash
+# wf-scheduler 서비스로 자동 실행 (docker compose up -d wf-scheduler)
+# 즉시 실행 (테스트용):
+WF_ON_STARTUP=true docker compose up wf-scheduler
+
+# 단독 실행:
+docker compose --profile backtest run --rm backtester \
+  python scripts/monthly_wf_runner.py
+```
+
+**주요 환경변수:**
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `MONTHLY_WF_CRON` | `0 17 1 * *` | 실행 스케줄 (매월 1일 02:00 KST) |
+| `WF_ON_STARTUP` | `false` | `true`이면 컨테이너 시작 시 즉시 실행 |
+| `WF_LOOKBACK_DAYS` | `180` | 분석할 최근 일수 |
+| `WF_TRAIN_DAYS` | `120` | 학습 윈도우 (일) |
+| `WF_TEST_DAYS` | `60` | 테스트 윈도우 (일) |
+| `WF_FA_RATIO` | `0.80` | FA 자본 비율 (현재 fa80_lev5_r30) |
+| `WF_LEVERAGE` | `5.0` | 레버리지 |
+| `WF_REINVEST` | `0.30` | 재투자 비율 |
+
+**실행 결과:**
+- DB `walk_forward_monthly` 테이블에 OOS 집계 지표 저장
+- `windows_json` 컬럼에 윈도우별 상세 결과 (JSONB)
+- Redis `ce:alerts:daily_report` 채널에 Telegram 요약 PUBLISH
+- 이전 달 결과와 자동 비교 (Sharpe/CAGR/MDD 변화, 파라미터 변경 감지)
+- Sharpe < 1.5 이하면 경고 알림
+
+**DB 테이블 구조:** `walk_forward_monthly`
+```sql
+period_label, data_start, data_end, n_windows,
+agg_sharpe, agg_profit_pct, agg_mdd_pct, agg_win_rate, agg_total_trades,
+consistency_ratio, mc_sharpe_mean, mc_sharpe_ci_lo, mc_sharpe_ci_hi, mc_win_prob,
+sharpe_alert, windows_json (JSONB), params (JSONB)
+```
+
+---
+
 ## 실행 이력 요약
 
 | 테스트 | 스크립트 | 핵심 결과 | 리포트 |

@@ -21,6 +21,66 @@ related:
 
 ---
 
+## [1.5.0] - 2026-04-07
+
+### 추가 (Added)
+
+#### execution-engine: 거래소 스탑로스 주문 자동 관리 (`stoploss_manager.py`)
+- 포지션 진입 시 거래소에 StopMarket 스탑로스 주문 자동 배치 (진입가 ±2%, Bybit StopMarket)
+- 포지션 청산 시 연관된 스탑로스 주문 자동 취소
+- 봇 재시작 시 열린 포지션의 스탑로스 자동 복구 (Redis 캐시 기반)
+- 캐시 키: `cache:stoploss:{exchange}:{symbol}` (TTL 24h)
+
+#### telegram-bot: AlertDispatcher 알림 시스템
+- 동일 타입 알림을 `batch_window_seconds=5` 동안 배치 후 단일 메시지로 전송
+- `max_messages_per_minute=30` 레이트 리밋 적용
+- `kill_switch` / `anomaly` 타입은 즉시 전송 바이패스
+- `min_trade_size_usd` 미만 entry/exit 알림 자동 드롭
+- 일일 리포트 자동 전송 (08:00, 20:00 UTC) — asyncio 스케줄러
+- 펀딩비 수취: 정상 수취는 일일 누적 후 리포트 통합, 이상(음수/예상의 50% 이하)만 즉시 알림
+- `/status` 응답에 Sharpe(30일 연환산), 월간 최대 드로다운 추가
+
+#### Grafana 알림 Telegram 중복 제거
+- 이전: Grafana Bot Token 직접 전송 + 봇 Redis 구독 → 이중 전송
+- 현재: Grafana → Webhook(dashboard:3000/grafana-webhook) → Redis `ce:alerts:grafana` → 봇 단일 경로
+- `kill_switch`, `anomaly` 타입은 fingerprint 기반 120초 dedup 적용
+
+#### Kill Switch ACK 확인 메커니즘
+- Telegram `/emergency_close` → Redis PUBLISH 후 5초 대기
+- 오케스트레이터가 처리 즉시 `ce:kill_switch:ack` PUBLISH
+- ACK 수신 시 "✅ Kill Switch 수신 확인" 전송
+- ACK 미수신 시 "⚠️ ACK 미수신" 경고 + 최대 3회 재전송
+
+#### 신규 Docker 서비스
+- `log-retention`: 매일 03:00 KST service_logs 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일)
+- `wf-scheduler`: 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 + Telegram 결과 전송 (`services/backtester/scripts/monthly_wf_runner.py`)
+
+#### 테스트
+- `tests/unit/test_safety_guard.py`: 27개 유닛 테스트 (Kill Switch 체크, 레버리지, 슬리피지, Redis fail-closed 등)
+- `services/telegram-bot/tests/test_telegram_formatters.py`: 59개 유닛 테스트
+
+### 변경 (Changed)
+
+#### 수치 설정 변경
+- `ONE_SIDE_FILL_TIMEOUT`: 3분 → **1분** (delta-neutral gap 최소화)
+- `RECONCILE_INTERVAL`: 10분 → **3분** (불일치 감지 시간 단축)
+- LLM `max_adjustment`: 15%p → **5%p** (AI 환각 시 자본 배분 오차 축소)
+
+#### 로그 시스템 개선
+- `shared/log_events.py`: `EVENT_LEVELS` dict 추가 (95개 이벤트별 권장 로그 레벨)
+- `shared/log_writer.py`: `dropped_count` 카운터 + 드롭 시 DB warning 기록
+- `shared/logging_config.py`: aioredis, asyncpg, telegram 등 라이브러리 로그 억제 추가
+
+### 수정 (Fixed)
+
+#### SQL 인젝션 방지
+- `public.ts`: 템플릿 리터럴 `${PUBLIC_DELAY_MINUTES}` → `$1 * INTERVAL '1 minute'` 파라미터 바인딩
+
+#### cross_exchange.py
+- `CROSS_EXCHANGE_ENABLED` env var 명시적 가드 추가 (미설정 시 비활성화)
+
+---
+
 ## [1.4.0] - 2026-04-06
 
 ### 추가 (Added)

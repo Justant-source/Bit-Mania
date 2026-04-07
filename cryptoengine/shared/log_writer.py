@@ -37,6 +37,8 @@ class LogWriter:
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=self.MAX_QUEUE_SIZE)
         self._flush_task: Optional[asyncio.Task] = None
         self._closed = False
+        self.dropped_count: int = 0          # 누적 드롭 수
+        self._last_drop_report: int = 0      # 마지막 경고 시점의 드롭 수
 
     async def start(self):
         """백그라운드 flush 태스크 시작."""
@@ -73,10 +75,15 @@ class LogWriter:
         if self._queue.full():
             try:
                 self._queue.get_nowait()  # 가장 오래된 항목 드롭
-                print(
-                    f"[log_writer] WARNING: 큐 오버플로우, 오래된 로그 드롭 (service={self.service_name})",
-                    file=sys.stderr,
-                )
+                self.dropped_count += 1
+                # 10개 단위로만 stderr 경고 출력 (스팸 방지)
+                if self.dropped_count - self._last_drop_report >= 10:
+                    print(
+                        f"[log_writer] WARNING: 큐 오버플로우 — 누적 드롭 {self.dropped_count}개"
+                        f" (service={self.service_name})",
+                        file=sys.stderr,
+                    )
+                    self._last_drop_report = self.dropped_count
             except asyncio.QueueEmpty:
                 pass
 
@@ -89,6 +96,7 @@ class LogWriter:
         """배치 조건(50개 또는 5초)을 만족할 때마다 DB에 INSERT."""
         batch = []
         last_flush = time.monotonic()
+        last_drop_logged = 0   # 마지막으로 DB에 기록된 드롭 수
 
         while not self._closed or not self._queue.empty():
             try:
@@ -111,6 +119,24 @@ class LogWriter:
                     await self._flush_batch(batch)
                     batch = []
                 last_flush = time.monotonic()
+
+                # 드롭이 발생했으면 DB에도 경고 로그 기록
+                if self.dropped_count > last_drop_logged:
+                    new_drops = self.dropped_count - last_drop_logged
+                    last_drop_logged = self.dropped_count
+                    warn_entry = (
+                        datetime.now(timezone.utc),
+                        self.service_name,
+                        "WARNING",
+                        30,
+                        "log_writer_queue_overflow",
+                        None,
+                        f'{{"dropped": {new_drops}, "total_dropped": {self.dropped_count}}}',
+                        None,
+                        None,
+                        None,
+                    )
+                    await self._flush_batch([warn_entry])
             except asyncio.CancelledError:
                 if batch:
                     await self._flush_batch(batch)

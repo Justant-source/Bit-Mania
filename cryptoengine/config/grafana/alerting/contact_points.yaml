@@ -1,21 +1,19 @@
 # Grafana 10 unified alerting provisioning - contact points
+#
+# 알림 흐름: Grafana → dashboard:3000/grafana-webhook → Redis ce:alerts:grafana
+#            → telegram-bot (단일 경로) → Telegram
+#
+# 변경 이유: Grafana 직접 Telegram 전송 시 봇의 ce:alerts:kill_switch 등과
+#            중복 전송이 발생함. Webhook 경유로 봇을 단일 알림 허브로 통합.
 apiVersion: 1
 contactPoints:
   - orgId: 1
     name: telegram-alerts
     receivers:
-      - uid: telegram-main
-        type: telegram
+      - uid: grafana-webhook-main
+        type: webhook
         settings:
-          bottoken: "${TELEGRAM_BOT_TOKEN}"
-          chatid: "6873494912"
-          message: |
-            🚨 *CryptoEngine Alert*
-            {{ range .Alerts }}
-            *{{ .Labels.alertname }}*
-            {{ .Annotations.summary }}
-            {{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-            상태: {{ .Status }}
-            {{ end }}
-          parse_mode: Markdown
+          url: "http://dashboard:3000/grafana-webhook"
+          httpMethod: POST
+          maxAlerts: 0
         disableResolveMessage: false
