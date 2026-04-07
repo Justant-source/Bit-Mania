@@ -19,6 +19,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 | 서비스 | 이미지 | 역할 | 포트 |
 |--------|--------|------|------|
 | **postgres** | `postgres:16-alpine` | 주 데이터 저장소. 거래 기록, 포지션, 펀딩비 히스토리, OHLCV 등 영구 데이터 보관 | 5432 |
+| **pg-backup** | (custom) | 매일 02:00 KST `pg_dump` 자동 백업, 7일 보존 (`pg-backups` 볼륨) | - |
 | **redis** | `redis:7-alpine` | 메시지 브로커(Pub/Sub) + 캐시. AOF 영속화, 256MB 메모리 제한 | 6379 |
 | **prometheus** | `prom/prometheus:v2.51.0` | 메트릭 수집 및 시계열 저장. 30일 보존 | 9090 |
 | **node-exporter** | `prom/node-exporter:v1.8.0` | 호스트 시스템 메트릭(CPU, 메모리, 디스크) 수집 | 9100 (내부) |
@@ -57,7 +58,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 |
 |--------|------|
-| **backtester** | Freqtrade 브릿지 기반 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 결과는 `./backtest-results`에 저장 |
+| **backtester** | Freqtrade 브릿지 기반 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 결과는 `./backtest-results`에 저장. 스킬셋 29개 (`tests/backtest/`) |
 | **log-retention** | 매일 03:00 KST `service_logs` 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일) |
 | **wf-scheduler** | 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 (`monthly_wf_runner.py`). 결과 요약 Telegram 전송 |
 
@@ -75,7 +76,10 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 | `redis_client.py` | Redis 싱글턴 연결 관리 (`get_redis()` / `close_redis()`), Pub/Sub 헬퍼. 자동 재연결 (`ensure_connected()`, 최대 3회, 지수 백오프), `get/set/publish`의 ConnectionError 시 1회 자동 재시도 |
 | `config_loader.py` | YAML 설정 파일 로더. 절대경로 지원, 환경변수 치환 |
 | `kill_switch.py` | Kill Switch 공통 로직. 4단계 계층 (경고 → 축소 → 청산 → 전면중지) |
-| `logging_config.py` | structlog 기반 구조화 로깅 설정 |
+| `log_events.py` | 이벤트 코드 정의 (95개) + `EVENT_LEVELS` dict (이벤트별 권장 로그 레벨) |
+| `log_writer.py` | 비동기 DB 로그 라이터. 배치 처리, 큐 기반. dropped_count 카운터 |
+| `logging_config.py` | structlog 기반 구조화 로깅 설정 (JSON + KST 타임스탬프) |
+| `timezone_utils.py` | KST 타임존 유틸리티 (`to_kst()`, `now_kst()` 등) |
 | `risk.py` | 리스크 관리 유틸리티 (레버리지 검증, 포지션 크기 계산 등) |
 
 ---
@@ -159,7 +163,7 @@ config/
 
 - **Kill Switch 4단계**: 경고 → 포지션 축소 → 전체 청산 → 시스템 전면 중지
 - **테스트넷 강제**: `BYBIT_TESTNET=true` 기본값. Phase 5 전까지 변경 금지
-- **레버리지 제한**: 선물 포지션 최대 2배 레버리지 (`bybit.py MAX_LEVERAGE=2` 상수 + `SafetyGuard` 이중 강제)
+- **레버리지 제한**: 선물 포지션 최대 5배 레버리지 (fa80_lev5_r30 채택, `SafetyGuard` 이중 강제)
 - **출금 불가**: API 키에 Withdraw 권한 미부여
 - **헬스체크**: PostgreSQL, Redis에 Docker 헬스체크 설정. 의존 서비스 시작 순서 보장
 - **Dead Man's Switch**: execution-engine/market-data가 30초마다 Redis에 하트비트 발행. 오케스트레이터 워치독이 60초마다 확인, execution-engine 하트비트 5분 이상 미수신 시 Kill Switch 자동 발동

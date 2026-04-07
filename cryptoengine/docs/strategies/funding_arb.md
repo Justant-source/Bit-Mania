@@ -65,7 +65,7 @@ related:
 3. **동시 주문**: 현물 매수 + 선물 매도 (Post-Only Limit)
    - 주문은 [[api#`order:request`|order:request 채널]]을 통해 [[architecture#3. Execution Engine|실행 엔진]]으로 전달
 4. **한쪽 체결 복구**:
-   - 한쪽만 체결 시 3분 대기
+   - 한쪽만 체결 시 1분 대기 (v1.5.0에서 3분 → 1분 단축, delta-neutral gap 최소화)
    - 타임아웃 후 미체결 주문 취소
    - 체결된 레그 시장가 청산
 5. **Basis Spread SM 상태 전환**: `IDLE → OPEN`
@@ -77,7 +77,7 @@ related:
 | 펀딩 반전 | 펀딩레이트 < 0 | 높음 |
 | Basis 발산 | Spread > 1.0% | 높음 |
 | Basis 수렴 | Spread < 0.1% | 중간 (이익 실현) |
-| 최대 보유 기간 | > 30일 | 낮음 |
+| 최대 보유 기간 | > 7일 (168시간) | 낮음 |
 | Kill Switch | 시스템 신호 | 최우선 |
 
 > [!warning] Kill Switch 연동
@@ -165,7 +165,7 @@ Delta-neutral 포지션:
 | 유동성 부족 | 슬리피지 증가 | 최소 OI 요건 |
 | 거래소 장애 | 포지션 관리 불가 | [[architecture#Kill Switch 4단계|Kill Switch L3]] |
 | 마진 부족 | 강제 청산 위험 | 최소마진비율 36.5x (5x 레버리지 기준) |
-| 한쪽 체결 실패 | 방향성 노출 | 3분 대기 + 청산 복구 |
+| 한쪽 체결 실패 | 방향성 노출 | 1분 대기 + 청산 복구 |
 | 레버리지 5x 편측 체결 | 최악 자본 손실 14.85% | 즉시 청산 + Kill Switch |
 
 > [!warning] 5x 레버리지 모니터링 임계값
