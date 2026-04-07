@@ -47,6 +47,7 @@ class BybitConnector(ExchangeConnector):
                 "defaultType": "swap",
                 "defaultSubType": "linear",
                 "adjustForTimeDifference": True,
+                "recvWindow": 20000,  # WSL clock drift 대응: 기본 5s → 20s
             },
         }
         if testnet:
@@ -61,9 +62,17 @@ class BybitConnector(ExchangeConnector):
     async def connect(self) -> None:
         if self._connected:
             return
-        await self._exchange.load_markets()
-        self._connected = True
-        log.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
+        try:
+            await self._exchange.load_markets()
+            self._connected = True
+            log.info("bybit connector ready (testnet=%s)", self._exchange.sandbox)
+        except Exception:
+            # Clean up the aiohttp session created during load_markets() to prevent leaks
+            try:
+                await self._exchange.close()
+            except Exception:
+                pass
+            raise
 
     async def disconnect(self) -> None:
         if not self._connected:

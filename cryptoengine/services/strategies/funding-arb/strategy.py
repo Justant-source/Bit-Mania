@@ -49,8 +49,13 @@ logger = structlog.get_logger()
 # ── defaults ────────────────────────────────────────────────────────────
 MIN_FUNDING_RATE = 0.00005       # 0.005%
 MAX_SPREAD_ENTRY = 0.003         # 0.3%
-ONE_SIDE_FILL_TIMEOUT = 180      # 3 minutes
+ONE_SIDE_FILL_TIMEOUT = 60       # 1 minute (delta-neutral gap 최소화)
 ENTRY_ORDER_TYPE = "limit"
+
+# 재시작 시 포지션을 청산하지 않고 유지할 종료 사유
+_SHUTDOWN_NO_LIQUIDATE = frozenset({"service_shutdown"})
+_SAVED_STATE_KEY_PREFIX = "strategy:saved_state"
+_SAVED_STATE_TTL = 3600  # 1시간: 이 시간 안에 재시작되면 포지션 복구
 
 
 class FundingArbStrategy(BaseStrategy):
@@ -151,6 +156,9 @@ class FundingArbStrategy(BaseStrategy):
         )
         self.register_controller("basis_sm", self._basis_sm)
 
+        # 재시작 후 저장된 포지션 상태 복구 시도
+        recovered = await self._restore_position_state()
+
         self._log.info(
             STRATEGY_STARTED,
             message="펀딩비 차익거래 전략 시작",
@@ -160,14 +168,32 @@ class FundingArbStrategy(BaseStrategy):
             leverage=self.leverage,
             fa_capital_ratio=self.fa_capital_ratio,
             reinvest_ratio=self.reinvest_ratio,
+            position_recovered=recovered,
         )
 
     async def on_stop(self, reason: str) -> None:
-        """Exit all positions and disconnect."""
-        self._log.info(SERVICE_STOPPING, message="전략 종료 중", reason=reason)
+        """Exit all positions and disconnect.
 
-        if self._basis_sm and self._basis_sm.is_open:
-            await self._exit_position(reason=reason)
+        service_shutdown (배포·재시작) 시에는 포지션을 청산하지 않고
+        Redis에 상태를 저장한다. 재시작 후 on_start()에서 복구한다.
+        그 외 사유(kill_switch, 리스크 트리거 등)는 즉시 청산한다.
+        """
+        if reason in _SHUTDOWN_NO_LIQUIDATE:
+            if self._basis_sm and self._basis_sm.is_open:
+                await self._save_position_state()
+                self._log.info(
+                    SERVICE_STOPPING,
+                    message="포지션 유지하며 종료 — 재시작 후 복구 예정",
+                    reason=reason,
+                    spot_qty=self._spot_qty,
+                    perp_qty=self._perp_qty,
+                )
+            else:
+                self._log.info(SERVICE_STOPPING, message="포지션 없음, 종료", reason=reason)
+        else:
+            self._log.info(SERVICE_STOPPING, message="전략 종료 중", reason=reason)
+            if self._basis_sm and self._basis_sm.is_open:
+                await self._exit_position(reason=reason)
 
         if self._exchange:
             await self._exchange.disconnect()
@@ -702,6 +728,101 @@ class FundingArbStrategy(BaseStrategy):
             self.submit_order(spot_order),
             self.submit_order(perp_order),
         )
+
+    # ── restart recovery ────────────────────────────────────────────────
+
+    async def _save_position_state(self) -> None:
+        """종료 전 포지션 상태를 Redis에 저장 (service_shutdown 전용)."""
+        assert self._basis_sm is not None
+        state = {
+            "spot_qty": self._spot_qty,
+            "perp_qty": self._perp_qty,
+            "entry_price": self._entry_price,
+            "saved_wall_time": time.time(),
+            "tiered_exit_done": self._tiered_exit_done,
+            "reinvested_btc": self._reinvested_btc,
+            "total_reinvested_usd": self._total_reinvested_usd,
+            "entry_spread": self._basis_sm.pnl.entry_spread,
+            "funding_pnl": self._basis_sm.pnl.funding_pnl,
+            "funding_payments_collected": self._basis_sm.pnl.funding_payments_collected,
+        }
+        key = f"{_SAVED_STATE_KEY_PREFIX}:{self.strategy_id}"
+        await self._redis.set(key, state, ttl=_SAVED_STATE_TTL)
+        self._log.info(
+            SERVICE_STOPPING,
+            message="포지션 상태 저장 완료",
+            spot_qty=self._spot_qty,
+            perp_qty=self._perp_qty,
+            ttl_sec=_SAVED_STATE_TTL,
+        )
+
+    async def _restore_position_state(self) -> bool:
+        """Redis에서 포지션 상태 복구 시도. 복구 성공 시 True 반환.
+
+        거래소 실제 포지션을 ground truth로 사용한다.
+        저장된 상태가 없거나 거래소에 포지션이 없으면 신규 시작으로 처리한다.
+        """
+        assert self._exchange is not None
+        assert self._basis_sm is not None
+
+        key = f"{_SAVED_STATE_KEY_PREFIX}:{self.strategy_id}"
+        raw = await self._redis.get(key)
+        if not raw:
+            return False
+
+        import json as _json
+        try:
+            state = _json.loads(raw)
+        except Exception:
+            self._log.warning("position_state_parse_error", message="저장 상태 파싱 실패")
+            await self._redis.cache_delete(key)
+            return False
+
+        # 거래소 실제 포지션 확인 (ground truth)
+        exchange_pos = await self._exchange.get_position(self.perp_symbol)
+        if exchange_pos is None or exchange_pos.size == 0:
+            self._log.warning(
+                "position_state_mismatch",
+                message="저장 상태 있으나 거래소 포지션 없음 — 신규 시작",
+            )
+            await self._redis.cache_delete(key)
+            return False
+
+        # 포지션 크기는 거래소 값 우선, 나머지는 저장 상태에서 복원
+        self._perp_qty = exchange_pos.size
+        self._spot_qty = state.get("spot_qty", exchange_pos.size)
+        self._entry_price = state.get("entry_price", float(exchange_pos.entry_price or 0))
+        self._tiered_exit_done = state.get("tiered_exit_done", [False, False, False])
+        self._reinvested_btc = state.get("reinvested_btc", 0.0)
+        self._total_reinvested_usd = state.get("total_reinvested_usd", 0.0)
+
+        # monotonic 타임스탬프: 저장 시각 기준 경과 시간으로 역산
+        saved_wall_time = state.get("saved_wall_time", time.time())
+        elapsed = time.time() - saved_wall_time
+        self._position_open_ts = time.monotonic() - elapsed
+
+        # BasisSM 상태 복원
+        from datetime import datetime, timezone
+        from strategy.basis_spread_sm import BasisPnL, BasisState
+        self._basis_sm.state = BasisState.OPENED
+        self._basis_sm._entry_time = datetime.now(timezone.utc)
+        self._basis_sm.pnl = BasisPnL(
+            entry_spread=state.get("entry_spread", 0.0),
+            funding_pnl=state.get("funding_pnl", 0.0),
+            funding_payments_collected=state.get("funding_payments_collected", 0),
+        )
+
+        await self._redis.cache_delete(key)
+
+        self._log.info(
+            STRATEGY_STARTED,
+            message="포지션 상태 복구 완료 (재시작)",
+            spot_qty=self._spot_qty,
+            perp_qty=self._perp_qty,
+            entry_price=self._entry_price,
+            elapsed_since_save_sec=round(elapsed, 1),
+        )
+        return True
 
     # ── helpers ─────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자
 **펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
-## 현재 진행 상태 (2026-04-06 기준)
+## 현재 진행 상태 (2026-04-07 기준)
 
 - Phase 0 완료: Docker, PostgreSQL, Redis, Grafana 기동
 - Phase 1 완료: Bybit 테스트넷 API 키 설정 (10,000 USDT)
@@ -14,9 +14,14 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 - Phase 3 완료: 백테스트 (6년 히스토리 데이터, fa80_lev5_r30 채택, CAGR +34.87% Sharpe 3.583)
 - Phase 4 진행 중: 테스트넷 포워드 테스트, 안전장치 구축 중
   - 완료: 통합 구조화 로깅, KST 타임스탬프, OHLCV 보존 정책, 자동 백업 (pg-backup)
-  - 완료: startup gap recovery, 복원력 테스트 자동화, 포지션 정합성 체크 (reconciliation)
+  - 완료: startup gap recovery, 복원력 테스트 자동화, 포지션 정합성 체크 (reconciliation, 3분 간격)
   - 완료: 레짐 모니터링 대시보드, Telegram 파일 관리 + 인라인 키보드
   - 완료: Phase 5 preflight 스크립트 (8개 항목 점검)
+  - 완료: stoploss_on_exchange (진입가 ±2% StopMarket, 자동 배치/취소/복구)
+  - 완료: AlertDispatcher (배치·레이트리밋·dedup), Grafana→Telegram 단일 경로, Kill Switch ACK 확인
+  - 완료: log-retention 서비스 (보존 정책 자동화), wf-scheduler 서비스 (월간 WF 자동화)
+  - 완료: SafetyGuard 유닛 테스트 27개, Telegram 포매터 테스트 59개
+  - 완료: 배포 재시작 시 포지션 자동 복구 (service_shutdown → Redis 저장 → 재시작 후 복원, 불필요한 청산 수수료 제거)
 
 ## 핵심 원칙
 
@@ -28,7 +33,7 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
 ```
 cryptoengine/
-├── docker-compose.yml          # 전체 스택 (17개 서비스)
+├── docker-compose.yml          # 전체 스택 (19개 서비스)
 ├── .env                        # API 키, DB 비밀번호 (git 제외)
 ├── config/
 │   ├── strategies/
@@ -49,13 +54,13 @@ cryptoengine/
 └── services/
     ├── market-data/            # WebSocket 데이터 수집, 레짐 감지
     ├── orchestrator/           # 전략 조율, 자본 배분, 레짐 기반 가중치
-    ├── execution/              # 주문 실행, 포지션 추적, 안전 검증
+    ├── execution/              # 주문 실행, 포지션 추적, 안전 검증, stoploss_manager.py
     ├── strategies/
     │   ├── base_strategy.py    # BaseStrategy ABC (모든 전략 상속)
     │   ├── funding-arb/        # 핵심 전략: 델타 뉴트럴 + 펀딩비 수취
     │   └── adaptive-dca/       # 보조: Fear&Greed 기반 적응형 DCA
     ├── llm-advisor/            # Claude Code 기반 시장 분석
-    ├── telegram-bot/           # 알림 + 비상 명령
+    ├── telegram-bot/           # 알림 (AlertDispatcher) + 비상 명령 + ACK 확인
     ├── dashboard/              # 내부(3000) + 공개(3001) 대시보드
     ├── backtester/             # 백테스트 엔진 + 스킬셋
     │   ├── main.py             # 진입점
@@ -65,9 +70,57 @@ cryptoengine/
     │   ├── weight_optimizer.py # 레짐별 가중치 최적화
     │   ├── regime_accuracy.py  # 레짐 감지 정확도 평가
     │   ├── scripts/            # 데이터 수집·시드·헬스체크
+    │   │   └── monthly_wf_runner.py  # 월간 WF 분석 파이프라인
     │   └── tests/backtest/     # ★ 백테스트 스킬셋 (아래 참조)
+    ├── log-retention/          # service_logs 보존 정책 자동 실행 (매일 03:00 KST)
+    ├── wf-scheduler/           # 월간 WF 자동 실행 (매월 1일 02:00 KST)
     └── grafana (이미지)        # 모니터링 대시보드 (포트 3002)
 ```
+
+## 배포 시 포지션 관리 ★ 중요
+
+### 원칙: 배포(재시작)는 포지션을 청산하지 않는다
+
+`funding-arb` 전략은 `service_shutdown` 사유로 종료될 때 포지션을 청산하지 않고
+Redis에 상태를 저장한 뒤, 재시작 후 자동으로 복구한다.
+**dev/stage 환경 없이 prod에 직접 배포하는 구조이므로 이 원칙이 수수료 낭비를 막는 핵심이다.**
+
+### 종료 사유별 동작
+
+| 종료 사유 | 포지션 | 비고 |
+|---------|--------|------|
+| `service_shutdown` (배포·재시작) | **유지** — Redis에 상태 저장 | TTL 1시간 내 재시작 시 복구 |
+| `kill_switch` | **즉시 청산** | 긴급 상황 |
+| `funding_reversal` | **즉시 청산** | 펀딩비 음수 전환 |
+| `basis_divergence_risk` | **즉시 청산** | 스프레드 과도 확대 |
+| `basis_convergence` | **청산** | 수익 실현 |
+
+### 안전한 서비스 배포 절차
+
+```bash
+# 1. 포지션 확인 (선택)
+docker compose exec postgres psql -U cryptoengine -d cryptoengine \
+  -c "SELECT * FROM positions WHERE size > 0;"
+
+# 2. 코드 수정 후 재빌드 (포지션 유지됨)
+docker compose up -d --build --no-deps funding-arb
+
+# 3. 복구 확인 — 로그에서 "포지션 상태 복구 완료" 확인
+docker compose logs --tail=20 funding-arb | grep -E "복구|recovered"
+```
+
+### shared/ 수정 시 (모든 서비스 재빌드)
+
+```bash
+# shared/ 변경은 이 순서로 재빌드
+docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+```
+
+### 주의사항
+- Redis TTL은 **1시간**. 1시간 초과 중단 후 재시작 시 포지션이 남아있어도 복구 안 됨 → 신규 시작
+- 이 경우 거래소에 포지션이 남아있으면 **수동 청산 필요** (Telegram `/emergency_close` 또는 Bybit UI)
+- `make emergency`는 kill_switch 사유로 종료 → 여전히 청산됨 (의도적)
 
 ## Docker 작업 규칙
 
@@ -250,5 +303,7 @@ docker compose --profile backtest run --rm backtester \
 2. 7일 이상 무중단 운영 확인 (Restarting 없이 Running 유지)
 3. `scripts/phase5_preflight.py` 모든 항목 PASS 확인
 4. `make resilience-test`로 복원력 검증
-5. Telegram 모든 알림 유형 수신 확인
-6. Phase 5 진입 전 명시적 승인 후 `BYBIT_TESTNET=false` 전환
+5. Telegram 모든 알림 유형 수신 확인 (Kill Switch ACK 포함)
+6. stoploss_on_exchange 정상 동작 확인 (진입/청산/재시작 시나리오)
+7. Walk-Forward 월간 파이프라인 1회 이상 정상 완료 확인
+8. Phase 5 진입 전 명시적 승인 후 `BYBIT_TESTNET=false` 전환
