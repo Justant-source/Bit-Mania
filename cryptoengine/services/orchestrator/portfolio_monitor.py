@@ -21,6 +21,7 @@ from shared.log_events import *
 log = structlog.get_logger(__name__)
 
 REDIS_KEY_PORTFOLIO = "cache:portfolio_state"
+REDIS_KEY_PORTFOLIO_CE = "ce:portfolio:state"  # telegram-bot / dashboard용 alias
 REDIS_KEY_EQUITY_HISTORY = "history:equity:daily"
 SNAPSHOT_INTERVAL = 900  # 15 minutes
 
@@ -60,6 +61,8 @@ class PortfolioMonitor:
         self._weekly_peak: float = 0.0
         self._monthly_peak: float = 0.0
         self._last_peak_reset: datetime = datetime.now(timezone.utc)
+        # Cache last known wallet balance to avoid false drawdown on cache miss
+        self._last_wallet_balance: float = 0.0
 
         self._running = False
         self._snapshot_task: asyncio.Task[None] | None = None
@@ -148,23 +151,31 @@ class PortfolioMonitor:
         return state
 
     async def _get_wallet_balance(self) -> float:
-        """Read actual wallet balance published by execution-engine."""
+        """Read actual wallet balance published by execution-engine.
+
+        Caches the last known balance so that a temporary cache miss
+        does not cause a false drawdown calculation.
+        """
         try:
             raw = await self._redis.get("cache:wallet_balance")
             if raw:
                 data = json.loads(raw)
-                return float(data.get("total", 0.0))
+                bal = float(data.get("total", 0.0))
+                if bal > 0:
+                    self._last_wallet_balance = bal
+                return bal
         except Exception:
             pass
-        return 0.0
+        # Redis miss: return last known balance to avoid false drawdown spike
+        return self._last_wallet_balance
 
     async def _collect_strategy_states(self) -> list[dict[str, Any]]:
         """Read strategy status from Redis."""
         strategies: list[dict[str, Any]] = []
-        strategy_ids = ["funding_arb", "adaptive_dca"]
+        strategy_ids = ["funding-arb-01", "adaptive-dca-01"]
 
         for sid in strategy_ids:
-            key = f"strategy:{sid}:status"
+            key = f"strategy:status:{sid}"
             raw = await self._redis.get(key)
             if raw:
                 try:
@@ -285,11 +296,9 @@ class PortfolioMonitor:
 
     async def _cache_state(self, state: PortfolioState) -> None:
         """Cache portfolio state in Redis."""
-        await self._redis.set(
-            REDIS_KEY_PORTFOLIO,
-            state.model_dump_json(),
-            ex=600,
-        )
+        payload = state.model_dump_json()
+        await self._redis.set(REDIS_KEY_PORTFOLIO, payload, ex=600)
+        await self._redis.set(REDIS_KEY_PORTFOLIO_CE, payload, ex=600)
 
         # Append to equity history list
         entry = json.dumps(

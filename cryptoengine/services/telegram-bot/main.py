@@ -489,10 +489,12 @@ async def main() -> None:
         _redis_alert_subscriber(redis_client, handlers, app.bot, shutdown_event),
         name="redis_subscriber",
     )
-    heartbeat_task = asyncio.create_task(
-        _heartbeat_task(redis_client, app.bot, shutdown_event),
-        name="heartbeat",
-    )
+    # Heartbeat disabled — "System alive" 반복 알림 불필요 (대시보드에서 확인 가능)
+    # heartbeat_task = asyncio.create_task(
+    #     _heartbeat_task(redis_client, app.bot, shutdown_event),
+    #     name="heartbeat",
+    # )
+    heartbeat_task = None
     # T-5: Scheduled daily report
     scheduler_task = asyncio.create_task(
         _scheduled_report_task(handlers, app.bot, shutdown_event, SCHEDULE_UTC),
@@ -533,9 +535,10 @@ async def main() -> None:
 
     # Cleanup
     subscriber_task.cancel()
-    heartbeat_task.cancel()
+    if heartbeat_task is not None:
+        heartbeat_task.cancel()
     scheduler_task.cancel()
-    gather_tasks = [subscriber_task, heartbeat_task, scheduler_task]
+    gather_tasks = [t for t in [subscriber_task, heartbeat_task, scheduler_task] if t is not None]
     if strict_task is not None:
         strict_task.cancel()
         gather_tasks.append(strict_task)

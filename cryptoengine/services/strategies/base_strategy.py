@@ -369,6 +369,12 @@ class BaseStrategy(ABC):
                 status.model_dump_json(),
                 ttl=90,  # 90s TTL — 워치독(60s 주기)이 두 사이클 놓쳐도 감지 가능
             )
+            # Write heartbeat file for Docker healthcheck
+            try:
+                import pathlib
+                pathlib.Path("/tmp/heartbeat_ok").touch()
+            except Exception:
+                pass
         except Exception:
             self._log.exception("status_publish_error")
             return

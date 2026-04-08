@@ -422,6 +422,7 @@ class PositionTracker:
         payload = position.model_dump_json()
         try:
             await self._redis.setex(key, POSITION_CACHE_TTL, payload)
+            await self._publish_positions_all()
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="cache position error", symbol=position.symbol)
 
@@ -429,8 +430,17 @@ class PositionTracker:
         key = self._cache_key(symbol)
         try:
             await self._redis.delete(key)
+            await self._publish_positions_all()
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="clear position cache error", symbol=symbol)
+
+    async def _publish_positions_all(self) -> None:
+        """Write aggregated open positions to ce:positions:all for telegram-bot/dashboard."""
+        try:
+            positions = [p.model_dump() for p in self._positions.values() if p.size > 0]
+            await self._redis.set("ce:positions:all", json.dumps(positions), ex=600)
+        except Exception:
+            pass
 
     async def get_cached_position(self, symbol: str) -> Position | None:
         """Read a position from Redis cache (fallback when memory is stale)."""

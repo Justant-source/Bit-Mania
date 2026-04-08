@@ -6,8 +6,10 @@ import asyncio
 import logging
 import os
 import sys
+import time
 import traceback
 import uuid
+from datetime import datetime, timezone
 from contextvars import ContextVar
 from typing import Any
 
@@ -147,6 +149,77 @@ def _make_db_log_processor(min_db_level: int):
     return db_log_processor
 
 
+# ── error/critical → Telegram alert (via Redis) ──────────────────────────
+
+_ERROR_ALERT_CHANNEL = "ce:alerts:anomaly"
+# Dedup: suppress identical alerts within this window (seconds)
+_ERROR_ALERT_DEDUP_SECONDS = 300
+_last_error_alerts: dict[str, float] = {}
+_error_alert_redis: Any = None
+
+
+def _publish_error_alert(payload: str) -> None:
+    """Fire-and-forget publish to Redis for error alerting."""
+    global _error_alert_redis
+    try:
+        import redis.asyncio as aioredis
+
+        if _error_alert_redis is None:
+            url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+            _error_alert_redis = aioredis.from_url(url, decode_responses=True)
+
+        asyncio.ensure_future(_error_alert_redis.publish(_ERROR_ALERT_CHANNEL, payload))
+    except Exception:
+        pass
+
+
+def _make_error_alert_processor(service_name: str):
+    """Return a structlog processor that publishes ERROR+ logs to Redis for Telegram alerting."""
+
+    def error_alert_processor(
+        logger: Any,
+        method_name: str,
+        event_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        try:
+            level_str = event_dict.get("level", method_name) or method_name
+            level_no = _LEVEL_NO.get(level_str.lower(), 20)
+
+            # Only ERROR (40) and CRITICAL (50)
+            if level_no < 40:
+                return event_dict
+
+            event = str(event_dict.get("event", ""))
+            message = str(event_dict.get("message", "")) if event_dict.get("message") else event
+
+            # Dedup: skip if same service+event was alerted recently
+            dedup_key = f"{service_name}:{event}"
+            now = time.time()
+            last_sent = _last_error_alerts.get(dedup_key, 0)
+            if now - last_sent < _ERROR_ALERT_DEDUP_SECONDS:
+                return event_dict
+            _last_error_alerts[dedup_key] = now
+
+            # Publish to Redis (fire-and-forget)
+            import json as _json
+            alert_payload = _json.dumps({
+                "type": "error_log",
+                "level": level_str.upper(),
+                "service": service_name,
+                "event": event,
+                "message": message[:300],
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }, default=str)
+
+            _publish_error_alert(alert_payload)
+        except Exception:
+            pass  # processor must never raise
+
+        return event_dict
+
+    return error_alert_processor
+
+
 # ── setup ────────────────────────────────────────────────────────────────
 
 
@@ -195,6 +268,8 @@ def setup_logging(
         structlog.processors.UnicodeDecoder(),
         # DB writer: fire-and-forget, placed before final renderer
         _make_db_log_processor(min_db_level),
+        # ERROR/CRITICAL → Telegram alert via Redis
+        _make_error_alert_processor(service_name),
     ]
 
     if json_output:
