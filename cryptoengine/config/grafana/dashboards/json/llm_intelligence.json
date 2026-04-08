@@ -6,7 +6,9 @@
   "id": null,
   "links": [
     {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
-    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"}
+    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"},
+    {"icon": "doc", "tags": [], "title": "LLM Report (HTML)", "type": "link", "url": "/public/reports/latest.html", "targetBlank": true},
+    {"icon": "doc", "tags": [], "title": "Report Archive", "type": "link", "url": "/public/reports/", "targetBlank": true}
   ],
   "panels": [
     {
@@ -135,6 +137,46 @@
     },
     {
       "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "description": "최신 분석 리포트 요약 — 클릭하면 전체 리포트 열기",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {"align": "left", "cellOptions": {"type": "auto"}, "wrap": true}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "시각"}, "properties": [{"id": "custom.width", "value": 150}]},
+          {"matcher": {"id": "byName", "options": "판단"}, "properties": [
+            {"id": "custom.width", "value": 90},
+            {"id": "mappings", "value": [{"options": {"strong_buy": {"color": "green", "text": "STRONG BUY"}, "buy": {"color": "green", "text": "BUY"}, "hold": {"color": "yellow", "text": "HOLD"}, "sell": {"color": "red", "text": "SELL"}, "strong_sell": {"color": "red", "text": "STRONG SELL"}}, "type": "value"}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "신뢰도"}, "properties": [{"id": "custom.width", "value": 80}]},
+          {"matcher": {"id": "byName", "options": "리스크 경보"}, "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+            {"id": "color", "value": {"fixedColor": "#fca5a5", "mode": "fixed"}}
+          ]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 18, "x": 0, "y": 8},
+      "id": 11,
+      "options": {"sortBy": [{"desc": true, "displayName": "시각"}], "footer": {"show": false}},
+      "pluginVersion": "10.0.0",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  created_at AS \"시각\",\n  rating AS \"판단\",\n  ROUND((confidence * 100)::numeric, 0) || '%' AS \"신뢰도\",\n  LEFT(reasoning, 200) AS \"분석 요약\",\n  CASE WHEN asset_report IS NOT NULL THEN\n    LEFT(COALESCE((asset_report::json->>'risk_alert'), ''), 150)\n  ELSE '' END AS \"리스크 경보\"\nFROM llm_reports\nORDER BY created_at DESC\nLIMIT 5", "refId": "A"}],
+      "title": "최신 분석 요약 (5건)",
+      "type": "table"
+    },
+    {
+      "type": "text",
+      "title": "리포트 보기",
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
+      "id": 12,
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px\">\n  <a href=\"/public/reports/latest.html\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-size:16px;font-weight:600;text-align:center;transition:background 0.2s\">최신 리포트 자세히 보기</a>\n  <a href=\"/public/reports/\" target=\"_blank\" style=\"display:inline-block;padding:10px 20px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:8px;text-decoration:none;font-size:13px;text-align:center\">리포트 아카이브</a>\n  <p style=\"color:#64748b;font-size:12px;text-align:center;margin-top:8px\">6시간마다 자동 생성<br/>Claude Code CLI 분석</p>\n</div>"
+      }
+    },
+    {
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
       "description": "최신 LLM 분석 리포트 상세",
       "fieldConfig": {
         "defaults": {
@@ -151,7 +193,7 @@
           {"matcher": {"id": "byName", "options": "BTC가격"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 0}, {"id": "custom.width", "value": 100}]}
         ]
       },
-      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 8},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 16},
       "id": 6,
       "options": {"sortBy": [{"desc": true, "displayName": "생성 시각"}], "footer": {"show": false}},
       "pluginVersion": "10.0.0",
@@ -161,7 +203,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20},
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
       "id": 102,
       "title": "LLM 판단 이력 & 추이",
       "type": "row"
@@ -185,7 +227,7 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 6, "w": 14, "x": 0, "y": 21},
+      "gridPos": {"h": 6, "w": 14, "x": 0, "y": 29},
       "id": 7,
       "options": {"colWidth": 0.9, "legend": {"displayMode": "list", "placement": "bottom"}, "mergeValues": true, "rowHeight": 0.9, "showValue": "auto", "tooltip": {"mode": "single", "sort": "none"}},
       "pluginVersion": "10.0.0",
@@ -204,7 +246,7 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 6, "w": 10, "x": 14, "y": 21},
+      "gridPos": {"h": 6, "w": 10, "x": 14, "y": 29},
       "id": 8,
       "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
       "pluginVersion": "10.0.0",
@@ -214,7 +256,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 27},
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
       "id": 103,
       "title": "판단 정확도 & 이력",
       "type": "row"
@@ -230,7 +272,7 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
       "id": 9,
       "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
       "pluginVersion": "10.0.0",
@@ -258,7 +300,7 @@
           {"matcher": {"id": "byName", "options": "신뢰도"}, "properties": [{"id": "unit", "value": "percent"}]}
         ]
       },
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
       "id": 10,
       "options": {"sortBy": [{"desc": true, "displayName": "생성 시각"}], "footer": {"show": false}},
       "pluginVersion": "10.0.0",

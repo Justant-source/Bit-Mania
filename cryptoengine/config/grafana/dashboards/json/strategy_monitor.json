@@ -5,67 +5,232 @@
   "graphTooltip": 1,
   "id": null,
   "links": [
-    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
-    {"icon": "dashboard", "tags": [], "title": "Positions & Orders", "type": "link", "url": "/d/cryptoengine-positions"},
-    {"icon": "dashboard", "tags": [], "title": "LLM Intelligence", "type": "link", "url": "/d/cryptoengine-llm"}
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "Asset Overview",
+      "type": "link",
+      "url": "/d/cryptoengine-assets"
+    },
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "Positions & Orders",
+      "type": "link",
+      "url": "/d/cryptoengine-positions"
+    },
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "LLM Intelligence",
+      "type": "link",
+      "url": "/d/cryptoengine-llm"
+    }
   ],
   "panels": [
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "현재 레짐 상태",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "최신 시장 레짐 및 신뢰도",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [
-            {"options": {"ranging": {"color": "#fbbf24", "index": 0, "text": "🟡 RANGING"}, "trending_up": {"color": "#22c55e", "index": 1, "text": "🟢 TRENDING UP"}, "trending_down": {"color": "#ef4444", "index": 2, "text": "🔴 TRENDING DOWN"}, "volatile": {"color": "#a855f7", "index": 3, "text": "🟣 VOLATILE"}, "unknown": {"color": "#6b7280", "index": 4, "text": "⚫ UNKNOWN"}}, "type": "value"}
+            {
+              "options": {
+                "ranging": {
+                  "color": "#fbbf24",
+                  "index": 0,
+                  "text": "🟡 RANGING"
+                },
+                "trending_up": {
+                  "color": "#22c55e",
+                  "index": 1,
+                  "text": "🟢 TRENDING UP"
+                },
+                "trending_down": {
+                  "color": "#ef4444",
+                  "index": 2,
+                  "text": "🔴 TRENDING DOWN"
+                },
+                "volatile": {
+                  "color": "#a855f7",
+                  "index": 3,
+                  "text": "🟣 VOLATILE"
+                },
+                "unknown": {
+                  "color": "#6b7280",
+                  "index": 4,
+                  "text": "⚫ UNKNOWN"
+                }
+              },
+              "type": "value"
+            }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
       "id": 1,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^regime$/", "values": false}, "textMode": "value"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^regime$/",
+          "values": false
+        },
+        "textMode": "value"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT regime, ROUND((confidence * 100)::numeric, 1) AS confidence_pct\nFROM market_regime_history\nWHERE is_confirmed = TRUE\nORDER BY detected_at DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT regime, ROUND((confidence * 100)::numeric, 1) AS confidence_pct\nFROM market_regime_history\nWHERE is_confirmed = TRUE\nORDER BY detected_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "현재 레짐",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "레짐 신뢰도",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 50}, {"color": "green", "value": 70}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 70
+              }
+            ]
+          },
           "unit": "percent",
           "min": 0,
           "max": 100
         },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 4, "x": 6, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 6,
+        "y": 1
+      },
       "id": 2,
-      "options": {"orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND((confidence * 100)::numeric, 1) AS \"신뢰도 (%)\"\nFROM market_regime_history\nWHERE is_confirmed = TRUE\nORDER BY detected_at DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND((confidence * 100)::numeric, 1) AS \"신뢰도 (%)\"\nFROM market_regime_history\nWHERE is_confirmed = TRUE\nORDER BY detected_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "레짐 신뢰도",
       "type": "gauge"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "ADX (25 이상 = 추세, 40 이상 = 강한 추세)",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "yellow", "value": null}, {"color": "green", "value": 25}, {"color": "blue", "value": 40}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 25
+              },
+              {
+                "color": "blue",
+                "value": 40
+              }
+            ]
+          },
           "unit": "none",
           "decimals": 1,
           "min": 0,
@@ -73,21 +238,70 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 3, "x": 10, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 3,
+        "x": 10,
+        "y": 1
+      },
       "id": 3,
-      "options": {"orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(((indicators->>'adx')::float)::numeric, 1) AS \"ADX\"\nFROM market_regime_history\nWHERE indicators IS NOT NULL AND indicators->>'adx' IS NOT NULL\nORDER BY detected_at DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(((indicators->>'adx')::float)::numeric, 1) AS \"ADX\"\nFROM market_regime_history\nWHERE indicators IS NOT NULL AND indicators->>'adx' IS NOT NULL\nORDER BY detected_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "ADX (추세강도)",
       "type": "gauge"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "BB Width (0.03 미만=횡보, 0.08 초과=고변동)",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.03}, {"color": "red", "value": 0.08}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.03
+              },
+              {
+                "color": "red",
+                "value": 0.08
+              }
+            ]
+          },
           "unit": "none",
           "decimals": 4,
           "min": 0,
@@ -95,71 +309,446 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 3, "x": 13, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 3,
+        "x": 13,
+        "y": 1
+      },
       "id": 4,
-      "options": {"orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showThresholdLabels": false, "showThresholdMarkers": true},
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT ROUND(((indicators->>'bb_width')::float)::numeric, 4) AS \"BB Width\"\nFROM market_regime_history\nWHERE indicators IS NOT NULL AND indicators->>'bb_width' IS NOT NULL\nORDER BY detected_at DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(((indicators->>'bb_width')::float)::numeric, 4) AS \"BB Width\"\nFROM market_regime_history\nWHERE indicators IS NOT NULL AND indicators->>'bb_width' IS NOT NULL\nORDER BY detected_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "BB Width (변동성)",
       "type": "gauge"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "현재 펀딩비율 (8시간 원시요율)",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0}, {"color": "green", "value": 0.0001}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.0001
+              }
+            ]
+          },
           "unit": "percentunit",
           "decimals": 4
         },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 4, "x": 16, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
       "id": 5,
-      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT rate AS \"펀딩비율\"\nFROM funding_rate_history WHERE symbol = 'BTCUSDT'\nORDER BY timestamp DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT rate AS \"펀딩비율\"\nFROM funding_rate_history WHERE symbol = 'BTCUSDT'\nORDER BY timestamp DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "현재 펀딩비율",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "레짐 변화 이력 (최근 24시간)",
       "fieldConfig": {
-        "defaults": {"color": {"mode": "palette-classic"}, "unit": "none"},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "none"
+        },
         "overrides": []
       },
-      "gridPos": {"h": 7, "w": 4, "x": 20, "y": 1},
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
       "id": 6,
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["count"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "count"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) AS \"레짐 확정 횟수\"\nFROM market_regime_history\nWHERE is_confirmed = TRUE\n  AND detected_at > NOW() - INTERVAL '24 hours'", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS \"레짐 확정 횟수\"\nFROM market_regime_history\nWHERE is_confirmed = TRUE\n  AND detected_at > NOW() - INTERVAL '24 hours'",
+          "refId": "A"
+        }
+      ],
       "title": "레짐 확정 (24h)",
       "type": "stat"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 8},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 104,
+      "title": "FA 진입 조건 상태",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "description": "펀딩비 전략 진입 가능 여부 — 모든 조건 충족 시 녹색",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ENTRY READY": {
+                  "color": "#22c55e",
+                  "index": 0,
+                  "text": "ENTRY READY"
+                }
+              }
+            },
+            {
+              "type": "regex",
+              "options": {
+                "pattern": "WAITING.*",
+                "result": {
+                  "color": "#f59e0b",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN rate >= 0.00012 THEN 'ENTRY READY' ELSE 'WAITING (' || ROUND((rate * 3 * 365 * 100)::numeric, 0) || '% < 25%)' END AS status FROM funding_rate_history WHERE symbol = 'BTCUSDT' ORDER BY timestamp DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
+      "title": "FA 종합 진입 상태",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
+      "description": "각 진입 조건별 현재값·임계값·충족 여부",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "sort_order"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "상태"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".*✅.*",
+                      "result": {
+                        "color": "green",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".*❌.*",
+                      "result": {
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "진입 조건"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 8,
+        "y": 9
+      },
+      "id": 13,
+      "options": {
+        "sortBy": [],
+        "footer": {
+          "show": false
+        }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT * FROM (\n  SELECT 1 AS sort_order,\n    '① 펀딩비율 ≥ 임계값' AS \"진입 조건\",\n    ROUND((rate * 100)::numeric, 4) || '% / 8h' AS \"현재값\",\n    '0.0120% / 8h' AS \"임계값\",\n    CASE WHEN rate >= 0.00012 THEN '✅ 충족'\n      ELSE '❌ 미충족 (연 ' || ROUND((rate * 3 * 365 * 100)::numeric, 1) || '% < 25%)'\n    END AS \"상태\"\n  FROM funding_rate_history WHERE symbol = 'BTCUSDT' ORDER BY timestamp DESC LIMIT 1\n\n  UNION ALL\n\n  SELECT 2, '② 연속 4틱 초과',\n    (SELECT SUM(CASE WHEN rate >= 0.00012 THEN 1 ELSE 0 END) FROM (SELECT rate FROM funding_rate_history WHERE symbol='BTCUSDT' ORDER BY timestamp DESC LIMIT 4) r)::text || ' / 4',\n    '4 연속', '❌ 미충족 (실시간 카운터는 전략 내부)'\n\n  UNION ALL\n\n  SELECT 3, '③ BEP 순수익성 (2사이클)',\n    ROUND((rate * 150 * 5 * 2)::numeric, 4) || ' - ' || ROUND((150 * 0.00130 * 2)::numeric, 4) || ' USDT',\n    '> 0 USDT',\n    CASE WHEN (rate * 150 * 5 * 2 - 150 * 0.00130 * 2) > 0 THEN '✅ 충족'\n      ELSE '❌ 미충족 (수수료 > 펀딩수익)' END\n  FROM funding_rate_history WHERE symbol = 'BTCUSDT' ORDER BY timestamp DESC LIMIT 1\n\n  UNION ALL\n\n  SELECT 4, '④ 빈 포지션 슬롯',\n    (SELECT COUNT(*) FROM positions WHERE closed_at IS NULL AND strategy_id='funding_arb')::text || ' / 1',\n    '< 1',\n    CASE WHEN (SELECT COUNT(*) FROM positions WHERE closed_at IS NULL AND strategy_id='funding_arb') < 1 THEN '✅ 충족 (빈 슬롯)' ELSE '❌ 미충족' END\n\n  UNION ALL\n\n  SELECT 5, '⑤ Kill Switch 비활성',\n    CASE WHEN EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN '활성 (차단)' ELSE '비활성 (정상)' END,\n    '비활성',\n    CASE WHEN NOT EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN '✅ 충족' ELSE '❌ 미충족' END\n) sub ORDER BY sort_order",
+          "refId": "A"
+        }
+      ],
+      "title": "FA 진입 조건 상세",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "id": 101,
       "title": "전략 자본 배분",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "전략별 현재 자본 배분 현황",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "palette-classic"},
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "currencyUSD",
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "funding_arb"}, "properties": [{"id": "color", "value": {"fixedColor": "#3b82f6", "mode": "fixed"}}]},
-          {"matcher": {"id": "byName", "options": "cash"}, "properties": [{"id": "color", "value": {"fixedColor": "#6b7280", "mode": "fixed"}}]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "funding_arb"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#3b82f6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cash"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#6b7280",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 10, "x": 0, "y": 9},
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 17
+      },
       "id": 7,
       "options": {
         "displayMode": "gradient",
@@ -167,144 +756,538 @@
         "minVizWidth": 0,
         "namePlacement": "left",
         "orientation": "horizontal",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showUnfilled": true,
         "valueMode": "color"
       },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  COALESCE((strategy_weights->>'funding_arb')::float * total_equity, 0) AS \"FA 배분\",\n  COALESCE((strategy_weights->>'cash')::float * total_equity, total_equity) AS \"현금\"\nFROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  COALESCE((strategy_weights->>'funding_arb')::float * total_equity, 0) AS \"FA 배분\",\n  COALESCE((strategy_weights->>'cash')::float * total_equity, total_equity) AS \"현금\"\nFROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1",
+          "refId": "A"
+        }
+      ],
       "title": "현재 자본 배분",
       "type": "bargauge"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "펀딩비율 추이",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0}, {"color": "green", "value": 0.0001}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.0001
+              }
+            ]
+          },
           "unit": "percentunit",
-          "custom": {"lineWidth": 2, "fillOpacity": 10, "spanNulls": false}
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false
+          }
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 14, "x": 10, "y": 9},
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 17
+      },
       "id": 8,
-      "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+      "options": {
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "time_series", "rawQuery": true, "rawSql": "SELECT timestamp AS time, rate AS \"펀딩비율\"\nFROM funding_rate_history\nWHERE symbol = 'BTCUSDT'\n  AND timestamp > NOW() - INTERVAL '7 days'\nORDER BY timestamp", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS time, rate AS \"펀딩비율\"\nFROM funding_rate_history\nWHERE symbol = 'BTCUSDT'\n  AND timestamp > NOW() - INTERVAL '7 days'\nORDER BY timestamp",
+          "refId": "A"
+        }
+      ],
       "title": "펀딩비율 추이 (7일)",
       "type": "timeseries"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
       "id": 102,
       "title": "전략별 동작 상태",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "전략별 실행 상태 — 배분 자본, PnL, 포지션 수, 마지막 업데이트",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center", "cellOptions": {"type": "auto"}}
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "배분 자본"}, "properties": [{"id": "unit", "value": "currencyUSD"}]},
-          {"matcher": {"id": "byName", "options": "현재 PnL"}, "properties": [
-            {"id": "unit", "value": "currencyUSD"},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
-            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "green", "value": 0}]}}
-          ]},
-          {"matcher": {"id": "byName", "options": "실행 중"}, "properties": [
-            {"id": "mappings", "value": [{"options": {"true": {"color": "green", "index": 0, "text": "🟢 실행 중"}, "false": {"color": "red", "index": 1, "text": "🔴 정지"}}, "type": "value"}]},
-            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
-          ]},
-          {"matcher": {"id": "byName", "options": "경과 시간(초)"}, "properties": [
-            {"id": "unit", "value": "s"},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
-            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]}}
-          ]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "배분 자본"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "현재 PnL"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": -9999
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "실행 중"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "true": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "🟢 실행 중"
+                      },
+                      "false": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "🔴 정지"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "경과 시간(초)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 300
+                    }
+                  ]
+                }
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 18},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
       "id": 9,
-      "options": {"sortBy": [{"desc": false, "displayName": "전략 ID"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "전략 ID"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  strategy_id AS \"전략 ID\",\n  is_running::text AS \"실행 중\",\n  ROUND(COALESCE(allocated_capital, 0)::numeric, 2) AS \"배분 자본\",\n  ROUND(COALESCE(current_pnl, 0)::numeric, 4) AS \"현재 PnL\",\n  COALESCE(position_count, 0) AS \"포지션 수\",\n  updated_at AS \"마지막 업데이트\",\n  ROUND(EXTRACT(EPOCH FROM NOW() - updated_at)::numeric, 0) AS \"경과 시간(초)\"\nFROM strategy_states\nORDER BY strategy_id", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  strategy_id AS \"전략 ID\",\n  is_running::text AS \"실행 중\",\n  ROUND(COALESCE(allocated_capital, 0)::numeric, 2) AS \"배분 자본\",\n  ROUND(COALESCE(current_pnl, 0)::numeric, 4) AS \"현재 PnL\",\n  COALESCE(position_count, 0) AS \"포지션 수\",\n  updated_at AS \"마지막 업데이트\",\n  ROUND(EXTRACT(EPOCH FROM NOW() - updated_at)::numeric, 0) AS \"경과 시간(초)\"\nFROM strategy_states\nORDER BY strategy_id",
+          "refId": "A"
+        }
+      ],
       "title": "전략별 실행 상태",
       "type": "table"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
       "id": 103,
       "title": "레짐 변화 타임라인 & Kill Switch",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "레짐 변화 타임라인 — ranging/trending_up/trending_down/volatile",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [
-            {"options": {"ranging": {"color": "#fbbf24", "index": 0, "text": "ranging"}, "trending_up": {"color": "#22c55e", "index": 1, "text": "trending_up"}, "trending_down": {"color": "#ef4444", "index": 2, "text": "trending_down"}, "volatile": {"color": "#a855f7", "index": 3, "text": "volatile"}, "unknown": {"color": "#6b7280", "index": 4, "text": "unknown"}}, "type": "value"}
+            {
+              "options": {
+                "ranging": {
+                  "color": "#fbbf24",
+                  "index": 0,
+                  "text": "ranging"
+                },
+                "trending_up": {
+                  "color": "#22c55e",
+                  "index": 1,
+                  "text": "trending_up"
+                },
+                "trending_down": {
+                  "color": "#ef4444",
+                  "index": 2,
+                  "text": "trending_down"
+                },
+                "volatile": {
+                  "color": "#a855f7",
+                  "index": 3,
+                  "text": "volatile"
+                },
+                "unknown": {
+                  "color": "#6b7280",
+                  "index": 4,
+                  "text": "unknown"
+                }
+              },
+              "type": "value"
+            }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
-      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 27},
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
       "id": 10,
       "options": {
         "colWidth": 0.9,
-        "legend": {"displayMode": "list", "placement": "bottom"},
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
         "mergeValues": true,
         "rowHeight": 0.9,
         "showValue": "auto",
-        "tooltip": {"mode": "single", "sort": "none"}
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT detected_at AS time, 'Market Regime' AS metric, regime AS state\nFROM market_regime_history\nWHERE is_confirmed = TRUE\n  AND detected_at > NOW() - INTERVAL '7 days'\nORDER BY detected_at", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT detected_at AS time, 'Market Regime' AS metric, regime AS state\nFROM market_regime_history\nWHERE is_confirmed = TRUE\n  AND detected_at > NOW() - INTERVAL '7 days'\nORDER BY detected_at",
+          "refId": "A"
+        }
+      ],
       "title": "레짐 타임라인 (7일)",
       "type": "state-timeline"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "Kill Switch 발동 이력",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center"}
+          "custom": {
+            "align": "center"
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "레벨"}, "properties": [
-            {"id": "custom.cellOptions", "value": {"type": "color-background"}},
-            {"id": "mappings", "value": [{"options": {"1": {"color": "yellow", "index": 0, "text": "L1 전략"}, "2": {"color": "orange", "index": 1, "text": "L2 포트폴리오"}, "3": {"color": "red", "index": 2, "text": "L3 시스템"}, "4": {"color": "dark-red", "index": 3, "text": "L4 수동"}}, "type": "value"}]}
-          ]},
-          {"matcher": {"id": "byName", "options": "상태"}, "properties": [
-            {"id": "custom.cellOptions", "value": {"type": "color-background"}},
-            {"id": "mappings", "value": [{"options": {"⚠️ 활성": {"color": "red", "index": 0}, "✅ 해제": {"color": "green", "index": 1}}, "type": "value"}]}
-          ]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "레벨"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "1": {
+                        "color": "yellow",
+                        "index": 0,
+                        "text": "L1 전략"
+                      },
+                      "2": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "L2 포트폴리오"
+                      },
+                      "3": {
+                        "color": "red",
+                        "index": 2,
+                        "text": "L3 시스템"
+                      },
+                      "4": {
+                        "color": "dark-red",
+                        "index": 3,
+                        "text": "L4 수동"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "상태"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "⚠️ 활성": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "✅ 해제": {
+                        "color": "green",
+                        "index": 1
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 33},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
       "id": 11,
-      "options": {"sortBy": [{"desc": true, "displayName": "발동 시각"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "발동 시각"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  level AS \"레벨\",\n  reason AS \"사유\",\n  triggered_at AS \"발동 시각\",\n  resolved_at AS \"해제 시각\",\n  COALESCE(positions_closed, 0) AS \"청산 포지션\",\n  ROUND(COALESCE(pnl_at_trigger, 0)::numeric, 2) AS \"발동 시점 PnL\",\n  CASE WHEN resolved_at IS NULL THEN '⚠️ 활성' ELSE '✅ 해제' END AS \"상태\"\nFROM kill_switch_events\nORDER BY triggered_at DESC\nLIMIT 10", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  level AS \"레벨\",\n  reason AS \"사유\",\n  triggered_at AS \"발동 시각\",\n  resolved_at AS \"해제 시각\",\n  COALESCE(positions_closed, 0) AS \"청산 포지션\",\n  ROUND(COALESCE(pnl_at_trigger, 0)::numeric, 2) AS \"발동 시점 PnL\",\n  CASE WHEN resolved_at IS NULL THEN '⚠️ 활성' ELSE '✅ 해제' END AS \"상태\"\nFROM kill_switch_events\nORDER BY triggered_at DESC\nLIMIT 10",
+          "refId": "A"
+        }
+      ],
       "title": "Kill Switch 이력",
       "type": "table"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["cryptoengine", "strategy"],
-  "templating": {"list": []},
-  "time": {"from": "now-24h", "to": "now"},
+  "tags": [
+    "cryptoengine",
+    "strategy"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Strategy & Regime",

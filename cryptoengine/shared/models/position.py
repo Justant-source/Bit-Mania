@@ -49,6 +49,7 @@ class PortfolioState(BaseModel):
     realized_pnl_today: float = 0.0
     daily_drawdown: float = 0.0
     weekly_drawdown: float = 0.0
+    monthly_drawdown: float = 0.0
     strategies: list[StrategySnapshot] = Field(default_factory=list)
     kill_switch_triggered: bool = False
     snapshot_at: datetime = Field(default_factory=datetime.utcnow)

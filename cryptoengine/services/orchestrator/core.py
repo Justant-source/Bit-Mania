@@ -21,7 +21,7 @@ import structlog
 from pydantic import BaseModel, Field
 
 from services.orchestrator.dissimilarity_index import DissimilarityIndex
-from services.orchestrator.portfolio_monitor import PortfolioMonitor
+from services.orchestrator.portfolio_monitor import PortfolioMonitor, PortfolioState
 from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
 from shared.kill_switch import (
@@ -243,12 +243,24 @@ class StrategyOrchestrator:
         )
 
         # 4. Check kill-switch conditions (delegates to shared KillSwitch)
-        monthly_dd = getattr(portfolio_state, "monthly_drawdown", 0.0)
+        # portfolio_monitor returns drawdowns as positive fractions (0.05 = 5% loss),
+        # but KillSwitch expects negative convention (-0.05 = 5% loss).
+        # Negate at the boundary to match KillSwitch convention.
+        ks_portfolio = PortfolioState(
+            total_equity=portfolio_state.total_equity,
+            unrealized_pnl=portfolio_state.unrealized_pnl,
+            realized_pnl_today=portfolio_state.realized_pnl_today,
+            daily_drawdown=-portfolio_state.daily_drawdown,
+            weekly_drawdown=-portfolio_state.weekly_drawdown,
+            monthly_drawdown=-portfolio_state.monthly_drawdown,
+            strategies=portfolio_state.strategies,
+            kill_switch_triggered=portfolio_state.kill_switch_triggered,
+        )
         active_level = await self._kill_switch.check(
-            portfolio_state,
-            monthly_drawdown=monthly_dd,
+            ks_portfolio,
+            monthly_drawdown=-portfolio_state.monthly_drawdown,
             system_healthy=True,
-            equity_at_open=portfolio_state.total_equity,  # Phase 5 절대값 계산 기준
+            equity_at_open=portfolio_state.total_equity,
         )
         if active_level > KillLevel.NONE:
             log.critical(

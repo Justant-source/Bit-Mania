@@ -151,6 +151,9 @@ services:
         condition: service_started
     environment:
       <<: *common-env
+      PHASE5_MODE: ${PHASE5_MODE:-false}
+      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
+      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
     volumes:
       - ./config:/app/config:ro
     deploy:
@@ -176,6 +179,9 @@ services:
       BYBIT_API_KEY: ${BYBIT_API_KEY}
       BYBIT_API_SECRET: ${BYBIT_API_SECRET}
       BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+      PHASE5_MODE: ${PHASE5_MODE:-false}
+      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
+      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
       interval: 60s
@@ -211,6 +217,9 @@ services:
       BYBIT_API_KEY: ${BYBIT_API_KEY}
       BYBIT_API_SECRET: ${BYBIT_API_SECRET}
       BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+      PHASE5_MODE: ${PHASE5_MODE:-false}
+      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
+      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
       interval: 60s
@@ -263,12 +272,16 @@ services:
         condition: service_healthy
     environment:
       <<: *common-env
-      CLAUDE_CODE_PATH: ${CLAUDE_CODE_PATH:-/usr/local/bin/claude}
+      CLAUDE_CODE_PATH: /usr/local/bin/claude
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DATABASE_URL: postgresql://cryptoengine:${DB_PASSWORD}@postgres:5432/cryptoengine
+      HOME: /home/claude
     volumes:
       - ./config:/app/config:ro
-      - /tmp/claude-code:/tmp/claude-code
+      - ${HOME}/.local/share/claude/versions/2.1.94:/usr/local/bin/claude:ro
+      - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
+      - ${HOME}/.claude/settings.json:/home/claude/.claude/settings.json:ro
+      - llm-reports:/app/reports
     deploy:
       resources:
         limits:
@@ -355,6 +368,7 @@ services:
       - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
       - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./config/grafana/alerting:/etc/grafana/provisioning/alerting:ro
+      - llm-reports:/usr/share/grafana/public/reports:ro
     ports:
       - "3002:3000"
     deploy:
@@ -498,4 +512,6 @@ volumes:
   prometheus-data:
     driver: local
   pg-backups:
+    driver: local
+  llm-reports:
     driver: local

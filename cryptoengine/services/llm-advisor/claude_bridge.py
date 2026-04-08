@@ -1,14 +1,17 @@
-"""LLM bridge: Anthropic SDK primary, rule-based fallback.
+"""LLM bridge: Claude Code CLI primary, Anthropic SDK secondary, rule-based fallback.
 
-Uses the Anthropic Python SDK when ANTHROPIC_API_KEY is available.
-Falls back to a deterministic rule-based analysis so dashboards always
-have data even without an API key.
+Priority order:
+1. Claude Code CLI (``claude -p``) — uses Max subscription, no per-call cost
+2. Anthropic SDK — when ANTHROPIC_API_KEY is set
+3. Rule-based deterministic analysis — always available
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import shutil
 import time
 from typing import Any
 
@@ -31,7 +34,7 @@ _SYSTEM_PROMPT = (
 
 
 class ClaudeCodeBridge:
-    """Invoke LLM analysis via Anthropic SDK or fall back to rule-based analysis."""
+    """Invoke LLM analysis via Claude Code CLI, SDK, or rule-based fallback."""
 
     def __init__(
         self,
@@ -42,17 +45,27 @@ class ClaudeCodeBridge:
         self._cli_path = cli_path
         self._timeout = timeout
         self._max_retries = max_retries
+
+        # Check CLI availability
+        self._cli_available = shutil.which(self._cli_path) is not None
+        if self._cli_available:
+            log.info(LLM_ANALYSIS_START, message="Claude Code CLI 사용 가능", path=self._cli_path)
+        else:
+            log.warning(LLM_API_ERROR, message="Claude Code CLI 없음", path=self._cli_path)
+
+        # SDK fallback
         self._api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         self._client: Any = None
         if self._api_key:
             try:
                 import anthropic
                 self._client = anthropic.AsyncAnthropic(api_key=self._api_key)
-                log.info(LLM_ANALYSIS_START, message="Anthropic SDK 초기화 완료")
+                log.info(LLM_ANALYSIS_START, message="Anthropic SDK 초기화 완료 (CLI 실패 시 폴백)")
             except ImportError:
-                log.warning(LLM_API_ERROR, message="anthropic 패키지 없음, 룰 기반 폴백 사용")
-        else:
-            log.warning(LLM_API_ERROR, message="ANTHROPIC_API_KEY 없음, 룰 기반 폴백 사용")
+                pass
+
+        if not self._cli_available and not self._client:
+            log.warning(LLM_API_ERROR, message="CLI·SDK 모두 불가, 룰 기반 폴백만 사용")
 
     async def invoke(
         self,
@@ -62,13 +75,86 @@ class ClaudeCodeBridge:
         timeout: int | None = None,
     ) -> dict[str, Any] | None:
         """Invoke LLM analysis. Returns a dict or None on failure."""
+        effective_timeout = timeout or self._timeout
+
+        # 1st: Claude Code CLI
+        if self._cli_available:
+            result = await self._invoke_cli(task, context, effective_timeout)
+            if result is not None:
+                return result
+            log.warning(LLM_API_ERROR, message="CLI 실패, 다음 방법 시도")
+
+        # 2nd: Anthropic SDK
         if self._client:
-            result = await self._invoke_sdk(task, context, timeout or self._timeout)
+            result = await self._invoke_sdk(task, context, effective_timeout)
             if result is not None:
                 return result
             log.warning(LLM_API_ERROR, message="SDK 실패, 룰 기반 폴백으로 전환")
 
+        # 3rd: Rule-based fallback
         return self._rule_based_analysis(context or {})
+
+    async def _invoke_cli(
+        self,
+        task: str,
+        context: dict[str, Any] | None,
+        timeout: int,
+    ) -> dict[str, Any] | None:
+        """Call Claude Code CLI via subprocess."""
+        prompt = self._build_prompt(task, context)
+
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    self._cli_path, "-p", prompt,
+                    "--model", "opus",
+                    "--output-format", "json",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=timeout
+                )
+
+                if proc.returncode != 0:
+                    err_msg = stderr.decode("utf-8", errors="replace").strip()
+                    log.warning(
+                        LLM_API_ERROR,
+                        message="CLI 비정상 종료",
+                        returncode=proc.returncode,
+                        stderr=err_msg[:200],
+                        attempt=attempt,
+                    )
+                    if attempt < self._max_retries:
+                        await asyncio.sleep(_RETRY_BACKOFF_BASE ** attempt)
+                    continue
+
+                raw = stdout.decode("utf-8", errors="replace").strip()
+                if not raw:
+                    log.warning(LLM_API_ERROR, message="CLI 빈 출력", attempt=attempt)
+                    continue
+
+                # Parse the JSON envelope from --output-format json
+                envelope = json.loads(raw)
+                result_text = envelope.get("result", "")
+                return self._parse_response(result_text)
+
+            except asyncio.TimeoutError:
+                log.warning(LLM_API_ERROR, message="CLI 타임아웃", attempt=attempt, timeout=timeout)
+                # Kill the process if still running
+                try:
+                    proc.kill()  # type: ignore[possibly-undefined]
+                except Exception:
+                    pass
+            except json.JSONDecodeError as exc:
+                log.warning(LLM_API_ERROR, message="CLI JSON 파싱 실패", error=str(exc), attempt=attempt)
+            except Exception as exc:
+                log.warning(LLM_API_ERROR, message="CLI 예기치 않은 오류", error=str(exc), attempt=attempt)
+
+            if attempt < self._max_retries:
+                await asyncio.sleep(_RETRY_BACKOFF_BASE ** attempt)
+
+        return None
 
     async def _invoke_sdk(
         self,
@@ -77,7 +163,6 @@ class ClaudeCodeBridge:
         timeout: int,
     ) -> dict[str, Any] | None:
         """Call Anthropic API via SDK."""
-        import asyncio
         import anthropic
 
         prompt = self._build_prompt(task, context)
@@ -85,7 +170,7 @@ class ClaudeCodeBridge:
             try:
                 msg = await asyncio.wait_for(
                     self._client.messages.create(
-                        model="claude-opus-4-6",
+                        model="claude-sonnet-4-6",
                         max_tokens=2048,
                         messages=[{"role": "user", "content": prompt}],
                     ),
@@ -105,8 +190,7 @@ class ClaudeCodeBridge:
                 return None
 
             if attempt < self._max_retries:
-                import asyncio as _asyncio
-                await _asyncio.sleep(_RETRY_BACKOFF_BASE ** attempt)
+                await asyncio.sleep(_RETRY_BACKOFF_BASE ** attempt)
         return None
 
     def _rule_based_analysis(self, context: dict[str, Any]) -> dict[str, Any]:

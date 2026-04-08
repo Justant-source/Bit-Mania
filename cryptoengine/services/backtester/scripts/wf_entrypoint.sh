@@ -13,6 +13,7 @@ echo "[$(date)] Symbol:   ${WF_SYMBOL:-BTCUSDT}"
 echo "[$(date)] Lookback: ${WF_LOOKBACK_DAYS:-180} days"
 
 # crontab 설정 — 실행 후 로그 기록
+mkdir -p /var/spool/cron/crontabs
 echo "${CRON_SCHEDULE} python ${RUNNER} >> /var/log/wf_runner.log 2>&1" \
   > /var/spool/cron/crontabs/root
 
@@ -22,5 +23,5 @@ if [ "${WF_ON_STARTUP:-false}" = "true" ]; then
   python "${RUNNER}" 2>&1 | tee -a /var/log/wf_runner.log
 fi
 
-# crond 포그라운드 실행
-exec crond -f -l 8
+# cron 포그라운드 실행 (Debian: cron -f, Alpine: crond -f)
+exec cron -f

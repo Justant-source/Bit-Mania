@@ -103,6 +103,17 @@ class FundingArbStrategy(BaseStrategy):
             if "reinvest_ratio" in _p5:
                 self.reinvest_ratio = float(_p5["reinvest_ratio"])
 
+        # Phase5 entry threshold overrides
+        _p5_entry = _p5.get("entry", {}) if _phase5_enabled else {}
+        if _p5_entry:
+            if "min_funding_rate" in _p5_entry:
+                self.min_funding_rate = float(_p5_entry["min_funding_rate"])
+
+        # Consecutive intervals: N consecutive ticks must exceed threshold before entry
+        _base_intervals = config.get("entry", {}).get("consecutive_intervals", 3)
+        self._consecutive_intervals: int = int(_p5_entry.get("consecutive_intervals", _base_intervals))
+        self._consecutive_above_count: int = 0
+
         # Fee rates (Bybit: spot taker 0.01%, perp taker 0.055%)
         self.spot_fee_rate: float = config.get("fees", {}).get("spot_fee_rate", 0.0001)
         self.perp_fee_rate: float = config.get("fees", {}).get("perp_fee_rate", 0.00055)
@@ -139,6 +150,14 @@ class FundingArbStrategy(BaseStrategy):
 
     async def on_start(self, capital: float, params: dict[str, Any]) -> None:
         """Initialise exchange connection and controllers."""
+        # Disconnect stale exchange if on_start is called while already running
+        if self._exchange is not None:
+            try:
+                await self._exchange.disconnect()
+            except Exception:
+                pass
+            self._exchange = None
+
         self._exchange = exchange_factory(
             self.exchange_id,
             api_key=os.environ.get("BYBIT_API_KEY", ""),
@@ -312,12 +331,18 @@ class FundingArbStrategy(BaseStrategy):
             for order in rebal_orders:
                 await self.submit_order(order)
 
-        # 7. State machine evaluation
+        # 7. Update consecutive-intervals counter based on current funding rate
+        if funding.rate >= self.min_funding_rate:
+            self._consecutive_above_count += 1
+        else:
+            self._consecutive_above_count = 0
+
+        # 8. State machine evaluation
         action = self._basis_sm.evaluate(basis_spread)
 
         match action:
             case BasisAction.ENTER:
-                if self._check_entry_conditions(funding, basis_spread):
+                if self._check_entry_conditions(funding, basis_spread, spot_price):
                     await self._enter_position(spot_price, perp_price, basis_spread)
 
             case BasisAction.EXIT_PROFIT:
@@ -330,10 +355,10 @@ class FundingArbStrategy(BaseStrategy):
             case BasisAction.HOLD:
                 pass
 
-        # 8. Check tiered exits based on hold duration
+        # 9. Check tiered exits based on hold duration
         await self._check_tiered_exits()
 
-        # 9. Check funding reversal exit
+        # 10. Check funding reversal exit
         if self._basis_sm.is_open and funding.rate < 0:
             if not self._funding_tracker.is_liquidation_blocked():
                 self._log.warning(STRATEGY_CIRCUIT_BREAKER, message="펀딩비 음수 전환, 포지션 종료", rate=funding.rate)
@@ -341,7 +366,9 @@ class FundingArbStrategy(BaseStrategy):
 
     # ── entry logic ─────────────────────────────────────────────────────
 
-    def _check_entry_conditions(self, funding: FundingRate, basis_spread: float) -> bool:
+    def _check_entry_conditions(
+        self, funding: FundingRate, basis_spread: float, spot_price: float = 0.0
+    ) -> bool:
         """Verify all conditions for entering a position."""
         if self._pending_entry:
             return False
@@ -367,6 +394,35 @@ class FundingArbStrategy(BaseStrategy):
         if self._basis_sm.is_open:
             self._log.debug("max_positions_reached", limit=self._max_concurrent_positions)
             return False
+
+        # Consecutive intervals check: N ticks must exceed threshold before entry
+        if self._consecutive_above_count < self._consecutive_intervals:
+            self._log.debug(
+                "consecutive_intervals_not_met",
+                count=self._consecutive_above_count,
+                required=self._consecutive_intervals,
+            )
+            return False
+
+        # Phase5: NetProfitabilityCheck — BEP within 2 cycles
+        if self._phase5_mode and self._funding_tracker is not None and spot_price > 0:
+            notional = (
+                self._fixed_notional_usd
+                if self._sizing_mode == "fixed_notional"
+                else self.allocated_capital * self._pct_equity
+            )
+            if not self._funding_tracker.is_entry_net_profitable(
+                funding_rate_8h=funding.rate,
+                position_usd=notional,
+                spot_fee_rate=self.spot_fee_rate,
+                perp_fee_rate=self.perp_fee_rate,
+            ):
+                self._log.debug(
+                    "entry_not_net_profitable",
+                    funding_rate=funding.rate,
+                    notional_usd=notional,
+                )
+                return False
 
         return True
 
@@ -585,6 +641,7 @@ class FundingArbStrategy(BaseStrategy):
         self._entry_price = 0.0
         self._position_open_ts = 0.0
         self._tiered_exit_done = [False, False, False]
+        self._consecutive_above_count = 0
 
         self._log.info(
             FA_POSITION_CLOSED,
