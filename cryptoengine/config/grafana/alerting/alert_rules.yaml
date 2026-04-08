@@ -26,7 +26,7 @@ groups:
               rawSql: >-
                 SELECT MAX(ABS(rate)) AS value
                 FROM funding_rate_history
-                WHERE collected_at >= NOW() - INTERVAL '1 hour'
+                WHERE timestamp >= NOW() - INTERVAL '1 hour'
           - refId: B
             relativeTimeRange:
               from: 3600
@@ -56,7 +56,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: warning
@@ -118,7 +118,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: critical
@@ -143,9 +143,9 @@ groups:
               format: table
               rawQuery: true
               rawSql: >-
-                SELECT EXTRACT(EPOCH FROM (NOW() - MAX(open_time))) / 60 AS value
+                SELECT EXTRACT(EPOCH FROM (NOW() - MAX(timestamp))) / 60 AS value
                 FROM ohlcv_history
-                WHERE symbol = 'BTCUSDT'
+                WHERE symbol = 'BTCUSDT' AND timeframe = '1m'
           - refId: B
             relativeTimeRange:
               from: 3600
@@ -175,7 +175,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: warning
@@ -232,7 +232,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: critical
@@ -282,7 +282,7 @@ groups:
               conditions:
                 - evaluator:
                     params: [3]
-                    type: gt-eq
+                    type: gt
                   operator:
                     type: and
                   query:
@@ -290,7 +290,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: warning
@@ -347,7 +347,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
@@ -404,7 +404,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 2m
         labels:
           severity: critical
@@ -461,7 +461,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 0s
         labels:
           severity: warning
@@ -518,7 +518,7 @@ groups:
                   reducer:
                     type: last
         noDataState: NoData
-        execErrState: Error
+        execErrState: OK
         for: 5m
         labels:
           severity: warning
