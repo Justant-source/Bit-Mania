@@ -798,7 +798,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date AS \"날짜\",\n  ROUND(COALESCE(starting_equity, 0)::numeric, 2) AS \"시작 자산\",\n  ROUND(COALESCE(ending_equity, 0)::numeric, 2) AS \"종료 자산\",\n  ROUND(COALESCE(funding_income, 0)::numeric, 4) AS \"펀딩 수입\",\n  ROUND(COALESCE(\n    (SELECT -SUM(ABS(COALESCE(fee, 0))) FROM trades WHERE DATE(filled_at) = dr.date),\n    0\n  )::numeric, 4) AS \"수수료\",\n  ROUND(COALESCE(daily_pnl, 0)::numeric, 4) AS \"순손익\",\n  ROUND((COALESCE(daily_return, 0) * 100)::numeric, 3) AS \"수익률 (%)\",\n  COALESCE(trade_count, 0) AS \"거래 횟수\",\n  ROUND((COALESCE(max_drawdown, 0) * 100)::numeric, 3) AS \"최대 DD (%)\"\nFROM daily_reports dr\nORDER BY date DESC\nLIMIT 30",
+          "rawSql": "SELECT\n  date AS \"날짜\",\n  ROUND(COALESCE(starting_equity, 0)::numeric, 2) AS \"시작 자산\",\n  ROUND(COALESCE(ending_equity, 0)::numeric, 2) AS \"종료 자산\",\n  ROUND(COALESCE(funding_income, 0)::numeric, 4) AS \"펀딩 수입\",\n  ROUND(COALESCE(\n    (SELECT -SUM(ABS(COALESCE(fee, 0))) FROM trades WHERE DATE(filled_at) = dr.date),\n    0\n  )::numeric, 4) AS \"수수료\",\n  ROUND(COALESCE(daily_pnl, 0)::numeric, 4) AS \"순손익\",\n  ROUND((COALESCE(daily_return, 0) * 100)::numeric, 3) AS \"수익률 (%)\",\n  COALESCE(trade_count, 0) AS \"거래 횟수\",\n  ROUND((COALESCE(max_drawdown, 0) * 100)::numeric, 3) AS \"최대 DD (%)\"\nFROM daily_reports dr\nUNION ALL\nSELECT CURRENT_DATE, 0, 0, 0, 0, 0, 0, 0, 0\nWHERE NOT EXISTS (SELECT 1 FROM daily_reports)\nORDER BY \"날짜\" DESC\nLIMIT 30",
           "refId": "A"
         }
       ],
@@ -886,7 +886,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT date::timestamptz AS time, ROUND(daily_pnl::numeric, 4) AS \"일별 PnL\"\nFROM daily_reports ORDER BY date",
+          "rawSql": "SELECT date::timestamptz AS time, ROUND(daily_pnl::numeric, 4) AS \"일별 PnL\"\nFROM daily_reports\nUNION ALL\nSELECT CURRENT_DATE::timestamptz, 0\nWHERE NOT EXISTS (SELECT 1 FROM daily_reports)\nORDER BY time",
           "refId": "A"
         }
       ],
@@ -963,7 +963,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT snapshot_at AS time,\n  ROUND((COALESCE(drawdown, 0) * 100)::numeric, 2) AS \"드로다운 (%)\"\nFROM portfolio_snapshots\nWHERE snapshot_at > NOW() - INTERVAL '30 days'\nORDER BY snapshot_at",
+          "rawSql": "SELECT snapshot_at AS time,\n  ROUND((COALESCE(drawdown, 0) * 100)::numeric, 2) AS \"드로다운 (%)\"\nFROM portfolio_snapshots\nWHERE snapshot_at > NOW() - INTERVAL '30 days'\nUNION ALL\nSELECT NOW(), 0\nWHERE NOT EXISTS (SELECT 1 FROM portfolio_snapshots WHERE snapshot_at > NOW() - INTERVAL '30 days')\nORDER BY time",
           "refId": "A"
         }
       ],
