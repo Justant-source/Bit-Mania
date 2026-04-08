@@ -126,9 +126,19 @@ class LLMAdvisorService:
 
     async def _scheduled_analysis_loop(self) -> None:
         """Run full analysis every 6 hours."""
+        # Overall timeout for a single analysis run (10 min)
+        _ANALYSIS_TIMEOUT = 600
         while self._running:
             try:
-                await self._run_analysis("scheduled")
+                await asyncio.wait_for(
+                    self._run_analysis("scheduled"),
+                    timeout=_ANALYSIS_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                log.error(
+                    LLM_API_ERROR,
+                    message=f"분석 전체 타임아웃 ({_ANALYSIS_TIMEOUT}초) — 다음 주기에 재시도",
+                )
             except asyncio.CancelledError:
                 break
             except Exception:
