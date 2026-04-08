@@ -111,6 +111,7 @@ class ClaudeCodeBridge:
                     "--output-format", "json",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    preexec_fn=os.setsid,  # new process group for clean kill
                 )
                 stdout, stderr = await asyncio.wait_for(
                     proc.communicate(), timeout=timeout
@@ -141,9 +142,17 @@ class ClaudeCodeBridge:
 
             except asyncio.TimeoutError:
                 log.warning(LLM_API_ERROR, message="CLI 타임아웃", attempt=attempt, timeout=timeout)
-                # Kill the process if still running
+                # Force-kill the subprocess and all children
                 try:
                     proc.kill()  # type: ignore[possibly-undefined]
+                    await proc.wait()
+                except Exception:
+                    pass
+                # Also kill by PID as a fallback (claude may spawn children)
+                try:
+                    import os as _os
+                    import signal as _signal
+                    _os.killpg(_os.getpgid(proc.pid), _signal.SIGKILL)  # type: ignore[possibly-undefined]
                 except Exception:
                     pass
             except json.JSONDecodeError as exc:
