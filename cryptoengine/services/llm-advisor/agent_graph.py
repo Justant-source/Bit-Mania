@@ -117,30 +117,20 @@ class TradingAnalysisGraph:
         """Build the LangGraph StateGraph with parallel and sequential edges."""
         graph = StateGraph(TradingAnalysisState)
 
-        # Register nodes
-        graph.add_node("technical_analysis", self._node_technical)
-        graph.add_node("sentiment_analysis", self._node_sentiment)
-        graph.add_node("bull_research", self._node_bull)
-        graph.add_node("bear_research", self._node_bear)
+        # Register nodes — two combined parallel nodes reduce sequential LLM calls
+        graph.add_node("parallel_init", self._node_parallel_init)
+        graph.add_node("parallel_research", self._node_parallel_research)
         graph.add_node("debate", self._node_debate)
         graph.add_node("risk_check", self._node_risk)
         graph.add_node("decide", self._node_decide)
 
-        # Entry: parallel fan-out to technical + sentiment
-        graph.set_entry_point("technical_analysis")
-        # LangGraph doesn't natively fan-out from START to two nodes,
-        # so we run technical first, then sentiment, or we use
-        # the parallel helper.  We chain them for compatibility:
-        graph.add_edge("technical_analysis", "sentiment_analysis")
+        # parallel_init runs technical + sentiment concurrently (2 LLM calls in parallel)
+        graph.set_entry_point("parallel_init")
+        # parallel_research runs bull + bear concurrently (2 LLM calls in parallel)
+        graph.add_edge("parallel_init", "parallel_research")
 
-        # After both analyses, fan out to bull + bear research
-        # (sequential in graph, but the node implementations can
-        # run concurrently via the _node_parallel helper).
-        graph.add_edge("sentiment_analysis", "bull_research")
-        graph.add_edge("bull_research", "bear_research")
-
-        # Sequential debate → risk → decide
-        graph.add_edge("bear_research", "debate")
+        # Sequential debate → risk → decide (3 LLM calls)
+        graph.add_edge("parallel_research", "debate")
         graph.add_edge("debate", "risk_check")
         graph.add_edge("risk_check", "decide")
         graph.add_edge("decide", END)
@@ -151,80 +141,68 @@ class TradingAnalysisGraph:
     # Node implementations
     # ------------------------------------------------------------------
 
-    async def _node_technical(
+    async def _node_parallel_init(
         self, state: TradingAnalysisState
     ) -> dict[str, Any]:
+        """Run technical + sentiment analysis concurrently."""
         market = state.get("market_data", {})
-        report = await self._technical.analyze(market)
-        return {"technical_report": report or {}}
+        tech_report, sent_report = await asyncio.gather(
+            self._technical.analyze(market),
+            self._sentiment.analyze(market),
+            return_exceptions=True,
+        )
+        if isinstance(tech_report, BaseException):
+            log.warning(LLM_API_ERROR, message="기술분석 오류", error=str(tech_report))
+            tech_report = {}
+        if isinstance(sent_report, BaseException):
+            log.warning(LLM_API_ERROR, message="감성분석 오류", error=str(sent_report))
+            sent_report = {}
+        return {"technical_report": tech_report or {}, "sentiment_report": sent_report or {}}
 
-    async def _node_sentiment(
+    async def _node_parallel_research(
         self, state: TradingAnalysisState
     ) -> dict[str, Any]:
-        market = state.get("market_data", {})
-        report = await self._sentiment.analyze(market)
-        return {"sentiment_report": report or {}}
-
-    async def _node_bull(
-        self, state: TradingAnalysisState
-    ) -> dict[str, Any]:
-        context = {
+        """Run bull + bear research concurrently."""
+        bull_ctx = {
             "market_data": state.get("market_data", {}),
             "technical_report": state.get("technical_report", {}),
         }
-        argument = await self._bull.research(context)
-        return {"bull_argument": argument or {}}
-
-    async def _node_bear(
-        self, state: TradingAnalysisState
-    ) -> dict[str, Any]:
-        context = {
+        bear_ctx = {
             "market_data": state.get("market_data", {}),
             "sentiment_report": state.get("sentiment_report", {}),
         }
-        argument = await self._bear.research(context)
-        return {"bear_argument": argument or {}}
+        bull_arg, bear_arg = await asyncio.gather(
+            self._bull.research(bull_ctx),
+            self._bear.research(bear_ctx),
+            return_exceptions=True,
+        )
+        if isinstance(bull_arg, BaseException):
+            log.warning(LLM_API_ERROR, message="강세연구 오류", error=str(bull_arg))
+            bull_arg = {}
+        if isinstance(bear_arg, BaseException):
+            log.warning(LLM_API_ERROR, message="약세연구 오류", error=str(bear_arg))
+            bear_arg = {}
+        return {"bull_argument": bull_arg or {}, "bear_argument": bear_arg or {}}
 
     async def _node_debate(
         self, state: TradingAnalysisState
     ) -> dict[str, Any]:
+        """Single-call debate: moderator synthesises bull vs bear directly."""
         bull = state.get("bull_argument", {})
         bear = state.get("bear_argument", {})
 
-        # Round 1
-        round1_ctx = {
-            "bull_argument": bull,
-            "bear_argument": bear,
-            "round": 1,
-        }
         from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
         _d = get_prompt_vars(state.get("market_data", {}))
 
-        round1_task = DEBATE_ROUND_1.format(
-            bull_argument=bull,
-            bear_argument=bear,
-            **_d,
-        )
-        round1 = await self._mm.invoke(round1_task, round1_ctx) or {}
-
-        # Round 2
-        round2_task = DEBATE_ROUND_2.format(
-            round1_summary=round1,
-            bull_argument=bull,
-            bear_argument=bear,
-            **_d,
-        )
-        round2 = await self._mm.invoke(round2_task, {"round1": round1}) or {}
-
-        # Moderator conclusion
+        # Combine bull/bear arguments into a single moderator call (was 3 calls)
         moderator_task = MODERATOR_PROMPT.format(
             bull_argument=bull,
             bear_argument=bear,
-            round1_summary=round1,
-            round2_summary=round2,
+            round1_summary="(skipped — single-round debate)",
+            round2_summary="(skipped — single-round debate)",
             **_d,
         )
-        conclusion = await self._mm.invoke(moderator_task) or {}
+        conclusion = await self._mm.invoke(moderator_task, {"bull": bull, "bear": bear}) or {}
 
         return {"debate_conclusion": conclusion}
 

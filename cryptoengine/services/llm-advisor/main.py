@@ -129,8 +129,8 @@ class LLMAdvisorService:
 
     async def _scheduled_analysis_loop(self) -> None:
         """Run full analysis every 6 hours."""
-        # Overall timeout for a single analysis run (10 min)
-        _ANALYSIS_TIMEOUT = 600
+        # Overall timeout for a single analysis run (15 min)
+        _ANALYSIS_TIMEOUT = 900
         while self._running:
             try:
                 await asyncio.wait_for(
@@ -329,7 +329,7 @@ class LLMAdvisorService:
             )
             prompt = ASSET_REPORT_PROMPT.format(**fmt_vars)
 
-            report_data = await self._model_manager.invoke(prompt)
+            report_data = await self._model_manager.invoke(prompt, timeout=90)
             if report_data is None:
                 log.warning(LLM_API_ERROR, message="자산 리포트 생성 결과 없음")
                 return None
