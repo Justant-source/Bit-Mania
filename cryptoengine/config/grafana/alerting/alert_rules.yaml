@@ -466,7 +466,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "디스크 여유 공간이 10% 미만입니다 (현재: {{ $value | printf \"%.1f\" }}%). 백업/로그 정리 필요"
+          summary: "디스크 여유 공간이 10% 미만입니다 (현재: {{ $values.B.Value | printf \"%.1f\" }}%). 백업/로그 정리 필요"
 
       # ── Rule 9: Redis 메모리 한계 근접 (Redis Memory Near Limit) ─────────
       - uid: alert-redis-memory
