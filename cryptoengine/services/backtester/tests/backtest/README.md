@@ -119,6 +119,9 @@ result = engine.run()
 |------|----------|------|
 | `analysis/bt_funding_time_analysis.py` | [Test O] 펀딩비 시간대·요일 분석, 정산 시간 비교, 연속 스트리크 | 콘솔 통계 테이블 |
 | `analysis/bt_fee_sensitivity.py` | [Test N] 수수료 시나리오 4종 (taker/maker/혼합/VIP3) | variant 수익률 비교 |
+| `analysis/last_entry_simulation.py` | Bybit mainnet 최근 1년 펀딩비로 현재 prod 파라미터 진입/청산 시뮬 | 파라미터 3종(PROD/BT_DEFAULT/PHASE5) 비교, 마지막 진입·청산 시점 |
+| `analysis/prod_1y_report.py` | **[★ 실운영 검증]** 현재 prod 파라미터로 1년 전체 시뮬 → Markdown 리포트 | $200 시작, 거래일지+월별+비용분석, `.result/FA_1Y_SIM_YYYYMMDD.md` 저장 |
+| `analysis/bt_exact_1y_report.py` | **[★ 백테스터 조건 재검증]** BT_EXACT vs PROD_CURRENT 1년 병렬 시뮬 → Markdown 비교 리포트 | BT조건(fee 0.055% 선물만, 7일 만기) vs Prod조건 비교, `.result/FA_BT_EXACT_vs_PROD_YYYYMMDD.md` 저장 |
 
 **언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토
 
