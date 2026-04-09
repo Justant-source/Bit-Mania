@@ -707,7 +707,7 @@ class BotHandlers:
                 f"\u2705 작업지시서 저장 완료\n"
                 f"`{doc.file_name}` → `.request/`\n\n"
                 f"_Claude Code에서 다음 명령으로 실행하세요:_\n"
-                f"`.request/{doc.file_name} 작업지시서로 개발해줘 멀티에이전트로 병렬로 작업하고 결과 보고서는 .result/ 에 리포트해줘`",
+                f"`.request/{doc.file_name} 작업지시서로 개발해줘 멀티에이전트로 병렬로 작업하고 결과 보고서는 .result/ 에 리포트해줘 생각이 많이 필요한 작업은 opus가 하고 단순 작업은 반드시 sonnet 모델로 해줘`",
                 parse_mode="Markdown",
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="작업지시서 업로드", filename=doc.file_name)

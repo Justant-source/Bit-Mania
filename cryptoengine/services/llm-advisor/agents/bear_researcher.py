@@ -34,10 +34,13 @@ class BearResearcher:
         market = context.get("market_data", {})
         sentiment = context.get("sentiment_report", {})
 
-        prompt = BEAR_PROMPT.format(
+        from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+        fmt_vars = get_prompt_vars(context.get("market_data", {}))
+        fmt_vars.update(
             market_data=json.dumps(market, indent=2, default=str),
             sentiment_report=json.dumps(sentiment, indent=2, default=str),
         )
+        prompt = BEAR_PROMPT.format(**fmt_vars)
 
         result = await self._mm.invoke(prompt, context)
         if result:

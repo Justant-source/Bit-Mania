@@ -43,7 +43,9 @@ class TechnicalAnalyst:
         # Format indicators for the prompt
         indicator_lines = self._format_indicators(features)
 
-        prompt = MARKET_ANALYSIS_PROMPT.format(
+        from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+        fmt_vars = get_prompt_vars(market_data)
+        fmt_vars.update(
             current_price=current_price,
             price_change_24h=ticker.get("price_change_pct_24h", "N/A"),
             funding_rate=funding.get("rate", funding) if isinstance(funding, dict) else funding,
@@ -51,6 +53,7 @@ class TechnicalAnalyst:
             indicators=indicator_lines,
             orderbook_summary=json.dumps(orderbook, default=str) if orderbook else "N/A",
         )
+        prompt = MARKET_ANALYSIS_PROMPT.format(**fmt_vars)
 
         result = await self._mm.invoke(prompt, market_data)
         if result:

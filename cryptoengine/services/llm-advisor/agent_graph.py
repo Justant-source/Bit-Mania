@@ -197,9 +197,13 @@ class TradingAnalysisGraph:
             "bear_argument": bear,
             "round": 1,
         }
+        from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+        _d = get_prompt_vars(state.get("market_data", {}))
+
         round1_task = DEBATE_ROUND_1.format(
             bull_argument=bull,
             bear_argument=bear,
+            **_d,
         )
         round1 = await self._mm.invoke(round1_task, round1_ctx) or {}
 
@@ -208,6 +212,7 @@ class TradingAnalysisGraph:
             round1_summary=round1,
             bull_argument=bull,
             bear_argument=bear,
+            **_d,
         )
         round2 = await self._mm.invoke(round2_task, {"round1": round1}) or {}
 
@@ -217,6 +222,7 @@ class TradingAnalysisGraph:
             bear_argument=bear,
             round1_summary=round1,
             round2_summary=round2,
+            **_d,
         )
         conclusion = await self._mm.invoke(moderator_task) or {}
 
