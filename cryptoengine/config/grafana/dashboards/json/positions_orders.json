@@ -5,281 +5,1114 @@
   "graphTooltip": 1,
   "id": null,
   "links": [
-    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
-    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"}
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "Asset Overview",
+      "type": "link",
+      "url": "/d/cryptoengine-assets"
+    },
+    {
+      "icon": "dashboard",
+      "tags": [],
+      "title": "Strategy & Regime",
+      "type": "link",
+      "url": "/d/cryptoengine-strategy-monitor"
+    }
   ],
   "panels": [
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "포지션 요약",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "현재 오픈 포지션 수",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 3}, {"color": "red", "value": 5}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
           "unit": "none",
           "decimals": 0
         },
         "overrides": []
       },
-      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 1},
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
       "id": 1,
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) AS \"오픈 포지션\" FROM positions WHERE closed_at IS NULL", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS \"오픈 포지션\" FROM positions WHERE closed_at IS NULL",
+          "refId": "A"
+        }
+      ],
       "title": "Open Positions",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "전체 포지션 명목 가치 (USDT)",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "currencyUSD",
           "decimals": 2
         },
         "overrides": []
       },
-      "gridPos": {"h": 5, "w": 5, "x": 4, "y": 1},
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 4,
+        "y": 1
+      },
       "id": 2,
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(size * entry_price), 0) AS \"총 명목 가치\"\nFROM positions WHERE closed_at IS NULL", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(size * entry_price), 0) AS \"총 명목 가치\"\nFROM positions WHERE closed_at IS NULL",
+          "refId": "A"
+        }
+      ],
       "title": "Total Notional",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "미실현 손익 합계",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "yellow", "value": -50}, {"color": "green", "value": 0}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": -9999
+              },
+              {
+                "color": "yellow",
+                "value": -50
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
           "unit": "currencyUSD",
           "decimals": 2
         },
         "overrides": []
       },
-      "gridPos": {"h": 5, "w": 5, "x": 9, "y": 1},
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 9,
+        "y": 1
+      },
       "id": 3,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(SUM(unrealized_pnl), 0) AS \"미실현 PnL\"\nFROM positions WHERE closed_at IS NULL", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(unrealized_pnl), 0) AS \"미실현 PnL\"\nFROM positions WHERE closed_at IS NULL",
+          "refId": "A"
+        }
+      ],
       "title": "Unrealized PnL",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "오늘 수취한 펀딩비 합계",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "green", "value": 0}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": -9999
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
           "unit": "currencyUSD",
           "decimals": 4
         },
         "overrides": []
       },
-      "gridPos": {"h": 5, "w": 5, "x": 14, "y": 1},
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 14,
+        "y": 1
+      },
       "id": 4,
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COALESCE(\n  (SELECT SUM(payment) FROM funding_payments WHERE DATE(collected_at) = CURRENT_DATE),\n  0\n) AS \"오늘 펀딩수입\"", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(\n  (SELECT SUM(payment) FROM funding_payments WHERE DATE(collected_at) = CURRENT_DATE),\n  0\n) AS \"오늘 펀딩수입\"",
+          "refId": "A"
+        }
+      ],
       "title": "Today Funding Income",
       "type": "stat"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "오늘 체결된 거래 수",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "unit": "none",
           "decimals": 0
         },
         "overrides": []
       },
-      "gridPos": {"h": 5, "w": 5, "x": 19, "y": 1},
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 1
+      },
       "id": 5,
-      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT COUNT(*) AS \"오늘 거래 수\"\nFROM trades WHERE DATE(filled_at) = CURRENT_DATE AND status = 'filled'", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS \"오늘 거래 수\"\nFROM trades WHERE DATE(filled_at) = CURRENT_DATE AND status = 'filled'",
+          "refId": "A"
+        }
+      ],
       "title": "Today Trades",
       "type": "stat"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 6},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
       "id": 101,
       "title": "오픈 포지션",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "현재 열린 포지션 상세",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center", "cellOptions": {"type": "auto"}}
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "진입가"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 2}]},
-          {"matcher": {"id": "byName", "options": "현재가"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 2}]},
-          {"matcher": {"id": "byName", "options": "미실현 PnL"}, "properties": [
-            {"id": "unit", "value": "currencyUSD"},
-            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
-            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "green", "value": 0}]}}
-          ]},
-          {"matcher": {"id": "byName", "options": "방향"}, "properties": [
-            {"id": "mappings", "value": [{"options": {"long": {"color": "green", "index": 0, "text": "🟢 LONG"}, "short": {"color": "red", "index": 1, "text": "🔴 SHORT"}, "Long": {"color": "green", "index": 2, "text": "🟢 LONG"}, "Short": {"color": "red", "index": 3, "text": "🔴 SHORT"}}, "type": "value"}]},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
-          ]},
-          {"matcher": {"id": "byName", "options": "레버리지"}, "properties": [{"id": "unit", "value": "none"}, {"id": "custom.displayMode", "value": "basic"}]},
-          {"matcher": {"id": "byName", "options": "증거금"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 2}]},
-          {"matcher": {"id": "byName", "options": "보유시간(h)"}, "properties": [{"id": "unit", "value": "none"}, {"id": "decimals", "value": 1}]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "진입가"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "현재가"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "미실현 PnL"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": -9999
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "방향"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "long": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "🟢 LONG"
+                      },
+                      "short": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "🔴 SHORT"
+                      },
+                      "Long": {
+                        "color": "green",
+                        "index": 2,
+                        "text": "🟢 LONG"
+                      },
+                      "Short": {
+                        "color": "red",
+                        "index": 3,
+                        "text": "🔴 SHORT"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "레버리지"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "basic"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "증거금"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "보유시간(h)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 7},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
       "id": 6,
-      "options": {"sortBy": [{"desc": true, "displayName": "진입 시각"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "진입 시각"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  strategy_id AS \"전략\",\n  symbol AS \"심볼\",\n  side AS \"방향\",\n  ROUND(size::numeric, 6) AS \"수량\",\n  ROUND(entry_price::numeric, 2) AS \"진입가\",\n  ROUND(current_price::numeric, 2) AS \"현재가\",\n  ROUND(COALESCE(unrealized_pnl, 0)::numeric, 4) AS \"미실현 PnL\",\n  COALESCE(leverage, 1) AS \"레버리지\",\n  ROUND((entry_price * size / NULLIF(leverage, 0))::numeric, 2) AS \"증거금\",\n  ROUND(EXTRACT(EPOCH FROM NOW() - opened_at) / 3600, 1) AS \"보유시간(h)\",\n  opened_at AS \"진입 시각\"\nFROM positions\nWHERE closed_at IS NULL\nORDER BY opened_at DESC", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH open_pos AS (\n  SELECT strategy_id, symbol, side, size, entry_price, current_price,\n         unrealized_pnl, leverage, opened_at\n  FROM positions WHERE closed_at IS NULL\n)\nSELECT\n  COALESCE(strategy_id, '대기 중 — 진입 조건 미충족') AS \"전략\",\n  COALESCE(symbol, '--') AS \"심볼\",\n  COALESCE(side, '--') AS \"방향\",\n  ROUND(COALESCE(size, 0)::numeric, 6) AS \"수량\",\n  ROUND(COALESCE(entry_price, 0)::numeric, 2) AS \"진입가\",\n  ROUND(COALESCE(current_price, 0)::numeric, 2) AS \"현재가\",\n  ROUND(COALESCE(unrealized_pnl, 0)::numeric, 4) AS \"미실현 PnL\",\n  COALESCE(leverage, 0) AS \"레버리지\",\n  ROUND(COALESCE(entry_price * size / NULLIF(leverage, 0), 0)::numeric, 2) AS \"증거금\",\n  ROUND(COALESCE(EXTRACT(EPOCH FROM NOW() - opened_at) / 3600, 0)::numeric, 1) AS \"보유시간(h)\",\n  opened_at AS \"진입 시각\"\nFROM (SELECT 1) dummy\nLEFT JOIN open_pos ON TRUE\nORDER BY opened_at DESC NULLS LAST",
+          "refId": "A"
+        }
+      ],
       "title": "오픈 포지션",
       "type": "table"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
       "id": 102,
       "title": "펀딩비 수취",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "30일 누적 펀딩비 수취 추이",
       "fieldConfig": {
         "defaults": {
-          "color": {"fixedColor": "#22c55e", "mode": "fixed"},
+          "color": {
+            "fixedColor": "#22c55e",
+            "mode": "fixed"
+          },
           "unit": "currencyUSD",
-          "custom": {"lineWidth": 2, "fillOpacity": 20, "spanNulls": false}
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "spanNulls": false
+          }
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 14, "x": 0, "y": 16},
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 16
+      },
       "id": 7,
-      "options": {"tooltip": {"mode": "single", "sort": "none"}, "legend": {"displayMode": "list", "placement": "bottom"}},
+      "options": {
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "time_series", "rawQuery": true, "rawSql": "SELECT\n  collected_at AS time,\n  SUM(payment) OVER (ORDER BY collected_at ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"누적 펀딩 수취\"\nFROM funding_payments\nWHERE collected_at > NOW() - INTERVAL '30 days'\nORDER BY collected_at", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH fp AS (\n  SELECT collected_at,\n         SUM(payment) OVER (ORDER BY collected_at ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum_funding\n  FROM funding_payments\n  WHERE collected_at > NOW() - INTERVAL '30 days'\n)\nSELECT collected_at AS time, cum_funding AS \"누적 펀딩 수취\"\nFROM fp\nUNION ALL\nSELECT NOW() - INTERVAL '30 days', 0\nWHERE NOT EXISTS (SELECT 1 FROM fp)\nORDER BY time",
+          "refId": "A"
+        }
+      ],
       "title": "누적 펀딩비 수취 (30일)",
       "type": "timeseries"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "최근 펀딩비 수취 상세",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center"}
+          "custom": {
+            "align": "center"
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "수취 금액"}, "properties": [
-            {"id": "unit", "value": "currencyUSD"},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
-            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "green", "value": 0}]}}
-          ]},
-          {"matcher": {"id": "byName", "options": "펀딩비율"}, "properties": [{"id": "unit", "value": "percentunit"}, {"id": "decimals", "value": 4}]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "수취 금액"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": -9999
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "펀딩비율"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 10, "x": 14, "y": 16},
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 16
+      },
       "id": 8,
-      "options": {"sortBy": [{"desc": true, "displayName": "수취 시각"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "수취 시각"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  collected_at AS \"수취 시각\",\n  ROUND(payment::numeric, 4) AS \"수취 금액\",\n  ROUND(funding_rate::numeric, 6) AS \"펀딩비율\",\n  ROUND(position_size::numeric, 4) AS \"포지션 크기\"\nFROM funding_payments\nORDER BY collected_at DESC\nLIMIT 20", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH fp AS (\n  SELECT collected_at, payment, funding_rate, position_size\n  FROM funding_payments ORDER BY collected_at DESC LIMIT 20\n)\nSELECT\n  COALESCE(to_char(fp.collected_at, 'YYYY-MM-DD HH24:MI:SS'), '아직 수취 없음') AS \"수취 시각\",\n  ROUND(COALESCE(fp.payment, 0)::numeric, 4) AS \"수취 금액\",\n  ROUND(COALESCE(fp.funding_rate, 0)::numeric, 6) AS \"펀딩비율\",\n  ROUND(COALESCE(fp.position_size, 0)::numeric, 4) AS \"포지션 크기\"\nFROM (SELECT 1) dummy\nLEFT JOIN fp ON TRUE\nORDER BY fp.collected_at DESC NULLS LAST",
+          "refId": "A"
+        }
+      ],
       "title": "최근 펀딩비 수취",
       "type": "table"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "일별 펀딩비 집계",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center"}
+          "custom": {
+            "align": "center"
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "일일 합계"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 4}]},
-          {"matcher": {"id": "byName", "options": "평균 Rate"}, "properties": [{"id": "unit", "value": "percentunit"}, {"id": "decimals", "value": 4}]},
-          {"matcher": {"id": "byName", "options": "연환산 (%)"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "일일 합계"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "평균 Rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "연환산 (%)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
       "id": 9,
-      "options": {"sortBy": [{"desc": true, "displayName": "날짜"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "날짜"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  DATE(collected_at) AS \"날짜\",\n  COUNT(*) AS \"수취 횟수\",\n  ROUND(SUM(payment)::numeric, 4) AS \"일일 합계\",\n  ROUND(AVG(funding_rate)::numeric, 6) AS \"평균 Rate\",\n  ROUND((AVG(funding_rate) * 3 * 365 * 100)::numeric, 2) AS \"연환산 (%)\"\nFROM funding_payments\nGROUP BY DATE(collected_at)\nORDER BY DATE(collected_at) DESC\nLIMIT 14", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH fp AS (\n  SELECT DATE(collected_at) AS dt,\n         COUNT(*) AS cnt,\n         SUM(payment) AS total,\n         AVG(funding_rate) AS avg_rate\n  FROM funding_payments\n  GROUP BY DATE(collected_at)\n  ORDER BY DATE(collected_at) DESC\n  LIMIT 14\n)\nSELECT\n  COALESCE(dt::text, '아직 수취 없음') AS \"날짜\",\n  COALESCE(cnt, 0) AS \"수취 횟수\",\n  ROUND(COALESCE(total, 0)::numeric, 4) AS \"일일 합계\",\n  ROUND(COALESCE(avg_rate, 0)::numeric, 6) AS \"평균 Rate\",\n  ROUND(COALESCE((avg_rate * 3 * 365 * 100), 0)::numeric, 2) AS \"연환산 (%)\"\nFROM (SELECT 1) dummy\nLEFT JOIN fp ON TRUE\nORDER BY dt DESC NULLS LAST",
+          "refId": "A"
+        }
+      ],
       "title": "일별 펀딩비 집계 (14일)",
       "type": "table"
     },
     {
       "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
       "id": 103,
       "title": "최근 체결 이력",
       "type": "row"
     },
     {
-      "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cryptoengine-postgres"
+      },
       "description": "최근 체결 이력 (최근 50건)",
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {"align": "center", "cellOptions": {"type": "auto"}}
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
         },
         "overrides": [
-          {"matcher": {"id": "byName", "options": "가격"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 2}]},
-          {"matcher": {"id": "byName", "options": "수수료"}, "properties": [
-            {"id": "unit", "value": "currencyUSD"},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
-            {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}
-          ]},
-          {"matcher": {"id": "byName", "options": "PnL"}, "properties": [
-            {"id": "unit", "value": "currencyUSD"},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}},
-            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "red", "value": -9999}, {"color": "green", "value": 0}]}}
-          ]},
-          {"matcher": {"id": "byName", "options": "방향"}, "properties": [
-            {"id": "mappings", "value": [{"options": {"buy": {"color": "green", "index": 0, "text": "🟢 BUY"}, "sell": {"color": "red", "index": 1, "text": "🔴 SELL"}}, "type": "value"}]},
-            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
-          ]},
-          {"matcher": {"id": "byName", "options": "상태"}, "properties": [
-            {"id": "mappings", "value": [{"options": {"filled": {"color": "green", "index": 0, "text": "✅ 체결"}, "cancelled": {"color": "gray", "index": 1, "text": "⬜ 취소"}, "rejected": {"color": "red", "index": 2, "text": "❌ 거부"}, "pending": {"color": "yellow", "index": 3, "text": "⏳ 대기"}}, "type": "value"}]},
-            {"id": "custom.cellOptions", "value": {"type": "color-background"}}
-          ]}
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "가격"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "수수료"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PnL"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": -9999
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "방향"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "buy": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "🟢 BUY"
+                      },
+                      "sell": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "🔴 SELL"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "상태"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "filled": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "✅ 체결"
+                      },
+                      "cancelled": {
+                        "color": "gray",
+                        "index": 1,
+                        "text": "⬜ 취소"
+                      },
+                      "rejected": {
+                        "color": "red",
+                        "index": 2,
+                        "text": "❌ 거부"
+                      },
+                      "pending": {
+                        "color": "yellow",
+                        "index": 3,
+                        "text": "⏳ 대기"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
         ]
       },
-      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 33},
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
       "id": 10,
-      "options": {"sortBy": [{"desc": true, "displayName": "체결 시각"}], "footer": {"show": false}},
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "체결 시각"
+          }
+        ],
+        "footer": {
+          "show": false
+        }
+      },
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT\n  COALESCE(filled_at, created_at) AS \"체결 시각\",\n  strategy_id AS \"전략\",\n  symbol AS \"심볼\",\n  side AS \"방향\",\n  order_type AS \"주문 유형\",\n  ROUND(COALESCE(quantity, 0)::numeric, 6) AS \"수량\",\n  ROUND(COALESCE(price, 0)::numeric, 2) AS \"가격\",\n  ROUND(COALESCE(fee, 0)::numeric, 4) AS \"수수료\",\n  ROUND(COALESCE(pnl, 0)::numeric, 4) AS \"PnL\",\n  status AS \"상태\"\nFROM trades\nORDER BY COALESCE(filled_at, created_at) DESC\nLIMIT 50", "refId": "A"}],
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cryptoengine-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH tr AS (\n  SELECT filled_at, created_at, strategy_id, symbol, side, order_type,\n         quantity, price, fee, pnl, status\n  FROM trades\n  ORDER BY COALESCE(filled_at, created_at) DESC LIMIT 50\n)\nSELECT\n  COALESCE(to_char(COALESCE(filled_at, created_at), 'YYYY-MM-DD HH24:MI:SS'), '체결 내역 없음') AS \"체결 시각\",\n  COALESCE(strategy_id, '--') AS \"전략\",\n  COALESCE(symbol, '--') AS \"심볼\",\n  COALESCE(side, '--') AS \"방향\",\n  COALESCE(order_type, '--') AS \"주문 유형\",\n  ROUND(COALESCE(quantity, 0)::numeric, 6) AS \"수량\",\n  ROUND(COALESCE(price, 0)::numeric, 2) AS \"가격\",\n  ROUND(COALESCE(fee, 0)::numeric, 4) AS \"수수료\",\n  ROUND(COALESCE(pnl, 0)::numeric, 4) AS \"PnL\",\n  COALESCE(status, '--') AS \"상태\"\nFROM (SELECT 1) dummy\nLEFT JOIN tr ON TRUE\nORDER BY COALESCE(filled_at, created_at) DESC NULLS LAST",
+          "refId": "A"
+        }
+      ],
       "title": "최근 체결 이력",
       "type": "table"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["cryptoengine", "positions"],
-  "templating": {"list": []},
-  "time": {"from": "now-24h", "to": "now"},
+  "tags": [
+    "cryptoengine",
+    "positions"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Positions & Orders",
