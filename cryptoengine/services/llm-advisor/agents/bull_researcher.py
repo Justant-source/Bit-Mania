@@ -34,10 +34,13 @@ class BullResearcher:
         market = context.get("market_data", {})
         technical = context.get("technical_report", {})
 
-        prompt = BULL_PROMPT.format(
+        from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+        fmt_vars = get_prompt_vars(context.get("market_data", {}))
+        fmt_vars.update(
             market_data=json.dumps(market, indent=2, default=str),
             technical_report=json.dumps(technical, indent=2, default=str),
         )
+        prompt = BULL_PROMPT.format(**fmt_vars)
 
         result = await self._mm.invoke(prompt, context)
         if result:

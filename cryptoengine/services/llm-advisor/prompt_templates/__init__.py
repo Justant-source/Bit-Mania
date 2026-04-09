@@ -17,15 +17,27 @@ from services.llm_advisor.prompt_templates.regime_assessment import (
 from services.llm_advisor.prompt_templates.risk_evaluation import (
     RISK_EVALUATION_PROMPT,
 )
+from services.llm_advisor.prompt_templates.asset_report import (
+    ASSET_REPORT_PROMPT,
+)
+from services.llm_advisor.prompt_templates.etf_flow_analysis import (
+    ETF_FLOW_ANALYSIS_PROMPT,
+)
+from services.llm_advisor.prompt_templates.macro_liquidity import (
+    MACRO_LIQUIDITY_PROMPT,
+)
 
 __all__ = [
     "MARKET_ANALYSIS_PROMPT",
     "REGIME_ASSESSMENT_PROMPT",
     "RISK_EVALUATION_PROMPT",
     "DAILY_REPORT_PROMPT",
+    "ASSET_REPORT_PROMPT",
     "BULL_PROMPT",
     "BEAR_PROMPT",
     "DEBATE_ROUND_1",
     "DEBATE_ROUND_2",
     "MODERATOR_PROMPT",
+    "ETF_FLOW_ANALYSIS_PROMPT",
+    "MACRO_LIQUIDITY_PROMPT",
 ]

@@ -274,6 +274,7 @@ services:
       <<: *common-env
       CLAUDE_CODE_PATH: /usr/local/bin/claude
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
       DATABASE_URL: postgresql://cryptoengine:${DB_PASSWORD}@postgres:5432/cryptoengine
       HOME: /home/claude
     volumes:

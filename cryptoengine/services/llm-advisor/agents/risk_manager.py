@@ -50,7 +50,9 @@ class RiskManager:
             or ticker.get("close", "N/A")
         )
 
-        prompt = RISK_EVALUATION_PROMPT.format(
+        from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+        fmt_vars = get_prompt_vars(market)
+        fmt_vars.update(
             total_equity=portfolio.get("total_equity", "N/A"),
             open_positions=json.dumps(
                 portfolio.get("positions", []), default=str
@@ -67,6 +69,7 @@ class RiskManager:
             ),
             debate_conclusion=json.dumps(debate, default=str),
         )
+        prompt = RISK_EVALUATION_PROMPT.format(**fmt_vars)
 
         result = await self._mm.invoke(prompt, context)
         if result:

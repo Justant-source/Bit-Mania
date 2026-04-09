@@ -25,6 +25,7 @@ from shared.logging_config import setup_logging
 from shared.log_writer import init_log_writer, close_log_writer
 from services.llm_advisor.agent_graph import TradingAnalysisGraph
 from services.llm_advisor.claude_bridge import ClaudeCodeBridge
+from services.llm_advisor.context_builder import ContextBuilder
 from services.llm_advisor.model_manager import ModelManager
 from services.llm_advisor.prompt_templates.asset_report import ASSET_REPORT_PROMPT
 from services.llm_advisor.reflection import DailyReflection
@@ -64,6 +65,7 @@ class LLMAdvisorService:
         self._bridge = ClaudeCodeBridge(config.get("claude_code_path", "claude"))
         self._model_manager = ModelManager(self._bridge)
         self._chart_analyzer = ChartAnalyzer()
+        self._context_builder = ContextBuilder()
         self._analysis_graph: TradingAnalysisGraph | None = None
         self._reflection: DailyReflection | None = None
 
@@ -118,6 +120,7 @@ class LLMAdvisorService:
                     await task
                 except asyncio.CancelledError:
                     pass
+        await self._context_builder.close()
         if self._redis:
             await self._redis.aclose()
         log.info(SERVICE_STOPPED, message="LLM Advisor 서비스 종료")
@@ -190,6 +193,34 @@ class LLMAdvisorService:
             regime=context.get("regime", {}).get("current") if isinstance(context.get("regime"), dict) else None,
             positions=len(context.get("open_positions", [])),
         )
+
+        # Fetch external data sources (ETF, on-chain, macro, derivatives, research)
+        try:
+            ticker = context.get("btc_price", {})
+            btc_price = ticker.get("last", 0) if isinstance(ticker, dict) else (ticker or 0)
+            funding = context.get("funding_rate", {})
+            funding_rate = funding.get("rate", 0) if isinstance(funding, dict) else (funding or 0)
+            regime_data = context.get("regime", {})
+            regime_str = regime_data.get("current", "unknown") if isinstance(regime_data, dict) else str(regime_data or "unknown")
+
+            market_ctx = await self._context_builder.build(
+                btc_price=btc_price,
+                price_change_24h=context.get("price_change_24h_pct", 0),
+                funding_rate=funding_rate,
+                regime=regime_str,
+            )
+            # Store prompt vars for use in asset report and agents
+            context["_v2_prompt_vars"] = market_ctx.to_prompt_vars()
+            context["_market_context"] = market_ctx
+            log.info(
+                LLM_ANALYSIS_START,
+                message="외부 데이터 수집 완료",
+                freshness=market_ctx.data_freshness_score,
+                broken=market_ctx.broken_sources,
+            )
+        except Exception:
+            log.exception(LLM_API_ERROR, message="외부 데이터 수집 실패, 기본값 사용")
+            context["_v2_prompt_vars"] = None
 
         # Run the analysis graph
         assert self._analysis_graph is not None
@@ -279,7 +310,9 @@ class LLMAdvisorService:
                     return d
                 return json.dumps(d, ensure_ascii=False)
 
-            prompt = ASSET_REPORT_PROMPT.format(
+            from services.llm_advisor.agents.prompt_defaults import get_prompt_vars
+            fmt_vars = get_prompt_vars(context)
+            fmt_vars.update(
                 btc_price=btc_price,
                 price_change_24h=price_change_24h,
                 funding_rate=funding_rate,
@@ -294,6 +327,7 @@ class LLMAdvisorService:
                 confidence=f"{confidence:.2f}",
                 portfolio_state=portfolio_state,
             )
+            prompt = ASSET_REPORT_PROMPT.format(**fmt_vars)
 
             report_data = await self._model_manager.invoke(prompt)
             if report_data is None:

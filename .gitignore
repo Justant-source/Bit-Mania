@@ -9,3 +9,11 @@ node_modules/
 **/*.pyc
 **/*.pyo
 **/*.pyd
+
+# LLM Advisor data source runtime files
+cryptoengine/services/llm-advisor/alerts/*.md
+cryptoengine/services/llm-advisor/logs/*.log
+cryptoengine/services/llm-advisor/cache/
+!cryptoengine/services/llm-advisor/alerts/.gitkeep
+!cryptoengine/services/llm-advisor/logs/.gitkeep
+!cryptoengine/services/llm-advisor/cache/.gitkeep
