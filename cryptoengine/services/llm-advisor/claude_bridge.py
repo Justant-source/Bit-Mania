@@ -21,8 +21,8 @@ from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
-_DEFAULT_TIMEOUT = 120
-_MAX_RETRIES = 3
+_DEFAULT_TIMEOUT = 60
+_MAX_RETRIES = 2
 _RETRY_BACKOFF_BASE = 2.0
 
 _SYSTEM_PROMPT = (
