@@ -488,11 +488,12 @@ class BotHandlers:
                 """
                 SELECT
                     COUNT(*) AS total_trades,
-                    COALESCE(SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END), 0) AS wins,
-                    COALESCE(SUM(realized_pnl), 0) AS total_pnl,
+                    COALESCE(SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END), 0) AS wins,
+                    COALESCE(SUM(pnl), 0) AS total_pnl,
                     COALESCE(SUM(fee), 0) AS total_fees
-                FROM trade_history
-                WHERE DATE(closed_at) = $1
+                FROM trades
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1
+                  AND status = 'filled'
                 """,
                 date_str,
             )
@@ -508,7 +509,7 @@ class BotHandlers:
                 """
                 SELECT COALESCE(SUM(payment), 0) AS funding_earned
                 FROM funding_payments
-                WHERE DATE(paid_at) = $1
+                WHERE DATE(collected_at) = $1
                 """,
                 date_str,
             )
@@ -531,9 +532,10 @@ class BotHandlers:
                 SELECT
                     strategy_id,
                     COUNT(*) AS trades,
-                    COALESCE(SUM(realized_pnl), 0) AS pnl
-                FROM trade_history
-                WHERE DATE(closed_at) = $1
+                    COALESCE(SUM(pnl), 0) AS pnl
+                FROM trades
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1
+                  AND status = 'filled'
                 GROUP BY strategy_id
                 """,
                 date_str,

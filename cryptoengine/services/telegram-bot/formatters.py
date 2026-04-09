@@ -252,12 +252,16 @@ def _format_kill_switch_alert(data: dict[str, Any]) -> str:
 def _format_anomaly_alert(data: dict[str, Any]) -> str:
     severity = data.get("severity", "warning")
     sev_emoji = "\u26a0\ufe0f" if severity == "warning" else "\U0001f6a8"
+    # Support both explicit anomaly format and error_log format from logging_config.py
+    component = data.get("component") or data.get("service", "N/A")
+    anomaly_type = data.get("anomaly_type") or data.get("event") or data.get("type", "N/A")
+    details = data.get("details") or data.get("message", "N/A")
     return (
         f"{sev_emoji} *System Anomaly Detected*\n"
         f"\n"
-        f"Component: `{data.get('component', 'N/A')}`\n"
-        f"Type: `{data.get('anomaly_type', 'N/A')}`\n"
-        f"Details: `{data.get('details', 'N/A')}`\n"
+        f"Component: `{component}`\n"
+        f"Type: `{anomaly_type}`\n"
+        f"Details: `{details[:200]}`\n"
         f"Severity: `{severity.upper()}`"
     )
 
