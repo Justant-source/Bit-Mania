@@ -492,7 +492,7 @@ class BotHandlers:
                     COALESCE(SUM(pnl), 0) AS total_pnl,
                     COALESCE(SUM(fee), 0) AS total_fees
                 FROM trades
-                WHERE DATE(COALESCE(filled_at, created_at)) = $1
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1::date
                   AND status = 'filled'
                 """,
                 date_str,
@@ -509,7 +509,7 @@ class BotHandlers:
                 """
                 SELECT COALESCE(SUM(payment), 0) AS funding_earned
                 FROM funding_payments
-                WHERE DATE(collected_at) = $1
+                WHERE DATE(collected_at) = $1::date
                 """,
                 date_str,
             )
@@ -534,7 +534,7 @@ class BotHandlers:
                     COUNT(*) AS trades,
                     COALESCE(SUM(pnl), 0) AS pnl
                 FROM trades
-                WHERE DATE(COALESCE(filled_at, created_at)) = $1
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1::date
                   AND status = 'filled'
                 GROUP BY strategy_id
                 """,
