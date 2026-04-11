@@ -279,7 +279,6 @@ services:
       HOME: /home/claude
     volumes:
       - ./config:/app/config:ro
-      - ${HOME}/.local/share/claude/versions/2.1.94:/usr/local/bin/claude:ro
       - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
       - ${HOME}/.claude/settings.json:/home/claude/.claude/settings.json:ro
       - llm-reports:/app/reports

@@ -21,8 +21,8 @@ from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
-_DEFAULT_TIMEOUT = 60
-_MAX_RETRIES = 2
+_DEFAULT_TIMEOUT = 30
+_MAX_RETRIES = 1
 _RETRY_BACKOFF_BASE = 2.0
 
 _SYSTEM_PROMPT = (
@@ -205,7 +205,8 @@ class ClaudeCodeBridge:
     def _rule_based_analysis(self, context: dict[str, Any]) -> dict[str, Any]:
         """Generate rule-based analysis from market context."""
         regime = context.get("regime", "ranging")
-        funding_rate = float(context.get("funding_rate", 0.0001))
+        _fr = context.get("funding_rate", 0.0001)
+        funding_rate = float(_fr.get("rate", _fr.get("lastFundingRate", 0.0001)) if isinstance(_fr, dict) else _fr)
         btc_price = float(context.get("btc_price", 65000) if not isinstance(context.get("btc_price"), dict) else context["btc_price"].get("last", 65000))
         oi_change = float(context.get("oi_change_pct", 0.0))
 

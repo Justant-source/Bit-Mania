@@ -573,7 +573,14 @@ class MarketDataCollector:
                     params={"category": "linear", "symbol": self.symbol, "limit": 200},
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
+                    if resp.status != 200:
+                        log.debug(SERVICE_HEALTH_FAIL, message="liquidation endpoint unavailable", status=resp.status)
+                        liq_trades = []
+                        return
                     data = await resp.json()
+            if not isinstance(data, dict):
+                liq_trades = []
+                return
             liq_list = data.get("result", {}).get("list", [])
             # liq_list items have: price, side, size, time
             liq_trades = [

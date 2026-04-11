@@ -3,7 +3,11 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential curl && \
+    apt-get install -y --no-install-recommends build-essential curl ca-certificates gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g @anthropic-ai/claude-code && \
+    mkdir -p /home/claude/.claude && \
     rm -rf /var/lib/apt/lists/*
 
 COPY services/llm-advisor/requirements.txt .

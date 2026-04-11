@@ -482,6 +482,10 @@ class BotHandlers:
         accumulated in the in-memory FundingAccumulator that has not yet been
         persisted (e.g. received within the current batch window).
         """
+        # asyncpg requires datetime.date objects for date parameters, not strings
+        from datetime import date as _date
+        date_obj = _date.fromisoformat(date_str)
+
         async with self.db_pool.acquire() as conn:
             # Get trade summary for the day
             row = await conn.fetchrow(
@@ -492,10 +496,10 @@ class BotHandlers:
                     COALESCE(SUM(pnl), 0) AS total_pnl,
                     COALESCE(SUM(fee), 0) AS total_fees
                 FROM trades
-                WHERE DATE(COALESCE(filled_at, created_at)) = $1::date
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1
                   AND status = 'filled'
                 """,
-                date_str,
+                date_obj,
             )
 
             total_trades = row["total_trades"] if row else 0
@@ -509,9 +513,9 @@ class BotHandlers:
                 """
                 SELECT COALESCE(SUM(payment), 0) AS funding_earned
                 FROM funding_payments
-                WHERE DATE(collected_at) = $1::date
+                WHERE DATE(collected_at) = $1
                 """,
-                date_str,
+                date_obj,
             )
             funding_db = float(funding_row["funding_earned"]) if funding_row else 0.0
 
@@ -534,11 +538,11 @@ class BotHandlers:
                     COUNT(*) AS trades,
                     COALESCE(SUM(pnl), 0) AS pnl
                 FROM trades
-                WHERE DATE(COALESCE(filled_at, created_at)) = $1::date
+                WHERE DATE(COALESCE(filled_at, created_at)) = $1
                   AND status = 'filled'
                 GROUP BY strategy_id
                 """,
-                date_str,
+                date_obj,
             )
 
         # T-4: compute Sharpe and max DD for the report period
