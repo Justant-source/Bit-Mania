@@ -61,6 +61,8 @@ result = engine.run()
 | `fa/bt_fa_leverage_limit.py` | **[Test 12C]** 레버리지 한계 (2~10배) 청산 시뮬레이션 | `--leverages 2,3,4,5,7,10` | `python tests/backtest/fa/bt_fa_leverage_limit.py` |
 | `fa/bt_multi_symbol_funding_rotation.py` | **[BT_TASK_03]** 멀티심볼 펀딩비 로테이션 (15심볼, DAR 예측, 동적 포지션) | `--stage all` | `python tests/backtest/fa/bt_multi_symbol_funding_rotation.py --stage all` |
 | `fa/dar_funding_predictor.py` | DAR(Dynamic AutoRegressive) 펀딩비 예측 모델 | - | (멀티심볼 로테이션에서 내부 사용) |
+| `fa/basis_calculator.py` | 분기물-무기한 베이시스 계산 유틸리티 | `perp_price`, `quarterly_price`, `days_to_expiry` | (캘린더 스프레드에서 내부 사용) |
+| `fa/bt_calendar_spread.py` | **[#06]** 분기물-무기한 캘린더 스프레드 백테스트 (Stage 1~5) | `--stage all` | `python tests/backtest/fa/bt_calendar_spread.py --stage all` |
 
 **언제 사용:** FA 전략 단독 성과 측정, 파라미터 최적화, 레버리지/자본비율/재투자 탐색, 멀티심볼 로테이션 검증
 
@@ -113,8 +115,9 @@ result = engine.run()
 | `stress/bt_stress_fa.py` | [Test P] FA 극단 4종 | API다운, 플래시크래시, 펀딩비급등, 고슬리피지 |
 | `stress/bt_stress_tf.py` | FA+TF 극단 6종 | 플래시크래시, 장기횡보, API다운타임, 고슬리피지, 펀딩역전, 연속휩소 |
 | `stress/bt_stress_optimal.py` | **[Test 12E]** 최적 조합 스트레스 5종 | 베이시스폭발, 폭락+편측체결, 펀딩가뭄, 거래소점검, 연속충격 |
+| `stress/bt_liquidation_cascade.py` | **[BT_TASK_07]** 청산 캐스케이드 역발상 (5 Stage) | 청산 후 반등 포착 (4h -3% + RSI <30), Stage 1 Baseline / Stage 2 임계값 서치 / Stage 3 진입/청산 파라미터 / Stage 4 데이터소스 비교 / Stage 5 시간대 분석 |
 
-**언제 사용:** 최종 검증 단계, 극단 시나리오 PASS/FAIL 판정
+**언제 사용:** 최종 검증 단계, 극단 시나리오 PASS/FAIL 판정, 청산 캐스케이드 역발상 전략 평가
 
 ---
 
@@ -131,8 +134,11 @@ result = engine.run()
 | `analysis/etf_flow_collector.py` | **[BT_TASK_01]** BTC ETF 순유입 플로우 데이터 수집 (Farside/SoSoValue API + 합성 폴백) | 817행 ETF Flow, 누적 합계 계산 |
 | `analysis/macro_event_calendar.py` | **[BT_TASK_01]** FOMC/CPI 매크로 이벤트 캘린더 저장 (2024~2026) | 49개 이벤트 (FOMC 20, CPI 29) |
 | `analysis/bt_etf_flow_momentum.py` | **[BT_TASK_01]** ETF Flow Momentum 전략 백테스트 (Stage 1/2/3) | Stage1: CAGR +10.30% Sharpe 1.61 / Stage2: 36조합 / Stage3: 7개 WF 윈도우 / `.result/13_ETF_FLOW_MOMENTUM_YYYYMMDD.md` 저장 |
+| `analysis/quarterly_futures_collector.py` | **[#06]** Bybit 분기물 선물 OHLCV 수집기 (API v5, 일봉, 만기 60일전~만기) | `--backfill --start 2023-04-01` \| `--verify-convergence` | 실제 분기물 데이터 없으면 합성 데이터 자동 생성 |
+| `analysis/liquidation_collector.py` | **[BT_TASK_07]** 청산 데이터 수집기 (Coinglass/Binance/OHLCV proxy) | `--backfill --start 2023-04-01 --sources all` | 공개 API 신뢰성 부족 → 1h OHLCV 간접 추정으로 보완 |
+| `analysis/cascade_detector.py` | **[BT_TASK_07]** 청산 캐스케이드 탐지기 (4h 가격 -3% + 거래량 × 2.0) | `--validate --threshold 500000000` | 알려진 이벤트(2024-08-05 등) 검증, `long_squeeze`/`short_squeeze` 분류 |
 
-**언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토, 멀티심볼 데이터 백필, ETF 플로우 기반 모멘텀 전략 검증
+**언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토, 멀티심볼 데이터 백필, ETF 플로우 기반 모멘텀 전략 검증, 청산 캐스케이드 기반 역발상 전략 검증
 
 ---
 
