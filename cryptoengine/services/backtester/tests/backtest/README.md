@@ -80,9 +80,10 @@ result = engine.run()
 | `regime/bt_volatile_threshold.py` | [Test L] Volatile 레짐 ATR 배수 임계값 탐색 | 전체 봉의 5~10%를 volatile로 분류하는 최적 배수 |
 | `regime/bt_volatility_squeeze.py` | **[BT_TASK_02]** 변동성 스퀴즈 + HMM 레짐 필터 | BB/KC 스퀴즈 돌파 진입, GaussianHMM 3-state 고변동 필터, Stage 1~2 (81개 파라미터) |
 | `regime/hmm_regime_detector.py` | HMM 레짐 감지기 모듈 | 6h 데이터 기반 GaussianHMM 3-state (저변동/중간/고변동), 월 단위 롤링 재학습 |
+| `regime/llm_meta_advisor.py` | **[#10]** 결정론적 LLM 메타전략 선택자 | 시장 지표(F&G, 가격 변동, HMM, 펀딩비, MVRV) 기반 거래 방향·신뢰도·전략 선택, 8개 테스트 케이스 검증 완료 |
 | `regime/squeeze_indicator.py` | 스퀴즈 지표 계산 모듈 | BB + KC 스퀴즈 감지, ATR, RSI, 거래량 피처 계산 |
 
-**언제 사용:** 레짐 감지 로직 개선, 전환 처리 방법 비교, 변동성 기반 진입 신호 백테스트
+**언제 사용:** 레짐 감지 로직 개선, 전환 처리 방법 비교, 변동성 기반 진입 신호 백테스트, LLM 메타전략 통합
 
 ---
 
@@ -95,8 +96,9 @@ result = engine.run()
 | `combined/bt_optimal_combination.py` | **[Test 12D]** 최적 조합 탐색 11종 | FA비율 × 레버리지 × 재투자 교차 최적화 |
 | `combined/bt_fa80_extended.py` | **[Test 12D2]** FA80 확장 18종 | FA80 lev3~5x × reinvest30~90%, FA90 재투자 확장 포함 |
 | `combined/bt_btc_eth_pair_trading.py` | **[#05]** BTC/ETH 공적분 페어 트레이딩 (Stage 1~5) | Engle-Granger 공적분 검정, z-score 신호, Walk-Forward 분석 |
+| `combined/bt_hmm_llm_meta_strategy.py` | **[#10]** HMM 레짐 게이트 + LLM 메타전략 선택자 | 4계층: HMM 레짐(6h)→레짐별 하위전략(추세/회귀/캐리)→LLM 오버라이드→DD 브레이크. Stage 1 Baseline, Stage 2~4 파라미터, Stage 5 Ablation, Stage 6 Walk-Forward |
 
-**언제 사용:** 멀티 전략 포트폴리오 구성, 자본 배분 최적화
+**언제 사용:** 멀티 전략 포트폴리오 구성, 자본 배분 최적화, 메타 컨트롤러 검증
 
 ---
 
@@ -141,8 +143,13 @@ result = engine.run()
 | `analysis/quarterly_futures_collector.py` | **[#06]** Bybit 분기물 선물 OHLCV 수집기 (API v5, 일봉, 만기 60일전~만기) | `--backfill --start 2023-04-01` \| `--verify-convergence` | 실제 분기물 데이터 없으면 합성 데이터 자동 생성 |
 | `analysis/liquidation_collector.py` | **[BT_TASK_07]** 청산 데이터 수집기 (Coinglass/Binance/OHLCV proxy) | `--backfill --start 2023-04-01 --sources all` | 공개 API 신뢰성 부족 → 1h OHLCV 간접 추정으로 보완 |
 | `analysis/cascade_detector.py` | **[BT_TASK_07]** 청산 캐스케이드 탐지기 (4h 가격 -3% + 거래량 × 2.0) | `--validate --threshold 500000000` | 알려진 이벤트(2024-08-05 등) 검증, `long_squeeze`/`short_squeeze` 분류 |
+| `analysis/coinmetrics_collector.py` | **[#08]** 온체인 메트릭 수집 (MVRV, aSOPR, 거래소순유출, CoinMetrics API) | `--backfill --start 2020-01-01` | 2293행 온체인 데이터 (실패 시 합성 데이터), onchain_metrics 테이블 저장 |
+| `analysis/fear_greed_collector.py` | **[#08]** 공포탐욕지수 수집 (Alternative.me API) | `--backfill` | 1197행 FG 데이터 (실패 시 합성), fear_greed_history 테이블 저장 |
+| `analysis/oi_collector.py` | **[#09]** Open Interest 시계열 수집 (Bybit API, 1h 간격) | `--backfill --start 2023-04-01` \| `--update` | 3년 OI 히스토리 백필, open_interest_history 테이블 upsert |
+| `analysis/macro_data_collector.py` | **[#09]** 거시 지표 수집 (FRED API, 일봉) | `--backfill --start 2020-01-01` \| `--update` | DXY, VIX, US10Y, Fed Rate, CPI 등 5개 지표, macro_indicators 테이블 저장 |
+| `analysis/bt_onchain_macro_composite.py` | **[#08]** 온체인 매크로 복합 신호 전략 (7개 지표, 5 Stage) | `--stage all` | MVRV/aSOPR/거래소순유출/공포탐욕/DXY/ETF/펀딩비 종합 신호 → 초저빈도 거래, Stage1 Baseline / Stage2 18조합 / Stage3 Ablation / Stage4 단일지표 / Stage5 WalkForward |
 
-**언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토, 멀티심볼 데이터 백필, ETF 플로우 기반 모멘텀 전략 검증, 청산 캐스케이드 기반 역발상 전략 검증
+**언제 사용:** 온체인 데이터 기반 사이클 극단 신호 검증, 멀티 메크로 팩터 복합 분석, 저빈도 장기 포지션 백테스트
 
 ---
 
@@ -153,8 +160,10 @@ result = engine.run()
 | `optimization/bt_dca_variants.py` | [Test C] DCA 추세 필터 4종 | baseline, EMA50, 이중필터, graduated |
 | `optimization/bt_dca_v2_redesign.py` | [Test I] DCA v2 재설계 6종 | RSI+EMA, RSI+MACD 등 WF 검증 내장 |
 | `optimization/bt_weight_sensitivity.py` | [Test E] 레짐별 가중치 민감도 | Stage 3 최적 가중치 ±20% 안정성 |
+| `optimization/feature_engineering.py` | **[#09]** 멀티피처 엔지니어링 유틸 | 8 기술적 + 3+ 파생상품 피처 (기술적 8개: RSI, ATR, BB, EMA, Volume, Returns 3개) |
+| `optimization/bt_xgboost_ensemble.py` | **[#09]** XGBoost 멀티피처 앙상블 (Stage 1~5) | 180d 학습 / 30d 테스트 WF (~30폴드), 6h 예측, Sharpe/CAGR/MDD/AUC 평가 |
 
-**언제 사용:** 보조 전략(그리드·DCA) 파라미터 탐색, 가중치 최적화
+**언제 사용:** 보조 전략(그리드·DCA) 파라미터 탐색, 가중치 최적화, 머신러닝 기반 방향 예측
 
 ---
 
