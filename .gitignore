@@ -1,6 +1,7 @@
 node_modules/
 .idea/
 /.request/
+/.result/
 /cryptoengine/.env
 
 # Python

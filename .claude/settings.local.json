@@ -9,7 +9,8 @@
       "WebSearch(*)",
       "Glob(*)",
       "Grep(*)",
-      "mcp__playwright__*"
+      "mcp__playwright__*",
+      "Skill(update-config)"
     ],
     "deny": [
       "Bash(git merge*)",
