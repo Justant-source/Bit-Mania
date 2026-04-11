@@ -40,8 +40,8 @@ START = "2023-04-01"
 END   = "2026-04-01"
 TIMEFRAMES = ["1h", "4h", "15m"]
 
-# Bybit interval 표기
-TF_TO_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240"}
+# Bybit interval 표기 (1d=D, 6h=360, 4h=240, 1h=60 ...)
+TF_TO_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240", "6h": "360", "1d": "D"}
 
 UPSERT_OHLCV = """
 INSERT INTO ohlcv_history (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
@@ -186,6 +186,8 @@ async def fetch_funding(session: aiohttp.ClientSession, pool: asyncpg.Pool,
 
 def _tf_ms(timeframe: str) -> int:
     units = {"m": 60_000, "h": 3_600_000, "d": 86_400_000}
+    if timeframe == "1d":
+        return 86_400_000
     return int(timeframe[:-1]) * units[timeframe[-1]]
 
 

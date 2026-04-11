@@ -59,8 +59,10 @@ result = engine.run()
 | `fa/bt_fa_reinvest_optimization.py` | **[Test 12A]** 재투자 비율 7종 최적화 + 연도별 BTC 축적 추적 | `--reinvest-ratios 0.0,0.30,0.50,0.60,0.70,0.80,1.00` | `python tests/backtest/fa/bt_fa_reinvest_optimization.py` |
 | `fa/bt_fa_capital_ratio.py` | **[Test 12B]** FA 자본 비율 확대 (50~95%) + 마진 안전배율 | `--fa-ratios 0.50,0.60,0.70,0.80,0.90,0.95` | `python tests/backtest/fa/bt_fa_capital_ratio.py` |
 | `fa/bt_fa_leverage_limit.py` | **[Test 12C]** 레버리지 한계 (2~10배) 청산 시뮬레이션 | `--leverages 2,3,4,5,7,10` | `python tests/backtest/fa/bt_fa_leverage_limit.py` |
+| `fa/bt_multi_symbol_funding_rotation.py` | **[BT_TASK_03]** 멀티심볼 펀딩비 로테이션 (15심볼, DAR 예측, 동적 포지션) | `--stage all` | `python tests/backtest/fa/bt_multi_symbol_funding_rotation.py --stage all` |
+| `fa/dar_funding_predictor.py` | DAR(Dynamic AutoRegressive) 펀딩비 예측 모델 | - | (멀티심볼 로테이션에서 내부 사용) |
 
-**언제 사용:** FA 전략 단독 성과 측정, 파라미터 최적화, 레버리지/자본비율/재투자 탐색
+**언제 사용:** FA 전략 단독 성과 측정, 파라미터 최적화, 레버리지/자본비율/재투자 탐색, 멀티심볼 로테이션 검증
 
 ---
 
@@ -72,8 +74,11 @@ result = engine.run()
 | `regime/bt_regime_granularity.py` | [Test J] 레짐 세분화 비교 (4종 vs 6종 vs 8종) | 레짐 분류 세밀도와 수익 관계 분석 |
 | `regime/bt_regime_stability.py` | [Test K] 레짐 안정화 (확인 지연 + ADX 히스테리시스) | 가짜 전환 필터링 효과 측정 |
 | `regime/bt_volatile_threshold.py` | [Test L] Volatile 레짐 ATR 배수 임계값 탐색 | 전체 봉의 5~10%를 volatile로 분류하는 최적 배수 |
+| `regime/bt_volatility_squeeze.py` | **[BT_TASK_02]** 변동성 스퀴즈 + HMM 레짐 필터 | BB/KC 스퀴즈 돌파 진입, GaussianHMM 3-state 고변동 필터, Stage 1~2 (81개 파라미터) |
+| `regime/hmm_regime_detector.py` | HMM 레짐 감지기 모듈 | 6h 데이터 기반 GaussianHMM 3-state (저변동/중간/고변동), 월 단위 롤링 재학습 |
+| `regime/squeeze_indicator.py` | 스퀴즈 지표 계산 모듈 | BB + KC 스퀴즈 감지, ATR, RSI, 거래량 피처 계산 |
 
-**언제 사용:** 레짐 감지 로직 개선, 전환 처리 방법 비교
+**언제 사용:** 레짐 감지 로직 개선, 전환 처리 방법 비교, 변동성 기반 진입 신호 백테스트
 
 ---
 
@@ -113,7 +118,7 @@ result = engine.run()
 
 ---
 
-### `analysis/` — 순수 분석 (매매 신호 없음)
+### `analysis/` — 순수 분석 및 신규 전략 테스트
 
 | 파일 | 분석 내용 | 출력 |
 |------|----------|------|
@@ -122,8 +127,12 @@ result = engine.run()
 | `analysis/last_entry_simulation.py` | Bybit mainnet 최근 1년 펀딩비로 현재 prod 파라미터 진입/청산 시뮬 | 파라미터 3종(PROD/BT_DEFAULT/PHASE5) 비교, 마지막 진입·청산 시점 |
 | `analysis/prod_1y_report.py` | **[★ 실운영 검증]** 현재 prod 파라미터로 1년 전체 시뮬 → Markdown 리포트 | $200 시작, 거래일지+월별+비용분석, `.result/FA_1Y_SIM_YYYYMMDD.md` 저장 |
 | `analysis/bt_exact_1y_report.py` | **[★ 백테스터 조건 재검증]** BT_EXACT vs PROD_CURRENT 1년 병렬 시뮬 → Markdown 비교 리포트 | BT조건(fee 0.055% 선물만, 7일 만기) vs Prod조건 비교, `.result/FA_BT_EXACT_vs_PROD_YYYYMMDD.md` 저장 |
+| `analysis/multi_symbol_funding_collector.py` | **[BT_TASK_03]** 멀티심볼 펀딩비 + OHLCV 수집기 (15심볼, 3년 백필) | 콘솔 진행율, 수집된 데이터 카운트 |
+| `analysis/etf_flow_collector.py` | **[BT_TASK_01]** BTC ETF 순유입 플로우 데이터 수집 (Farside/SoSoValue API + 합성 폴백) | 817행 ETF Flow, 누적 합계 계산 |
+| `analysis/macro_event_calendar.py` | **[BT_TASK_01]** FOMC/CPI 매크로 이벤트 캘린더 저장 (2024~2026) | 49개 이벤트 (FOMC 20, CPI 29) |
+| `analysis/bt_etf_flow_momentum.py` | **[BT_TASK_01]** ETF Flow Momentum 전략 백테스트 (Stage 1/2/3) | Stage1: CAGR +10.30% Sharpe 1.61 / Stage2: 36조합 / Stage3: 7개 WF 윈도우 / `.result/13_ETF_FLOW_MOMENTUM_YYYYMMDD.md` 저장 |
 
-**언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토
+**언제 사용:** 전략 구성 전 데이터 탐색, 수수료 최적화 검토, 멀티심볼 데이터 백필, ETF 플로우 기반 모멘텀 전략 검증
 
 ---
 
@@ -265,3 +274,4 @@ sharpe_alert, windows_json (JSONB), params (JSONB)
 | Test 12D | `combined/bt_optimal_combination.py` | FA90%+3x+재투자30% = 연수익+24.57% | `.result/12.` |
 | Test 12D2 | `combined/bt_fa80_extended.py` | FA80+5x+30% = 연수익+34.87% (전체 최고), FA80+4x+30% = Sharpe 균형 최적 | `.result/12.` |
 | Test 12E | `stress/bt_stress_optimal.py` | 5/5 스트레스 시나리오 전부 PASS | `.result/12.` |
+| BT_TASK_01 | `analysis/bt_etf_flow_momentum.py` | Stage1: CAGR +10.30% Sharpe 1.61 MDD -2.74% (70거래) / Stage2: 36조합 최고 CAGR +15.03% / Stage3: WF OOS 불안정 (-0.31 상관) | `.result/13_ETF_FLOW_MOMENTUM_20260411.md` |
