@@ -29,6 +29,8 @@ DB_DSN = (
     "postgresql://cryptoengine:CryptoEngine2026!@postgres:5432/cryptoengine"
 )
 
+REPORT_PATH = Path("/home/justant/Data/Bit-Mania/.result/v2")
+
 
 async def load_results(pool: asyncpg.Pool, stage: str) -> list[dict]:
     """특정 stage의 결과를 로드."""
@@ -58,24 +60,27 @@ def generate_stage_table(results: list[dict]) -> str:
     if not results:
         return "No results available."
 
-    df = pd.DataFrame([
-        {
-            "Variant": r["variant"][:50],
-            "CAGR": f"{r['metrics'].get('cagr', 0):.2f}%",
-            "Sharpe": f"{r['metrics'].get('sharpe_ratio', 0):.2f}",
-            "MDD": f"{r['metrics'].get('max_drawdown', 0):.2f}%",
-            "Trades": r['metrics'].get('total_trades', 0),
-            "Win Rate": f"{r['metrics'].get('win_rate', 0):.1f}%",
-        }
-        for r in results
-    ])
+    # 수동으로 마크다운 테이블 생성
+    lines = []
+    lines.append("| Variant | CAGR | Sharpe | MDD | Trades | Win Rate |")
+    lines.append("|---------|------|--------|-----|--------|----------|")
 
-    return df.to_markdown(index=False)
+    for r in results:
+        variant = r["variant"][:40]
+        cagr = f"{r['metrics'].get('cagr', 0):.2f}%"
+        sharpe = f"{r['metrics'].get('sharpe_ratio', 0):.2f}"
+        mdd = f"{r['metrics'].get('max_drawdown', 0):.2f}%"
+        trades = r['metrics'].get('total_trades', 0)
+        win_rate = f"{r['metrics'].get('win_rate', 0):.1f}%"
+
+        lines.append(f"| {variant} | {cagr} | {sharpe} | {mdd} | {trades} | {win_rate} |")
+
+    return "\n".join(lines)
 
 
 async def generate_report() -> None:
     """전체 리포트 생성."""
-    pool = await asyncpg.connect(DB_DSN)
+    pool = await asyncpg.create_pool(DB_DSN, min_size=1, max_size=5)
 
     try:
         # 각 Stage 데이터 로드
@@ -86,8 +91,8 @@ async def generate_report() -> None:
 
         # 리포트 생성
         timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d")
-        report_path = Path(f"/home/justant/Data/Bit-Mania/.result/v2/18.CALENDAR_SPREAD_{timestamp}.md")
-        report_path.parent.mkdir(parents=True, exist_ok=True)
+        REPORT_PATH.mkdir(parents=True, exist_ok=True)
+        report_path = REPORT_PATH / f"18.CALENDAR_SPREAD_{timestamp}.md"
 
         with open(report_path, "w") as f:
             f.write("# 캘린더 스프레드 전략 백테스트 (#06) 종합 리포트\n\n")
