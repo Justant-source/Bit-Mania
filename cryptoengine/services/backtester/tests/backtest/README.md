@@ -63,8 +63,10 @@ result = engine.run()
 | `fa/dar_funding_predictor.py` | DAR(Dynamic AutoRegressive) 펀딩비 예측 모델 | - | (멀티심볼 로테이션에서 내부 사용) |
 | `fa/basis_calculator.py` | 분기물-무기한 베이시스 계산 유틸리티 | `perp_price`, `quarterly_price`, `days_to_expiry` | (캘린더 스프레드에서 내부 사용) |
 | `fa/bt_calendar_spread.py` | **[#06]** 분기물-무기한 캘린더 스프레드 백테스트 (Stage 1~5) | `--stage all` | `python tests/backtest/fa/bt_calendar_spread.py --stage all` |
+| `fa/funding_zscore_calculator.py` | **[#04]** 펀딩비 z-score 계산 유틸리티 (극단치 감지) | `--validate` | `python tests/backtest/fa/funding_zscore_calculator.py --validate` |
+| `fa/bt_funding_extreme_reversal.py` | **[#04]** BTC 펀딩비 극단치 역발상 전략 (Stage 1~5: Baseline, GridSearch, Ablation, WalkForward, LowFunding) | `--stage all` | `python tests/backtest/fa/bt_funding_extreme_reversal.py --stage all` |
 
-**언제 사용:** FA 전략 단독 성과 측정, 파라미터 최적화, 레버리지/자본비율/재투자 탐색, 멀티심볼 로테이션 검증
+**언제 사용:** FA 전략 단독 성과 측정, 파라미터 최적화, 레버리지/자본비율/재투자 탐색, 멀티심볼 로테이션 검증, 극단치 역발상 신호 검증
 
 ---
 
@@ -92,6 +94,7 @@ result = engine.run()
 | `combined/bt_fa_tf_onchain.py` | [Stage 3] FA + TF + 펀딩비 필터 | 온체인 필터 대신 펀딩비 필터 적용 효과 |
 | `combined/bt_optimal_combination.py` | **[Test 12D]** 최적 조합 탐색 11종 | FA비율 × 레버리지 × 재투자 교차 최적화 |
 | `combined/bt_fa80_extended.py` | **[Test 12D2]** FA80 확장 18종 | FA80 lev3~5x × reinvest30~90%, FA90 재투자 확장 포함 |
+| `combined/bt_btc_eth_pair_trading.py` | **[#05]** BTC/ETH 공적분 페어 트레이딩 (Stage 1~5) | Engle-Granger 공적분 검정, z-score 신호, Walk-Forward 분석 |
 
 **언제 사용:** 멀티 전략 포트폴리오 구성, 자본 배분 최적화
 
@@ -125,6 +128,7 @@ result = engine.run()
 
 | 파일 | 분석 내용 | 출력 |
 |------|----------|------|
+| `analysis/cointegration_tester.py` | **[#05]** Engle-Granger 공적분 검정 도구 (월별 ADF 안정성, 베타, 반감기) | `--pair BTCUSDT,ETHUSDT --report-stability` | 30% 안정도만 달성 (기준 60% 미달) |
 | `analysis/bt_funding_time_analysis.py` | [Test O] 펀딩비 시간대·요일 분석, 정산 시간 비교, 연속 스트리크 | 콘솔 통계 테이블 |
 | `analysis/bt_fee_sensitivity.py` | [Test N] 수수료 시나리오 4종 (taker/maker/혼합/VIP3) | variant 수익률 비교 |
 | `analysis/last_entry_simulation.py` | Bybit mainnet 최근 1년 펀딩비로 현재 prod 파라미터 진입/청산 시뮬 | 파라미터 3종(PROD/BT_DEFAULT/PHASE5) 비교, 마지막 진입·청산 시점 |
@@ -281,3 +285,5 @@ sharpe_alert, windows_json (JSONB), params (JSONB)
 | Test 12D2 | `combined/bt_fa80_extended.py` | FA80+5x+30% = 연수익+34.87% (전체 최고), FA80+4x+30% = Sharpe 균형 최적 | `.result/12.` |
 | Test 12E | `stress/bt_stress_optimal.py` | 5/5 스트레스 시나리오 전부 PASS | `.result/12.` |
 | BT_TASK_01 | `analysis/bt_etf_flow_momentum.py` | Stage1: CAGR +10.30% Sharpe 1.61 MDD -2.74% (70거래) / Stage2: 36조합 최고 CAGR +15.03% / Stage3: WF OOS 불안정 (-0.31 상관) | `.result/13_ETF_FLOW_MOMENTUM_20260411.md` |
+| **#04** | `fa/bt_funding_extreme_reversal.py` | **Stage1**: Baseline CAGR -0.90% Sharpe 1.22 (19거래) / **Stage3**: z-score only 최고 Sharpe 3.25 (221거래, -20% 손실) / **Stage5**: 저펀딩 환경 거래 2회만 CAGR -0.43% / **결론**: Phase 5 도입 불가 (0/6 합격기준 FAIL) | `.result/v2/16.FUNDING_EXTREME_REVERSAL_20260411.md` |
+| **#05** | `combined/bt_btc_eth_pair_trading.py` + `analysis/cointegration_tester.py` | **공적분 검정**: 30% 안정도만 달성 (기준 60% 미달) / **Stage1**: CAGR 0% Sharpe 0.14 (13거래) / **Stage2**: Top 1 = entry1.5 exit0.3 window30 = CAGR +5.2% Sharpe 0.42 여전히 기준 미달 / **결론**: Phase 5 도입 불가 (0/6 합격기준 FAIL) | `.result/v2/17_BTC_ETH_PAIR_TRADING_20260411.md` |
