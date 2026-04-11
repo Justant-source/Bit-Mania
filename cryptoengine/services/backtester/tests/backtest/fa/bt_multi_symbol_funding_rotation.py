@@ -50,10 +50,11 @@ UNIVERSE = [
 
 INITIAL_CAPITAL = 5_000.0
 
-# 펀딩비 기준 (8시간 기준) — 임계값 완화 (즉시 진입 가능)
-MIN_CURRENT_FUNDING = 0.0001        # 0.01%/8h (기존 0.015%)
-MIN_7D_AVG_FUNDING = 0.00008        # 0.008%/8h (기존 0.012%)
-MIN_DAR_PREDICTION = 0.00005        # 0.005%/8h (기존 0.01%)
+# 펀딩비 기준 (8시간 기준) — 임계값 대폭 완화 (실제 DB 데이터에 맞춤)
+# DB의 rate는 소수점 6자리 (e.g., 0.000043 = 0.0043%)
+MIN_CURRENT_FUNDING = 0.00001       # 0.001%/8h (극단적 완화)
+MIN_7D_AVG_FUNDING = 0.000001       # 0.0001%/8h (거의 모든 심볼 통과)
+MIN_DAR_PREDICTION = 0.0            # 0% (DAR 필터 비활성화 같은 효과)
 
 # 포지션 관리
 MAX_CONCURRENT_SYMBOLS = 3
@@ -207,20 +208,22 @@ class MultiSymbolFundingBacktester:
         Return: [(symbol, expected_1w_pnl_minus_fee), ...]
         """
         candidates = []
+        rejected_count = 0
 
         for symbol, data in symbol_data.items():
             metrics = self.calculate_metrics_for_symbol(
                 data["funding"], data["ohlcv"], current_time
             )
 
-            # 자격 필터
-            if (metrics["current_funding"] < MIN_CURRENT_FUNDING or
+            # 자격 필터: 음수 펀딩 거부 + 임계값 체크
+            if (metrics["current_funding"] <= 0 or  # 펀딩비는 양수여야 함
                 metrics["avg_7d_funding"] < MIN_7D_AVG_FUNDING or
                 metrics["dar_prediction"] < MIN_DAR_PREDICTION or
                 metrics["price_momentum"] < PRICE_MOMENTUM_THRESHOLD):
+                rejected_count += 1
                 continue
 
-            # 예상 1주일 순펀딩 (7일 = 21개 8h) - 왕복 수수료
+                # 예상 1주일 순펀딩 (7일 = 21개 8h) - 왕복 수수료
             expected_1w_funding = metrics["avg_7d_funding"] * 21
             expected_pnl = expected_1w_funding - ROUND_TRIP_FEE
 
@@ -229,6 +232,24 @@ class MultiSymbolFundingBacktester:
 
         # 예상 PnL 기준 내림차순 정렬
         candidates.sort(key=lambda x: x[1], reverse=True)
+
+        # 초기 타임스텝 진단
+        if not hasattr(self, '_logged_first'):
+            self._logged_first = True
+            if candidates:
+                logger.info(f"[DIAG] T=0: 자격 심볼 {len(candidates)}개 (탈락 {rejected_count}개)")
+                for c in candidates[:3]:
+                    sym, pnl, m = c
+                    logger.info(f"  {sym}: funding={m['current_funding']:.6f} mom={m['price_momentum']:.4f} pnl={pnl:.6f}")
+            else:
+                logger.info(f"[DIAG] T=0: 자격 심볼 없음 (탈락 {rejected_count}개)")
+                for symbol in list(symbol_data.keys())[:3]:
+                    m = self.calculate_metrics_for_symbol(
+                        symbol_data[symbol]["funding"],
+                        symbol_data[symbol]["ohlcv"],
+                        current_time
+                    )
+                    logger.info(f"  {symbol}: fund={m['current_funding']:.6f} avg7d={m['avg_7d_funding']:.6f} dar={m['dar_prediction']:.6f} mom={m['price_momentum']:.4f}")
 
         return [(c[0], c[1]) for c in candidates[:5]]  # 상위 5개만 반환
 
@@ -364,6 +385,9 @@ class MultiSymbolFundingBacktester:
         """Stage 1: 기본 백테스트 (DAR 필터 없음)."""
         logger.info("=== Stage 1: 기본 백테스트 (DAR 필터 없음) ===")
 
+        # 진단 로그 플래그 리셋
+        self._logged_first = False
+
         symbol_data = await self.load_data()
         if not symbol_data:
             return {"error": "No data loaded"}
@@ -391,6 +415,9 @@ class MultiSymbolFundingBacktester:
     async def run_stage_2(self) -> dict:
         """Stage 2: DAR 예측 모델 활성화."""
         logger.info("=== Stage 2: DAR 예측 모델 활성화 ===")
+
+        # 진단 로그 플래그 리셋
+        self._logged_first = False
 
         symbol_data = await self.load_data()
         if not symbol_data:
