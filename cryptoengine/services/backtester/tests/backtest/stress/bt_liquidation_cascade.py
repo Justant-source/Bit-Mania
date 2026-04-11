@@ -250,7 +250,7 @@ class CascadeBacktester:
 
         # CAGR 계산
         years = (self.equity_curve.index[-1] - self.equity_curve.index[0]).days / 365.25
-        cagr_pct = cagr(total_return_pct, years)
+        cagr_pct = cagr(total_profit_pct, years)
 
         # 거래 통계
         win_trades = [t for t in self.trades if t.pnl_pct >= 0]
