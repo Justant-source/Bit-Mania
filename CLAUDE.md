@@ -2,43 +2,13 @@
 
 ## 프로젝트 개요
 
-Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자동매매 시스템.
-**펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
-Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
+비트코인 선물 자동매매 시스템. 펀딩비 차익거래 핵심 전략, DCA 보조. Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
 ## 현재 진행 상태 (2026-04-12 기준)
 
-- Phase 0 완료: Docker, PostgreSQL, Redis, Grafana 기동
-- Phase 1 완료: Bybit 테스트넷 API 키 설정 (10,000 USDT)
-- Phase 2 완료: 서비스 기동 + 연결 검증, Redis Pub/Sub 데이터 흐름 확인
-- Phase 3 완료: 백테스트 (6년 히스토리 데이터, fa80_lev5_r30 채택, CAGR +34.87% Sharpe 3.583)
-- Phase 4 진행 중: 테스트넷 포워드 테스트, 안전장치 구축 중
-  - 완료: 통합 구조화 로깅, KST 타임스탬프, OHLCV 보존 정책, 자동 백업 (pg-backup)
-  - 완료: startup gap recovery, 복원력 테스트 자동화, 포지션 정합성 체크 (reconciliation, 3분 간격)
-  - 완료: 레짐 모니터링 대시보드, Telegram 파일 관리 + 인라인 키보드
-  - 완료: Phase 5 preflight 스크립트 (8개 항목 점검)
-  - 완료: stoploss_on_exchange (진입가 ±2% StopMarket, 자동 배치/취소/복구)
-  - 완료: AlertDispatcher (배치·레이트리밋·dedup), Grafana→Telegram 단일 경로, Kill Switch ACK 확인
-  - 완료: log-retention 서비스 (보존 정책 자동화), wf-scheduler 서비스 (월간 WF 자동화)
-  - 완료: SafetyGuard 유닛 테스트 27개, Telegram 포매터 테스트 59개
-  - 완료: 배포 재시작 시 포지션 자동 복구 (service_shutdown → Redis 저장 → 재시작 후 복원, 불필요한 청산 수수료 제거)
-  - 완료: Phase 5 포지션 사이징 재설계 (`fixed_notional` 모드, $150 고정 명목가, 소액 최소 주문 대응)
-  - 완료: Kill Switch 절대값 임계값 (퍼센트 AND 절대값 USD 둘 다 초과해야 발동, 수수료 노이즈 오발동 방지)
-  - 완료: 진입 조건 강화 (연 25% / 4회 연속 / NetProfitabilityCheck BEP 2회)
-  - 완료: 메인넷 전환 스크립트 (`scripts/switch_to_mainnet.py` 9단계, `scripts/switch_to_testnet.py` 6단계 롤백)
-  - 완료: STRICT_MONITORING 모드 (24시간 강화 모니터링, 1시간 강제 리포트, 마진비율 경고)
-  - 완료: 비상 수동 청산 SOP 문서 (`docs/EMERGENCY_MANUAL_CLOSE.md`, 휴대폰 저장용 5단계 요약 포함)
-  - 완료: 잔고 동기화 검증 (`EXPECTED_INITIAL_BALANCE_USD` 기반, 5% 이상 차이 시 시작 거부)
-  - 완료: orchestrator/core.py Phase 5 Kill Switch 연결 (`_build_kill_switch()`, `equity_at_open` 전달)
-  - 완료: **백테스트 v2 재건** — 10전 10패 근본 원인 진단 + 4-Track 병렬 재건 (2026-04-11)
-    - 진단: `.result/backtest_v2/DIAGNOSIS_REBUILD_ROADMAP.md` (확정 버그 3개, 합성 데이터 오염 4전략, Jesse 선정)
-    - Track A: 실데이터 파이프라인 5개 (`download_binance_vision`, `fetch_coinalyze_funding`, `fetch_fear_greed`, `fetch_fred_macro`, `export_pg_to_parquet`)
-    - Track B: Jesse 프레임워크 통합 (`jesse_project/`, FundingArb·MultiFundingRotation, `jesse>=0.41.0`)
-    - Track C: 버그 수정 (멀티심볼 `funding≤0`→`<MIN_THRESHOLD`, HMM+LLM `TAKER_FEE 0.0002→0.00055`+MIN_HOLD_BARS=4, 극단치역발상 `abs()` 제거)
-    - Track D: 합성 데이터 무음 폴백 제거 (CoinMetrics·Fear&Greed·Calendar Spread·ETF Flow)
-  - 완료: **Phase 13–14** — 자체 백테스트 엔진 제거, Jesse FA `fa80_lev5_r30` 실데이터 포팅 완료 (2026-04-12)
-    - Phase 13: 실패 전략 코드 제거, 데이터 수집 스크립트 `jesse_engine` 으로 마이그레이션
-    - Phase 14: `jesse_import.py` YYYY/MM.parquet + datetime 타임스탬프 지원, 실데이터 백테스트 재현 확인
+- Phase 0~3 완료: Docker 인프라, API 키, 서비스 검증, 백테스트 (fa80_lev5_r30 채택, CAGR +34.87%)
+- Phase 4 진행 중: 테스트넷 포워드 테스트. 안전장치 완비, Jesse 백테스트 포팅 완료
+- 상세 이력: `cryptoengine/docs/archive/CLAUDE_history.md` 참조
 
 ## 핵심 원칙
 
@@ -67,10 +37,10 @@ cryptoengine/
 │   ├── log_events.py           # 이벤트 코드 정의 (95개)
 │   ├── log_writer.py           # 비동기 DB 로그 라이터 (큐 기반)
 │   ├── logging_config.py       # structlog 표준 설정 (KST 타임스탬프)
-│   ├── timezone_utils.py       # KST 타임존 유틸리티
-│   └── risk.py                 # 레버리지 검증, 포지션 크기 계산
+│   └── timezone_utils.py       # KST 타임존 유틸리티
 ├── docs/
-│   └── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP (휴대폰 저장용 5단계 포함)
+│   ├── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP (휴대폰 저장용 5단계 포함)
+│   └── archive/                   # 개발 이력 아카이브
 ├── scripts/
 │   ├── phase5_preflight.py     # Phase 5 진입 전 8개 항목 점검
 │   ├── switch_to_mainnet.py    # 메인넷 전환 스크립트 (9단계, 이중 확인)
@@ -87,18 +57,7 @@ cryptoengine/
     ├── llm-advisor/            # Claude Code 기반 시장 분석
     ├── telegram-bot/           # 알림 (AlertDispatcher) + 비상 명령 + ACK 확인
     ├── dashboard/              # 내부(3000) + 공개(3001) 대시보드
-    ├── backtester/             # 백테스트 엔진 + 스킬셋
-    │   ├── main.py             # 진입점
-    │   ├── freqtrade_bridge.py # Freqtrade 연동 어댑터
-    │   ├── walk_forward.py     # 워크포워드 분석기
-    │   ├── report_generator.py # HTML/MD 리포트 생성
-    │   ├── weight_optimizer.py # 레짐별 가중치 최적화
-    │   ├── regime_accuracy.py  # 레짐 감지 정확도 평가
-    │   ├── scripts/            # 데이터 수집·시드·헬스체크
-    │   │   └── monthly_wf_runner.py  # 월간 WF 분석 파이프라인
-    │   ├── tests/backtest/     # ★ 백테스트 스킬셋 (아래 참조)
-    │   └── tests/unit/         # 유닛 테스트
-    │       └── test_phase5.py  # Phase 5 유닛 테스트 16개
+    ├── jesse_engine/           # 현재 활성 백테스트 엔진 (Jesse 프레임워크)
     ├── log-retention/          # service_logs 보존 정책 자동 실행 (매일 03:00 KST)
     ├── wf-scheduler/           # 월간 WF 자동 실행 (매월 1일 02:00 KST)
     └── grafana (이미지)        # 모니터링 대시보드 (포트 3002)
@@ -261,54 +220,28 @@ DB_PASSWORD=CryptoEngine2026!
 백테스트 스크립트는 **스킬셋**으로 관리한다. 새 스크립트 작성 전 반드시 아래 절차를 따른다.
 
 ### 1. 기존 스킬 확인 (필수)
-```
-services/backtester/tests/backtest/README.md
-```
-이 파일이 스킬 인덱스다. 새 스크립트를 작성하기 전에 **반드시 이 파일을 읽어**
-기존에 동일하거나 유사한 스크립트가 있는지 확인한다.
+`services/jesse_engine/scripts/` 디렉토리를 먼저 확인한다.
+새 스크립트를 작성하기 전에 **기존에 동일하거나 유사한 스크립트가 있는지 확인**한다.
 
 ### 2. 새 스크립트 위치 (필수)
-모든 백테스트 Python 파일은 `services/backtester/tests/backtest/<카테고리>/` 에 생성한다.
-**루트 레벨(`services/backtester/*.py`)에 테스트 스크립트를 절대 생성하지 않는다.**
+모든 백테스트 Python 파일은 `services/jesse_engine/scripts/` 에 생성한다.
 
-| 목적 | 카테고리 디렉토리 |
-|------|----------------|
-| FA 단독 성과·파라미터·레버리지·재투자 | `fa/` |
-| 레짐 감지 로직 개선·비교 | `regime/` |
-| 복수 전략 조합·자본배분 | `combined/` |
-| 추세추종 전략 | `trend/` |
-| 극단 시나리오 검증 | `stress/` |
-| 데이터 탐색·수수료 분석 | `analysis/` |
-| 파라미터 그리드서치·최적화 | `optimization/` |
-
-### 3. 공유 유틸리티 사용 (필수)
-새 스크립트에서 아래 중복 구현을 금지한다. 반드시 `core/`를 임포트한다:
-```python
-from tests.backtest.core import (
-    load_ohlcv, load_funding,   # DB 데이터 로드
-    sharpe, mdd, cagr, safe_float, monthly_returns,  # 지표 계산
-    make_pool, save_result,     # DB 연결·저장
-    FAEngine, SimpleBacktester, # 엔진
-)
-```
-
-### 4. README 업데이트 (필수)
-`tests/backtest/README.md`를 반드시 업데이트해야 하는 시점:
-- 새 스크립트 **추가** → 해당 카테고리 테이블에 행 추가
+### 3. README 업데이트 (필수)
+`services/jesse_engine/scripts/README.md`를 반드시 업데이트해야 하는 시점:
+- 새 스크립트 **추가** → 해당 테이블에 행 추가
 - 기존 스크립트 **수정** (파라미터·목적 변경) → 해당 행 업데이트
 - 스크립트 **삭제** → 해당 행 제거
-- **실행 이력 요약** 테이블에 중요 결과 추가
 
-### 5. Docker 실행 명령
+### 4. Docker 실행 명령
 ```bash
-# 단일 스크립트 실행
-docker compose --profile backtest run --rm backtester \
-  python tests/backtest/<카테고리>/<스크립트>.py
+# Jesse 백테스트 실행
+docker compose --profile backtest run --rm jesse_engine \
+  python scripts/<스크립트>.py
 
 # 이미지 재빌드 후 실행 (새 파일 추가 시)
-docker compose --profile backtest build --no-cache backtester && \
-docker compose --profile backtest run --rm backtester \
-  python tests/backtest/<카테고리>/<스크립트>.py
+docker compose --profile backtest build --no-cache jesse_engine && \
+docker compose --profile backtest run --rm jesse_engine \
+  python scripts/<스크립트>.py
 ```
 
 ## 코드 작업 시 주의사항
@@ -338,22 +271,3 @@ docker compose --profile backtest run --rm backtester \
    - `EXPECTED_INITIAL_BALANCE_USD=200` 설정 필수 (잔고 검증)
    - `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
    - `PHASE5_MODE=true` 설정 (fixed_notional 사이징, 절대값 Kill Switch 활성화)
-
-### 백테스트 Jesse — 다음 단계 (Phase 14 완료 이후)
-
-Phase 13–14에서 Jesse FA 포팅은 완료. 현재 남은 작업:
-
-1. **실데이터 수집 실행** (아직 미실행 시):
-   ```bash
-   docker compose --profile backtest run --rm backtester python scripts/download_binance_vision.py
-   docker compose --profile backtest run --rm backtester python scripts/fetch_coinalyze_funding.py
-   docker compose --profile backtest run --rm backtester python scripts/fetch_fear_greed.py
-   docker compose --profile backtest run --rm backtester python scripts/fetch_fred_macro.py
-   ```
-2. **MultiFundingRotation Jesse 포팅** (FA 이후):
-   - `jesse_project/strategies/FundingArb.py` 완성 참조, Rotation 전략 동일 패턴 적용
-3. **수정된 전략 재실행** (버그 수정 반영 확인):
-   - `fa/bt_multi_symbol_funding_rotation.py` — 진입 DIAGNOSTIC 로그 확인 후 full run
-   - `combined/bt_hmm_llm_meta_strategy.py` — 거래 횟수 ~950→~300 감소 확인
-4. **Calendar Spread 실데이터 연결**:
-   - `analysis/quarterly_futures_collector.py` 실행 후 `fa/bt_calendar_spread.py` 재실행 (synthetic-mode 없이)
