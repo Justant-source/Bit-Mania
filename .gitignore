@@ -10,6 +10,12 @@ node_modules/
 **/*.pyo
 **/*.pyd
 
+# Claude Code runtime
+.claude/scheduled_tasks.lock
+
+# Backtest input data (large binary, re-downloadable)
+cryptoengine/backtest-results/data/
+
 # Jesse backtest runtime artifacts (UUID raw results)
 cryptoengine/services/jesse_engine/storage/json/
 
