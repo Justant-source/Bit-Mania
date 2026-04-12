@@ -527,3 +527,50 @@ Claude API 기반 시장 분석 결과를 가중치 조정에 반영한다.
 - **펀딩비 전략 현물 레그**: 현재 Bybit 내에서 현물+선물을 동시 운용하나, 현물 유동성이 낮은 쌍(SOL, XRP)은 슬리피지 리스크가 높다. 쌍별 유동성 모니터링 추가 필요
 - **그리드 트레이딩 트레일링**: `trailing_enabled: false`로 설정되어 있다. (현재 Grid 가중치 0, Phase 5 이후 재검토)
 - **DCA 재설계**: 6년 WFO에서 MDD 42% 기록. 졸업형 DCA 전략 재설계 후 백테스트 재수행 필요
+
+---
+
+## 7. 백테스트 v2 엔진 아키텍처 (2026-04-11 재건)
+
+### 7.1 이중 엔진 구조
+
+| 엔진 | 용도 | 위치 |
+|------|------|------|
+| **FAEngine** (커스텀) | FA·스트레스·레짐 테스트 (기존 스킬셋 29개+) | `tests/backtest/core/engine.py` |
+| **Jesse** (외부) | 정밀 가격 시뮬레이션, 멀티심볼, Monte Carlo 내장 | `jesse_project/` |
+
+**하이브리드 원칙**: Jesse (백테스팅, 무료) + CryptoEngine (라이브 실행, 기존) = 추가 비용 $0
+
+### 7.2 실데이터 스택
+
+| 데이터 | 소스 | 스크립트 | 비용 |
+|--------|------|---------|------|
+| OHLCV (BTC/ETH 1h/4h/1d, 2019~) | Binance Vision | `download_binance_vision.py` | 무료 |
+| 펀딩비·OI·청산 | Coinalyze API | `fetch_coinalyze_funding.py` | 무료 (API 키 선택) |
+| Fear & Greed Index (2018~) | Alternative.me | `fetch_fear_greed.py` | 무료 |
+| 거시지표 (DFF·DGS10·WALCL·CPI) | FRED CSV | `fetch_fred_macro.py` | 무료 |
+| 기존 PostgreSQL → Parquet | 내부 DB | `export_pg_to_parquet.py` | - |
+
+저장 형식: **Parquet (ZSTD 압축) + DuckDB** — 6년치 전체 ~80MB
+
+### 7.3 확정 버그 목록 (v2 재건 계기)
+
+| 번호 | 전략 | 증상 | 원인 | 수정 여부 |
+|------|------|------|------|----------|
+| #1 | 멀티심볼 (#03) | CAGR -0.23%, 거래 0건 | `funding <= 0` 조건이 0 근처 모든 심볼 차단 | ✅ 수정 완료 |
+| #2 | HMM+LLM (#10) | Sharpe 0.000, 950거래 | `TAKER_FEE=0.0002` (Maker 요율), 레짐마다 즉시 반전 | ✅ 수정 완료 |
+| #3 | 극단치역발상 (#04) | 음수 펀딩 무시 | `abs(funding_rate)` 부호 제거 | ✅ 수정 완료 |
+| #4 | Calendar Spread (#06) | 100% 합성 데이터 | 고정 2.5% 기저 = `quarterly = perp × 1.025` | ✅ 실데이터 강제 |
+| #5 | On-Chain Macro (#08) | ~90% 합성 | CoinMetrics Pro 403, 무음 폴백 | ✅ Community API 전용 |
+| #6 | 전체 Sharpe | Sharpe 과대 추정 | 8h 전략에 `periods_per_year` 미지정 (8760 기본값 오적용) | ✅ `1095` 명시 |
+
+### 7.4 Jesse 전략 파라미터 (기본값)
+
+| 파라미터 | FundingArb | MultiFundingRotation |
+|----------|-----------|---------------------|
+| 진입 임계값 | 0.0001/8h (연 ~10.95%) | 상위 3심볼 |
+| 청산 임계값 | 0.00005/8h | 동일 |
+| 최대 레버리지 | 5x | 5x |
+| 심볼 | BTCUSDT | BTC·ETH·SOL·BNB |
+| 수수료 | 0.055% (Taker) | 0.055% (Taker) |
+| 정산 주기 | UTC 00/08/16 | UTC 00/08/16 |

@@ -453,6 +453,9 @@ services:
       BYBIT_API_SECRET: ${BYBIT_API_SECRET}
       BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
       PYTHONPATH: /app
+      BACKTEST_DATA_ROOT: /app/results/data
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      DATABASE_URL: postgresql://cryptoengine:${DB_PASSWORD}@postgres:5432/cryptoengine
     volumes:
       - ./config:/app/config:ro
       - ./backtest-results:/app/results

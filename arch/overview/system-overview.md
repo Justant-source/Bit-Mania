@@ -58,7 +58,7 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 |
 |--------|------|
-| **backtester** | Freqtrade 브릿지 기반 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 결과는 `./backtest-results`에 저장. 스킬셋 29개 (`tests/backtest/`) |
+| **backtester** | 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 스킬셋 35개+ (`tests/backtest/`). **v2 재건 완료** (2026-04-11): Jesse 프레임워크 통합 (`jesse_project/`), 실데이터 파이프라인 5개 스크립트, 버그 3개 수정, 합성 데이터 폴백 4개 제거 |
 | **log-retention** | 매일 03:00 KST `service_logs` 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일) |
 | **wf-scheduler** | 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 (`monthly_wf_runner.py`). 결과 요약 Telegram 전송 |
 

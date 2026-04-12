@@ -29,10 +29,11 @@ def sharpe(equity: pd.Series, periods_per_year: int = 8760) -> float:
         periods_per_year: 연간 타임스텝 수 (기본 8760 = 1h 기준)
 
     Returns:
-        float (0.0 if std == 0)
+        float (0.0 if std == 0, i.e. flat equity curve with no trades)
     """
     rets = equity.pct_change().dropna()
     std  = float(rets.std())
+    # Flat equity curve (no trades, all returns == 0) → std == 0 → return 0.0
     if std == 0 or np.isnan(std):
         return 0.0
     return float(rets.mean() / std * math.sqrt(periods_per_year))
@@ -63,13 +64,16 @@ def cagr(total_return_pct: float, n_years: float) -> float:
 
     Returns:
         float % (연환산)
+        Returns 0.0 for flat equity (total_return_pct == 0) or invalid periods.
     """
     if n_years <= 0:
         return 0.0
     factor = 1.0 + total_return_pct / 100.0
     if factor <= 0:
         return -100.0
-    return ((factor ** (1.0 / n_years)) - 1.0) * 100.0
+    # Flat equity curve (no trades) has total_return_pct == 0.0 → factor == 1.0 → CAGR == 0.0
+    result = ((factor ** (1.0 / n_years)) - 1.0) * 100.0
+    return 0.0 if abs(result) < 1e-10 else result  # Ensure near-zero rounding error becomes 0.0
 
 
 # ── Calmar ────────────────────────────────────────────────────────────────────

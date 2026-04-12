@@ -1,4 +1,9 @@
-"""analysis/bt_etf_flow_momentum.py — [BT_TASK_01] ETF Flow Momentum 전략 백테스트
+"""analysis/bt_etf_flow_momentum.py — [BT_TASK_01] ETF Flow Momentum 전략 백테스트 v3
+
+[v3 재설계 (2026-04-11)]
+- 데이터 소스: BTC 가격/거래량 기반 합성 프록시 (실 ETF Flow API 미접근)
+- 주의: 이 결과는 합성 데이터 기반이며, 실 ETF Flow 데이터 확보 후 재검증 필수
+- 목표: Stage 1-3 완전 실행 + FA 보조 전략 가능성 평가
 
 목표: BTC 현물 ETF의 일별 순유입/유출 모멘텀 → 1d OHLCV 추적
 
@@ -48,6 +53,7 @@ from tests.backtest.core import (
     sharpe, mdd, cagr, safe_float, monthly_returns,
     make_pool, save_result,
 )
+from tests.backtest.core.constants import TAKER_FEE, SLIPPAGE_PCT
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -58,8 +64,7 @@ INITIAL_CAPITAL = 5000.0
 TIMEFRAME = "1d"
 
 # 수수료 및 슬리피지
-TAKER_FEE = 0.00055
-SLIPPAGE = 0.0003
+SLIPPAGE = SLIPPAGE_PCT
 ONE_WAY_COST = TAKER_FEE + SLIPPAGE  # 0.00085 = 0.085%
 
 # 파라미터 (Stage 1 기본값)

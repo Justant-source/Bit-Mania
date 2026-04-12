@@ -760,57 +760,117 @@ class BotHandlers:
             log.exception(SERVICE_HEALTH_FAIL, message="/requests 명령 실패")
             await update.effective_message.reply_text("\u274c목록 조회 실패.")  # type: ignore[union-attr]
 
-    # ── Command: /results ─────────────────────────────────────────
+    # ── Command: /results  (폴더 탐색기) ──────────────────────────
 
     async def results_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """List result reports in RESULT_DIR and store index in Redis."""
+        """Show root of RESULT_DIR as a folder browser."""
         if not _authorized(update):
             return
+        await self._show_result_dir(update, context, rel_path="")
 
+    async def _show_result_dir(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        rel_path: str,
+    ) -> None:
+        """Render folder contents as an inline keyboard (folders + .md files).
+
+        Edits the existing message when called from a callback query,
+        otherwise replies as a new message.
+        """
         try:
-            if not RESULT_DIR.exists():
-                await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\u26a0\ufe0f `.result/` 디렉토리가 없습니다."
-                )
+            result_root = RESULT_DIR.resolve()
+            current_dir = (RESULT_DIR / rel_path).resolve() if rel_path else result_root
+
+            # Path traversal guard
+            if not str(current_dir).startswith(str(result_root)):
+                await update.effective_message.reply_text("\u274c 잘못된 경로입니다.")  # type: ignore[union-attr]
                 return
 
-            files = sorted(RESULT_DIR.rglob("*.md"))
-            if not files:
-                await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\U0001f4c2 `.result/` 에 파일이 없습니다."
-                )
+            if not current_dir.exists():
+                await update.effective_message.reply_text("\u274c 디렉토리를 찾을 수 없습니다.")  # type: ignore[union-attr]
                 return
 
-            # Store index in Redis for /get command (TTL 1 hour)
-            index = {str(i): str(f) for i, f in enumerate(files, 1)}
-            await self.redis.setex(
-                "ce:tg:result_index",
-                3600,
-                json.dumps(index),
+            # Refresh global index (all .md files) in Redis
+            all_files = sorted(RESULT_DIR.rglob("*.md"))
+            global_index = {str(i): str(f) for i, f in enumerate(all_files, 1)}
+            path_to_idx: dict[str, str] = {str(f): str(i) for i, f in enumerate(all_files, 1)}
+            await self.redis.setex("ce:tg:result_index", 3600, json.dumps(global_index))
+
+            # Items in current directory only (not recursive)
+            subdirs = sorted(
+                [d for d in current_dir.iterdir() if d.is_dir()],
+                key=lambda d: d.name,
+            )
+            local_files = sorted(
+                [f for f in current_dir.iterdir() if f.is_file() and f.suffix == ".md"],
+                key=lambda f: f.name,
             )
 
-            keyboard = []
-            for i, f in enumerate(files, 1):
-                rel = f.relative_to(RESULT_DIR)
+            keyboard: list[list[InlineKeyboardButton]] = []
+
+            # ⬆️ Back button (shown for every non-root directory)
+            if rel_path:
+                parent_rel = str(Path(rel_path).parent)
+                parent_cb = "" if parent_rel == "." else parent_rel
+                keyboard.append([
+                    InlineKeyboardButton("⬆️ 위로", callback_data=f"browse_dir:{parent_cb}")
+                ])
+
+            # 📁 Subdirectory buttons
+            for d in subdirs:
+                d_rel = str(d.relative_to(result_root))
+                cb = f"browse_dir:{d_rel}"
+                if len(cb.encode()) <= 64:
+                    keyboard.append([
+                        InlineKeyboardButton(f"📁 {d.name}/", callback_data=cb)
+                    ])
+
+            # 📄 File buttons (reference global index for /get compatibility)
+            for f in local_files:
+                idx = path_to_idx.get(str(f), "0")
                 size_kb = f.stat().st_size / 1024
                 keyboard.append([
                     InlineKeyboardButton(
-                        f"📄 {rel}  ({size_kb:.1f} KB)",
-                        callback_data=f"get_result:{i}",
+                        f"📄 {f.name}  ({size_kb:.1f} KB)",
+                        callback_data=f"get_result:{idx}",
                     )
                 ])
 
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\U0001f4ca *결과 리포트 목록* (`.result/`)  — {len(files)}개",
-                parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup(keyboard),
+            display_path = f"`.result/{rel_path}`" if rel_path else "`.result/`"
+            header = (
+                f"\U0001f4ca *결과 리포트* {display_path}\n"
+                f"📁 폴더 {len(subdirs)}개  |  📄 파일 {len(local_files)}개"
+                + (f"  |  전체 {len(all_files)}개" if not rel_path else "")
             )
-            log.info(TELEGRAM_COMMAND_RECEIVED, message="/results 명령 전송", count=len(files))
+
+            query = update.callback_query
+            if query:
+                await query.edit_message_text(
+                    header,
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+            else:
+                await update.effective_message.reply_text(  # type: ignore[union-attr]
+                    header,
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+
+            log.info(
+                TELEGRAM_COMMAND_RECEIVED,
+                message="/results 폴더 탐색",
+                path=rel_path or "/",
+                subdirs=len(subdirs),
+                files=len(local_files),
+            )
 
         except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/results 명령 실패")
+            log.exception(SERVICE_HEALTH_FAIL, message="/results 폴더 탐색 실패", rel_path=rel_path)
             await update.effective_message.reply_text("\u274c 목록 조회 실패.")  # type: ignore[union-attr]
 
     # ── Command: /get <number|path> ───────────────────────────────
@@ -904,6 +964,10 @@ class BotHandlers:
             handler = handler_map.get(cmd)
             if handler:
                 await handler(update, context)
+
+        elif data.startswith("browse_dir:"):
+            rel = data[len("browse_dir:"):]
+            await self._show_result_dir(update, context, rel_path=rel)
 
         elif data.startswith("get_result:"):
             idx = data.split(":", 1)[1]

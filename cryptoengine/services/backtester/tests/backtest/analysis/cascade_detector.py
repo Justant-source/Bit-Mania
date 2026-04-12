@@ -46,15 +46,17 @@ def detect_cascade(
     threshold_usd: float = 500_000_000,
     oi_drop_threshold: float = -0.10,
     price_change_threshold: float = -0.03,
+    use_triple_confirmation: bool = True,
 ) -> pd.DataFrame:
     """
-    1h 봉 기반 청산 캐스케이드 탐지
+    1h 봉 기반 청산 캐스케이드 탐지 (v3: 개선된 다중 신호 확인)
 
     입력:
         df_1h: open_time, close, high, low, volume이 포함된 DataFrame (1h 타임프레임)
         threshold_usd: 추정 청산액 임계값 (추정값 기반)
         oi_drop_threshold: OI 하락률 임계값
         price_change_threshold: 가격 변화 임계값 (음수 = 하락)
+        use_triple_confirmation: True = RSI + 가격 + 거래량 3중 확인, False = 기존 방식
 
     반환:
         DataFrame with columns:
@@ -64,6 +66,8 @@ def detect_cascade(
             - price_at_detection: 탐지 시점 가격
             - volume_ratio: 거래량 비율
             - estimated_liquidation_usd: 추정 청산액
+            - rsi_confirmation: RSI 값 (저강도 시 True)
+            - confidence: 신뢰도 (0.0~1.0)
     """
     df = df_1h.sort_values("open_time").reset_index(drop=True)
 
@@ -79,6 +83,13 @@ def detect_cascade(
     df["oi_proxy"] = (df["volume"] * df["close"]).rolling(4, min_periods=4).sum()
     df["oi_change_4h"] = df["oi_proxy"].pct_change(4)
 
+    # RSI 계산 (1h 기반)
+    delta = df["close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df["rsi"] = 100 - (100 / (1 + rs))
+
     results = []
 
     for idx, row in df.iterrows():
@@ -88,38 +99,107 @@ def detect_cascade(
         price_change = row["price_change_4h"]
         volume_ratio = row["volume_ratio"]
         oi_change = row.get("oi_change_4h", 0) or 0
+        rsi = row.get("rsi", np.nan)
 
-        # 하강 캐스케이드 (롱 청산)
-        if price_change < price_change_threshold and volume_ratio > 2.0:
-            estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
-            severity = min(abs(price_change) / 0.10, 1.0)  # 10% 기준
+        # v3: 삼중 확인 모드
+        if use_triple_confirmation:
+            # 하강 캐스케이드 (롱 청산) - 3중 신호 확인
+            # 1. 가격 -3% 이상 하락
+            # 2. 거래량 2배 이상
+            # 3. RSI < 25 (과도한 매도)
+            if (price_change < price_change_threshold and
+                volume_ratio > 2.0 and
+                not pd.isna(rsi) and rsi < 25):
 
-            results.append({
-                "cascade_time": row["open_time"],
-                "side": "long_squeeze",
-                "severity_score": severity,
-                "price_at_detection": row["close"],
-                "volume_ratio": volume_ratio,
-                "estimated_liquidation_usd": estimated_liq,
-                "price_change_4h_pct": price_change * 100,
-                "oi_change_4h_pct": oi_change * 100,
-            })
+                estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
+                severity = min(abs(price_change) / 0.10, 1.0)
 
-        # 상승 캐스케이드 (숏 청산)
-        elif price_change > abs(price_change_threshold) and volume_ratio > 2.0:
-            estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
-            severity = min(price_change / 0.10, 1.0)
+                # 신뢰도 = (가격신호 + 거래량신호 + RSI신호) / 3
+                price_signal = min(abs(price_change) / 0.10, 1.0)  # 정규화
+                volume_signal = min((volume_ratio - 2.0) / 3.0, 1.0)  # 2배~5배 = 0~1
+                rsi_signal = max(0, (25.0 - rsi) / 25.0)  # RSI 낮을수록 높음
+                confidence = (price_signal + volume_signal + rsi_signal) / 3.0
 
-            results.append({
-                "cascade_time": row["open_time"],
-                "side": "short_squeeze",
-                "severity_score": severity,
-                "price_at_detection": row["close"],
-                "volume_ratio": volume_ratio,
-                "estimated_liquidation_usd": estimated_liq,
-                "price_change_4h_pct": price_change * 100,
-                "oi_change_4h_pct": oi_change * 100,
-            })
+                results.append({
+                    "cascade_time": row["open_time"],
+                    "side": "long_squeeze",
+                    "severity_score": severity,
+                    "price_at_detection": row["close"],
+                    "volume_ratio": volume_ratio,
+                    "estimated_liquidation_usd": estimated_liq,
+                    "price_change_4h_pct": price_change * 100,
+                    "oi_change_4h_pct": oi_change * 100,
+                    "rsi_confirmation": rsi,
+                    "confidence": confidence,
+                })
+
+            # 상승 캐스케이드 (숏 청산) - 3중 신호 확인
+            # 1. 가격 +3% 이상 상승
+            # 2. 거래량 2배 이상
+            # 3. RSI > 75 (과도한 매수)
+            elif (price_change > abs(price_change_threshold) and
+                  volume_ratio > 2.0 and
+                  not pd.isna(rsi) and rsi > 75):
+
+                estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
+                severity = min(price_change / 0.10, 1.0)
+
+                # 신뢰도 계산
+                price_signal = min(price_change / 0.10, 1.0)
+                volume_signal = min((volume_ratio - 2.0) / 3.0, 1.0)
+                rsi_signal = max(0, (rsi - 75.0) / 25.0)  # RSI 높을수록 높음
+                confidence = (price_signal + volume_signal + rsi_signal) / 3.0
+
+                results.append({
+                    "cascade_time": row["open_time"],
+                    "side": "short_squeeze",
+                    "severity_score": severity,
+                    "price_at_detection": row["close"],
+                    "volume_ratio": volume_ratio,
+                    "estimated_liquidation_usd": estimated_liq,
+                    "price_change_4h_pct": price_change * 100,
+                    "oi_change_4h_pct": oi_change * 100,
+                    "rsi_confirmation": rsi,
+                    "confidence": confidence,
+                })
+
+        else:
+            # 기존 방식 (가격 + 거래량만)
+            # 하강 캐스케이드 (롱 청산)
+            if price_change < price_change_threshold and volume_ratio > 2.0:
+                estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
+                severity = min(abs(price_change) / 0.10, 1.0)
+
+                results.append({
+                    "cascade_time": row["open_time"],
+                    "side": "long_squeeze",
+                    "severity_score": severity,
+                    "price_at_detection": row["close"],
+                    "volume_ratio": volume_ratio,
+                    "estimated_liquidation_usd": estimated_liq,
+                    "price_change_4h_pct": price_change * 100,
+                    "oi_change_4h_pct": oi_change * 100,
+                    "rsi_confirmation": rsi if not pd.isna(rsi) else None,
+                    "confidence": 0.5,  # 중간 신뢰도 (2중 확인만)
+                })
+
+            # 상승 캐스케이드 (숏 청산)
+            elif price_change > abs(price_change_threshold) and volume_ratio > 2.0:
+                estimated_liq = abs(price_change) * row["close"] * row["volume"] * 0.1
+                severity = min(price_change / 0.10, 1.0)
+
+                results.append({
+                    "cascade_time": row["open_time"],
+                    "side": "short_squeeze",
+                    "severity_score": severity,
+                    "price_at_detection": row["close"],
+                    "volume_ratio": volume_ratio,
+                    "estimated_liquidation_usd": estimated_liq,
+                    "price_change_4h_pct": price_change * 100,
+                    "oi_change_4h_pct": oi_change * 100,
+                    "rsi_confirmation": rsi if not pd.isna(rsi) else None,
+                    "confidence": 0.5,
+                })
 
     return pd.DataFrame(results)
 

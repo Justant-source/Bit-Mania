@@ -72,6 +72,11 @@ async def fetch_fred_csv(
 
         start_date = start_date or START_BACKFILL
         end_date = end_date or END_BACKFILL
+        # normalize to date (caller may pass datetime or date)
+        if hasattr(start_date, "date"):
+            start_date = start_date.date()
+        if hasattr(end_date, "date"):
+            end_date = end_date.date()
 
         params = {
             "id": series_id,

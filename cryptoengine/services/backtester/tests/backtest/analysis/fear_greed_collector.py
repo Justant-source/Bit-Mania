@@ -55,106 +55,71 @@ def classify_fear_greed(value: int) -> str:
         return "Extreme Greed"
 
 
-async def fetch_fear_greed(limit: int = 1000) -> dict[str, int] | None:
-    """Alternative.me API에서 공포탐욕지수 조회.
+async def fetch_fear_greed(limit: int = 0) -> dict[str, int]:
+    """Alternative.me API에서 공포탐욕지수 조회 (전체 히스토리).
+
+    Args:
+        limit: 조회 건수. 0 = 전체 히스토리 (2018-02-01 이후). API는 무한 조회 지원.
 
     Returns:
-        {"2025-04-11": 75, "2025-04-10": 72, ...}
-        또는 None (API 실패)
+        {"2025-04-11": 75, "2025-04-10": 72, ..., "2018-02-01": 8}
+        조회 실패 시 RuntimeError 발생 (synthetic fallback 없음).
+
+    API Response:
+        {
+          "data": [
+            {"value": "45", "value_classification": "Fear", "timestamp": "1519776000", "time_until_update": "..."},
+            ...
+          ]
+        }
     """
+    # limit=0은 전체 히스토리를 반환하도록 API 설정
+    url = FG_API_URL
+    params = {} if limit == 0 else {"limit": limit}
+
     try:
-        timeout = aiohttp.ClientTimeout(total=15)
+        timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(FG_API_URL, params={"limit": limit}) as resp:
+            async with session.get(url, params=params) as resp:
                 if resp.status != 200:
-                    logger.warning(f"Fear & Greed API HTTP {resp.status}")
-                    return None
+                    raise RuntimeError(f"Fear & Greed API HTTP {resp.status}: {await resp.text()}")
 
                 data = await resp.json()
                 result = {}
 
                 for item in data.get("data", []):
-                    date_str = item.get("value")  # Unix timestamp 또는 날짜 문자열
-                    fg_value = int(item.get("fng_value", 50))
+                    timestamp = item.get("timestamp")
+                    fg_value = int(item.get("value", 50))
 
-                    # API가 Unix timestamp를 반환할 수 있으므로 처리
-                    if isinstance(date_str, str) and len(date_str) == 10 and date_str.isdigit():
-                        # Unix timestamp
-                        dt = datetime.fromtimestamp(int(date_str), tz=UTC)
+                    # timestamp는 Unix timestamp 문자열
+                    if isinstance(timestamp, str) and timestamp.isdigit():
+                        dt = datetime.fromtimestamp(int(timestamp), tz=UTC)
                         date_str = dt.strftime("%Y-%m-%d")
-                    elif not isinstance(date_str, str) or len(date_str) != 10:
-                        # 날짜 형식 아님 — 대체 방법
+                        result[date_str] = fg_value
+                    else:
+                        logger.warning(f"Invalid timestamp in Fear & Greed API: {timestamp}")
                         continue
 
-                    result[date_str] = fg_value
+                if not result:
+                    raise RuntimeError("Fear & Greed API returned empty data")
 
                 logger.info(f"Fear & Greed 수집: {len(result)} 일자 (API)")
-                return result if result else None
 
+                # 검증: 2018년 데이터가 포함되어 있는지 확인
+                dates_in_result = [datetime.strptime(d, "%Y-%m-%d") for d in result.keys()]
+                min_date = min(dates_in_result) if dates_in_result else None
+
+                if min_date and min_date >= datetime(2019, 1, 1, tzinfo=UTC):
+                    logger.warning(f"Warning: Oldest data is {min_date.date()}, expected to include data from 2018-02-01 onwards")
+
+                return result
+
+    except RuntimeError:
+        raise  # Re-raise RuntimeError
     except Exception as e:
-        logger.warning(f"Fear & Greed 요청 실패: {e}")
-        return None
+        raise RuntimeError(f"Fear & Greed API 요청 실패: {e}")
 
 
-def generate_synthetic_fear_greed(
-    start_date: str = "2023-01-01",
-    end_date: str | None = None,
-) -> dict[str, int]:
-    """합성 공포탐욕 데이터 생성 (API 실패 폴백).
-
-    알고리즘:
-      - 2023 초: Extreme Fear (15~25)
-      - 2023 중반: Neutral~Fear (35~55)
-      - 2023 하반: Greed (55~75)
-      - 2024 초반: Extreme Greed (75~90)
-      - 2024 중반: Neutral (45~55)
-      - 2024 하반: Greed (60~75)
-      - 2025 초: Extreme Greed (80~95)
-      - 2025 중: 조정 (40~70)
-    """
-    import random
-    random.seed(42)
-
-    if not end_date:
-        end_date = datetime.now(UTC).strftime("%Y-%m-%d")
-
-    result = {}
-    current = datetime.strptime(start_date, "%Y-%m-%d")
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-
-    while current <= end_dt:
-        date_str = current.strftime("%Y-%m-%d")
-        year = current.year
-        month = current.month
-
-        if year == 2023 and month <= 2:
-            fg = random.randint(15, 25)
-        elif year == 2023 and month <= 6:
-            fg = random.randint(35, 55)
-        elif year == 2023 and month <= 9:
-            fg = random.randint(55, 75)
-        elif year == 2023 and month <= 12:
-            fg = random.randint(60, 80)
-        elif year == 2024 and month <= 3:
-            fg = random.randint(75, 90)
-        elif year == 2024 and month <= 6:
-            fg = random.randint(45, 60)
-        elif year == 2024 and month <= 9:
-            fg = random.randint(55, 75)
-        elif year == 2024 and month <= 12:
-            fg = random.randint(60, 80)
-        elif year == 2025 and month <= 3:
-            fg = random.randint(80, 95)
-        else:  # 2025-04 이후
-            fg = random.randint(40, 70)
-
-        fg = min(100, max(0, fg))
-        result[date_str] = fg
-
-        current = current.replace(day=current.day) + __import__('datetime').timedelta(days=1)
-
-    logger.info(f"합성 공포탐욕: {len(result)} 일자 생성")
-    return result
 
 
 async def upsert_fear_greed_history(
@@ -186,20 +151,20 @@ async def upsert_fear_greed_history(
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="공포탐욕지수 수집")
-    parser.add_argument("--backfill", action="store_true", help="과거 데이터 백필")
-    parser.add_argument("--limit", type=int, default=1000, help="API 조회 건수")
+    parser = argparse.ArgumentParser(description="공포탐욕지수 수집 (Alternative.me API)")
+    parser.add_argument("--backfill", action="store_true", help="과거 데이터 백필 (전체 히스토리 조회)")
     args = parser.parse_args()
 
-    logger.info("공포탐욕지수 수집 시작")
+    logger.info("공포탐욕지수 수집 시작 (limit=0: 전체 히스토리)")
 
-    # 데이터 조회
-    data = await fetch_fear_greed(limit=args.limit)
-    if not data:
-        logger.warning("Fear & Greed API 실패, 합성 데이터로 대체")
-        data = generate_synthetic_fear_greed(start_date="2023-01-01")
-
-    logger.info(f"데이터: {len(data)} 행")
+    # 데이터 조회 (실패 시 RuntimeError 발생)
+    try:
+        data = await fetch_fear_greed(limit=0)  # 0 = fetch all history
+        logger.info(f"데이터: {len(data)} 행")
+    except RuntimeError as e:
+        logger.error(f"FATAL: Fear & Greed API 실패: {e}")
+        logger.error("Real data is required. No synthetic fallback available.")
+        raise
 
     # DB 저장
     pool = await make_pool()

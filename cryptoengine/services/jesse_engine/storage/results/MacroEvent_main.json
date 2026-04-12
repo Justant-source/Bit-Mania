@@ -1,0 +1,14 @@
+{
+  "strategy": "MacroEvent",
+  "start": "2023-04-01",
+  "end": "2026-04-01",
+  "cagr": 0.0027,
+  "sharpe": 0.145,
+  "mdd": -0.0253,
+  "num_trades": 78,
+  "win_rate": 0.0,
+  "gross_pnl": 0.0,
+  "total_fees": 0.0,
+  "net_profit_percentage": 0.81,
+  "raw_metrics": {}
+}

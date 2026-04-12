@@ -76,6 +76,21 @@ graph TD
 
 ---
 
+---
+
+## 백테스트 v2 (2026-04-11)
+
+| 구분 | 내용 |
+|------|------|
+| 진단 | 10전 10패 근본 원인 — 확정 버그 3개, 합성 데이터 오염 4전략 |
+| 엔진 | Jesse (`jesse_project/`) + FAEngine (기존) 이중 구조 |
+| 데이터 | Binance Vision · Coinalyze · Alternative.me · FRED (전부 무료) |
+| 상태 | 재건 완료 — 실데이터 수집 후 재실행 필요 |
+
+상세: `services/backtester/jesse_project/README.md`
+
+---
+
 ## 운영 체크리스트
 
 - [ ] 매일: [[runbook#매일 확인 사항|일일 점검]]

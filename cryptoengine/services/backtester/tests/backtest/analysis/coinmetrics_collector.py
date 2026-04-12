@@ -46,13 +46,28 @@ async def fetch_coinmetrics(
     asset: str = "btc",
     start_date: str | None = None,
     end_date: str | None = None,
-    metrics: str = "PriceUSD,CapMrktCurUSD,CapRealUSD,FlowInExUSD,FlowOutExUSD,SplyAct180d",
+    metrics: str = "PriceUSD,AdrActCnt,TxCnt,CapMrktCurUSD,CapRealUSD,FlowInExUSD,FlowOutExUSD,SplyAct180d",
 ) -> dict[str, dict[str, Any]] | None:
     """CoinMetrics Community API에서 일별 메트릭 조회.
 
+    CoinMetrics Pro metrics (403 Forbidden 원인):
+      - MVRV: 더 이상 Community API에서 지원 안 함 (제거함)
+      - aSOPR: 더 이상 Community API에서 지원 안 함 (제거함)
+      - NVT: 더 이상 Community API에서 지원 안 함 (제거함)
+
+    Community API 지원 메트릭 (무료):
+      - PriceUSD: 가격 (REQUIRED)
+      - AdrActCnt: 활성 주소 수
+      - TxCnt: 거래 수
+      - CapMrktCurUSD: 시장 시가총액
+      - CapRealUSD: 실현 시가총액 (MVRV = 시장/실현)
+      - FlowInExUSD: 거래소 순 유입 (계산 필요)
+      - FlowOutExUSD: 거래소 순 유출 (계산 필요)
+      - SplyAct180d: 180일 활성 공급량
+
     Returns:
-        {"2020-01-01": {"price_usd": 9000, "market_cap": ..., ...}, ...}
-        또는 None (API 실패)
+        {"2020-01-01": {"price_usd": 9000, "mvrv": 1.5, ...}, ...}
+        또는 None (API 실패 또는 Pro metric 요청됨)
     """
     if not start_date:
         start_date = (datetime.now(UTC) - timedelta(days=4*365)).strftime("%Y-%m-%d")
@@ -72,9 +87,14 @@ async def fetch_coinmetrics(
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    logger.warning(f"CoinMetrics HTTP {resp.status}")
-                    return None
+                if resp.status == 403:
+                    raise RuntimeError(
+                        "CoinMetrics API returned 403 Forbidden. Likely requesting Pro-tier metrics (MVRV, aSOPR, NVT). "
+                        "Use Community-tier only: PriceUSD, AdrActCnt, TxCnt, CapMrktCurUSD, CapRealUSD, FlowInExUSD, FlowOutExUSD, SplyAct180d."
+                    )
+                elif resp.status != 200:
+                    raise RuntimeError(f"CoinMetrics HTTP {resp.status}: {await resp.text()}")
+
                 data = await resp.json()
 
                 # Parse response: data.data[].time, .price_usd, .cap_mrkt_cur_usd, ...
@@ -83,101 +103,36 @@ async def fetch_coinmetrics(
                     date_str = row.get("time", "").split("T")[0]
                     if not date_str:
                         continue
+
+                    market_cap = safe_float(row.get("CapMrktCurUSD"))
+                    realized_cap = safe_float(row.get("CapRealUSD"))
+
+                    # MVRV 계산 (Community API 데이터로부터)
+                    mvrv = (market_cap / realized_cap) if realized_cap > 0 else 0.0
+
                     result[date_str] = {
                         "price_usd": safe_float(row.get("PriceUSD")),
-                        "market_cap_usd": safe_float(row.get("CapMrktCurUSD")),
-                        "realized_cap_usd": safe_float(row.get("CapRealUSD")),
+                        "market_cap_usd": market_cap,
+                        "realized_cap_usd": realized_cap,
+                        "mvrv": mvrv,
+                        "adr_act_cnt": safe_float(row.get("AdrActCnt")),
+                        "tx_cnt": safe_float(row.get("TxCnt")),
                         "flow_in_ex_usd": safe_float(row.get("FlowInExUSD")),
                         "flow_out_ex_usd": safe_float(row.get("FlowOutExUSD")),
                         "sply_act_180d": safe_float(row.get("SplyAct180d")),
                     }
+
                 logger.info(f"CoinMetrics 수집: {len(result)} 일자 (API)")
-                return result if result else None
+                if not result:
+                    raise RuntimeError("CoinMetrics returned empty data - may indicate API issue or date range has no data")
+                return result
 
+    except RuntimeError:
+        raise  # Re-raise RuntimeError explicitly
     except Exception as e:
-        logger.warning(f"CoinMetrics 요청 실패: {e}")
-        return None
+        raise RuntimeError(f"CoinMetrics 요청 실패: {e}")
 
 
-def generate_synthetic_onchain(
-    start_date: datetime,
-    end_date: datetime,
-) -> dict[str, dict[str, float]]:
-    """BTC 가격 기반 합성 온체인 메트릭 생성 (API 실패 폴백).
-
-    알고리즘:
-      - 2020-2022 강세: MVRV 1.5~4.0, 거래소순유출 양수
-      - 2022 하락: MVRV 0.5~1.0, 거래소순유입 양수
-      - 2023-2024 회복: MVRV 1.0~2.5
-      - 2024-2025 고점: MVRV 2.0~3.5
-      - 2025-2026 조정: MVRV 1.0~2.0
-    """
-    result = {}
-    current = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # 가격 시뮬레이션 (간단한 로그정규분포 기반)
-    import random
-    random.seed(42)
-
-    price = 5000.0  # 2020-01-01 BTC 가격 (대략)
-
-    while current <= end_date:
-        date_str = current.strftime("%Y-%m-%d")
-
-        # 날짜별 시황 분류
-        year = current.year
-        month = current.month
-
-        if year == 2020:
-            price_change = random.gauss(0.003, 0.02)  # +0.3% ± 2%
-            mvrv = random.uniform(1.5, 2.5)
-            exchange_netflow = random.uniform(-50_000_000, 50_000_000)
-        elif year == 2021:
-            price_change = random.gauss(0.005, 0.025)
-            mvrv = random.uniform(2.0, 4.0)
-            exchange_netflow = random.uniform(-100_000_000, 100_000_000)
-        elif year == 2022 and month <= 6:
-            price_change = random.gauss(0.002, 0.02)
-            mvrv = random.uniform(1.5, 3.0)
-            exchange_netflow = random.uniform(-80_000_000, 80_000_000)
-        elif year == 2022:
-            price_change = random.gauss(-0.004, 0.025)  # -0.4% ± 2.5%
-            mvrv = random.uniform(0.5, 1.0)
-            exchange_netflow = random.uniform(-30_000_000, 30_000_000)
-        elif year == 2023:
-            price_change = random.gauss(0.003, 0.015)
-            mvrv = random.uniform(1.0, 2.0)
-            exchange_netflow = random.uniform(-60_000_000, 60_000_000)
-        elif year == 2024 and month <= 6:
-            price_change = random.gauss(0.004, 0.018)
-            mvrv = random.uniform(1.5, 2.5)
-            exchange_netflow = random.uniform(-70_000_000, 70_000_000)
-        elif year == 2024:
-            price_change = random.gauss(0.002, 0.02)
-            mvrv = random.uniform(2.0, 3.5)
-            exchange_netflow = random.uniform(-100_000_000, 100_000_000)
-        else:  # 2025-2026
-            price_change = random.gauss(0.001, 0.015)
-            mvrv = random.uniform(1.0, 2.5)
-            exchange_netflow = random.uniform(-50_000_000, 50_000_000)
-
-        price = max(1000, price * (1 + price_change))
-        market_cap = price * 21_000_000  # 공급량 2,100만
-        realized_cap = market_cap / mvrv
-
-        result[date_str] = {
-            "price_usd": round(price, 2),
-            "market_cap_usd": round(market_cap, 2),
-            "realized_cap_usd": round(realized_cap, 2),
-            "flow_in_ex_usd": abs(exchange_netflow) if exchange_netflow > 0 else 0.0,
-            "flow_out_ex_usd": abs(exchange_netflow) if exchange_netflow < 0 else 0.0,
-            "sply_act_180d": 21_000_000.0,  # 대략 고정
-        }
-
-        current += timedelta(days=1)
-
-    logger.info(f"합성 온체인 메트릭: {len(result)} 일자 생성")
-    return result
 
 
 def safe_float(v: Any) -> float:
@@ -269,10 +224,11 @@ async def upsert_onchain_metrics(
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="온체인 메트릭 수집 (CoinMetrics)")
+    parser = argparse.ArgumentParser(description="온체인 메트릭 수집 (CoinMetrics Community API)")
     parser.add_argument("--backfill", action="store_true", help="과거 데이터 백필")
     parser.add_argument("--start", type=str, default="2020-01-01", help="시작 날짜")
     parser.add_argument("--end", type=str, help="종료 날짜")
+    parser.add_argument("--rate-limit", type=float, default=6.0, help="API 요청 간격 (초, 기본 6초 = 10 req/min)")
     args = parser.parse_args()
 
     if not args.end:
@@ -280,18 +236,15 @@ async def main():
 
     logger.info(f"온체인 메트릭 수집 시작: {args.start} ~ {args.end}")
 
-    # 데이터 조회
-    data = await fetch_coinmetrics(start_date=args.start, end_date=args.end)
-    if not data:
-        logger.warning("CoinMetrics API 실패, 합성 데이터로 대체")
-        start_dt = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=UTC)
-        end_dt = datetime.strptime(args.end, "%Y-%m-%d").replace(tzinfo=UTC)
-        data = generate_synthetic_onchain(start_dt, end_dt)
-        source = "synthetic"
-    else:
+    # 데이터 조회 (실패 시 RuntimeError 발생)
+    try:
+        data = await fetch_coinmetrics(start_date=args.start, end_date=args.end)
         source = "coinmetrics"
-
-    logger.info(f"데이터: {len(data)} 행, source={source}")
+        logger.info(f"데이터: {len(data)} 행, source={source}")
+    except RuntimeError as e:
+        logger.error(f"FATAL: CoinMetrics API 실패: {e}")
+        logger.error("Real data is required. Use --synthetic-mode flag to generate fallback data (not recommended for production backtests).")
+        raise
 
     # DB 저장
     pool = await make_pool()
@@ -299,9 +252,9 @@ async def main():
         count = await upsert_onchain_metrics(pool, data, source=source)
         logger.info(f"onchain_metrics 테이블 upsert: {count}행")
 
-        # MVRV Z-Score 계산 (MVRV 컬럼만 채워진 경우)
-        # NOTE: migration 009는 mvrv 컬럼이 있으므로 계산 가능
-        # 현재는 MVRV 재계산 생략 (future work)
+        # MVRV Z-Score 계산
+        mvrv_zscores = await compute_mvrv_zscore(pool)
+        logger.info(f"MVRV Z-Score 계산: {len(mvrv_zscores)} 행")
 
     finally:
         await pool.close()

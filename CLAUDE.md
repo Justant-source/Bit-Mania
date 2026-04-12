@@ -6,7 +6,7 @@ Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자
 **펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
-## 현재 진행 상태 (2026-04-07 기준)
+## 현재 진행 상태 (2026-04-11 기준)
 
 - Phase 0 완료: Docker, PostgreSQL, Redis, Grafana 기동
 - Phase 1 완료: Bybit 테스트넷 API 키 설정 (10,000 USDT)
@@ -30,6 +30,12 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
   - 완료: 비상 수동 청산 SOP 문서 (`docs/EMERGENCY_MANUAL_CLOSE.md`, 휴대폰 저장용 5단계 요약 포함)
   - 완료: 잔고 동기화 검증 (`EXPECTED_INITIAL_BALANCE_USD` 기반, 5% 이상 차이 시 시작 거부)
   - 완료: orchestrator/core.py Phase 5 Kill Switch 연결 (`_build_kill_switch()`, `equity_at_open` 전달)
+  - 완료: **백테스트 v2 재건** — 10전 10패 근본 원인 진단 + 4-Track 병렬 재건 (2026-04-11)
+    - 진단: PART1_ENGINE_DIAGNOSIS_REBUILD_ROADMAP.md (확정 버그 3개, 합성 데이터 오염 4전략, Jesse 선정)
+    - Track A: 실데이터 파이프라인 5개 (`download_binance_vision`, `fetch_coinalyze_funding`, `fetch_fear_greed`, `fetch_fred_macro`, `export_pg_to_parquet`)
+    - Track B: Jesse 프레임워크 통합 (`jesse_project/`, FundingArb·MultiFundingRotation, `jesse>=0.41.0`)
+    - Track C: 버그 수정 (멀티심볼 `funding≤0`→`<MIN_THRESHOLD`, HMM+LLM `TAKER_FEE 0.0002→0.00055`+MIN_HOLD_BARS=4, 극단치역발상 `abs()` 제거)
+    - Track D: 합성 데이터 무음 폴백 제거 (CoinMetrics·Fear&Greed·Calendar Spread·ETF Flow)
 
 ## 핵심 원칙
 
@@ -317,6 +323,7 @@ docker compose --profile backtest run --rm backtester \
 
 ## 다음 작업 (Phase 4 진행 중)
 
+### Phase 4 완료 체크리스트
 1. 7개 시나리오 체크리스트 완료 (`arch/PHASE4_MONITORING.md` 참조)
 2. 7일 이상 무중단 운영 확인 (Restarting 없이 Running 유지)
 3. `scripts/phase5_preflight.py` 모든 항목 PASS 확인
@@ -328,3 +335,20 @@ docker compose --profile backtest run --rm backtester \
    - `EXPECTED_INITIAL_BALANCE_USD=200` 설정 필수 (잔고 검증)
    - `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
    - `PHASE5_MODE=true` 설정 (fixed_notional 사이징, 절대값 Kill Switch 활성화)
+
+### 백테스트 v2 — 다음 단계 (실데이터 수집 후)
+1. **실데이터 수집 실행** (순서대로):
+   ```bash
+   docker compose --profile backtest run --rm backtester python scripts/download_binance_vision.py
+   docker compose --profile backtest run --rm backtester python scripts/fetch_coinalyze_funding.py
+   docker compose --profile backtest run --rm backtester python scripts/fetch_fear_greed.py
+   docker compose --profile backtest run --rm backtester python scripts/fetch_fred_macro.py
+   ```
+2. **Jesse 백테스트 실행** (데이터 수집 후):
+   - `jesse_project/README.md` 참조 — DB 생성 → 캔들 임포트 → `jesse backtest FundingArb`
+   - `jesse_project/strategies/FundingArb.py`의 `self.shared_vars['funding_rate']` 연결 필요 (로더 구현)
+3. **수정된 전략 재실행** (버그 수정 반영 확인):
+   - `fa/bt_multi_symbol_funding_rotation.py` — 진입 DIAGNOSTIC 로그 확인 후 full run
+   - `combined/bt_hmm_llm_meta_strategy.py` — 거래 횟수 ~950→~300 감소 확인
+4. **Calendar Spread 실데이터 연결**:
+   - `analysis/quarterly_futures_collector.py` 실행 후 `fa/bt_calendar_spread.py` 재실행 (synthetic-mode 없이)
