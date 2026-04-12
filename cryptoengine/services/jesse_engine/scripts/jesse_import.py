@@ -77,6 +77,7 @@ def load_parquet(symbol: str, timeframe: str, start: str, end: str) -> pl.DataFr
     search_paths = [
         BINANCE_VISION_DIR / "futures" / "um" / "daily" / "klines" / symbol / timeframe,
         BINANCE_VISION_DIR / "futures" / "um" / "monthly" / "klines" / symbol / timeframe,
+        BINANCE_VISION_DIR / "klines" / symbol / timeframe,  # YYYY/MM.parquet layout
         BINANCE_VISION_DIR / symbol / timeframe,  # fallback flat layout
     ]
 
@@ -84,7 +85,9 @@ def load_parquet(symbol: str, timeframe: str, start: str, end: str) -> pl.DataFr
     for base in search_paths:
         if not base.exists():
             continue
-        for f in sorted(base.glob("*.parquet")):
+        # Support both flat *.parquet and nested YYYY/MM.parquet layouts
+        parquet_files = sorted(base.glob("*.parquet")) or sorted(base.glob("**/*.parquet"))
+        for f in parquet_files:
             frames.append(pl.read_parquet(f))
 
     if not frames:
@@ -115,9 +118,14 @@ def load_parquet(symbol: str, timeframe: str, start: str, end: str) -> pl.DataFr
     else:
         raise ValueError(f"Cannot find timestamp column. Columns: {df.columns}")
 
-    # Ensure timestamp is in milliseconds
-    ts_series = df[ts_col]
-    if ts_series.max() < 1e12:  # seconds, not ms
+    # Ensure timestamp is in milliseconds (integer)
+    ts_dtype = df[ts_col].dtype
+    if ts_dtype == pl.Datetime or str(ts_dtype).startswith("Datetime"):
+        # datetime[ms, UTC] → epoch milliseconds int
+        df = df.with_columns(
+            pl.col(ts_col).dt.epoch(time_unit="ms").alias(ts_col)
+        )
+    elif df[ts_col].max() < 1e12:  # seconds int, not ms
         df = df.with_columns((pl.col(ts_col) * 1000).alias(ts_col))
 
     # Filter by date range
