@@ -229,7 +229,9 @@ Level 4  수동 비상 정지      Telegram /emergency_close 또는 make emergen
 | 0 | 완료 | 환경 설정 -- Docker, PostgreSQL, Redis, Grafana |
 | 1 | 완료 | Bybit 테스트넷 API 키 발급 (10,000 USDT) |
 | 2 | 완료 | 서비스 기동 + 연결 검증, Redis Pub/Sub 데이터 흐름 확인 |
-| 3 | 완료 | 백테스트 -- 6년 히스토리 데이터 (2020-2026), fa80_lev5_r30 채택. **v2 재건 완료** (2026-04-11) |
+| 3 | 완료 | 백테스트 v1 — 6년 히스토리 (2020-2026), fa80_lev5_r30 채택 |
+| — | 완료 | 백테스트 v2 재건 (2026-04-11) — 근본 원인 진단 + Jesse 통합 + 실데이터 파이프라인 |
+| — | 완료 | Phase 13–14 (2026-04-12) — 자체엔진 제거, Jesse FA 포팅 완료 (`fa80_lev5_r30` 실데이터 재현 확인) |
 | 4 | **진행 중** | 테스트넷 포워드 테스트 -- FA 단독 운영, 현금 50% 버퍼 |
 | 5 | **준비 완료** | 소액 실전 ($200 USDT, `switch_to_mainnet.py` → BYBIT_TESTNET=false 전환) |
 | 6 | 예정 | 공개 퍼포먼스 대시보드 + 유튜브 |
@@ -246,18 +248,20 @@ Level 4  수동 비상 정지      Telegram /emergency_close 또는 make emergen
 - `fa80_lev4_r30`: CAGR +28.56%, Sharpe 3.556
 - `fa80_lev5_r50`: CAGR +33.54%, Sharpe 1.867
 
-### 백테스트 v2 재건 (2026-04-11)
+### 백테스트 v2 재건 + Phase 13–14 (2026-04-11 ~ 04-12)
 
-10전 10패 근본 원인 진단 후 4-Track 병렬 재건 완료.
+10전 10패 근본 원인 진단 후 4-Track 병렬 재건 → Jesse 완전 포팅 완료.
 
-| 수정 항목 | 내용 |
-|----------|------|
-| 실데이터 파이프라인 | Binance Vision·Coinalyze·Fear&Greed·FRED → Parquet |
-| Jesse 프레임워크 | `jesse_project/` — FundingArb·MultiFundingRotation 전략 |
-| 버그 3개 수정 | 멀티심볼 진입 차단 / HMM+LLM 수수료 오기재 / abs() 부호 제거 |
-| 합성 데이터 제거 | 4개 collector의 무음 폴백 → RuntimeError로 대체 |
+| 단계 | 수정 항목 | 내용 |
+|------|----------|------|
+| v2 Track A | 실데이터 파이프라인 | Binance Vision·Coinalyze·Fear&Greed·FRED → Parquet |
+| v2 Track B | Jesse 프레임워크 | `jesse_project/` — FundingArb·MultiFundingRotation 전략 |
+| v2 Track C | 버그 3개 수정 | 멀티심볼 진입 차단 / HMM+LLM 수수료 오기재 / abs() 부호 제거 |
+| v2 Track D | 합성 데이터 제거 | 4개 collector의 무음 폴백 → RuntimeError로 대체 |
+| Phase 13 | 자체엔진 제거 | 실패 전략 및 self-engine 코드 정리, 데이터 수집 → jesse_engine |
+| Phase 14 | Jesse FA 포팅 | `jesse_import.py` YYYY/MM.parquet 지원, fa80_lev5_r30 실데이터 재현 확인 ✅ |
 
-상세 내용: `services/backtester/jesse_project/README.md`, `tests/backtest/README.md`
+상세 내용: `services/backtester/jesse_project/README.md`, `tests/backtest/README.md`, `.result/phase13/`
 
 ---
 
