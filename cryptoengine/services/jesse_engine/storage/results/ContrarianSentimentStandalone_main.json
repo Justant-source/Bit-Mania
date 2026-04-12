@@ -1,0 +1,14 @@
+{
+  "strategy": "ContrarianSentimentStandalone",
+  "start": "2023-04-01",
+  "end": "2026-04-01",
+  "cagr": -0.0354,
+  "sharpe": -0.517,
+  "mdd": -0.1343,
+  "num_trades": 21,
+  "win_rate": 0.0,
+  "gross_pnl": 0.0,
+  "total_fees": 0.0,
+  "net_profit_percentage": -10.1,
+  "raw_metrics": {}
+}

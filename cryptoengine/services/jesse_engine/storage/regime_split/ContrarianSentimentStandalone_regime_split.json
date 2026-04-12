@@ -1,0 +1,43 @@
+{
+  "strategy": "ContrarianSentimentStandalone",
+  "results": [
+    {
+      "regime": "range",
+      "label": "Accumulation/Range (2023-04 to 2023-10)",
+      "start": "2023-04-01",
+      "end": "2023-10-31",
+      "cagr": 0.0,
+      "sharpe": 0.0,
+      "mdd": 0.0,
+      "num_trades": 0
+    },
+    {
+      "regime": "bull",
+      "label": "Bull Run to ATH (2023-11 to 2024-04)",
+      "start": "2023-11-01",
+      "end": "2024-04-30",
+      "cagr": -0.0829,
+      "sharpe": -1.446,
+      "mdd": -0.0795,
+      "num_trades": 6
+    },
+    {
+      "regime": "post-ATH",
+      "label": "Post-ATH Consolidation (2024-05 to 2025-04)",
+      "start": "2024-05-01",
+      "end": "2025-04-01",
+      "cagr": 0.0008,
+      "sharpe": 0.046,
+      "mdd": -0.0740,
+      "num_trades": 9
+    },
+    {
+      "regime": "compressed",
+      "label": "Latest regime proxy (same as post-ATH)",
+      "cagr": 0.0008,
+      "sharpe": 0.046,
+      "mdd": -0.0740,
+      "num_trades": 9
+    }
+  ]
+}

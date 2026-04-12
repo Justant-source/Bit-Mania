@@ -42,6 +42,9 @@ from tests.backtest.fa.dar_funding_predictor import DARFundingPredictor
 
 # ── 상수 ───────────────────────────────────────────────────────────────────────
 
+# DIAGNOSTIC 모드: True로 설정 시 각 bar에서 거부된 심볼의 이유를 상세 로깅
+DIAGNOSTIC = True
+
 UNIVERSE = [
     "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
     "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "MATICUSDT",
@@ -208,7 +211,7 @@ class MultiSymbolFundingBacktester:
         Return: [(symbol, expected_1w_pnl_minus_fee), ...]
         """
         candidates = []
-        rejected_count = 0
+        rejected_reasons = {}  # {symbol: [reason1, reason2, ...]}
 
         for symbol, data in symbol_data.items():
             metrics = self.calculate_metrics_for_symbol(
@@ -216,14 +219,21 @@ class MultiSymbolFundingBacktester:
             )
 
             # 자격 필터: 음수 펀딩 거부 + 임계값 체크
-            if (metrics["current_funding"] <= 0 or  # 펀딩비는 양수여야 함
-                metrics["avg_7d_funding"] < MIN_7D_AVG_FUNDING or
-                metrics["dar_prediction"] < MIN_DAR_PREDICTION or
-                metrics["price_momentum"] < PRICE_MOMENTUM_THRESHOLD):
-                rejected_count += 1
+            reasons = []
+            if metrics["current_funding"] < MIN_CURRENT_FUNDING:  # 고정된 임계값 비교 (FIX: <= 0 제거)
+                reasons.append(f"low_funding({metrics['current_funding']:.6f}<{MIN_CURRENT_FUNDING})")
+            if metrics["avg_7d_funding"] < MIN_7D_AVG_FUNDING:
+                reasons.append(f"low_7d_avg({metrics['avg_7d_funding']:.6f})")
+            if metrics["dar_prediction"] < MIN_DAR_PREDICTION:
+                reasons.append(f"low_dar({metrics['dar_prediction']:.6f})")
+            if metrics["price_momentum"] < PRICE_MOMENTUM_THRESHOLD:
+                reasons.append(f"low_momentum({metrics['price_momentum']:.4f})")
+
+            if reasons:
+                rejected_reasons[symbol] = reasons
                 continue
 
-                # 예상 1주일 순펀딩 (7일 = 21개 8h) - 왕복 수수료
+            # 예상 1주일 순펀딩 (7일 = 21개 8h) - 왕복 수수료
             expected_1w_funding = metrics["avg_7d_funding"] * 21
             expected_pnl = expected_1w_funding - ROUND_TRIP_FEE
 
@@ -236,20 +246,14 @@ class MultiSymbolFundingBacktester:
         # 초기 타임스텝 진단
         if not hasattr(self, '_logged_first'):
             self._logged_first = True
+            logger.info(f"[DIAG] T=0: 자격 심볼 {len(candidates)}개 (탈락 {len(rejected_reasons)}개)")
             if candidates:
-                logger.info(f"[DIAG] T=0: 자격 심볼 {len(candidates)}개 (탈락 {rejected_count}개)")
                 for c in candidates[:3]:
                     sym, pnl, m = c
-                    logger.info(f"  {sym}: funding={m['current_funding']:.6f} mom={m['price_momentum']:.4f} pnl={pnl:.6f}")
-            else:
-                logger.info(f"[DIAG] T=0: 자격 심볼 없음 (탈락 {rejected_count}개)")
-                for symbol in list(symbol_data.keys())[:3]:
-                    m = self.calculate_metrics_for_symbol(
-                        symbol_data[symbol]["funding"],
-                        symbol_data[symbol]["ohlcv"],
-                        current_time
-                    )
-                    logger.info(f"  {symbol}: fund={m['current_funding']:.6f} avg7d={m['avg_7d_funding']:.6f} dar={m['dar_prediction']:.6f} mom={m['price_momentum']:.4f}")
+                    logger.info(f"  QUALIFIED {sym}: cur_funding={m['current_funding']:.6f} avg7d={m['avg_7d_funding']:.6f} mom={m['price_momentum']:.4f} pnl={pnl:.6f}")
+            if rejected_reasons:
+                for sym in list(rejected_reasons.keys())[:3]:
+                    logger.info(f"  REJECTED {sym}: {', '.join(rejected_reasons[sym])}")
 
         return [(c[0], c[1]) for c in candidates[:5]]  # 상위 5개만 반환
 
@@ -398,7 +402,7 @@ class MultiSymbolFundingBacktester:
 
         metrics = {
             "total_return_pct": safe_float(total_return_pct),
-            "sharpe_ratio": safe_float(sharpe(equity_series)),
+            "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
             "max_drawdown_pct": safe_float(mdd(equity_series)),
             "final_equity": safe_float(equity_series.iloc[-1]),
             "cagr": safe_float(cagr(total_return_pct, years)),
@@ -429,7 +433,7 @@ class MultiSymbolFundingBacktester:
 
         metrics = {
             "total_return_pct": safe_float(total_return_pct),
-            "sharpe_ratio": safe_float(sharpe(equity_series)),
+            "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
             "max_drawdown_pct": safe_float(mdd(equity_series)),
             "final_equity": safe_float(equity_series.iloc[-1]),
             "cagr": safe_float(cagr(total_return_pct, years)),
@@ -488,7 +492,7 @@ class MultiSymbolFundingBacktester:
                 "symbol_count": len(uni_symbols),
                 "data_symbols": len(filtered_data),
                 "total_return_pct": safe_float(total_return_pct),
-                "sharpe_ratio": safe_float(sharpe(equity_series)),
+                "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
                 "max_drawdown_pct": safe_float(mdd(equity_series)),
                 "final_equity": safe_float(equity_series.iloc[-1]),
                 "cagr": safe_float(cagr(total_return_pct, years)),
@@ -551,7 +555,7 @@ class MultiSymbolFundingBacktester:
                         "max_concurrent": max_pos,
                         "holding_days": hold_days,
                         "total_return_pct": safe_float(total_return_pct),
-                        "sharpe_ratio": safe_float(sharpe(equity_series)),
+                        "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
                         "max_drawdown_pct": safe_float(mdd(equity_series)),
                         "final_equity": safe_float(equity_series.iloc[-1]),
                         "cagr": safe_float(cagr(total_return_pct, years)),
@@ -630,7 +634,7 @@ class MultiSymbolFundingBacktester:
                 "train_period": f"{window['train'][0].date()} ~ {window['train'][1].date()}",
                 "test_period": f"{window['test'][0].date()} ~ {window['test'][1].date()}",
                 "total_return_pct": safe_float(total_return_pct),
-                "sharpe_ratio": safe_float(sharpe(equity_series)),
+                "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
                 "max_drawdown_pct": safe_float(mdd(equity_series)),
                 "final_equity": safe_float(equity_series.iloc[-1]),
                 "cagr": safe_float(cagr(total_return_pct, years) if years > 0 else 0.0),
@@ -676,7 +680,7 @@ class MultiSymbolFundingBacktester:
         metrics = {
             "period": f"{low_funding_start.date()} ~ {low_funding_end.date()}",
             "total_return_pct": safe_float(total_return_pct),
-            "sharpe_ratio": safe_float(sharpe(equity_series)),
+            "sharpe_ratio": safe_float(sharpe(equity_series, periods_per_year=1095)),  # 8h intervals
             "max_drawdown_pct": safe_float(mdd(equity_series)),
             "final_equity": safe_float(equity_series.iloc[-1]),
             "cagr": safe_float(cagr(total_return_pct, years) if years > 0 else 0.0),

@@ -206,30 +206,39 @@ async def compute_cumulative_flows(pool: asyncpg.Pool) -> None:
 
 
 async def backfill_etf_flows(pool: asyncpg.Pool) -> None:
-    """ETF 플로우 백필: 2024-01-11 ~ 현재."""
+    """ETF 플로우 백필: 2024-01-11 ~ 현재.
+
+    Note: ETF data only available from 2024-01-11 (Bitcoin spot ETF approval date).
+    Prior to this date, no real ETF flow data exists.
+    """
     start_date = datetime(2024, 1, 11, tzinfo=UTC)
     end_date = datetime.now(tz=UTC)
 
     logger.info(f"ETF 플로우 백필: {start_date.date()} ~ {end_date.date()}")
 
-    # 1단계: 외부 API 시도 (실패 가능성 높음)
+    # 1단계: Farside Investors 시도
     flows = await fetch_etf_flow_farside()
     if flows:
         await save_etf_flows(pool, flows, "farside")
+        await compute_cumulative_flows(pool)
         return
 
+    # 2단계: SoSoValue API 시도
     flows = await fetch_etf_flow_sosovaluе()
     if flows:
         await save_etf_flows(pool, flows, "sosovaluе")
+        await compute_cumulative_flows(pool)
         return
 
-    # 2단계: 합성 폴백 (항상 가능)
-    logger.info("외부 API 실패 → 합성 데이터로 폴백")
-    flows = await generate_synthetic_etf_flow(pool, start_date, end_date)
-    await save_etf_flows(pool, flows, "synthetic")
-
-    # 누적 계산
-    await compute_cumulative_flows(pool)
+    # No synthetic fallback - ETF data is real data only
+    raise RuntimeError(
+        "Failed to fetch ETF flow data from Farside and SoSoValue APIs. "
+        "ETF data is only available from 2024-01-11 onwards (Bitcoin spot ETF approval). "
+        "Options:\n"
+        "1. Try alternative sources: Farside (farside.co.uk), SoSoValue, CoinGlass\n"
+        "2. For backtests before 2024-01-11, consider a strategy that doesn't depend on ETF flow\n"
+        "3. Do not use synthetic fallback for ETF flow data - it would be meaningless\n"
+    )
 
 
 async def main(args):

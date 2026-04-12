@@ -21,6 +21,61 @@ related:
 
 ---
 
+## [1.7.0] - 2026-04-11
+
+### 추가 (Added)
+
+#### 백테스트 v2 재건 — 실데이터 파이프라인 + Jesse 프레임워크 통합
+
+##### 10전 10패 근본 원인 진단 (`PART1_ENGINE_DIAGNOSIS_REBUILD_ROADMAP.md`)
+- 확정 버그 3개 진단: (1) 멀티심볼 `funding≤0` 조건으로 진입 전무, (2) HMM+LLM `TAKER_FEE=0.0002` (Maker 요율 오기재), (3) 수수료 Notional/Margin 혼동
+- 합성 데이터 오염 4개 전략 확인: ETF Flow (~80%), Calendar Spread (100%), Liquidation Cascade (~50%), On-Chain Macro (~90%)
+- Jesse 프레임워크 선정 (#1): crypto-native, Bybit native, 무료 백테스팅, Monte Carlo 내장
+- 무료 데이터 스택 확정: Binance Vision + Coinalyze + Alternative.me + FRED API
+
+##### Track A — 실데이터 수집 파이프라인 (`services/backtester/scripts/`)
+- `download_binance_vision.py`: BTC/ETH OHLCV Parquet 다운로드 (2019~, 인증 불필요, 재개 가능)
+- `fetch_coinalyze_funding.py`: 펀딩비·OI·청산 히스토리 (30일 청킹, 1req/s 레이트리밋)
+- `fetch_fear_greed.py`: Alternative.me Fear & Greed 전체 이력 (`limit=0`, 2018~)
+- `fetch_fred_macro.py`: DFF·DGS10·WALCL·CPIAUCSL (인증 불필요 공개 CSV)
+- `export_pg_to_parquet.py`: PostgreSQL → Parquet (Jesse 호환, CLI 인수 지원)
+- `requirements.txt`: `pyarrow>=15.0.0` 추가
+
+##### Track B — Jesse 프레임워크 통합 (`services/backtester/jesse_project/`)
+- `requirements.txt`: `jesse>=0.41.0` 추가
+- `strategies/FundingArb.py`: 8h 정산(UTC 00/08/16)·레버리지5x·TAKER_FEE 0.055% 정확 반영
+- `strategies/MultiFundingRotation.py`: 4심볼 동적 로테이션 (BTCUSDT·ETHUSDT·SOLUSDT·BNBUSDT, 8h마다 상위 3개 선택)
+- `config.py`: jesse_db PostgreSQL 설정 (cryptoengine DB와 분리)
+- `test_setup.py`: Jesse 설치·DB 연결·전략 임포트 자동 검증 (270줄)
+- `README.md`: Jesse 설치~백테스트 실행 전체 가이드 (564줄)
+- `JESSE_INTEGRATION.md`: CryptoEngine 통합 로드맵 (389줄)
+
+##### Track C — 버그 수정 (`services/backtester/tests/backtest/`)
+- `fa/bt_multi_symbol_funding_rotation.py`:
+  - `if funding <= 0` → `if funding < MIN_CURRENT_FUNDING` (0 근처 심볼 오배제 수정)
+  - DIAGNOSTIC 모드 추가 (심볼별 거부 사유 로깅)
+  - Sharpe `periods_per_year` 전체 6곳 → `1095` (8h 데이터 기준) 수정
+- `combined/bt_hmm_llm_meta_strategy.py`:
+  - `TAKER_FEE: 0.0002 → 0.00055` (Maker→Taker 정정)
+  - `MIN_REGIME_CONFIDENCE=0.70` 추가 (약한 HMM 신호 필터링)
+  - `MIN_HOLD_BARS=4` 추가 (진입 4봉 이내 반전 차단, ~950회 → ~200~300회 예상)
+  - `periods_per_year=8760` 명시
+- `fa/bt_funding_extreme_reversal.py`:
+  - `abs(funding_rate)` 제거 → 숏/롱 포지션별 부호 보존 (숏: `+notional×rate`, 롱: `-notional×rate`)
+
+##### Track D — 합성 데이터 무음 폴백 제거 (`services/backtester/tests/backtest/analysis/`)
+- `coinmetrics_collector.py`: Pro 지표(MVRV·SOPR·NVT) 제거 → Community API 전용, API 실패 시 `RuntimeError`
+- `fear_greed_collector.py`: `limit=1000` → `limit=0` (전체 이력), 범위 검증 추가
+- `fa/bt_calendar_spread.py`: 고정 2.5% 합성 기저 완전 제거 → 실데이터 없으면 `RuntimeError`, `--synthetic-mode` 명시 필요
+- `analysis/etf_flow_collector.py`: API 실패 시 BTC 가격 프록시 무음 폴백 제거 → `RuntimeError`
+
+### 변경 (Changed)
+
+#### 백테스트 스킬 인덱스 (`tests/backtest/README.md`)
+- v2 재건 작업 이력 테이블 추가 (Track A~D 요약, 핵심 버그 수정 대조표)
+
+---
+
 ## [1.6.1] - 2026-04-07
 
 ### 추가 (Added)

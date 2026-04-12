@@ -75,6 +75,7 @@ class CascadeBacktester:
         rsi_period: int = 14,
         rsi_threshold: float = 30.0,
         entry_distance_pct: float = 0.01,  # 24h 저점으로부터의 거리
+        min_cascade_confidence: float = 0.0,  # v3: 최소 신뢰도 (0.0~1.0, 0.5+ 권장)
     ):
         self.ohlcv = ohlcv_1h.sort_values("open_time").reset_index(drop=True)
         self.initial_capital = initial_capital
@@ -87,6 +88,7 @@ class CascadeBacktester:
         self.max_hold_hours = max_hold_hours
         self.position_size_ratio = position_size_ratio
         self.leverage = leverage
+        self.min_cascade_confidence = min_cascade_confidence
         self.rsi_period = rsi_period
         self.rsi_threshold = rsi_threshold
         self.entry_distance_pct = entry_distance_pct
@@ -105,12 +107,13 @@ class CascadeBacktester:
         return rsi
 
     def _detect_cascades(self) -> pd.DataFrame:
-        """캐스케이드 탐지"""
+        """캐스케이드 탐지 (v3: 삼중 확인 모드 사용)"""
         return detect_cascade(
             self.ohlcv,
             threshold_usd=self.cascade_threshold_usd,
             oi_drop_threshold=self.oi_drop_threshold,
             price_change_threshold=self.price_change_threshold,
+            use_triple_confirmation=True,  # v3: RSI + 가격 + 거래량 3중 확인
         )
 
     def run(self) -> Dict[str, Any]:
@@ -180,32 +183,36 @@ class CascadeBacktester:
 
             # 2. 신규 포지션 진입
             if not current_position:
-                # 캐스케이드 신호 확인
+                # 캐스케이드 신호 확인 (v3: 신뢰도 필터 포함)
                 cascade_at_idx = cascades[
                     (cascades["cascade_time"] == current_time) &
                     (cascades["side"] == "long_squeeze")
                 ]
 
-                if not cascade_at_idx.empty and not pd.isna(row["rsi"]) and row["rsi"] < self.rsi_threshold:
-                    # 24h 저점 근처 확인
-                    dist_to_low = (current_price - row["low_24h"]) / row["low_24h"]
-                    if dist_to_low <= self.entry_distance_pct:
-                        cascade = cascade_at_idx.iloc[0]
-                        severity = cascade["severity_score"]
+                # v3: 신뢰도 필터 적용 (없을 경우 0.0으로 처리)
+                if not cascade_at_idx.empty:
+                    cascade = cascade_at_idx.iloc[0]
+                    confidence = cascade.get("confidence", 0.0)
 
-                        # 포지션 크기 계산
-                        position_usd = self.capital * self.position_size_ratio * severity
-                        size = position_usd / current_price / self.leverage
+                    if confidence >= self.min_cascade_confidence:
+                        # 24h 저점 근처 확인
+                        dist_to_low = (current_price - row["low_24h"]) / row["low_24h"]
+                        if dist_to_low <= self.entry_distance_pct:
+                            severity = cascade["severity_score"]
 
-                        current_position = CascadeTrade(
-                            entry_time=current_time,
-                            entry_price=current_price,
-                            size=size,
-                            leverage=self.leverage,
-                        )
-                        logger.debug(
-                            f"진입 @ {current_time}: ${position_usd:.0f} ({size:.4f} BTC) @ {current_price:.2f}"
-                        )
+                            # 포지션 크기 계산 (신뢰도로 스케일링)
+                            position_usd = self.capital * self.position_size_ratio * severity * confidence
+                            size = position_usd / current_price / self.leverage
+
+                            current_position = CascadeTrade(
+                                entry_time=current_time,
+                                entry_price=current_price,
+                                size=size,
+                                leverage=self.leverage,
+                            )
+                            logger.debug(
+                                f"진입 @ {current_time}: ${position_usd:.0f} ({size:.4f} BTC) @ {current_price:.2f} (신뢰도={confidence:.2f})"
+                            )
 
             # 3. 자본/수익곡선 추적
             if current_position:

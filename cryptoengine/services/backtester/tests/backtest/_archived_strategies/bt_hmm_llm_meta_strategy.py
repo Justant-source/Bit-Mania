@@ -45,6 +45,9 @@ from tests.backtest.core import (
     sharpe, mdd, cagr, safe_float, monthly_returns,
     make_pool, save_result,
 )
+from tests.backtest.core.constants import (
+    MAKER_FEE, TAKER_FEE, MIN_REGIME_CONFIDENCE, MIN_HOLD_BARS
+)
 from tests.backtest.regime.hmm_regime_detector import HMMRegimeDetector
 from tests.backtest.regime.llm_meta_advisor import simulate_llm_advisory
 
@@ -57,9 +60,7 @@ TIMEFRAME = "1h"
 TIMEFRAME_6H = "6h"
 INITIAL_CAPITAL = 10_000.0
 LEVERAGE = 2.0
-MAKER_FEE = 0.0002
-TAKER_FEE = 0.0002
-FEE_RATE = MAKER_FEE  # assume maker
+FEE_RATE = MAKER_FEE  # assume maker, but taker used in trades
 
 # Stage 2 variants (regime_size_ratio_low, regime_size_ratio_mid, regime_size_ratio_high)
 STAGE_2_VARIANTS = [
@@ -295,9 +296,11 @@ class HMMLLMBacktester:
         self.position_size = 0.0
         self.position_entry_price = 0.0
         self.position_side = None  # "long" or "short"
+        self.position_entry_bar = -999  # Track entry bar for minimum hold period
         self.trades: list[Trade] = []
         self.equity_curve = []
         self.trading_halt_until = None
+        self.per_trade_pnl = []  # Track per-trade PnL for debugging
 
         # 지표
         self._add_indicators()
@@ -355,9 +358,13 @@ class HMMLLMBacktester:
                             df_6h_slice = self.df_6h.iloc[:idx_pos]
                             try:
                                 hmm_state, hmm_proba = _predict_hmm_state(ts, df_6h_slice, self.hmm_detector)
-                                hmm_state_cache = hmm_state
-                                hmm_proba_cache = hmm_proba
-                                last_hmm_update_idx = idx_int
+                                # FIX: Only use HMM state if confidence is high (min_regime_confidence threshold)
+                                max_proba = float(np.max(hmm_proba))
+                                if max_proba >= MIN_REGIME_CONFIDENCE:
+                                    hmm_state_cache = hmm_state
+                                    hmm_proba_cache = hmm_proba
+                                    last_hmm_update_idx = idx_int
+                                # else: keep previous state if confidence too low
                             except Exception:
                                 pass  # 예측 실패 시 이전 값 유지
 
@@ -416,7 +423,8 @@ class HMMLLMBacktester:
                 size_ratio *= 0.25
 
             # ─ 주문 실행 ──
-            self._execute_trade(ts, row["close"], signal, size_ratio)
+            # FIX: Add bar_idx for minimum hold period check
+            self._execute_trade(ts, row["close"], signal, size_ratio, idx_int)
 
             # ─ 청산 가격 업데이트 ──
             if self.position_size > 0:
@@ -432,13 +440,23 @@ class HMMLLMBacktester:
 
         return self._compute_metrics()
 
-    def _execute_trade(self, ts: pd.Timestamp, price: float, signal: str, size_ratio: float):
-        """주문 실행 (이전 신호 변화 시에만)."""
+    def _execute_trade(self, ts: pd.Timestamp, price: float, signal: str, size_ratio: float, bar_idx: int):
+        """주문 실행 (이전 신호 변화 시에만).
+
+        FIX: Add minimum hold period check to prevent excessive reversals from HMM regime switches.
+        """
         if signal == "flat":
             return
 
         if self.position_side == signal:
             return  # 같은 방향이면 넘김
+
+        # ─ 최소 보유 기간 체크 (HMM 레짐 변화로 인한 과도한 포지션 전환 방지) ──
+        if self.position_size > 0:
+            bars_held = bar_idx - self.position_entry_bar
+            if bars_held < MIN_HOLD_BARS:
+                # 최소 보유 기간 미충족 시 청산하지 않음
+                return
 
         # ─ 기존 포지션 청산 ──
         if self.position_size > 0:
@@ -449,9 +467,14 @@ class HMMLLMBacktester:
         self.position_size = notional / price
         self.position_entry_price = price
         self.position_side = signal
+        self.position_entry_bar = bar_idx
 
     def _update_position(self, current_price: float) -> float:
-        """포지션 손익 업데이트."""
+        """포지션 손익 업데이트.
+
+        FIX: Track per-trade metrics separately for debugging.
+        Uses TAKER_FEE for realistic fee calculation (actual trades use taker fees).
+        """
         if self.position_size == 0:
             return 0.0
 
@@ -462,21 +485,34 @@ class HMMLLMBacktester:
 
         notional = self.position_size * self.position_entry_price
         pnl = (price_chg / self.position_entry_price) * notional
-        fee = notional * FEE_RATE
-        pnl -= fee
+        # Use TAKER_FEE for realistic fee calculation (entry and exit both assume taker)
+        entry_fee = notional * TAKER_FEE
+        exit_fee = notional * TAKER_FEE
+        gross_pnl = pnl
+        total_fee = entry_fee + exit_fee
+        pnl = gross_pnl - total_fee
 
         return pnl
 
     def _close_position(self, ts: pd.Timestamp, price: float):
-        """포지션 청산."""
+        """포지션 청산.
+
+        FIX: Track per-trade PnL breakdown for debugging fee impact.
+        """
         if self.position_size == 0:
             return
 
         pnl = self._update_position(price)
         pnl_pct = (pnl / self.equity) * 100
 
+        # Calculate gross PnL (before fees) for diagnostic
+        if self.position_side == "long":
+            gross_pnl = self.position_size * (price - self.position_entry_price)
+        else:  # short
+            gross_pnl = self.position_size * (self.position_entry_price - price)
+
         trade = Trade(
-            entry_ts=ts,  # 간략화
+            entry_ts=ts,
             entry_price=self.position_entry_price,
             entry_side=self.position_side,
             exit_ts=ts,
@@ -485,11 +521,20 @@ class HMMLLMBacktester:
             pnl_pct=pnl_pct,
         )
         self.trades.append(trade)
+        self.per_trade_pnl.append({
+            "side": self.position_side,
+            "entry": self.position_entry_price,
+            "exit": price,
+            "gross_pnl": gross_pnl,
+            "net_pnl": pnl,
+            "fee_cost": gross_pnl - pnl,
+        })
 
         self.equity += pnl
         self.position_size = 0
         self.position_entry_price = 0
         self.position_side = None
+        self.position_entry_bar = -999
 
     def _compute_metrics(self) -> dict[str, Any]:
         """성과 지표 계산."""
@@ -497,7 +542,8 @@ class HMMLLMBacktester:
         returns = eq_curve["equity"].pct_change().dropna()
 
         total_return_pct = ((self.equity - self.initial_capital) / self.initial_capital) * 100
-        sharpe_val = sharpe(returns) if len(returns) > 1 else 0.0
+        # FIX: Use correct periods_per_year for 1h data (8760 bars/year)
+        sharpe_val = sharpe(returns, periods_per_year=8760) if len(returns) > 1 else 0.0
         mdd_val = mdd(eq_curve["equity"]) if len(eq_curve) > 0 else 0.0
         cagr_val = cagr(
             total_return_pct,

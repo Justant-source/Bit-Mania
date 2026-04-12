@@ -59,6 +59,7 @@ from tests.backtest.core import (
     sharpe, mdd, cagr, safe_float, monthly_returns, profit_factor,
     make_pool, save_result,
 )
+from tests.backtest.core.exceptions import MissingDataError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -422,8 +423,23 @@ class CalendarSpreadEngine:
         }
 
 
-async def load_quarterly_ohlcv(pool: asyncpg.Pool, symbol: str, start: datetime, end: datetime) -> pd.DataFrame:
-    """quarterly_futures_history 테이블에서 OHLCV 데이터를 로드."""
+async def load_quarterly_ohlcv(pool: asyncpg.Pool, symbol: str, start: datetime, end: datetime, allow_synthetic: bool = False) -> pd.DataFrame:
+    """quarterly_futures_history 테이블에서 OHLCV 데이터를 로드.
+
+    Args:
+        pool: Database connection pool
+        symbol: Quarterly futures symbol (e.g., 'BTCUSDM25')
+        start: Start datetime
+        end: End datetime
+        allow_synthetic: If True, returns empty DataFrame on missing data (caller handles fallback).
+                         If False, raises RuntimeError.
+
+    Returns:
+        OHLCV DataFrame with DatetimeIndex, or empty DataFrame if allow_synthetic=True and no data found.
+
+    Raises:
+        RuntimeError: If allow_synthetic=False and data not found.
+    """
     try:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
@@ -436,20 +452,43 @@ async def load_quarterly_ohlcv(pool: asyncpg.Pool, symbol: str, start: datetime,
                 symbol, start, end,
             )
         if not rows:
-            return pd.DataFrame()
+            if allow_synthetic:
+                logger.warning(f"No quarterly futures data found for {symbol} between {start.date()} and {end.date()}")
+                return pd.DataFrame()
+            else:
+                raise RuntimeError(
+                    f"Quarterly futures data not found for {symbol} ({start.date()} to {end.date()}). "
+                    f"Real quarterly data is required for accurate calendar spread backtests. "
+                    f"Options:\n"
+                    f"1. Download real quarterly futures data from Binance/Bybit\n"
+                    f"2. Use --synthetic-mode flag to run with synthetic 2.5% contango (not recommended)\n"
+                )
+
         df = pd.DataFrame(rows, columns=["ts", "open", "high", "low", "close", "volume"])
         df["ts"] = pd.to_datetime(df["ts"], utc=True)
         df.set_index("ts", inplace=True)
         for c in ["open", "high", "low", "close", "volume"]:
             df[c] = df[c].astype(float)
         return df
+    except RuntimeError:
+        raise  # Re-raise RuntimeError
     except Exception as e:
-        logger.warning(f"Failed to load quarterly OHLCV: {e}")
-        return pd.DataFrame()
+        if allow_synthetic:
+            logger.warning(f"Failed to load quarterly OHLCV: {e}")
+            return pd.DataFrame()
+        else:
+            raise RuntimeError(f"Database error loading quarterly OHLCV: {e}")
 
 
 async def run_stage1(pool: asyncpg.Pool) -> None:
-    """Stage 1: 기본값으로 실행."""
+    """Stage 1: 기본값으로 실행.
+
+    Args:
+        pool: Database connection pool
+
+    Raises:
+        MissingDataError: If real quarterly futures data is not available.
+    """
     logger.info("=" * 80)
     logger.info("STAGE 1: Default Parameters")
     logger.info("=" * 80)
@@ -462,44 +501,23 @@ async def run_stage1(pool: asyncpg.Pool) -> None:
     funding = await load_funding(pool, "BTCUSD", start, end)
 
     if perp_ohlcv.empty:
-        logger.warning("No OHLCV data available for BTCUSD, generating synthetic data")
-        # 합성 데이터 생성: 일정 기간 랜덤 워크
-        import numpy as np
-        dates = pd.date_range(start, end, freq='D', tz='UTC')
-        np.random.seed(42)
-        returns = np.random.normal(0.0005, 0.02, len(dates))
-        prices = 45000 * np.exp(np.cumsum(returns))
-
-        # OHLCV 생성 (충분한 거래량 포함)
-        daily_volume_usd = np.random.uniform(10_000_000_000, 20_000_000_000, len(dates))  # $10B~20B 일거래량
-        perp_ohlcv = pd.DataFrame({
-            'open': prices * (1 - np.abs(np.random.normal(0, 0.005, len(dates)))),
-            'high': prices * (1 + np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'low': prices * (1 - np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'close': prices,
-            'volume': daily_volume_usd / prices,
-        }, index=dates)
+        raise RuntimeError("No perpetual futures OHLCV data found for BTCUSD. Real data is required.")
 
     if funding.empty:
-        logger.warning("No funding data available for BTCUSD, generating synthetic funding rates")
-        # 합성 펀딩비 데이터: 평균 0.01% per 8h (연 1.3%), 포지티브 편향
-        dates = pd.date_range(start, end, freq='8h', tz='UTC')
-        np.random.seed(42)
-        funding = pd.DataFrame({
-            'rate': np.random.normal(0.00015, 0.00008, len(dates)),  # 평균 0.015% per 8h
-        }, index=dates)
+        raise RuntimeError("No funding rate data found for BTCUSD. Real data is required.")
 
-    # 분기물 데이터 로드 (또는 합성)
-    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end)
+    # 분기물 데이터 로드
+    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end, allow_synthetic=False)
 
     if quarterly_ohlcv.empty:
-        # 합성 데이터 생성
-        logger.info("Using synthetic quarterly futures data (2.5% contango)")
-        quarterly_ohlcv = perp_ohlcv.copy()
-        quarterly_ohlcv["close"] = quarterly_ohlcv["close"] * 1.025  # 2.5% 콘탱고
-        quarterly_ohlcv["open"] = quarterly_ohlcv["open"] * 1.025
-        quarterly_ohlcv["high"] = quarterly_ohlcv["high"] * 1.025
-        quarterly_ohlcv["low"] = quarterly_ohlcv["low"] * 1.025
+        raise MissingDataError(
+            "Calendar spread backtest requires real quarterly futures data (BTCUSDM25). "
+            "No synthetic data generation allowed. "
+            "Options:\n"
+            "1. Download quarterly futures history from Binance/Bybit\n"
+            "2. Run: python scripts/download_binance_vision.py --contract quarterly\n"
+            "3. Or skip calendar spread backtest until real data available"
+        )
 
     params = CalendarSpreadParams()
     engine = CalendarSpreadEngine(perp_ohlcv, quarterly_ohlcv, funding, params)
@@ -531,7 +549,15 @@ async def run_stage1(pool: asyncpg.Pool) -> None:
 
 
 async def run_stage2(pool: asyncpg.Pool, min_basis: float = 1.5) -> None:
-    """Stage 2: 파라미터 그리드 서치."""
+    """Stage 2: 파라미터 그리드 서치.
+
+    Args:
+        pool: Database connection pool
+        min_basis: Minimum annualized basis for stage 2
+
+    Raises:
+        MissingDataError: If real quarterly futures data is not available.
+    """
     logger.info("=" * 80)
     logger.info("STAGE 2: Parameter Grid Search")
     logger.info("=" * 80)
@@ -541,35 +567,24 @@ async def run_stage2(pool: asyncpg.Pool, min_basis: float = 1.5) -> None:
 
     perp_ohlcv = await load_ohlcv(pool, "BTCUSD", "D", start, end)
     funding = await load_funding(pool, "BTCUSD", start, end)
-    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end)
 
-    # 합성 데이터 생성 (없을 경우)
     if perp_ohlcv.empty:
-        logger.warning("Generating synthetic OHLCV data for Stage 2")
-        dates = pd.date_range(start, end, freq='D', tz='UTC')
-        np.random.seed(42)
-        returns = np.random.normal(0.0005, 0.02, len(dates))
-        prices = 45000 * np.exp(np.cumsum(returns))
-        daily_volume_usd = np.random.uniform(10_000_000_000, 20_000_000_000, len(dates))
-        perp_ohlcv = pd.DataFrame({
-            'open': prices * (1 - np.abs(np.random.normal(0, 0.005, len(dates)))),
-            'high': prices * (1 + np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'low': prices * (1 - np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'close': prices,
-            'volume': daily_volume_usd / prices,
-        }, index=dates)
+        raise RuntimeError("No perpetual futures OHLCV data found for BTCUSD. Real data is required for Stage 2.")
 
     if funding.empty:
-        logger.warning("Generating synthetic funding rates for Stage 2")
-        dates = pd.date_range(start, end, freq='8h', tz='UTC')
-        np.random.seed(42)
-        funding = pd.DataFrame({
-            'rate': np.random.normal(0.00015, 0.00008, len(dates)),
-        }, index=dates)
+        raise RuntimeError("No funding rate data found for BTCUSD. Real data is required for Stage 2.")
+
+    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end, allow_synthetic=False)
 
     if quarterly_ohlcv.empty:
-        quarterly_ohlcv = perp_ohlcv.copy()
-        quarterly_ohlcv["close"] = quarterly_ohlcv["close"] * 1.025
+        raise MissingDataError(
+            "Calendar spread Stage 2 parameter grid search requires real quarterly futures data (BTCUSDM25). "
+            "No synthetic data generation allowed. "
+            "Options:\n"
+            "1. Download quarterly futures history from Binance/Bybit\n"
+            "2. Run: python scripts/download_binance_vision.py --contract quarterly\n"
+            "3. Or skip Stage 2 until real data available"
+        )
 
     # 파라미터 조합
     min_basis_vals = [1.0, 1.5, 2.0, 3.0]
@@ -633,7 +648,14 @@ async def run_stage2(pool: asyncpg.Pool, min_basis: float = 1.5) -> None:
 
 
 async def run_stage3(pool: asyncpg.Pool) -> None:
-    """Stage 3: 베이시스 vs 펀딩비 모드 비교."""
+    """Stage 3: 베이시스 vs 펀딩비 모드 비교.
+
+    Args:
+        pool: Database connection pool
+
+    Raises:
+        MissingDataError: If real quarterly futures data is not available.
+    """
     logger.info("=" * 80)
     logger.info("STAGE 3: Basis vs Funding Mode Comparison")
     logger.info("=" * 80)
@@ -643,33 +665,24 @@ async def run_stage3(pool: asyncpg.Pool) -> None:
 
     perp_ohlcv = await load_ohlcv(pool, "BTCUSD", "D", start, end)
     funding = await load_funding(pool, "BTCUSD", start, end)
-    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end)
 
-    # 합성 데이터 생성 (없을 경우)
     if perp_ohlcv.empty:
-        logger.warning("Generating synthetic OHLCV data for Stage 3")
-        dates = pd.date_range(start, end, freq='D', tz='UTC')
-        np.random.seed(42)
-        returns = np.random.normal(0.0005, 0.02, len(dates))
-        prices = 45000 * np.exp(np.cumsum(returns))
-        perp_ohlcv = pd.DataFrame({
-            'open': prices * (1 - np.abs(np.random.normal(0, 0.005, len(dates)))),
-            'high': prices * (1 + np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'low': prices * (1 - np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'close': prices,
-            'volume': np.random.uniform(1000, 5000, len(dates)) * 1_000_000 / prices,
-        }, index=dates)
+        raise RuntimeError("No perpetual futures OHLCV data found for BTCUSD. Real data is required for Stage 3.")
 
     if funding.empty:
-        logger.warning("Generating synthetic funding rates for Stage 3")
-        dates = pd.date_range(start, end, freq='8h', tz='UTC')
-        funding = pd.DataFrame({
-            'rate': np.random.normal(0.0001, 0.00005, len(dates)),
-        }, index=dates)
+        raise RuntimeError("No funding rate data found for BTCUSD. Real data is required for Stage 3.")
+
+    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end, allow_synthetic=False)
 
     if quarterly_ohlcv.empty:
-        quarterly_ohlcv = perp_ohlcv.copy()
-        quarterly_ohlcv["close"] = quarterly_ohlcv["close"] * 1.025
+        raise MissingDataError(
+            "Calendar spread Stage 3 basis vs funding mode comparison requires real quarterly futures data (BTCUSDM25). "
+            "No synthetic data generation allowed. "
+            "Options:\n"
+            "1. Download quarterly futures history from Binance/Bybit\n"
+            "2. Run: python scripts/download_binance_vision.py --contract quarterly\n"
+            "3. Or skip Stage 3 until real data available"
+        )
 
     # 3가지 모드
     modes = [
@@ -702,7 +715,14 @@ async def run_stage3(pool: asyncpg.Pool) -> None:
 
 
 async def run_stage5_fee_comparison(pool: asyncpg.Pool) -> None:
-    """Stage 5: 일반 수수료 vs Spread API 수수료 비교."""
+    """Stage 5: 일반 수수료 vs Spread API 수수료 비교.
+
+    Args:
+        pool: Database connection pool
+
+    Raises:
+        MissingDataError: If real quarterly futures data is not available.
+    """
     logger.info("=" * 80)
     logger.info("STAGE 5: Fee Comparison (Standard vs Spread API)")
     logger.info("=" * 80)
@@ -712,33 +732,24 @@ async def run_stage5_fee_comparison(pool: asyncpg.Pool) -> None:
 
     perp_ohlcv = await load_ohlcv(pool, "BTCUSD", "D", start, end)
     funding = await load_funding(pool, "BTCUSD", start, end)
-    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end)
 
-    # 합성 데이터 생성 (없을 경우)
     if perp_ohlcv.empty:
-        logger.warning("Generating synthetic OHLCV data for Stage 5")
-        dates = pd.date_range(start, end, freq='D', tz='UTC')
-        np.random.seed(42)
-        returns = np.random.normal(0.0005, 0.02, len(dates))
-        prices = 45000 * np.exp(np.cumsum(returns))
-        perp_ohlcv = pd.DataFrame({
-            'open': prices * (1 - np.abs(np.random.normal(0, 0.005, len(dates)))),
-            'high': prices * (1 + np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'low': prices * (1 - np.abs(np.random.normal(0, 0.01, len(dates)))),
-            'close': prices,
-            'volume': np.random.uniform(1000, 5000, len(dates)) * 1_000_000 / prices,
-        }, index=dates)
+        raise RuntimeError("No perpetual futures OHLCV data found for BTCUSD. Real data is required for Stage 5.")
 
     if funding.empty:
-        logger.warning("Generating synthetic funding rates for Stage 5")
-        dates = pd.date_range(start, end, freq='8h', tz='UTC')
-        funding = pd.DataFrame({
-            'rate': np.random.normal(0.0001, 0.00005, len(dates)),
-        }, index=dates)
+        raise RuntimeError("No funding rate data found for BTCUSD. Real data is required for Stage 5.")
+
+    quarterly_ohlcv = await load_quarterly_ohlcv(pool, "BTCUSDM25", start, end, allow_synthetic=False)
 
     if quarterly_ohlcv.empty:
-        quarterly_ohlcv = perp_ohlcv.copy()
-        quarterly_ohlcv["close"] = quarterly_ohlcv["close"] * 1.025
+        raise MissingDataError(
+            "Calendar spread Stage 5 fee comparison requires real quarterly futures data (BTCUSDM25). "
+            "No synthetic data generation allowed. "
+            "Options:\n"
+            "1. Download quarterly futures history from Binance/Bybit\n"
+            "2. Run: python scripts/download_binance_vision.py --contract quarterly\n"
+            "3. Or skip Stage 5 until real data available"
+        )
 
     # 두 가지 수수료 구조
     fee_scenarios = [
@@ -773,9 +784,15 @@ async def run_stage5_fee_comparison(pool: asyncpg.Pool) -> None:
 
 async def main() -> None:
     """메인 진입점."""
-    parser = argparse.ArgumentParser(description="Calendar Spread Backtest")
+    parser = argparse.ArgumentParser(
+        description="Calendar Spread Backtest (#06)",
+        epilog="Note: Real quarterly futures data is required for accurate results. "
+               "Use --synthetic-mode only for testing (results will be unrealistic)."
+    )
     parser.add_argument("--stage", default="1", help="Stage (1, 2, 3, 5, or 'all')")
     parser.add_argument("--min-basis", type=float, default=1.5, help="Min annualized basis for stage 2")
+    parser.add_argument("--synthetic-mode", action="store_true",
+                        help="Use synthetic 2.5%% contango for quarterly data if real data unavailable (NOT RECOMMENDED)")
 
     args = parser.parse_args()
 
@@ -797,8 +814,17 @@ async def main() -> None:
         await pool.close()
         logger.info("Backtest completed successfully")
 
+    except MissingDataError as e:
+        logger.error(f"FATAL: {e}")
+        logger.error("Real data is required. Exiting.")
+        raise SystemExit(1)
+    except RuntimeError as e:
+        logger.error(f"FATAL: {e}")
+        logger.error("Backtest requires real data. Exiting.")
+        raise SystemExit(1)
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

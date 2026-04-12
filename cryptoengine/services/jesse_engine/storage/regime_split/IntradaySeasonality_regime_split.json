@@ -1,0 +1,43 @@
+{
+  "strategy": "IntradaySeasonality",
+  "results": [
+    {
+      "regime": "range",
+      "label": "Accumulation/Range (2023-04 to 2023-10)",
+      "start": "2023-04-01",
+      "end": "2023-10-31",
+      "cagr": -0.0388,
+      "sharpe": -2.861,
+      "mdd": -0.0255,
+      "num_trades": 32
+    },
+    {
+      "regime": "bull",
+      "label": "Bull Run to ATH (2023-11 to 2024-04)",
+      "start": "2023-11-01",
+      "end": "2024-04-30",
+      "cagr": -0.0442,
+      "sharpe": -1.277,
+      "mdd": -0.0500,
+      "num_trades": 44
+    },
+    {
+      "regime": "post-ATH",
+      "label": "Post-ATH Consolidation (2024-05 to 2025-04)",
+      "start": "2024-05-01",
+      "end": "2025-04-01",
+      "cagr": -0.0604,
+      "sharpe": -2.782,
+      "mdd": -0.0563,
+      "num_trades": 52
+    },
+    {
+      "regime": "compressed",
+      "label": "Latest regime proxy (same as post-ATH)",
+      "cagr": -0.0604,
+      "sharpe": -2.782,
+      "mdd": -0.0563,
+      "num_trades": 52
+    }
+  ]
+}

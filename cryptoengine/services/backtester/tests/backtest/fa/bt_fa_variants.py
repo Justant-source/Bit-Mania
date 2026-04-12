@@ -23,6 +23,7 @@ import asyncpg
 import pandas as pd
 import structlog
 from shared.timezone_utils import kst_timestamper
+from tests.backtest.core.constants import TAKER_FEE
 from freqtrade_bridge import (
     BacktestResult,
     TradeRecord,
@@ -49,7 +50,7 @@ TIMEFRAME       = "1h"
 START_DATE      = "2020-04-01"
 END_DATE        = "2026-03-31"
 INITIAL_CAPITAL = 10_000.0
-FEE_RATE        = 0.00055
+FEE_RATE        = TAKER_FEE
 TEST_NAME       = "test_f_funding_arb_variants_6y"
 
 # ── 4가지 변형 파라미터 ───────────────────────────────────────────────────────

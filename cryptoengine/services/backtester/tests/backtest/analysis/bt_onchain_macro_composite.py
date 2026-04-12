@@ -1,33 +1,29 @@
 """analysis/bt_onchain_macro_composite.py
-온체인 매크로 복합 신호 전략 (#08) 백테스트.
+온체인 매크로 복합 신호 전략 (#08) 백테스트 — v3 재설계.
 
-전략 개요:
-  7개 지표(MVRV Z-Score, aSOPR, 거래소순유출, 공포탐욕, DXY, ETF플로우, 펀딩비)
-  복합 점수화(0~7점)로 사이클 극단에서만 초저빈도 매매.
+v3 개선사항 (CoinMetrics Community API 한정):
+  - v2의 90% 합성 데이터 문제 해결
+  - Pro 지표(MVRV, aSOPR, NVT) 제거 → Community 지표만 사용
+  - 3개 실데이터 지표 복합: MVRV 프록시, Fear&Greed, 활성주소 모멘텀
 
-지표 점수화 (각 0 또는 1점, 최대 7점):
-  1. MVRV Z-Score < 1.5 (저평가)
-  2. aSOPR < 1.0 (투매, 데이터 없으면 스킵 → 최대 점수 6점)
-  3. 거래소 순유출 7d MA 음수 (홀딩 증가)
-  4. 공포탐욕 < 25 (극단적 공포)
-  5. DXY 5d 변화 ≤ +0.3% (드물게, 역상관 사용)
-  6. ETF 5d 누적 순유입 > $200M (자금 유입)
-  7. 펀딩비 30d MA ≤ 0 (약세 신호)
+지표 점수화 (각 0 또는 1점, 최대 3점):
+  1. MVRV 프록시 (Price / SMA200): < 0.8 저평가 (1점)
+  2. Fear & Greed < 25 (극단적 공포, 1점)
+  3. 활성주소 모멘텀 (AdrActCnt / SMA30): > 1.1 성장 신호 (1점)
 
 진입/청산:
-  - 풀포지션 롱: score ≥ entry_full (기본 5)
-  - 반포지션 롱: score == entry_half (기본 4)
-  - 청산 규칙: 점수 < exit_level (기본 2)
+  - 풀포지션 롱: score ≥ 2 (최소 2개 신호 일치)
+  - 청산 규칙: score < 1 또는 시간청산
   - 익절: +30% → 50% 청산, +50% → 추가 25%
   - 손절: -8%
   - 시간청산: 90일
 
 스테이지:
   Stage 1: Baseline (기본값 단일 실행)
-  Stage 2: 임계값 그리드서치 (18조합)
-  Stage 3: Ablation (7개 지표 제거 변형)
+  Stage 2: 임계값 그리드서치
+  Stage 3: Ablation (3개 지표 제거 변형)
   Stage 4: 단일 지표 비교
-  Stage 5: Walk-Forward (1.5년 학습 / 1년 테스트, 2개 폴드)
+  Stage 5: Walk-Forward
 
 실행:
     docker compose --profile backtest run --rm backtester \\
@@ -103,7 +99,7 @@ async def load_onchain_metrics(
         data.append(d)
 
     df = pd.DataFrame(data)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC")
     df.set_index("date", inplace=True)
 
     # MVRV 계산 (DB에 없으면 직접 계산)
@@ -147,7 +143,7 @@ async def load_fear_greed(
 
     data = [dict(row) for row in rows]
     df = pd.DataFrame(data)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC")
     df.set_index("date", inplace=True)
     df["value"] = df["value"].astype(float)
     return df["value"]
@@ -185,80 +181,60 @@ async def load_etf_flow(
         data.append(d)
 
     df = pd.DataFrame(data)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize("UTC")
     df.set_index("date", inplace=True)
     return df["total_flow_usd"]
 
 
 # ── 복합 점수화 로직 ──────────────────────────────────────────────────────────────
 
-def compute_composite_signals(
+def compute_composite_signals_v3(
     ohlcv: pd.DataFrame,
     onchain: pd.DataFrame,
     fear_greed: pd.Series,
-    etf_flow: pd.Series,
-    funding: pd.DataFrame,
 ) -> pd.DataFrame:
-    """7개 지표 점수화.
+    """v3 단순화: 3개 실데이터 지표 점수화.
 
     Returns:
-        DataFrame (index=date, columns=[score, signal_1, signal_2, ...signal_7])
-        signal_*: 각 지표의 0/1 점수
+        DataFrame (index=date, columns=[score, signal_1, signal_2, signal_3])
+        - signal_1: MVRV 프록시 (Price / SMA200) < 0.8
+        - signal_2: Fear & Greed < 25
+        - signal_3: 활성주소 모멘텀 (AdrActCnt / SMA30) > 1.1
     """
     signals = pd.DataFrame(index=ohlcv.index)
 
-    # 공통 인덱스
-    common_idx = ohlcv.index.intersection(onchain.index) if len(onchain) > 0 else ohlcv.index
-
-    # 신호 1: MVRV Z-Score < 1.5
-    if len(onchain) > 0:
-        mvrv_zs = onchain.reindex(common_idx)["mvrv_zscore"]
-        signals["signal_1"] = (mvrv_zs < 1.5).astype(int)
+    # 신호 1: MVRV 프록시 = Price / SMA200(Price)
+    # < 0.8 = 저평가 (매수 신호)
+    if len(ohlcv) > 0:
+        close = ohlcv["close"]
+        sma200 = close.rolling(window=200, min_periods=100).mean()
+        mvrv_proxy = close / sma200
+        signals["signal_1"] = (mvrv_proxy < 0.8).astype(int)
+        logger.info(f"MVRV 프록시: min={mvrv_proxy.min():.3f}, max={mvrv_proxy.max():.3f}, mean={mvrv_proxy.mean():.3f}")
     else:
         signals["signal_1"] = 0
 
-    # 신호 2: aSOPR < 1.0 (데이터 거의 없으므로 0으로 처리, 점수 0)
-    signals["signal_2"] = 0
+    # 신호 2: Fear & Greed < 25 (극단적 공포)
+    if len(fear_greed) > 0:
+        fg_reindex = fear_greed.reindex(ohlcv.index, method="ffill").fillna(50)  # 기본값 50 (중립)
+        signals["signal_2"] = (fg_reindex < 25).astype(int)
+        logger.info(f"Fear & Greed: 사용 가능 행={fg_reindex.notna().sum()}")
+    else:
+        signals["signal_2"] = 0
 
-    # 신호 3: 거래소 순유출 7d MA 음수
-    if len(onchain) > 0:
-        netflow = onchain.reindex(common_idx)["exchange_netflow_usd"]
-        netflow_ma7 = netflow.rolling(window=7, min_periods=1).mean()
-        signals["signal_3"] = (netflow_ma7 < 0).astype(int)
+    # 신호 3: 활성주소 모멘텀 = AdrActCnt / SMA30(AdrActCnt) > 1.1
+    if len(onchain) > 0 and "adr_act_cnt" in onchain.columns:
+        adr_act = onchain["adr_act_cnt"].reindex(ohlcv.index, method="ffill")
+        sma30_adr = adr_act.rolling(window=30, min_periods=15).mean()
+        adr_momentum = adr_act / (sma30_adr + 1e-6)  # 1e-6으로 zero-division 방지
+        signals["signal_3"] = (adr_momentum > 1.1).astype(int)
+        logger.info(f"활성주소 모멘텀: min={adr_momentum.min():.3f}, max={adr_momentum.max():.3f}")
     else:
         signals["signal_3"] = 0
+        logger.warning("활성주소 데이터 부족")
 
-    # 신호 4: 공포탐욕 < 25
-    if len(fear_greed) > 0:
-        fg_reindex = fear_greed.reindex(common_idx, method="ffill")
-        signals["signal_4"] = (fg_reindex < 25).astype(int)
-    else:
-        signals["signal_4"] = 0
-
-    # 신호 5: DXY 5d 변화 ≤ +0.3% (간접 추정: BTC 5d 낙폭 ≥ -1%)
-    # (DXY 상승 = BTC 하락 역상관, BTC 5d 낙폭이 작으면 DXY 상승 적음)
-    close_5d_change = ohlcv["close"].pct_change(5)  # 5일 변화
-    signals["signal_5"] = (close_5d_change <= -0.01).astype(int)  # 더 보수적으로
-
-    # 신호 6: ETF 5d 누적 순유입 > $200M
-    if len(etf_flow) > 0:
-        # etf_flow는 Series (index=date, value=total_flow_usd)
-        etf_reindex = etf_flow.reindex(common_idx, fill_value=0)
-        etf_5d_sum = etf_reindex.rolling(window=5, min_periods=1).sum()
-        signals["signal_6"] = (etf_5d_sum > 200_000_000).astype(int)
-    else:
-        signals["signal_6"] = 0
-
-    # 신호 7: 펀딩비 30d MA ≤ 0
-    if len(funding) > 0:
-        funding_reindex = funding.reindex(common_idx, fill_value=0)["rate"]
-        funding_ma30 = funding_reindex.rolling(window=30, min_periods=1).mean()
-        signals["signal_7"] = (funding_ma30 <= 0).astype(int)
-    else:
-        signals["signal_7"] = 0
-
-    # 복합 점수 (aSOPR 데이터 없으므로 최대 6점)
-    signals["score"] = signals[["signal_1", "signal_3", "signal_4", "signal_5", "signal_6", "signal_7"]].sum(axis=1)
+    # 복합 점수 (최대 3점)
+    signals["score"] = signals[["signal_1", "signal_2", "signal_3"]].sum(axis=1)
 
     return signals.fillna(0).astype(int)
 
@@ -273,9 +249,8 @@ class OnChainMacroBacktester:
         ohlcv: pd.DataFrame,
         signals: pd.DataFrame,
         initial_capital: float = 10_000,
-        entry_full: int = 5,
-        entry_half: int = 4,
-        exit_level: int = 2,
+        entry_threshold: int = 2,  # v3: 최소 2개 신호 필요
+        exit_threshold: int = 1,   # v3: 1개 이하 신호 = 청산
         tp1_pct: float = 0.30,
         tp1_reduce: float = 0.50,
         tp2_pct: float = 0.50,
@@ -287,9 +262,8 @@ class OnChainMacroBacktester:
         self.ohlcv = ohlcv
         self.signals = signals
         self.initial_capital = initial_capital
-        self.entry_full = entry_full
-        self.entry_half = entry_half
-        self.exit_level = exit_level
+        self.entry_threshold = entry_threshold
+        self.exit_threshold = exit_threshold
         self.tp1_pct = tp1_pct
         self.tp1_reduce = tp1_reduce
         self.tp2_pct = tp2_pct
@@ -304,21 +278,18 @@ class OnChainMacroBacktester:
         self.position = None  # {"size": BTC, "entry_price": float, "entry_date": timestamp, "reduce_tp1": bool}
 
     def run(self) -> dict[str, Any]:
-        """백테스트 실행."""
+        """백테스트 실행 (v3: 최소 2개 신호 진입)."""
         for i, (date, row) in enumerate(self.ohlcv.iterrows()):
-            score = self.signals.loc[date, "score"] if date in self.signals.index else 0
+            score = int(self.signals.loc[date, "score"]) if date in self.signals.index else 0
             close = row["close"]
 
-            # 포지션 관리
+            # 포지션 관리 (exit_threshold 체크)
             if self.position is not None:
-                self._manage_position(date, close)
+                self._manage_position(date, close, score)
 
-            # 진입 신호
-            if self.position is None:
-                if score >= self.entry_full:
-                    self._enter_position(date, close, size=1.0)
-                elif score == self.entry_half:
-                    self._enter_position(date, close, size=0.5)
+            # 진입 신호 (entry_threshold 이상)
+            if self.position is None and score >= self.entry_threshold:
+                self._enter_position(date, close, size=1.0)
 
             self.equity_curve.append(self.equity)
 
@@ -339,13 +310,18 @@ class OnChainMacroBacktester:
             "reduce_tp1": False,
         }
 
-    def _manage_position(self, date: datetime, close: float):
-        """포지션 관리 (익절/손절/시간청산)."""
+    def _manage_position(self, date: datetime, close: float, score: int = 0):
+        """포지션 관리 (신호 기반 청산 + 익절/손절/시간청산)."""
         if self.position is None:
             return
 
         pnl_pct = (close - self.position["entry_price"]) / self.position["entry_price"]
         days_held = (date - self.position["entry_date"]).days
+
+        # 신호 기반 청산 (점수 < exit_threshold)
+        if score < self.exit_threshold:
+            self._close_position(date, close, reason="signal_exit")
+            return
 
         # 손절
         if pnl_pct <= self.sl_pct:
@@ -428,8 +404,8 @@ class OnChainMacroBacktester:
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
 async def run_stage1_baseline(pool: asyncpg.Pool) -> dict[str, Any]:
-    """Stage 1: Baseline."""
-    logger.info("=== Stage 1: Baseline ===")
+    """Stage 1: Baseline (v3)."""
+    logger.info("=== Stage 1: Baseline (v3 - 3개 실데이터 지표) ===")
 
     # 3년 데이터 (2023-01-01 ~ 2026-04-11)
     start = datetime(2023, 1, 1, tzinfo=UTC)
@@ -438,23 +414,22 @@ async def run_stage1_baseline(pool: asyncpg.Pool) -> dict[str, Any]:
     ohlcv = await load_ohlcv(pool, SYMBOL, TIMEFRAME, start, end)
     onchain = await load_onchain_metrics(pool, start, end)
     fear_greed = await load_fear_greed(pool, start, end)
-    etf_flow = await load_etf_flow(pool, start, end)
-    funding = await load_funding(pool, SYMBOL, start, end)
 
     if len(ohlcv) == 0:
         logger.warning("OHLCV 데이터 없음")
         return {}
 
     logger.info(f"데이터 범위: {ohlcv.index[0]} ~ {ohlcv.index[-1]} ({len(ohlcv)} 일자)")
-    logger.info(f"온체인 메트릭: {len(onchain)}, 공포탐욕: {len(fear_greed)}, ETF 플로우: {len(etf_flow)}")
+    logger.info(f"온체인 메트릭: {len(onchain)}, 공포탐욕: {len(fear_greed)}")
 
-    signals = compute_composite_signals(ohlcv, onchain, fear_greed, etf_flow, funding)
+    # v3 신호 계산
+    signals = compute_composite_signals_v3(ohlcv, onchain, fear_greed)
 
     # 신호 통계
     signal_counts = signals["score"].value_counts().sort_index(ascending=False)
     logger.info(f"신호 분포:\n{signal_counts}")
 
-    backtester = OnChainMacroBacktester(ohlcv, signals)
+    backtester = OnChainMacroBacktester(ohlcv, signals, entry_threshold=2, exit_threshold=1)
     metrics = backtester.run()
 
     logger.info(f"거래수: {metrics['trade_count']}, 승률: {metrics['win_rate']:.1f}%")
@@ -464,8 +439,8 @@ async def run_stage1_baseline(pool: asyncpg.Pool) -> dict[str, Any]:
 
 
 async def run_stage2_grid(pool: asyncpg.Pool) -> list[dict]:
-    """Stage 2: 임계값 그리드서치."""
-    logger.info("=== Stage 2: Grid Search (18조합) ===")
+    """Stage 2: v3 임계값 그리드서치."""
+    logger.info("=== Stage 2: Grid Search (v3) ===")
 
     start = datetime(2023, 1, 1, tzinfo=UTC)
     end = datetime.now(UTC)
@@ -473,41 +448,38 @@ async def run_stage2_grid(pool: asyncpg.Pool) -> list[dict]:
     ohlcv = await load_ohlcv(pool, SYMBOL, TIMEFRAME, start, end)
     onchain = await load_onchain_metrics(pool, start, end)
     fear_greed = await load_fear_greed(pool, start, end)
-    etf_flow = await load_etf_flow(pool, start, end)
-    funding = await load_funding(pool, SYMBOL, start, end)
 
     if len(ohlcv) == 0:
         return []
 
-    signals = compute_composite_signals(ohlcv, onchain, fear_greed, etf_flow, funding)
+    signals = compute_composite_signals_v3(ohlcv, onchain, fear_greed)
 
     results = []
-    for entry_full in [4, 5, 6]:
-        for entry_half in [3, 4]:
-            for exit_level in [2, 3, 4]:
-                if exit_level >= entry_half:
-                    continue
+    # v3: entry_threshold [2, 3], exit_threshold [0, 1]
+    for entry_thresh in [2, 3]:
+        for exit_thresh in [0, 1]:
+            if exit_thresh >= entry_thresh:
+                continue
 
-                backtester = OnChainMacroBacktester(
-                    ohlcv, signals,
-                    entry_full=entry_full,
-                    entry_half=entry_half,
-                    exit_level=exit_level,
-                )
-                metrics = backtester.run()
+            backtester = OnChainMacroBacktester(
+                ohlcv, signals,
+                entry_threshold=entry_thresh,
+                exit_threshold=exit_thresh,
+            )
+            metrics = backtester.run()
 
-                variant_name = f"entry_full_{entry_full}_half_{entry_half}_exit_{exit_level}"
-                metrics["variant"] = variant_name
-                results.append(metrics)
+            variant_name = f"entry_{entry_thresh}_exit_{exit_thresh}"
+            metrics["variant"] = variant_name
+            results.append(metrics)
 
-                logger.info(f"{variant_name}: {metrics['trade_count']} 거래, CAGR {metrics['cagr_pct']:.2f}%")
+            logger.info(f"{variant_name}: {metrics['trade_count']} 거래, CAGR {metrics['cagr_pct']:.2f}%")
 
     return results
 
 
 async def run_stage3_ablation(pool: asyncpg.Pool) -> dict[str, dict]:
-    """Stage 3: Ablation (지표 1개씩 제거)."""
-    logger.info("=== Stage 3: Ablation ===")
+    """Stage 3: Ablation (v3 - 3개 지표 중 1개씩 제거)."""
+    logger.info("=== Stage 3: Ablation (v3) ===")
 
     start = datetime(2023, 1, 1, tzinfo=UTC)
     end = datetime.now(UTC)
@@ -515,38 +487,37 @@ async def run_stage3_ablation(pool: asyncpg.Pool) -> dict[str, dict]:
     ohlcv = await load_ohlcv(pool, SYMBOL, TIMEFRAME, start, end)
     onchain = await load_onchain_metrics(pool, start, end)
     fear_greed = await load_fear_greed(pool, start, end)
-    etf_flow = await load_etf_flow(pool, start, end)
-    funding = await load_funding(pool, SYMBOL, start, end)
 
     if len(ohlcv) == 0:
         return {}
 
-    signals_full = compute_composite_signals(ohlcv, onchain, fear_greed, etf_flow, funding)
+    signals_full = compute_composite_signals_v3(ohlcv, onchain, fear_greed)
 
     results = {}
 
     # Full baseline
-    bt = OnChainMacroBacktester(ohlcv, signals_full)
+    bt = OnChainMacroBacktester(ohlcv, signals_full, entry_threshold=2, exit_threshold=1)
     results["full"] = bt.run()
 
-    # 각 신호 제거
-    for signal_idx in range(1, 7):
+    # 각 신호 제거 (3개 신호 중 1개씩)
+    signal_names = ["mvrv_proxy", "fear_greed", "adr_momentum"]
+    for signal_idx in range(1, 4):
         signals_ablated = signals_full.copy()
         signals_ablated[f"signal_{signal_idx}"] = 0
-        signals_ablated["score"] = signals_ablated[["signal_1", "signal_3", "signal_4", "signal_5", "signal_6", "signal_7"]].sum(axis=1)
+        signals_ablated["score"] = signals_ablated[["signal_1", "signal_2", "signal_3"]].sum(axis=1)
 
-        bt = OnChainMacroBacktester(ohlcv, signals_ablated)
+        bt = OnChainMacroBacktester(ohlcv, signals_ablated, entry_threshold=2, exit_threshold=1)
         metric = bt.run()
-        results[f"without_signal_{signal_idx}"] = metric
+        results[f"without_{signal_names[signal_idx-1]}"] = metric
 
-        logger.info(f"신호_{signal_idx} 제거: {metric['trade_count']} 거래, CAGR {metric['cagr_pct']:.2f}%")
+        logger.info(f"{signal_names[signal_idx-1]} 제거: {metric['trade_count']} 거래, CAGR {metric['cagr_pct']:.2f}%")
 
     return results
 
 
 async def run_stage4_single_indicator(pool: asyncpg.Pool) -> dict[str, dict]:
-    """Stage 4: 단일 지표 비교."""
-    logger.info("=== Stage 4: Single Indicator ===")
+    """Stage 4: v3 단일 지표 비교."""
+    logger.info("=== Stage 4: Single Indicator (v3) ===")
 
     start = datetime(2023, 1, 1, tzinfo=UTC)
     end = datetime.now(UTC)
@@ -558,50 +529,54 @@ async def run_stage4_single_indicator(pool: asyncpg.Pool) -> dict[str, dict]:
     if len(ohlcv) == 0:
         return {}
 
-    # 타임존 정규화 (UTC-aware)
-    if len(ohlcv.index) > 0 and ohlcv.index.tz is not None:
-        ohlcv.index = ohlcv.index.tz_convert('UTC')
-    elif len(ohlcv.index) > 0 and ohlcv.index.tz is None:
-        ohlcv.index = ohlcv.index.tz_localize('UTC')
-
     results = {}
 
-    # MVRV 단독
-    if len(onchain) > 0:
-        if len(onchain.index) > 0 and onchain.index.tz is None:
-            onchain.index = onchain.index.tz_localize('UTC')
-        mvrv_zs = onchain["mvrv_zscore"].reindex(ohlcv.index, method="ffill")
+    # MVRV 프록시 단독
+    if len(ohlcv) > 0:
+        close = ohlcv["close"]
+        sma200 = close.rolling(window=200, min_periods=100).mean()
+        mvrv_proxy = close / sma200
         signals_mvrv = pd.DataFrame(index=ohlcv.index)
-        signals_mvrv["score"] = (mvrv_zs < 1.5).astype(int) * 5
+        signals_mvrv["score"] = (mvrv_proxy < 0.8).astype(int)  # 0 또는 1
 
-        bt = OnChainMacroBacktester(ohlcv, signals_mvrv, entry_full=5, entry_half=4, exit_level=4)
-        results["mvrv_only"] = bt.run()
-        logger.info(f"MVRV 단독: {results['mvrv_only']['trade_count']} 거래")
+        bt = OnChainMacroBacktester(ohlcv, signals_mvrv, entry_threshold=1, exit_threshold=0)
+        results["mvrv_proxy_only"] = bt.run()
+        logger.info(f"MVRV 프록시 단독: {results['mvrv_proxy_only']['trade_count']} 거래")
 
     # 공포탐욕 단독
     if len(fear_greed) > 0:
-        if len(fear_greed.index) > 0 and fear_greed.index.tz is None:
-            fear_greed.index = fear_greed.index.tz_localize('UTC')
-        fg = fear_greed.reindex(ohlcv.index, method="ffill")
+        fg = fear_greed.reindex(ohlcv.index, method="ffill").fillna(50)
         signals_fg = pd.DataFrame(index=ohlcv.index)
-        signals_fg["score"] = (fg < 25).astype(int) * 5
+        signals_fg["score"] = (fg < 25).astype(int)
 
-        bt = OnChainMacroBacktester(ohlcv, signals_fg, entry_full=5, entry_half=4, exit_level=4)
+        bt = OnChainMacroBacktester(ohlcv, signals_fg, entry_threshold=1, exit_threshold=0)
         results["fear_greed_only"] = bt.run()
         logger.info(f"공포탐욕 단독: {results['fear_greed_only']['trade_count']} 거래")
 
+    # 활성주소 모멘텀 단독
+    if len(onchain) > 0 and "adr_act_cnt" in onchain.columns:
+        adr_act = onchain["adr_act_cnt"].reindex(ohlcv.index, method="ffill")
+        sma30_adr = adr_act.rolling(window=30, min_periods=15).mean()
+        adr_momentum = adr_act / (sma30_adr + 1e-6)
+        signals_adr = pd.DataFrame(index=ohlcv.index)
+        signals_adr["score"] = (adr_momentum > 1.1).astype(int)
+
+        bt = OnChainMacroBacktester(ohlcv, signals_adr, entry_threshold=1, exit_threshold=0)
+        results["adr_momentum_only"] = bt.run()
+        logger.info(f"활성주소 모멘텀 단독: {results['adr_momentum_only']['trade_count']} 거래")
+
     # 복합 (이미 계산함)
-    signals_full = compute_composite_signals(ohlcv, onchain, fear_greed, await load_etf_flow(pool, start, end), await load_funding(pool, SYMBOL, start, end))
-    bt = OnChainMacroBacktester(ohlcv, signals_full)
-    results["composite"] = bt.run()
-    logger.info(f"복합 신호: {results['composite']['trade_count']} 거래")
+    signals_full = compute_composite_signals_v3(ohlcv, onchain, fear_greed)
+    bt = OnChainMacroBacktester(ohlcv, signals_full, entry_threshold=2, exit_threshold=1)
+    results["composite_v3"] = bt.run()
+    logger.info(f"복합 신호 (v3): {results['composite_v3']['trade_count']} 거래")
 
     return results
 
 
 async def run_stage5_walkforward(pool: asyncpg.Pool) -> dict[str, dict]:
-    """Stage 5: Walk-Forward (1.5년 학습 / 1년 테스트, 2개 폴드)."""
-    logger.info("=== Stage 5: Walk-Forward ===")
+    """Stage 5: Walk-Forward (v3 - 1.5년 학습 / 1년 테스트, 2개 폴드)."""
+    logger.info("=== Stage 5: Walk-Forward (v3) ===")
 
     start = datetime(2023, 1, 1, tzinfo=UTC)
     end = datetime.now(UTC)
@@ -619,22 +594,19 @@ async def run_stage5_walkforward(pool: asyncpg.Pool) -> dict[str, dict]:
         else:
             break  # 2개 폴드만 (데이터 부족)
 
-        logger.info(f"Fold {fold_idx}: train {train_start.date()} ~ {train_end.date()}, "
-                   f"test {test_start.date()} ~ {test_end.date()}")
+        logger.info(f"Fold {fold_idx}: test {test_start.date()} ~ {test_end.date()}")
 
         # 데이터 로드
         ohlcv_test = await load_ohlcv(pool, SYMBOL, TIMEFRAME, test_start, test_end)
         onchain_test = await load_onchain_metrics(pool, test_start, test_end)
         fear_greed_test = await load_fear_greed(pool, test_start, test_end)
-        etf_flow_test = await load_etf_flow(pool, test_start, test_end)
-        funding_test = await load_funding(pool, SYMBOL, test_start, test_end)
 
         if len(ohlcv_test) == 0:
             continue
 
-        signals_test = compute_composite_signals(ohlcv_test, onchain_test, fear_greed_test, etf_flow_test, funding_test)
+        signals_test = compute_composite_signals_v3(ohlcv_test, onchain_test, fear_greed_test)
 
-        bt = OnChainMacroBacktester(ohlcv_test, signals_test)
+        bt = OnChainMacroBacktester(ohlcv_test, signals_test, entry_threshold=2, exit_threshold=1)
         metric = bt.run()
 
         results[f"fold_{fold_idx}_oos"] = metric

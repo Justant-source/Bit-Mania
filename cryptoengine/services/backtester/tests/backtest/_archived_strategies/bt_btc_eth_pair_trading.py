@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.loader import load_ohlcv
 from core.db import make_pool, save_result, DB_DSN, CREATE_VARIANT_TABLE
 from core.metrics import sharpe, mdd, cagr, safe_float, monthly_returns, profit_factor
+from core.constants import TAKER_FEE
 
 warnings.filterwarnings('ignore')
 
@@ -99,8 +100,8 @@ class PairTradingBacktester:
         self.max_half_life = max_half_life
         self.min_adf_pvalue = min_adf_pvalue
 
-        self.btc_fee = 0.0002  # Bybit 테이커 수수료
-        self.eth_fee = 0.0002
+        self.btc_fee = TAKER_FEE  # Bybit 테이커 수수료 (0.055%)
+        self.eth_fee = TAKER_FEE
 
         # 결과
         self.trades = []

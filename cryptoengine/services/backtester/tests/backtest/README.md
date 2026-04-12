@@ -62,7 +62,7 @@ result = engine.run()
 | `fa/bt_multi_symbol_funding_rotation.py` | **[BT_TASK_03]** 멀티심볼 펀딩비 로테이션 (15심볼, DAR 예측, 동적 포지션) | `--stage all` | `python tests/backtest/fa/bt_multi_symbol_funding_rotation.py --stage all` |
 | `fa/dar_funding_predictor.py` | DAR(Dynamic AutoRegressive) 펀딩비 예측 모델 | - | (멀티심볼 로테이션에서 내부 사용) |
 | `fa/basis_calculator.py` | 분기물-무기한 베이시스 계산 유틸리티 | `perp_price`, `quarterly_price`, `days_to_expiry` | (캘린더 스프레드에서 내부 사용) |
-| `fa/bt_calendar_spread.py` | **[#06]** 분기물-무기한 캘린더 스프레드 백테스트 (Stage 1~5) | `--stage all` | `python tests/backtest/fa/bt_calendar_spread.py --stage all` |
+| `fa/bt_calendar_spread.py` | **[#06 v3]** 분기물-무기한 캘린더 스프레드 백테스트 (이자율 기반 동적 기저) | `--stage all` | `python tests/backtest/fa/bt_calendar_spread.py --stage all --synthetic-mode` |
 | `fa/funding_zscore_calculator.py` | **[#04]** 펀딩비 z-score 계산 유틸리티 (극단치 감지) | `--validate` | `python tests/backtest/fa/funding_zscore_calculator.py --validate` |
 | `fa/bt_funding_extreme_reversal.py` | **[#04]** BTC 펀딩비 극단치 역발상 전략 (Stage 1~5: Baseline, GridSearch, Ablation, WalkForward, LowFunding) | `--stage all` | `python tests/backtest/fa/bt_funding_extreme_reversal.py --stage all` |
 
@@ -120,7 +120,7 @@ result = engine.run()
 | `stress/bt_stress_fa.py` | [Test P] FA 극단 4종 | API다운, 플래시크래시, 펀딩비급등, 고슬리피지 |
 | `stress/bt_stress_tf.py` | FA+TF 극단 6종 | 플래시크래시, 장기횡보, API다운타임, 고슬리피지, 펀딩역전, 연속휩소 |
 | `stress/bt_stress_optimal.py` | **[Test 12E]** 최적 조합 스트레스 5종 | 베이시스폭발, 폭락+편측체결, 펀딩가뭄, 거래소점검, 연속충격 |
-| `stress/bt_liquidation_cascade.py` | **[BT_TASK_07]** 청산 캐스케이드 역발상 (5 Stage) | 청산 후 반등 포착 (4h -3% + RSI <30), Stage 1 Baseline / Stage 2 임계값 서치 / Stage 3 진입/청산 파라미터 / Stage 4 데이터소스 비교 / Stage 5 시간대 분석 |
+| `stress/bt_liquidation_cascade.py` | **[BT_TASK_07 v3]** 청산 캐스케이드 역발상 (삼중 확인: 가격-거래량-RSI) | 청산 후 반등 포착 (4h -3% + 거래량 2배+ + RSI <25), 동적 신뢰도, Stage 1 Baseline / Stage 2 임계값 / Stage 3 진입/청산 / Stage 4 WF / Stage 5 신뢰도 필터 |
 
 **언제 사용:** 최종 검증 단계, 극단 시나리오 PASS/FAIL 판정, 청산 캐스케이드 역발상 전략 평가
 
@@ -142,7 +142,7 @@ result = engine.run()
 | `analysis/bt_etf_flow_momentum.py` | **[BT_TASK_01]** ETF Flow Momentum 전략 백테스트 (Stage 1/2/3) | Stage1: CAGR +10.30% Sharpe 1.61 / Stage2: 36조합 / Stage3: 7개 WF 윈도우 / `.result/13_ETF_FLOW_MOMENTUM_YYYYMMDD.md` 저장 |
 | `analysis/quarterly_futures_collector.py` | **[#06]** Bybit 분기물 선물 OHLCV 수집기 (API v5, 일봉, 만기 60일전~만기) | `--backfill --start 2023-04-01` \| `--verify-convergence` | 실제 분기물 데이터 없으면 합성 데이터 자동 생성 |
 | `analysis/liquidation_collector.py` | **[BT_TASK_07]** 청산 데이터 수집기 (Coinglass/Binance/OHLCV proxy) | `--backfill --start 2023-04-01 --sources all` | 공개 API 신뢰성 부족 → 1h OHLCV 간접 추정으로 보완 |
-| `analysis/cascade_detector.py` | **[BT_TASK_07]** 청산 캐스케이드 탐지기 (4h 가격 -3% + 거래량 × 2.0) | `--validate --threshold 500000000` | 알려진 이벤트(2024-08-05 등) 검증, `long_squeeze`/`short_squeeze` 분류 |
+| `analysis/cascade_detector.py` | **[BT_TASK_07 v3]** 청산 캐스케이드 탐지기 (삼중 확인: 4h -3% + 거래량 2배+ + RSI <25) | `--validate --threshold 500000000 --use-triple-confirmation` | 알려진 이벤트 검증, 동적 신뢰도 (0.0~1.0) 계산, `long_squeeze`/`short_squeeze` 분류 |
 | `analysis/coinmetrics_collector.py` | **[#08]** 온체인 메트릭 수집 (MVRV, aSOPR, 거래소순유출, CoinMetrics API) | `--backfill --start 2020-01-01` | 2293행 온체인 데이터 (실패 시 합성 데이터), onchain_metrics 테이블 저장 |
 | `analysis/fear_greed_collector.py` | **[#08]** 공포탐욕지수 수집 (Alternative.me API) | `--backfill` | 1197행 FG 데이터 (실패 시 합성), fear_greed_history 테이블 저장 |
 | `analysis/oi_collector.py` | **[#09]** Open Interest 시계열 수집 (Bybit API, 1h 간격) | `--backfill --start 2023-04-01` \| `--update` | 3년 OI 히스토리 백필, open_interest_history 테이블 upsert |
@@ -296,3 +296,48 @@ sharpe_alert, windows_json (JSONB), params (JSONB)
 | BT_TASK_01 | `analysis/bt_etf_flow_momentum.py` | Stage1: CAGR +10.30% Sharpe 1.61 MDD -2.74% (70거래) / Stage2: 36조합 최고 CAGR +15.03% / Stage3: WF OOS 불안정 (-0.31 상관) | `.result/13_ETF_FLOW_MOMENTUM_20260411.md` |
 | **#04** | `fa/bt_funding_extreme_reversal.py` | **Stage1**: Baseline CAGR -0.90% Sharpe 1.22 (19거래) / **Stage3**: z-score only 최고 Sharpe 3.25 (221거래, -20% 손실) / **Stage5**: 저펀딩 환경 거래 2회만 CAGR -0.43% / **결론**: Phase 5 도입 불가 (0/6 합격기준 FAIL) | `.result/v2/16.FUNDING_EXTREME_REVERSAL_20260411.md` |
 | **#05** | `combined/bt_btc_eth_pair_trading.py` + `analysis/cointegration_tester.py` | **공적분 검정**: 30% 안정도만 달성 (기준 60% 미달) / **Stage1**: CAGR 0% Sharpe 0.14 (13거래) / **Stage2**: Top 1 = entry1.5 exit0.3 window30 = CAGR +5.2% Sharpe 0.42 여전히 기준 미달 / **결론**: Phase 5 도입 불가 (0/6 합격기준 FAIL) | `.result/v2/17_BTC_ETH_PAIR_TRADING_20260411.md` |
+
+---
+
+## v3 재검증 이력 (2026-04-11) — Part 2: 전략 실패 vs 엔진 실패
+
+> **10개 전략 엔진/데이터/설계/시장 4차원 재진단**: 순수 전략 실패 2개, 엔진 버그 2개(수정완료), 데이터 오염 3개, 설계 결함 3개
+
+| 전략 | 스크립트 | v3 핵심 결과 | 판정 | 리포트 |
+|------|---------|------------|------|--------|
+| **#01 v3** | `analysis/bt_etf_flow_momentum.py` | CAGR +9.56% Sharpe 1.26 (합성 유지). OOS 불안정 지속. | ❌ 실데이터 필요 | `.result/v3/25_ETF_FLOW_MOMENTUM_V3_20260411.md` |
+| **#02 v3** | `regime/bt_volatility_squeeze.py` | 8거래/3년 (목표 50/년 미달). AND필터 교집합 구조적 희소. | ❌ 근본 재설계 필요 | `.result/v3/26_VOLATILITY_SQUEEZE_HMM_V3_20260411.md` |
+| **#03 v3** | `fa/bt_multi_symbol_funding_rotation.py` | 버그 수정 완료 (funding≤0 → <MIN_THRESHOLD). 예상 CAGR +8~15%. | ⏳ 재실행 대기 | `.result/v3/23_MULTI_SYMBOL_ROTATION_V3_20260411.md` |
+| **#04** | `fa/bt_funding_extreme_reversal.py` | NO RETRY. ETF 이후 극단치 월 0.4건 (87% 감소). 시장 구조 변화. | ❌ 영구 제외 | `.result/v2/16.FUNDING_EXTREME_REVERSAL_20260411.md` |
+| **#05 v3** | `combined/bt_btc_eth_pair_v3.py` | Kalman 필터 적용 후 Sharpe 0.07 (v2보다 악화). 자산 구조 불호환. | ❌ 전략 실패 확정 | `.result/v3/27_BTC_ETH_PAIR_V3_20260411.md` |
+| **#06 v3** | `fa/bt_calendar_spread.py` | 동적 합성 기저 개선(이자율 기반). 실분기물 데이터 확보 선행 필요. | ⚠️ 데이터 확보 후 | `.result/v3/28_CALENDAR_SPREAD_V3_20260411.md` |
+| **#07 v3** | `stress/bt_liquidation_cascade.py` | 3중 확인(가격+거래량+RSI) + 동적 신뢰도 도입. L2 오더북 미확보. | ⚠️ 조건부 | `.result/v3/29_LIQUIDATION_CASCADE_V3_20260411.md` |
+| **#08 v3** | `analysis/bt_onchain_macro_composite.py` | Community API 전용(MVRV프록시+F&G+AdrAct). 코드 준비 완료. | ⏳ 재실행 대기 | `.result/v3/30_ONCHAIN_MACRO_V3_20260411.md` |
+| **#09 v3** | `optimization/bt_xgboost_ensemble_v3.py` | CPCV(24h purge)+Embargo+DSR+5피처 축소. 신규 스크립트 생성. | ⏳ 재실행 대기 | `.result/v3/31_XGBOOST_ENSEMBLE_V3_20260411.md` |
+| **#10 v3** | `combined/bt_hmm_llm_meta_strategy.py` | 버그 3개 수정 (TAKER_FEE·MIN_CONFIDENCE·MIN_HOLD). 예상 950→~250거래. | ⏳ 재실행 대기 | `.result/v3/24_HMM_LLM_META_V3_20260411.md` |
+
+**종합 판정**: `.result/v3/PART2_STRATEGY_VS_ENGINE_FAILURE_20260411.md`
+
+---
+
+## v2 재건 작업 이력 (2026-04-11)
+
+> **10전 10패 근본 원인 진단 후 4-Track 병렬 재건**: 합성 데이터 오염 제거, 버그 수정, Jesse 프레임워크 통합, 실데이터 파이프라인 구축
+
+| Track | 작업 내용 | 변경 파일 |
+|-------|---------|---------|
+| **A — Data Pipeline** | 5개 실데이터 수집 스크립트 생성 (Binance Vision, Coinalyze, Fear&Greed, FRED, PG→Parquet) | `scripts/download_binance_vision.py`, `scripts/fetch_coinalyze_funding.py`, `scripts/fetch_fear_greed.py`, `scripts/fetch_fred_macro.py`, `scripts/export_pg_to_parquet.py` |
+| **B — Jesse** | Jesse 프레임워크 통합 (FundingArb, MultiFundingRotation 전략 템플릿) | `jesse_project/strategies/FundingArb.py`, `jesse_project/strategies/MultiFundingRotation.py`, `jesse_project/config.py`, `JESSE_INTEGRATION.md` |
+| **C — Bug Fixes** | #03 zero-entry 수정 (funding≤0→<MIN_THRESHOLD), #10 TAKER_FEE 0.0002→0.00055 + min_hold=4bars, #04 abs() 제거 → 부호 보존, Sharpe periods_per_year 수정 | `fa/bt_multi_symbol_funding_rotation.py`, `combined/bt_hmm_llm_meta_strategy.py`, `fa/bt_funding_extreme_reversal.py` |
+| **D — Data Sources** | 합성 데이터 무음 폴백 제거: CoinMetrics Pro→Community API, Fear&Greed limit=0, Calendar Spread --synthetic-mode 명시, ETF flow 폴백 제거 | `analysis/coinmetrics_collector.py`, `analysis/fear_greed_collector.py`, `fa/bt_calendar_spread.py`, `analysis/etf_flow_collector.py` |
+
+### 핵심 버그 수정 요약
+
+| 버그 | 파일 | 수정 전 | 수정 후 |
+|------|------|--------|--------|
+| #03 진입 차단 | `bt_multi_symbol_funding_rotation.py` | `if funding <= 0` → 0 근처 모든 심볼 거부 | `if funding < MIN_CURRENT_FUNDING` |
+| #10 수수료 오기재 | `bt_hmm_llm_meta_strategy.py` | `TAKER_FEE=0.0002` (maker fee) | `TAKER_FEE=0.00055` (actual taker) |
+| #10 과다 거래 | `bt_hmm_llm_meta_strategy.py` | HMM 신호마다 즉시 반전 | `MIN_HOLD_BARS=4`, `MIN_REGIME_CONFIDENCE=0.70` |
+| #04 부호 손실 | `bt_funding_extreme_reversal.py` | `abs(funding_rate)` → 숏/롱 동일 처리 | 포지션 방향별 부호 보존 |
+| 합성 폴백 | 4개 collector | API 실패 시 무음 합성 데이터 | RuntimeError 발생 + `--synthetic-mode` 명시 필요 |
+| Sharpe 단위 | `bt_multi_symbol_funding_rotation.py` | `periods_per_year` 미지정 (8760 기본값) | 8h 데이터 → `1095` 명시 |

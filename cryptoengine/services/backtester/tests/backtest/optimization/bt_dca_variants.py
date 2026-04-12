@@ -26,12 +26,14 @@ import numpy as np
 import pandas as pd
 import structlog
 from shared.timezone_utils import kst_timestamper
+from tests.backtest.core.constants import TAKER_FEE
+
 log = structlog.get_logger(__name__)
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 
 INITIAL_CAPITAL = 10_000.0
-FEE_RATE = 0.00055
+FEE_RATE = TAKER_FEE
 SYMBOL = "BTCUSDT"
 TIMEFRAME = "1h"
 START_DATE = "2023-04-01"

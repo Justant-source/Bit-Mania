@@ -38,6 +38,7 @@ from tests.backtest.core import (
     sharpe, mdd, cagr, safe_float, monthly_returns, profit_factor,
     make_pool, save_result,
 )
+from tests.backtest.core.constants import MAKER_FEE, SLIPPAGE_PCT
 from tests.backtest.fa.funding_zscore_calculator import compute_funding_zscore
 
 # ── 설정 ────────────────────────────────────────────────────────────────────
@@ -48,9 +49,9 @@ LEVERAGE = 2.0
 MAX_POSITION_RATIO = 0.30
 
 # 수수료 (Bybit 메이커 기준)
-ENTRY_FEE = 0.0002  # 편도 0.02%
-EXIT_FEE = 0.0002   # 편도 0.02%
-SLIPPAGE = 0.0003   # 편도 0.03%
+ENTRY_FEE = MAKER_FEE    # 편도 0.02%
+EXIT_FEE = MAKER_FEE     # 편도 0.02%
+SLIPPAGE = SLIPPAGE_PCT  # 편도 0.03%
 
 # 신호 필터 기본값
 BASE_PARAMS = {
@@ -380,7 +381,12 @@ class FundingExtremeReversalBacktester:
         self.position = None
 
     def _settle_funding(self, ts: datetime, bar_idx: int) -> None:
-        """8시간마다 펀딩비 정산."""
+        """8시간마다 펀딩비 정산.
+
+        FIX: Correctly calculate funding PnL based on position direction.
+        - Short position receives funding when funding_rate > 0
+        - Long position receives funding when funding_rate < 0
+        """
         if self.position is None:
             return
 
@@ -397,18 +403,20 @@ class FundingExtremeReversalBacktester:
         if funding is None:
             return
 
-        # 펀딩비 수취/지급 (역방향)
-        # 숏 포지션: 양수 펀딩비 → 수취 (수입)
-        #           음수 펀딩비 → 지급 (손실)
-        # 롱 포지션: 양수 펀딩비 → 지급 (손실)
-        #          음수 펀딩비 → 수취 (수입)
+        # 펀딩비 수취/지급 (올바른 방향)
+        # 숏 포지션: 양수 펀딩비 → 수취 (수입, +)
+        #           음수 펀딩비 → 지급 (손실, -)
+        # 롱 포지션: 양수 펀딩비 → 지급 (손실, -)
+        #          음수 펀딩비 → 수취 (수입, +)
 
         if self.position["side"] == "short":
-            # 숏이 수취하는 경우: 펀딩비 > 0
-            funding_pnl = self.position["qty"] * abs(funding)
+            # 숏: 펀딩비 > 0 시 수취 (notional * funding_rate)
+            # 펀딩비 < 0 시 지급 (notional * funding_rate, 음수이므로 자동 음수)
+            funding_pnl = self.position["qty"] * self.position["entry_price"] * funding
         else:  # long
-            # 롱이 수취하는 경우: 펀딩비 < 0
-            funding_pnl = self.position["qty"] * abs(funding)
+            # 롱: 펀딩비 > 0 시 지급 (notional * -funding_rate)
+            # 펀딩비 < 0 시 수취 (notional * -funding_rate, 음수의 음수이므로 양수)
+            funding_pnl = -self.position["qty"] * self.position["entry_price"] * funding
 
         self.position["cumulative_funding"] = self.position.get("cumulative_funding", 0) + funding_pnl
         self.position["last_settle_ts"] = ts

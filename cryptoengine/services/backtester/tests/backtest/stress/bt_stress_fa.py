@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 import structlog
 from shared.timezone_utils import kst_timestamper
+from tests.backtest.core.constants import TAKER_FEE
 # ── sys.path: allow importing from parent backtester directory ────────────────
 _THIS_DIR   = os.path.dirname(os.path.abspath(__file__))
 _PARENT_DIR = os.path.dirname(os.path.dirname(_THIS_DIR))   # .../backtester/
@@ -65,7 +66,7 @@ DB_DSN = (
 SYMBOL          = "BTCUSDT"
 TIMEFRAME       = "1h"
 INITIAL_CAPITAL = 10_000.0
-FEE_RATE        = 0.00055
+FEE_RATE        = TAKER_FEE
 TEST_NAME       = "test_p_stress_test"
 
 FA_WEIGHTS: dict[str, float] = {

@@ -22,6 +22,7 @@ import asyncpg
 import pandas as pd
 import structlog
 from shared.timezone_utils import kst_timestamper
+from tests.backtest.core.constants import TAKER_FEE
 log = structlog.get_logger(__name__)
 
 SYMBOL          = "BTCUSDT"
@@ -29,7 +30,7 @@ TIMEFRAME       = "1h"
 START_DATE      = "2020-04-01"
 END_DATE        = "2026-03-31"
 INITIAL_CAPITAL = 10_000.0
-FEE_RATE        = 0.00055
+FEE_RATE        = TAKER_FEE
 TEST_NAME       = "test_12_stage_a"
 
 REINVEST_RATIOS = [0.0, 0.30, 0.50, 0.60, 0.70, 0.80, 1.00]

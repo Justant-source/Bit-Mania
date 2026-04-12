@@ -1,8 +1,22 @@
-"""bt_volatility_squeeze.py — [BT_TASK_02] 변동성 스퀴즈 + HMM 레짐 필터 백테스트
+"""bt_volatility_squeeze.py — [BT_TASK_02] 변동성 스퀴즈 + HMM 레짐 필터 백테스트 v3
+
+[v3 재설계 (2026-04-11)]
+문제: v2는 7거래/3년 = 통계적 무의미 (최소 100거래 필요)
+원인: 스퀴즈 감지 조건이 너무 엄격 (BB/KC + HMM 상태 동시 필요)
+
+개선사항:
+1. 스퀴즈 감지 임계값 완화: BB/KC 비율 1.5배 허용
+2. HMM 역할 변경: 필터 제거 → 포지션 사이징 (신뢰도 가중치)
+3. RSI 기준 완화: 50 → 45
+4. Stage 2: 파라미터 그리드 (Config A/B/C 3가지)
+5. Stage 3: Walk-Forward + 거래 빈도 검증
+
+목표: 연 50거래 이상 (3년 = 150거래+)
 
 실행:
     python tests/backtest/regime/bt_volatility_squeeze.py --stage all
     python tests/backtest/regime/bt_volatility_squeeze.py --stage 1
+    python tests/backtest/regime/bt_volatility_squeeze.py --stage 2
 """
 from __future__ import annotations
 
@@ -27,6 +41,9 @@ from tests.backtest.core import (
     sharpe, mdd, cagr, safe_float, monthly_returns, profit_factor,
     make_pool, save_result,
 )
+from tests.backtest.core.constants import (
+    MAKER_FEE, TAKER_FEE, SLIPPAGE_PCT as SLIPPAGE
+)
 
 from hmm_regime_detector import HMMRegimeDetector
 from squeeze_indicator import compute_squeeze
@@ -40,12 +57,13 @@ END_DT = datetime(2026, 4, 10, tzinfo=timezone.utc)
 INITIAL_CAPITAL = 5_000.0
 
 # 기본 파라미터 (완화된 설정으로 더 많은 거래 유도)
+# v3 재설계: 스퀴즈 필터를 50% 완화 + HMM을 포지션 사이징용으로 변경
 PARAMS_STAGE1 = {
     "bb_std": 1.8,  # 2.0 → 1.8 (BB 폭 좁혀서 돌파 더 자주)
-    "kc_atr_mult": 1.2,  # 1.5 → 1.2 (KC 좁혀서 스퀴즈 더 자주 감지)
+    "kc_atr_mult": 1.5,  # 1.5 (스퀴즈 감지 기준, 정상값)
     "min_squeeze_duration": 3,  # 5 → 3 (짧은 스퀴즈도 허용)
-    "volume_mult": 1.2,  # 1.5 → 1.2 (거래량 기준 완화)
-    "rsi_threshold": 50,
+    "volume_mult": 1.5,  # 1.5 (거래량 필터 정상 수준)
+    "rsi_threshold": 45,  # 50 → 45 (RSI 진입 조건 완화)
     "position_size_pct": 0.25,
     "leverage": 3.0,
     "sl_atr_mult": 2.0,
@@ -55,9 +73,6 @@ PARAMS_STAGE1 = {
 }
 
 # 수수료
-MAKER_FEE = 0.0002
-TAKER_FEE = 0.00055
-SLIPPAGE = 0.0003
 MAKER_FILL_PCT = 0.65  # 진입 시 65% maker 체결, 35% taker
 
 
@@ -599,7 +614,8 @@ async def run_stage(
 
         results.append((variant_name, metrics))
         logger.info(f"  [{i+1}/{len(param_grid)}] {variant_name}: CAGR={metrics['cagr_pct']:.2f}% "
-                    f"Sharpe={metrics['sharpe_ratio']:.3f} MDD={metrics['max_drawdown_pct']:.2f}%")
+                    f"Sharpe={metrics['sharpe_ratio']:.3f} MDD={metrics['max_drawdown_pct']:.2f}% "
+                    f"Trades={metrics.get('trade_count', 0)}")
 
     # 최고 성과 출력
     best = max(results, key=lambda x: x[1]["sharpe_ratio"])
