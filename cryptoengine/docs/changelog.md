@@ -21,6 +21,32 @@ related:
 
 ---
 
+## [1.8.0] - 2026-04-12
+
+### 추가 (Added)
+
+#### Phase 13–14: Jesse 완전 통합 + 자체엔진 제거
+
+##### Phase 13 — 자체 백테스트 엔진 정리 (`Phase 13: Remove self-engine and failed strategies`)
+- 실패한 전략 및 자체 엔진 코드 제거 — 백테스트 스킬셋 경량화
+- 데이터 수집 스크립트를 `jesse_engine` 서비스로 마이그레이션 (`Task 13.5`)
+- Phase 13 전·후 스냅샷 비교 문서 작성 (`phase13_before_cleanup.md`, `phase13_after_cleanup.md`)
+- Jesse 설치·DB 연결·전략 임포트 통합 검증 (`phase13_jesse_sanity_check.md`)
+- 유지/삭제 결정 매트릭스 문서화 (`keep_delete_decision.md`)
+
+##### Phase 14 — Jesse FA 포팅 완료 (`Task 14.1: FA Jesse complete porting`)
+- `jesse_import.py` 수정: `YYYY/MM.parquet` 레이아웃 + datetime 타임스탬프 지원 (날짜 파싱 호환성 개선)
+- `sanity_check.json`: BtcBuyAndHold 2024 실측값 업데이트 (Jesse DB 기준 검증 통과)
+- FA 전략 `fa80_lev5_r30` Jesse 프레임워크에서 실데이터 백테스트 완전 재현 확인
+
+### 변경 (Changed)
+
+#### 문서 및 파일 구조 정리 (2026-04-12)
+- `.request/` 재구성: 공백·점 포함 파일명 → `NN_snake_case.md` 통일, `init/` · `phase3/` · `backtest_v2/` · `backtest_v4/` · `backtest_v5/` · `system/` 6개 폴더로 분류
+- `.result/` 재구성: `backtest/v{2,3,4,5}/` 중첩 구조 → 최상위 `backtest_v{2,3,4,5}/`로 평탄화, `phase{9,10,12,13}/` 루트 이동, `_20260411` 날짜 접미사 제거
+
+---
+
 ## [1.7.0] - 2026-04-11
 
 ### 추가 (Added)

@@ -6,7 +6,7 @@ Bybit 테스트넷 → 소액 실전을 목표로 하는 비트코인 선물 자
 **펀딩비 차익거래**를 핵심 전략으로, DCA를 보조 전략으로 운영.
 Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
 
-## 현재 진행 상태 (2026-04-11 기준)
+## 현재 진행 상태 (2026-04-12 기준)
 
 - Phase 0 완료: Docker, PostgreSQL, Redis, Grafana 기동
 - Phase 1 완료: Bybit 테스트넷 API 키 설정 (10,000 USDT)
@@ -31,11 +31,14 @@ Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
   - 완료: 잔고 동기화 검증 (`EXPECTED_INITIAL_BALANCE_USD` 기반, 5% 이상 차이 시 시작 거부)
   - 완료: orchestrator/core.py Phase 5 Kill Switch 연결 (`_build_kill_switch()`, `equity_at_open` 전달)
   - 완료: **백테스트 v2 재건** — 10전 10패 근본 원인 진단 + 4-Track 병렬 재건 (2026-04-11)
-    - 진단: PART1_ENGINE_DIAGNOSIS_REBUILD_ROADMAP.md (확정 버그 3개, 합성 데이터 오염 4전략, Jesse 선정)
+    - 진단: `.result/backtest_v2/DIAGNOSIS_REBUILD_ROADMAP.md` (확정 버그 3개, 합성 데이터 오염 4전략, Jesse 선정)
     - Track A: 실데이터 파이프라인 5개 (`download_binance_vision`, `fetch_coinalyze_funding`, `fetch_fear_greed`, `fetch_fred_macro`, `export_pg_to_parquet`)
     - Track B: Jesse 프레임워크 통합 (`jesse_project/`, FundingArb·MultiFundingRotation, `jesse>=0.41.0`)
     - Track C: 버그 수정 (멀티심볼 `funding≤0`→`<MIN_THRESHOLD`, HMM+LLM `TAKER_FEE 0.0002→0.00055`+MIN_HOLD_BARS=4, 극단치역발상 `abs()` 제거)
     - Track D: 합성 데이터 무음 폴백 제거 (CoinMetrics·Fear&Greed·Calendar Spread·ETF Flow)
+  - 완료: **Phase 13–14** — 자체 백테스트 엔진 제거, Jesse FA `fa80_lev5_r30` 실데이터 포팅 완료 (2026-04-12)
+    - Phase 13: 실패 전략 코드 제거, 데이터 수집 스크립트 `jesse_engine` 으로 마이그레이션
+    - Phase 14: `jesse_import.py` YYYY/MM.parquet + datetime 타임스탬프 지원, 실데이터 백테스트 재현 확인
 
 ## 핵심 원칙
 
@@ -316,7 +319,7 @@ docker compose --profile backtest run --rm backtester \
 4. **레버리지 제한**: 선물 포지션 레버리지 5배 초과 금지
    - **현재 적용 설정**: `fa80_lev5_r30` (FA 80% + 레버리지 5x + 재투자 30%)
      - CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회 (Test 12 Stage D2)
-   - **후보 설정** (변경 시 `.result/12.` 리포트 참조):
+   - **후보 설정** (변경 시 `.result/phase3/12_aggressive_fa_report.md` 참조):
      - `fa80_lev4_r30`: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 (보수적 차선책)
      - `fa80_lev5_r50`: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 (재투자 확대)
 5. **공유 라이브러리 수정 시**: `shared/` 변경은 모든 서비스 이미지 재빌드 필요
@@ -336,17 +339,19 @@ docker compose --profile backtest run --rm backtester \
    - `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
    - `PHASE5_MODE=true` 설정 (fixed_notional 사이징, 절대값 Kill Switch 활성화)
 
-### 백테스트 v2 — 다음 단계 (실데이터 수집 후)
-1. **실데이터 수집 실행** (순서대로):
+### 백테스트 Jesse — 다음 단계 (Phase 14 완료 이후)
+
+Phase 13–14에서 Jesse FA 포팅은 완료. 현재 남은 작업:
+
+1. **실데이터 수집 실행** (아직 미실행 시):
    ```bash
    docker compose --profile backtest run --rm backtester python scripts/download_binance_vision.py
    docker compose --profile backtest run --rm backtester python scripts/fetch_coinalyze_funding.py
    docker compose --profile backtest run --rm backtester python scripts/fetch_fear_greed.py
    docker compose --profile backtest run --rm backtester python scripts/fetch_fred_macro.py
    ```
-2. **Jesse 백테스트 실행** (데이터 수집 후):
-   - `jesse_project/README.md` 참조 — DB 생성 → 캔들 임포트 → `jesse backtest FundingArb`
-   - `jesse_project/strategies/FundingArb.py`의 `self.shared_vars['funding_rate']` 연결 필요 (로더 구현)
+2. **MultiFundingRotation Jesse 포팅** (FA 이후):
+   - `jesse_project/strategies/FundingArb.py` 완성 참조, Rotation 전략 동일 패턴 적용
 3. **수정된 전략 재실행** (버그 수정 반영 확인):
    - `fa/bt_multi_symbol_funding_rotation.py` — 진입 DIAGNOSTIC 로그 확인 후 full run
    - `combined/bt_hmm_llm_meta_strategy.py` — 거래 횟수 ~950→~300 감소 확인
