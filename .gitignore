@@ -10,6 +10,9 @@ node_modules/
 **/*.pyo
 **/*.pyd
 
+# Jesse backtest runtime artifacts (UUID raw results)
+cryptoengine/services/jesse_engine/storage/json/
+
 # LLM Advisor data source runtime files
 cryptoengine/services/llm-advisor/alerts/*.md
 cryptoengine/services/llm-advisor/logs/*.log
