@@ -1,0 +1,132 @@
+{
+  "strategy": "FundingArbitrage",
+  "config": "fa80_lev5_r30",
+  "start": "2023-04-01",
+  "end": "2026-04-01",
+  "years": 3.0,
+  "cagr": 0.1837,
+  "sharpe": 3.2676,
+  "mdd": -0.0515,
+  "num_trades": 20,
+  "win_rate": 0.85,
+  "gross_pnl": 10286.39,
+  "total_fees": 1195.93,
+  "net_profit_percentage": 65.8875,
+  "starting_balance": 10000.0,
+  "final_equity": 16588.75,
+  "total_funding_earned": 10286.39,
+  "spot_btc_qty": 0.048781,
+  "spot_btc_cost": 2915.3,
+  "trades_detail": [
+    {
+      "entry_ts": 1681257600000,
+      "exit_ts": 1686096000000,
+      "entry_price": 30213.0,
+      "exit_price": 27170.2,
+      "funding_earned": 489.72,
+      "notional": 40000.0,
+      "pnl_net": 467.72,
+      "bars_held": 168,
+      "exit_reason": "max_hold_bars"
+    },
+    {
+      "entry_ts": 1686441600000,
+      "exit_ts": 1691280000000,
+      "entry_price": 25739.3,
+      "exit_price": 29053.4,
+      "funding_earned": 469.8027575520007,
+      "notional": 41221.61599999999,
+      "pnl_net": 447.1308687520007,
+      "bars_held": 168,
+      "exit_reason": "max_hold_bars"
+    },
+    {
+      "entry_ts": 1691366400000,
+      "exit_ts": 1692403200000,
+      "entry_price": 29046.4,
+      "exit_price": 26087.2,
+      "funding_earned": 122.61371488004532,
+      "notional": 42382.89487730565,
+      "pnl_net": 99.30312269752721,
+      "bars_held": 36,
+      "exit_reason": "funding_reversal"
+    },
+    {
+      "entry_ts": 1698105600000,
+      "exit_ts": 1702944000000,
+      "entry_price": 33504.4,
+      "exit_price": 42733.9,
+      "funding_earned": 1022.263345569867,
+      "notional": 42567.7012521286,
+      "pnl_net": 998.8511098811963,
+      "bars_held": 168,
+      "exit_reason": "max_hold_bars"
+    },
+    {
+      "entry_ts": 1703030400000,
+      "exit_ts": 1707868800000,
+      "entry_price": 42443.0,
+      "exit_price": 49486.2,
+      "funding_earned": 1155.1759073366527,
+      "notional": 45270.83541704163,
+      "pnl_net": 1130.2769478572798,
+      "bars_held": 168,
+      "exit_reason": "max_hold_bars"
+    },
+    {
+      "entry_ts": 1707955200000,
+      "exit_ts": 1712793600000,
+      "entry_price": 52355.2,
+      "exit_price": 70572.0,
+      "funding_earned": 2128.7181020588246,
+      "notional": 48336.01503312492,
+      "pnl_net": 2102.133293790606,
+      "bars_held": 168,
+      "exit_reason": "max_hold_bars"
+    },
+    {
+      "entry_ts": 1712880000000,
+      "exit_ts": 1713484800000,
+      "entry_price": 70342.0,
+      "exit_price": 62692.1,
+      "funding_earned": 58.174322699365774,
+      "notional": 54115.649022665835,
+      "pnl_net": 28.41071573689956,
+      "bars_held": 21,
+      "exit_reason": "funding_reversal"
+    },
+    {
+      "entry_ts": 1714233600000,
+      "exit_ts": 1714723200000,
+      "entry_price": 62712.8,
+      "exit_price": 59199.9,
+      "funding_earned": 25.68616868446765,
+      "notional": 54076.14459887927,
+      "pnl_net": -4.05571084491595,
+      "bars_held": 17,
+      "exit_reason": "funding_reversal"
+    },
+    {
+      "entry_ts": 1715097600000,
+      "exit_ts": 1718582400000,
+      "entry_price": 63613.0,
+      "exit_price": 66565.5,
+      "funding_earned": 526.7873590822741,
+      "notional": 53940.954237382066,
+      "pnl_net": 497.11983425171394,
+      "bars_held": 121,
+      "exit_reason": "funding_reversal"
+    },
+    {
+      "entry_ts": 1720569600000,
+      "exit_ts": 1723651200000,
+      "entry_price": 57468.0,
+      "exit_price": 59090.5,
+      "funding_earned": 317.70262000399276,
+      "notional": 55214.219673964755,
+      "pnl_net": 287.33479918331216,
+      "bars_held": 107,
+      "exit_reason": "funding_reversal"
+    }
+  ]
+}
