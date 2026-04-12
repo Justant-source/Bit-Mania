@@ -319,7 +319,7 @@ docker compose --profile backtest run --rm backtester \
 4. **레버리지 제한**: 선물 포지션 레버리지 5배 초과 금지
    - **현재 적용 설정**: `fa80_lev5_r30` (FA 80% + 레버리지 5x + 재투자 30%)
      - CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회 (Test 12 Stage D2)
-   - **후보 설정** (변경 시 `.result/phase3/12_aggressive_fa_report.md` 참조):
+   - **후보 설정**:
      - `fa80_lev4_r30`: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 (보수적 차선책)
      - `fa80_lev5_r50`: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 (재투자 확대)
 5. **공유 라이브러리 수정 시**: `shared/` 변경은 모든 서비스 이미지 재빌드 필요
