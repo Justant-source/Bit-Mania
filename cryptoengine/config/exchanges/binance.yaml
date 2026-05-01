@@ -39,6 +39,3 @@ exchange:
     BTCUSDT:
       min_qty: 0.001
       qty_step: 0.001
-    ETHUSDT:
-      min_qty: 0.001
-      qty_step: 0.001

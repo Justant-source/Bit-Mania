@@ -1,8 +1,10 @@
 """fetch_coinalyze_funding.py — Fetch funding rates, open interest, and liquidations from Coinalyze.
 
+BTC 단일 운영 — multi-symbol 거래 금지.
+
 Fetches real market microstructure data from Coinalyze API.
 - Endpoints: funding history, open interest, liquidations
-- Symbols: BTCUSDT_PERP.A, ETHUSDT_PERP.A (Bybit)
+- Symbol: BTCUSDT_PERP.A (Bybit)
 - API key: optional (read from COINALYZE_API_KEY env var)
 - Rate limit: 1 request/second
 - Chunked requests: 30-day windows to avoid rate limits
@@ -37,7 +39,7 @@ import requests
 
 COINALYZE_BASE = "https://api.coinalyze.net/v1"
 API_KEY = os.getenv("COINALYZE_API_KEY", "")
-SYMBOLS = ["BTCUSDT_PERP.A", "ETHUSDT_PERP.A"]
+SYMBOLS = ["BTCUSDT_PERP.A"]
 START_DATE = "2023-04-01"
 END_DATE = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
 OUTPUT_DIR = "data"

@@ -45,9 +45,7 @@ exchange:
     # Subscriptions
     public_topics:
       - orderbook.50.BTCUSDT
-      - orderbook.50.ETHUSDT
       - tickers.BTCUSDT
-      - tickers.ETHUSDT
       - kline.1.BTCUSDT
       - kline.5.BTCUSDT
       - kline.15.BTCUSDT
@@ -85,6 +83,7 @@ exchange:
     min_order_value_usd: 5
 
   # ── Supported Pairs ────────────────────────────────────────
+  # BTC 단일 운영 — multi-symbol 거래 금지
   pairs:
     BTCUSDT:
       min_qty: 0.001
@@ -92,27 +91,3 @@ exchange:
       min_price: 0.50
       price_step: 0.50
       max_leverage: 100
-    ETHUSDT:
-      min_qty: 0.01
-      qty_step: 0.01
-      min_price: 0.01
-      price_step: 0.01
-      max_leverage: 75
-    SOLUSDT:
-      min_qty: 0.1
-      qty_step: 0.1
-      min_price: 0.001
-      price_step: 0.001
-      max_leverage: 50
-    BNBUSDT:
-      min_qty: 0.01
-      qty_step: 0.01
-      min_price: 0.01
-      price_step: 0.01
-      max_leverage: 50
-    XRPUSDT:
-      min_qty: 1
-      qty_step: 1
-      min_price: 0.0001
-      price_step: 0.0001
-      max_leverage: 50

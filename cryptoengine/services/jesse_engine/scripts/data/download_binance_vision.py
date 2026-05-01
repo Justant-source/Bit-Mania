@@ -1,21 +1,20 @@
-"""download_binance_vision.py — Downloads BTC/ETH OHLCV from Binance Vision.
+"""download_binance_vision.py — Downloads BTC OHLCV from Binance Vision.
 
-Fetches real market data from data.binance.vision for multiple symbols and intervals.
-- Symbols: BTCUSDT, ETHUSDT (customizable)
+BTC 단일 운영 — multi-symbol 거래 금지.
+
+Fetches real market data from data.binance.vision for BTC.
+- Symbol: BTCUSDT
 - Intervals: 1h, 4h, 1d (customizable)
 - Date range: 2019-01-01 to today (customizable)
 - Format: CSV inside ZIP files
 - Output: Parquet files with ZSTD compression in data/ohlcv/
 
 Usage:
-    # Basic: 6 years, BTCUSDT + ETHUSDT, 1h/4h/1d
+    # Basic: 6 years, BTCUSDT, 1h/4h/1d
     python scripts/download_binance_vision.py
 
     # Custom date range
     python scripts/download_binance_vision.py --start 2022-01-01 --end 2024-12-31
-
-    # Custom symbols and intervals
-    python scripts/download_binance_vision.py --symbols BTCUSDT,ETHUSDT --intervals 1h,4h
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ import requests
 # ── Configuration ────────────────────────────────────────────────────────────
 
 BINANCE_VISION_BASE = "https://data.binance.vision/data/futures/um/daily/klines"
-SYMBOLS = ["BTCUSDT", "ETHUSDT"]
+SYMBOLS = ["BTCUSDT"]
 INTERVALS = ["1h", "4h", "1d"]
 START_DATE = "2019-01-01"
 END_DATE = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")

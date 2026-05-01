@@ -246,11 +246,11 @@ class TestExecutionWithErrors:
             "request_id": "dca-001",
             "strategy_id": "adaptive_dca",
             "exchange": "bybit",
-            "symbol": "ETH/USDT:USDT",
+            "symbol": "BTC/USDT:USDT",
             "side": "sell",
             "order_type": "limit",
-            "quantity": 1.0,
-            "price": 3500.0,
+            "quantity": 0.05,
+            "price": 65500.0,
         }
 
         r1 = await pipeline.process_order(p1)

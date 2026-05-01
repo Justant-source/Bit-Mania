@@ -226,12 +226,20 @@ class FundingMonitor:
         interval: float,
     ) -> None:
         while not shutdown.is_set():
-            try:
-                await poll_fn()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception(SERVICE_HEALTH_FAIL, message="funding poll error", poller=poll_fn.__name__)
+            last_exc: Exception | None = None
+            for attempt in range(3):
+                try:
+                    await poll_fn()
+                    last_exc = None
+                    break
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)  # 1s, 2s
+            if last_exc is not None:
+                log.error(SERVICE_HEALTH_FAIL, message="funding poll error", poller=poll_fn.__name__, exc_info=last_exc)
             try:
                 await asyncio.wait_for(shutdown.wait(), timeout=interval)
                 break

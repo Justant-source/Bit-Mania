@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Seed historical OHLCV and funding-rate data from Bybit REST API.
 
+BTC 단일 운영 — multi-symbol 거래 금지.
+
 Downloads the last 6 months of data (configurable) and upserts into
 the ``ohlcv_history`` and ``funding_rate_history`` tables.
 
 Usage:
   python scripts/seed_historical.py
-  python scripts/seed_historical.py --symbols BTCUSDT ETHUSDT --months 3
+  python scripts/seed_historical.py --months 3
   python scripts/seed_historical.py --timeframes 1h 4h --dry-run
 """
 
@@ -37,7 +39,7 @@ structlog.configure(
 )
 log = structlog.get_logger("seed_historical")
 
-DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+DEFAULT_SYMBOLS = ["BTCUSDT"]
 DEFAULT_TIMEFRAMES = ["1h"]
 EXCHANGE = "bybit"
 
@@ -363,7 +365,7 @@ def main() -> None:
         "--symbols",
         nargs="+",
         default=DEFAULT_SYMBOLS,
-        help="Trading pairs to fetch (default: BTCUSDT ETHUSDT SOLUSDT)",
+        help="Trading pairs to fetch (default: BTCUSDT — BTC 단일 운영)",
     )
     parser.add_argument(
         "--timeframes",

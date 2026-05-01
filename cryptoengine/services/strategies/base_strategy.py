@@ -131,9 +131,13 @@ class BaseStrategy(ABC):
                         if msg["type"] == "message":
                             try:
                                 cmd = StrategyCommand.model_validate_json(msg["data"])
-                                await self._handle_command(cmd)
                             except Exception:
                                 self._log.exception("command_parse_error", raw=msg["data"])
+                                continue
+                            try:
+                                await self._handle_command(cmd)
+                            except Exception:
+                                self._log.exception("command_handle_error", action=cmd.action)
                 except Exception:
                     # pubsub may have broken — attempt reconnect & resubscribe
                     self._log.warning("pubsub_read_error — attempting reconnect")
@@ -296,7 +300,11 @@ class BaseStrategy(ABC):
                 self.allocated_capital = capital
                 if command.max_drawdown is not None:
                     self.max_drawdown = command.max_drawdown
-                await self.on_start(capital, command.params)
+                try:
+                    await self.on_start(capital, command.params)
+                except Exception:
+                    self.is_running = False
+                    raise
                 self.is_running = True
                 self.is_paused = False
 

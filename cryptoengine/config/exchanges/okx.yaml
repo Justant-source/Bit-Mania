@@ -42,6 +42,3 @@ exchange:
     BTC-USDT-SWAP:
       min_qty: 0.01
       qty_step: 0.01
-    ETH-USDT-SWAP:
-      min_qty: 0.1
-      qty_step: 0.1

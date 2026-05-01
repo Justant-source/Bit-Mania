@@ -2,272 +2,100 @@
 
 ## 프로젝트 개요
 
-비트코인 선물 자동매매 시스템. 펀딩비 차익거래 핵심 전략, DCA 보조. Docker Compose 기반, WSL Ubuntu, 24/7 무중단 운영.
+비트코인 선물 자동매매 시스템. 펀딩비 차익거래 핵심 전략, BTC 단일 운영. Docker Compose 기반, 테스트넷 → 메인넷 소액 투자 준비.
 
-## 현재 진행 상태 (2026-04-12 기준)
+## 현재 진행 상태
 
-- Phase 0~3 완료: Docker 인프라, API 키, 서비스 검증, 백테스트 (fa80_lev5_r30 채택, CAGR +34.87%)
-- Phase 4 진행 중: 테스트넷 포워드 테스트. 안전장치 완비, Jesse 백테스트 포팅 완료
-- 상세 이력: `cryptoengine/docs/archive/CLAUDE_history.md` 참조
+- **Phase 4 진행 중**: 테스트넷 포워드 테스트 (fa80_lev5_r30, CAGR +34.87%)
+- **Phase 5 준비**: 메인넷 소액 전환 대기 ($200 USDT, `switch_to_mainnet.py`)
 
 ## 핵심 원칙
 
 1. **생존 우선**: 수익보다 포지션 보호. Kill Switch 4단계 계층 유지
 2. **테스트넷 우선**: `BYBIT_TESTNET=true` 확인 후 작업
 3. **단계별 검증**: Phase 3 → 4 → 5 순서, 절대 건너뛰지 않음
+4. **BTC 단일 운영**: 다중 심볼 금지 (변동성/신뢰)
+5. **포지션 보호**: 배포 시에도 청산하지 않음 (service_shutdown → Redis 복구)
 
-## 프로젝트 구조
+## 문서 관리 규칙 ★ 필수
 
-```
-cryptoengine/
-├── docker-compose.yml          # 전체 스택 (19개 서비스)
-├── .env                        # API 키, DB 비밀번호 (git 제외)
-├── config/
-│   ├── strategies/
-│   │   ├── funding-arb.yaml    # 펀딩비 전략 파라미터
-│   │   └── adaptive-dca.yaml   # DCA 전략 파라미터
-│   └── orchestrator.yaml       # 레짐별 가중치, Kill Switch 임계값
-├── shared/                     # 모든 서비스 공유 라이브러리
-│   ├── models/                 # 도메인 모델 (Order, Position, Strategy)
-│   ├── exchange/               # Bybit CCXT 래퍼
-│   ├── db/                     # asyncpg 풀, Repository 패턴
-│   ├── redis_client.py         # Redis Pub/Sub 헬퍼
-│   ├── config_loader.py        # YAML 설정 로더 (절대경로 지원)
-│   ├── kill_switch.py          # Kill Switch 공통 로직 (Phase 5: 절대값 AND 조건 지원)
-│   ├── log_events.py           # 이벤트 코드 정의 (95개)
-│   ├── log_writer.py           # 비동기 DB 로그 라이터 (큐 기반)
-│   ├── logging_config.py       # structlog 표준 설정 (KST 타임스탬프)
-│   └── timezone_utils.py       # KST 타임존 유틸리티
-├── docs/
-│   ├── EMERGENCY_MANUAL_CLOSE.md  # 비상 수동 청산 SOP (휴대폰 저장용 5단계 포함)
-│   └── archive/                   # 개발 이력 아카이브
-├── scripts/
-│   ├── phase5_preflight.py     # Phase 5 진입 전 8개 항목 점검
-│   ├── switch_to_mainnet.py    # 메인넷 전환 스크립트 (9단계, 이중 확인)
-│   ├── switch_to_testnet.py    # 테스트넷 롤백 스크립트 (6단계, 백업 복원)
-│   └── ...                     # 기타 운영 스크립트
-└── services/
-    ├── market-data/            # WebSocket 데이터 수집, 레짐 감지
-    ├── orchestrator/           # 전략 조율, 자본 배분, 레짐 기반 가중치
-    ├── execution/              # 주문 실행, 포지션 추적, 안전 검증, stoploss_manager.py
-    ├── strategies/
-    │   ├── base_strategy.py    # BaseStrategy ABC (모든 전략 상속)
-    │   ├── funding-arb/        # 핵심 전략: 델타 뉴트럴 + 펀딩비 수취
-    │   └── adaptive-dca/       # 보조: Fear&Greed 기반 적응형 DCA
-    ├── llm-advisor/            # Claude Code 기반 시장 분석
-    ├── telegram-bot/           # 알림 (AlertDispatcher) + 비상 명령 + ACK 확인
-    ├── dashboard/              # 내부(3000) + 공개(3001) 대시보드
-    ├── jesse_engine/           # 현재 활성 백테스트 엔진 (Jesse 프레임워크)
-    ├── log-retention/          # service_logs 보존 정책 자동 실행 (매일 03:00 KST)
-    ├── wf-scheduler/           # 월간 WF 자동 실행 (매월 1일 02:00 KST)
-    └── grafana (이미지)        # 모니터링 대시보드 (포트 3002)
-```
+**모든 프로젝트 문서는 `cryptoengine/docs/` 단일 트리에서 관리한다.**
 
-## 배포 시 포지션 관리 ★ 중요
+새 컨텍스트 진입 시: `cryptoengine/docs/README.md` (Map of Content)를 먼저 읽는다.
 
-### 원칙: 배포(재시작)는 포지션을 청산하지 않는다
+### 코드 ↔ 문서 동기화
+코드 수정 시 같은 커밋에서 관련 문서를 업데이트한다:
+1. `cryptoengine/docs/CODE_MAP.md` 역인덱스에서 변경 코드 경로 검색
+2. 해당 doc의 `last_updated` frontmatter 갱신
+3. 신규 영역은 같은 커밋에서 doc 신규 작성 + CODE_MAP.md 행 추가
 
-`funding-arb` 전략은 `service_shutdown` 사유로 종료될 때 포지션을 청산하지 않고
-Redis에 상태를 저장한 뒤, 재시작 후 자동으로 복구한다.
-**dev/stage 환경 없이 prod에 직접 배포하는 구조이므로 이 원칙이 수수료 낭비를 막는 핵심이다.**
+문서 미업데이트는 작업 미완으로 간주한다.
 
-### 종료 사유별 동작
+### 참고 문서
+- `cryptoengine/docs/README.md` — MOC (시작점)
+- `cryptoengine/docs/CODE_MAP.md` — 코드 경로 → 문서 역인덱스
+- `cryptoengine/docs/glossary.md` — 용어집
+- `cryptoengine/docs/architecture/` — 시스템 설계
+- `cryptoengine/docs/policies/` — 정책 + Kill Switch
+- `cryptoengine/docs/strategies/` — 전략 사양
+- `cryptoengine/docs/runbook.md` — Docker 운영 가이드
 
-| 종료 사유 | 포지션 | 비고 |
-|---------|--------|------|
-| `service_shutdown` (배포·재시작) | **유지** — Redis에 상태 저장 | TTL 1시간 내 재시작 시 복구 |
-| `kill_switch` | **즉시 청산** | 긴급 상황 |
-| `funding_reversal` | **즉시 청산** | 펀딩비 음수 전환 |
-| `basis_divergence_risk` | **즉시 청산** | 스프레드 과도 확대 |
-| `basis_convergence` | **청산** | 수익 실현 |
+## 배포 및 운영
 
-### 안전한 서비스 배포 절차
+→ `cryptoengine/docs/runbook.md` 참조
+
+포지션 보호 원칙: 배포(재시작)는 포지션을 청산하지 않는다. `service_shutdown` 사유로 종료될 때 Redis에 상태를 저장한 뒤, 1시간 내 재시작 시 자동 복구된다.
 
 ```bash
-# 1. 포지션 확인 (선택)
-docker compose exec postgres psql -U cryptoengine -d cryptoengine \
-  -c "SELECT * FROM positions WHERE size > 0;"
+# 핵심 명령
+docker compose up -d --build --no-deps funding-arb          # 단일 서비스 재빌드
+docker compose logs --tail=20 funding-arb | grep 복구        # 복구 확인
 
-# 2. 코드 수정 후 재빌드 (포지션 유지됨)
-docker compose up -d --build --no-deps funding-arb
-
-# 3. 복구 확인 — 로그에서 "포지션 상태 복구 완료" 확인
-docker compose logs --tail=20 funding-arb | grep -E "복구|recovered"
-```
-
-### shared/ 수정 시 (모든 서비스 재빌드)
-
-```bash
-# shared/ 변경은 이 순서로 재빌드
+# shared/ 변경 시 전체 서비스 재빌드
 docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
 ```
 
-### 주의사항
-- Redis TTL은 **1시간**. 1시간 초과 중단 후 재시작 시 포지션이 남아있어도 복구 안 됨 → 신규 시작
-- 이 경우 거래소에 포지션이 남아있으면 **수동 청산 필요** (Telegram `/emergency_close` 또는 Bybit UI)
-- `make emergency`는 kill_switch 사유로 종료 → 여전히 청산됨 (의도적)
+## Docker 및 공유 라이브러리
 
-## Docker 작업 규칙
+→ `cryptoengine/docs/runbook.md` + `cryptoengine/docs/structure/README.md` 참조
 
-### 빌드 컨텍스트
-모든 서비스의 build context는 프로젝트 루트(`.`)로 설정되어 있음.
-Dockerfile 내 COPY 경로는 반드시 프로젝트 루트 기준으로 작성:
-
+**빌드 컨텍스트**: 프로젝트 루트(`.`)에서 COPY 경로는 `cryptoengine/` 프리픽스 사용.
 ```dockerfile
-# 올바른 예
-COPY cryptoengine/shared /app/shared
-COPY cryptoengine/services/strategies/funding-arb /app/strategy
-COPY cryptoengine/services/strategies/base_strategy.py /app/
-
-# 잘못된 예 (빌드 실패)
-COPY ../../shared /app/shared
+COPY cryptoengine/shared /app/shared  # ✓ 올바름
+COPY ../../shared /app/shared        # ✗ 실패
 ```
 
-### 자주 쓰는 명령
+**자주 쓰는 명령**:
 ```bash
-# 인프라만 기동
-docker compose up -d postgres redis grafana
-
-# 핵심 서비스 기동
-docker compose up -d market-data execution-engine funding-arb strategy-orchestrator
-
-# 특정 서비스 재빌드 후 재시작
-docker compose up -d --build --no-deps <service>
-
-# 로그 확인
-docker compose logs -f funding-arb
-docker compose logs --tail=50 market-data
-
-# 전체 상태
-docker compose ps
-
-# DB 직접 접속
-docker compose exec postgres psql -U cryptoengine -d cryptoengine
-
-# 비상 정지 (포지션 보호)
-make emergency
+docker compose up -d postgres redis        # 인프라만 기동
+docker compose up -d --build --no-deps <s> # 특정 서비스 재빌드
+docker compose logs -f funding-arb          # 실시간 로그
+make emergency                              # 비상 청산
 ```
 
-## 알려진 문제 및 해결법
+## 참고 문서
 
-### 1. config 파일 경로
-`load_config()`에 절대 경로 전달 시 직접 파일을 열도록 `config_loader.py` 수정 완료.
-전략 config 파일은 두 이름 모두 존재:
-- `config/strategies/funding_arb.yaml` (원본)
-- `config/strategies/funding-arb.yaml` (하이픈 버전, 복사본)
+**프로젝트 구조**: `cryptoengine/docs/structure/services.md`
+**Redis Pub/Sub 채널**: `cryptoengine/docs/architecture/data-flow.md`
+**PostgreSQL 테이블**: `cryptoengine/docs/structure/README.md`
+**환경 변수**: `cryptoengine/docs/runbook.md`
+**백테스트 스킬셋**: `services/jesse_engine/scripts/README.md`
 
-### 2. shared 모듈 접근
-서비스에서 `from shared.xxx import yyy` 사용 시 Dockerfile에서
-`COPY shared /app/shared` 와 `ENV PYTHONPATH=/app` 필수.
+## 코드 작업 시 필수 규칙
 
-### 3. structlog 레벨 상수
-`structlog.INFO` 없음 → `logging.INFO` 사용. `import logging` 추가 필요.
+1. **BYBIT_TESTNET=false 금지**: Phase 5 명시적 승인 전까지 절대 변경 금지
+2. **Kill Switch 약화 금지**: `shared/kill_switch.py` 로직 절대 수정 금지
+3. **레버리지 5x 제한**: `fa80_lev5_r30` 초과 금지 (CAGR +34.87%, Sharpe 3.583, MDD -4.52%)
+4. **BTC 단일 운영**: 다중 심볼 거래 금지
+5. **shared/ 변경 시**: 모든 서비스 이미지 재빌드 필수
 
-### 4. base_strategy 위치
-`services/strategies/base_strategy.py` — 전략 서비스 Dockerfile에서 명시적 복사 필요:
-```dockerfile
-COPY services/strategies/base_strategy.py /app/
-```
+## 다음 작업
 
-### 5. Redis close_redis
-`shared/redis_client.py`에 모듈 레벨 싱글턴 `get_redis()` / `close_redis()` 추가 완료.
+→ `cryptoengine/docs/archive/CLAUDE_history.md` 및 본 CLAUDE.md의 "현재 진행 상태" 참조
 
-## 서비스 간 통신 (Redis Pub/Sub)
-
-| 채널 | 발행자 | 구독자 | 내용 |
-|------|--------|--------|------|
-| `market:funding_rate` | market-data | funding-arb, orchestrator | 현재 펀딩비 |
-| `market:regime` | market-data | orchestrator | 시장 레짐 (trending/ranging/volatile) |
-| `strategy:command:{id}` | orchestrator | 각 전략 | 자본 배분, 시작/정지 명령 |
-| `order:request` | 각 전략 | execution-engine | 주문 요청 |
-| `order:update` | execution-engine | 각 전략 | 체결/취소 알림 |
-| `kill_switch` | orchestrator | execution-engine | 긴급 청산 |
-
-## 데이터베이스 (PostgreSQL)
-
-주요 테이블:
-- `trades` — 모든 체결 기록
-- `positions` — 현재/과거 포지션
-- `funding_payments` — 펀딩비 수취 기록
-- `funding_rate_history` — 펀딩비 히스토리
-- `ohlcv_history` — OHLCV 캔들 데이터 (보존 정책: 타임프레임별 자동 삭제)
-- `portfolio_snapshots` — 시간별 포트폴리오 스냅샷
-- `daily_reports` — 일별 수익/지표 집계
-- `kill_switch_events` — Kill Switch 발동 이력
-- `strategy_states` — 전략 상태 스냅샷
-- `llm_judgments` — LLM 분석 결과
-- `service_logs` — 전 서비스 구조화 이벤트 로그 (migration 003)
-- `regime_raw_log` — 5분 캔들별 원시 레짐 감지 결과 (migration 004)
-- `regime_transitions` — 확정 레짐 전환 이벤트 (migration 004)
-
-## 환경 변수 (.env)
-
+**Phase 4 → 5 전환**:
 ```bash
-# Bybit (테스트넷)
-BYBIT_API_KEY=<set in .env, do not commit>
-BYBIT_TESTNET=true          # 절대 false로 바꾸지 않음 (Phase 5 전까지)
-
-# DB
-DB_PASSWORD=***REMOVED***
-
-# Grafana: http://localhost:3002
-# 로그인: admin / ***REMOVED***
+scripts/phase5_preflight.py              # Phase 5 진입 전 8개 항목 검증
+scripts/switch_to_mainnet.py             # 메인넷 전환 (9단계, 이중 확인)
+# 설정: EXPECTED_INITIAL_BALANCE_USD=200, STRICT_MONITORING_HOURS=24, PHASE5_MODE=true
 ```
-
-## 백테스트 스킬셋 규칙 ★ 중요
-
-백테스트 스크립트는 **스킬셋**으로 관리한다. 새 스크립트 작성 전 반드시 아래 절차를 따른다.
-
-### 1. 기존 스킬 확인 (필수)
-`services/jesse_engine/scripts/` 디렉토리를 먼저 확인한다.
-새 스크립트를 작성하기 전에 **기존에 동일하거나 유사한 스크립트가 있는지 확인**한다.
-
-### 2. 새 스크립트 위치 (필수)
-모든 백테스트 Python 파일은 `services/jesse_engine/scripts/` 에 생성한다.
-
-### 3. README 업데이트 (필수)
-`services/jesse_engine/scripts/README.md`를 반드시 업데이트해야 하는 시점:
-- 새 스크립트 **추가** → 해당 테이블에 행 추가
-- 기존 스크립트 **수정** (파라미터·목적 변경) → 해당 행 업데이트
-- 스크립트 **삭제** → 해당 행 제거
-
-### 4. Docker 실행 명령
-```bash
-# Jesse 백테스트 실행
-docker compose --profile backtest run --rm jesse_engine \
-  python scripts/<스크립트>.py
-
-# 이미지 재빌드 후 실행 (새 파일 추가 시)
-docker compose --profile backtest build --no-cache jesse_engine && \
-docker compose --profile backtest run --rm jesse_engine \
-  python scripts/<스크립트>.py
-```
-
-## 코드 작업 시 주의사항
-
-1. **실전 전환 금지**: `BYBIT_TESTNET=false` 변경은 Phase 4 완료 후 명시적 승인 필요
-2. **출금 권한 없음**: API 키에 Withdraw 권한 없음 (의도적)
-3. **Kill Switch 유지**: `shared/kill_switch.py` 로직 절대 약화시키지 않음
-4. **레버리지 제한**: 선물 포지션 레버리지 5배 초과 금지
-   - **현재 적용 설정**: `fa80_lev5_r30` (FA 80% + 레버리지 5x + 재투자 30%)
-     - CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회 (Test 12 Stage D2)
-   - **후보 설정**:
-     - `fa80_lev4_r30`: FA=80% Lev=4x Reinv=30% → CAGR +28.56% Sharpe 3.556 (보수적 차선책)
-     - `fa80_lev5_r50`: FA=80% Lev=5x Reinv=50% → CAGR +33.54% Sharpe 1.867 (재투자 확대)
-5. **공유 라이브러리 수정 시**: `shared/` 변경은 모든 서비스 이미지 재빌드 필요
-
-## 다음 작업 (Phase 4 진행 중)
-
-### Phase 4 완료 체크리스트
-1. 7개 시나리오 체크리스트 완료 (`arch/PHASE4_MONITORING.md` 참조)
-2. 7일 이상 무중단 운영 확인 (Restarting 없이 Running 유지)
-3. `scripts/phase5_preflight.py` 모든 항목 PASS 확인
-4. `make resilience-test`로 복원력 검증
-5. Telegram 모든 알림 유형 수신 확인 (Kill Switch ACK 포함)
-6. stoploss_on_exchange 정상 동작 확인 (진입/청산/재시작 시나리오)
-7. Walk-Forward 월간 파이프라인 1회 이상 정상 완료 확인
-8. **Phase 5 진입 준비 완료** — `scripts/switch_to_mainnet.py` 실행 후 `BYBIT_TESTNET=false` 전환
-   - `EXPECTED_INITIAL_BALANCE_USD=200` 설정 필수 (잔고 검증)
-   - `STRICT_MONITORING_HOURS=24` 설정 (첫 24시간 강화 모니터링)
-   - `PHASE5_MODE=true` 설정 (fixed_notional 사이징, 절대값 Kill Switch 활성화)

@@ -25,13 +25,9 @@ entry:
   min_open_interest_usd: 5_000_000
   # Maximum spread between bid/ask to enter (percentage)
   max_entry_spread_pct: 0.05
-  # Allowed trading pairs
+  # Allowed trading pairs (BTC 단일 운영 — multi-symbol 거래 금지)
   pairs:
     - BTCUSDT
-    - ETHUSDT
-    - SOLUSDT
-    - BNBUSDT
-    - XRPUSDT
 
 # ── Active Strategy Configuration (fa80_lev5_r30) ────────────
 # Backtest: 2020-04-01 ~ 2026-03-31  |  CAGR +34.87%  |  Sharpe 3.583  |  MDD -4.52%  |  Liquidations 0

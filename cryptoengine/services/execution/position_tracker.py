@@ -112,6 +112,13 @@ class PositionTracker:
             open_positions=synced,
         )
 
+    async def get_balance(self) -> dict[str, float]:
+        """Fetch wallet balance using the already-connected connector."""
+        if not self._connected:
+            await self._connector.connect()
+            self._connected = True
+        return await self._connector.get_balance()
+
     async def run(self, shutdown: asyncio.Event) -> None:
         """Background loop: periodic sync and stale-position detection."""
         log.info(SERVICE_STARTED, message="position tracker starting", exchange=self._exchange_id)

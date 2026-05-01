@@ -53,6 +53,7 @@ class BybitConnector(ExchangeConnector):
         if testnet:
             opts["sandbox"] = True
 
+        self._opts = opts  # Save opts for session refresh on stale connections
         self._exchange: ccxtpro.bybit = ccxtpro.bybit(opts)
         self._connected = False
         self._rate_limiter = asyncio.Semaphore(10)
@@ -86,6 +87,16 @@ class BybitConnector(ExchangeConnector):
     def _ensure_connected(self) -> None:
         if not self._connected:
             raise RuntimeError("BybitConnector is not connected — call connect() first")
+
+    async def _refresh_session(self) -> None:
+        """Recover from stale aiohttp connections by recreating the exchange instance."""
+        try:
+            await self._exchange.close()
+        except Exception:
+            pass
+        self._exchange = ccxtpro.bybit(self._opts)
+        await self._exchange.load_markets()
+        log.info("bybit session refreshed — stale connection recovered")
 
     # ── market data ─────────────────────────────────────────────────────
 
@@ -269,8 +280,18 @@ class BybitConnector(ExchangeConnector):
 
     async def get_balance(self) -> dict[str, float]:
         self._ensure_connected()
-        async with self._rate_limiter:
-            bal = await self._exchange.fetch_balance()
+        try:
+            async with self._rate_limiter:
+                bal = await self._exchange.fetch_balance()
+        except Exception as first_exc:
+            log.warning(
+                "get_balance failed (%s: %s) — refreshing session and retrying once",
+                type(first_exc).__name__,
+                str(first_exc)[:300],
+            )
+            await self._refresh_session()
+            async with self._rate_limiter:
+                bal = await self._exchange.fetch_balance()
         return {
             "total": float(bal.get("total", {}).get("USDT", 0) or 0),
             "free": float(bal.get("free", {}).get("USDT", 0) or 0),

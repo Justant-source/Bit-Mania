@@ -18,10 +18,9 @@ base:
   base_amount_usd: 100
   # Base interval between purchases (hours)
   base_interval_hours: 24
-  # Target asset for accumulation
+  # Target asset for accumulation (BTC 단일 운영)
   pairs:
     - BTCUSDT
-    - ETHUSDT
   # Position side: long_only | short_only | both
   position_side: long_only
   # Use futures or spot

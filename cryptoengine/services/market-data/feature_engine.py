@@ -3,12 +3,13 @@
 Generates a large feature matrix by combining:
   - Multiple timeframes (1m, 5m, 15m, 1h, 4h)
   - Base technical indicators (EMA, RSI, ADX, ATR, BB, MACD)
-  - Correlated pairs (e.g., ETHUSDT)
   - Shifted candles (lag-1, lag-2, lag-3)
   - Multiple indicator periods
 
+BTC 단일 운영 — multi-symbol 거래 금지.
+
 Example dimensionality:
-  4 TFs x 6 indicators x 2 pairs x 3 shifts x 3 periods = 432+ features
+  4 TFs x 6 indicators x 1 pair x 3 shifts x 3 periods = 216 features
 
 Configuration is driven by YAML; output is a pandas DataFrame ready for ML
 model consumption.
@@ -46,7 +47,7 @@ log = structlog.get_logger(__name__)
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "timeframes": ["1m", "5m", "15m", "1h"],
-    "symbols": ["BTCUSDT", "ETHUSDT"],
+    "symbols": ["BTCUSDT"],
     "indicators": {
         "ema": {"periods": [9, 20, 50]},
         "rsi": {"periods": [7, 14, 21]},

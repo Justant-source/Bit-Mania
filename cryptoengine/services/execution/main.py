@@ -247,58 +247,55 @@ async def main() -> None:
                 pass
 
     async def _balance_publisher(shutdown: asyncio.Event) -> None:
-        """Refresh wallet balance in Redis every 60 s so orchestrator never sees 0."""
+        """Refresh wallet balance in Redis every 60 s so orchestrator never sees 0.
+
+        PositionTracker의 이미 연결된 커넥터를 재사용 — 매번 load_markets() 재호출 방지.
+        """
+        consecutive_failures = 0
         while not shutdown.is_set():
-            connector = None
             try:
-                connector = exchange_factory(
-                    EXCHANGE,
-                    api_key=BYBIT_API_KEY,
-                    api_secret=BYBIT_API_SECRET,
-                    testnet=BYBIT_TESTNET,
-                )
-                await connector.connect()
-                balance = await connector.get_balance()
+                balance = await position_tracker.get_balance()
                 await redis_client.setex(
                     "cache:wallet_balance",
                     300,  # 5분 TTL (60초마다 갱신하므로 충분)
                     _json.dumps(balance),
                 )
                 log.info(SERVICE_HEALTH_OK, message="wallet balance published", total_usdt=balance.get("total", 0))
-            except Exception:
-                log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed")
-            finally:
-                if connector is not None:
-                    try:
-                        await connector.disconnect()
-                    except Exception:
-                        pass
+                consecutive_failures = 0
+            except Exception as exc:
+                consecutive_failures += 1
+                # 첫 실패 또는 10회 누적마다 ERROR (→ Telegram 알림)
+                # 그 외는 WARNING (Telegram 알림 없음) — 알림 폭주 방지
+                if consecutive_failures == 1 or consecutive_failures % 10 == 0:
+                    log.error(
+                        SERVICE_HEALTH_FAIL,
+                        message="wallet balance publish failed",
+                        exc_type=type(exc).__name__,
+                        exc=str(exc)[:500],
+                        consecutive_failures=consecutive_failures,
+                    )
+                else:
+                    log.warning(
+                        SERVICE_HEALTH_FAIL,
+                        message="wallet balance publish failed (suppressed)",
+                        exc_type=type(exc).__name__,
+                        exc=str(exc)[:300],
+                        consecutive_failures=consecutive_failures,
+                    )
+            # 실패 누적 시 지수 백오프: 60s → 120s → 300s(상한)
+            wait = 60 if consecutive_failures == 0 else min(60 * (2 ** min(consecutive_failures - 1, 2)), 300)
             try:
-                await asyncio.wait_for(shutdown.wait(), timeout=60)
+                await asyncio.wait_for(shutdown.wait(), timeout=wait)
             except asyncio.TimeoutError:
                 pass
 
-    # 최초 1회 즉시 실행
-    _init_connector = None
+    # 최초 1회 즉시 실행 — position_tracker 커넥터 재사용
     try:
-        _init_connector = exchange_factory(
-            EXCHANGE,
-            api_key=BYBIT_API_KEY,
-            api_secret=BYBIT_API_SECRET,
-            testnet=BYBIT_TESTNET,
-        )
-        await _init_connector.connect()
-        balance = await _init_connector.get_balance()
+        balance = await position_tracker.get_balance()
         await redis_client.setex("cache:wallet_balance", 300, _json.dumps(balance))
         log.info(SERVICE_HEALTH_OK, message="wallet balance published (initial)", total_usdt=balance.get("total", 0))
-    except Exception:
-        log.exception(SERVICE_HEALTH_FAIL, message="wallet balance publish failed (initial)")
-    finally:
-        if _init_connector is not None:
-            try:
-                await _init_connector.disconnect()
-            except Exception:
-                pass
+    except Exception as exc:
+        log.error(SERVICE_HEALTH_FAIL, message="wallet balance publish failed (initial)", exc_type=type(exc).__name__, exc=str(exc)[:500])
 
     # --- Execution engine ---
     engine = ExecutionEngine(

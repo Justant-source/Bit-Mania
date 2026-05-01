@@ -164,7 +164,11 @@ class FundingArbStrategy(BaseStrategy):
             api_secret=os.environ.get("BYBIT_API_SECRET", ""),
             testnet=os.environ.get("BYBIT_TESTNET", "true").lower() == "true",
         )
-        await self._exchange.connect()
+        try:
+            await self._exchange.connect()
+        except Exception:
+            self._exchange = None
+            raise
 
         # Set isolated margin mode and leverage before any order placement
         # This must be called after connect() and before any order

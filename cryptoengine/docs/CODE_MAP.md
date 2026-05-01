@@ -1,0 +1,49 @@
+---
+title: Code → Docs 역인덱스
+last_updated: 2026-05-01
+---
+
+# Code → Docs 역인덱스
+
+코드 파일을 수정할 때 함께 업데이트해야 할 문서를 찾는 인덱스.
+
+## 전략
+
+| 코드 | 문서 |
+|------|------|
+| `services/strategies/base_strategy.py` | [strategies/](strategies/) |
+| `services/strategies/funding-arb/**` | [strategies/funding_arb.md](strategies/funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/adaptive-dca/**` | [strategies/adaptive_dca.md](strategies/adaptive_dca.md) |
+| `config/strategies/funding-arb.yaml` | [strategies/funding_arb.md](strategies/funding_arb.md) |
+| `config/strategies/adaptive-dca.yaml` | [strategies/adaptive_dca.md](strategies/adaptive_dca.md) |
+
+## 실행 / 주문
+
+| 코드 | 문서 |
+|------|------|
+| `services/execution/**` | [architecture/data-flow.md](architecture/data-flow.md) · [runbook.md](runbook.md) |
+| `services/orchestrator/**` | [architecture/system-overview.md](architecture/system-overview.md) |
+| `services/market-data/**` | [architecture/data-flow.md](architecture/data-flow.md) · [policies/btc-only.md](policies/btc-only.md) |
+
+## 안전장치
+
+| 코드 | 문서 |
+|------|------|
+| `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) |
+| `services/telegram-bot/**` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) |
+
+## 인프라
+
+| 코드 | 문서 |
+|------|------|
+| `docker-compose.yml` | [structure/services.md](structure/services.md) · [runbook.md](runbook.md) |
+| `shared/db/migrations/*.sql` | [structure/README.md](structure/README.md) |
+| `.env` | [runbook.md](runbook.md) |
+
+## 공유 라이브러리
+
+| 코드 | 문서 |
+|------|------|
+| `shared/exchange/**` | [structure/README.md](structure/README.md) |
+| `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) · [structure/README.md](structure/README.md) |
+| `shared/models/**` | [structure/README.md](structure/README.md) |
