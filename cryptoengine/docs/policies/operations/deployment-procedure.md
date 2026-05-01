@@ -13,6 +13,30 @@ when_to_update: |
 
 # Docker 배포 절차
 
+```mermaid
+flowchart TD
+    A{shared/ 변경\n포함?} -->|No| B["단일 서비스 재빌드\ndocker compose up -d\n--build --no-deps SERVICE"]
+    A -->|Yes| C["전체 서비스 재빌드\n(의존 순서 준수)"]
+    
+    subgraph single["단일 서비스 배포"]
+        B --> B1["로그 확인\ndocker compose logs -f SERVICE"]
+        B1 --> B2{포지션 복구 확인?}
+        B2 -->|"funding-arb"| B3["'복구 완료' 로그 확인"]
+        B2 -->|"기타 서비스"| B4["정상 기동 확인"]
+    end
+
+    subgraph multi["shared/ 변경 시 전체 재빌드"]
+        C --> C1["market-data 재빌드"]
+        C1 --> C2["execution-engine 재빌드"]
+        C2 --> C3["funding-arb 재빌드"]
+        C3 --> C4["strategy-orchestrator 재빌드"]
+        C4 --> C5["telegram-bot 재빌드"]
+        C5 --> C6["순차 재시작"]
+    end
+
+    style C fill:#ff9800,color:#fff
+```
+
 ---
 
 ## 빌드 컨텍스트 규칙

@@ -27,6 +27,18 @@ last_updated: 2026-05-01
 - MDD: -4.52% (최대 낙폭)
 - 청산: 0회 (6년 무중단)
 
+```mermaid
+graph LR
+    SPOT["현물 BTC 매수\n(Long)"] --> NEUTRAL["델타 뉴트럴\n가격 노출 0"]
+    PERP["선물 BTC 매도\n(Short × 5x)"] --> NEUTRAL
+    NEUTRAL --> INCOME["펀딩비 수취\n8h × 3회/일"]
+    INCOME --> RATE["연환산 30~35%\n(fa80_lev5_r30 기준)"]
+
+    style NEUTRAL fill:#e8f5e9
+    style INCOME fill:#fff3e0,stroke:#ff9800
+    style RATE fill:#4caf50,color:#fff
+```
+
 ### DCA (Dollar Cost Averaging / 적응형 적립식)
 
 **보조 전략**. Fear & Greed Index 기반으로 시간 간격을 두고 정기적으로 BTC를 매수하는 장기 적립식 투자. 현재 Phase 4에서 가중치 0% (비활성).
@@ -194,6 +206,24 @@ FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
 **Phase 5 특수**: Level 2는 퍼센트 AND 절대값 USD 둘 다 조건 (예: -5% AND $50 손실)
 
 **임계값 확인**: `redis-cli GET ce:kill_switch:active`
+
+```mermaid
+graph TD
+    KS["KillSwitch\nshared/kill_switch.py"] --> L1["L1 STRATEGY\n전략 단위 정지"]
+    KS --> L2["L2 PORTFOLIO\n전체 포트폴리오 정지"]
+    KS --> L3["L3 SYSTEM\n시스템 장애 감지"]
+    KS --> L4["L4 MANUAL\n운영자 수동 발동"]
+
+    L1 -->|"4h 쿨다운"| AUTO["자동 재개"]
+    L2 -->|"4h 쿨다운"| AUTO
+    L3 -->|"수동 reset"| MANUAL_R["운영자 /reset"]
+    L4 -->|"수동 reset만"| MANUAL_R
+
+    style L4 fill:#b71c1c,color:#fff
+    style L3 fill:#e53935,color:#fff
+    style L2 fill:#ef6c00,color:#fff
+    style L1 fill:#f9a825,color:#000
+```
 
 ### KillLevel (IntEnum)
 

@@ -13,6 +13,38 @@ when_to_update: |
 
 # Phase 4 완료 체크리스트
 
+```mermaid
+flowchart LR
+    subgraph phase4["Phase 4 — 테스트넷 포워드 테스트"]
+        direction TB
+        C1["✅ 7일+ 무중단 운영"]
+        C2["✅ Kill Switch 4단계 확인"]
+        C3["✅ Telegram 알림 수신"]
+        C4["✅ 포지션 복구 확인"]
+        C5["✅ stoploss 동작 확인"]
+        C6["✅ Walk-Forward 1회 완료"]
+        C7["✅ phase5_preflight PASS"]
+    end
+
+    subgraph gate["Phase 5 진입 게이트"]
+        direction TB
+        G1["switch_to_mainnet.py"]
+        G2["BYBIT_TESTNET=false"]
+        G3["EXPECTED_INITIAL_BALANCE=200"]
+        G4["PHASE5_MODE=true"]
+    end
+
+    subgraph phase5["Phase 5 — 메인넷 소액 실전"]
+        P["$200 USDT 실전 운영\nSTRICT_MONITORING 24h"]
+    end
+
+    C1 & C2 & C3 & C4 & C5 & C6 & C7 --> gate
+    G1 --> G2 --> G3 --> G4 --> phase5
+
+    style phase5 fill:#ff9800,color:#fff
+    style gate fill:#ffcdd2
+```
+
 ## Phase 4 개요
 
 **목표**: 테스트넷 포워드 테스트를 통해 시스템 안정성, 수익성, 안전장치 검증
@@ -577,6 +609,27 @@ docker compose logs -f funding-arb execution-engine | grep -i error
 - [ ] Telegram 알림 정상
 
 ---
+
+```mermaid
+flowchart TD
+    START([Phase 4 완료 확인]) --> P1{7일 무중단 운영\nRunning 유지?}
+    P1 -->|No| CONT["Phase 4 계속"]
+    P1 -->|Yes| P2{phase5_preflight.py\n8항목 PASS?}
+    P2 -->|No| FIX["실패 항목 수정"]
+    FIX --> P2
+    P2 -->|Yes| P3{마지막 백테스트\nCAGR+34% 재확인?}
+    P3 -->|No| ANALYZE["파라미터 재검토"]
+    P3 -->|Yes| P4{팀 동의 완료?}
+    P4 -->|No| WAIT["대기"]
+    P4 -->|Yes| SWITCH["switch_to_mainnet.py 실행"]
+    SWITCH --> VERIFY{$200 잔고 확인\nAPI 연결 성공?}
+    VERIFY -->|No| ROLLBACK["즉시 롤백\nswitch_to_testnet.py"]
+    VERIFY -->|Yes| DONE([Phase 5 시작 🚀])
+
+    style DONE fill:#4caf50,color:#fff
+    style ROLLBACK fill:#f44336,color:#fff
+    style CONT fill:#2196f3,color:#fff
+```
 
 ## Phase 5 진입 최종 체크리스트
 

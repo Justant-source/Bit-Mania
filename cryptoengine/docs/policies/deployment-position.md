@@ -44,6 +44,27 @@ CryptoEngine은 **dev/stage 환경 없이 prod에 직접 배포**한다. 따라�
 | `basis_divergence_risk` | **즉시 청산** | 이벤트만 저장 | 청산됨 (유지 X) |
 | `basis_convergence` | **수익 실현** | 거래 기록만 저장 | 청산됨 (수익 확보) |
 
+```mermaid
+flowchart TD
+    STOP["서비스 종료/재시작"] --> WHY{종료 사유?}
+    WHY -->|"service_shutdown\n(배포·재시작)"| A["포지션 유지\nRedis에 상태 저장\nTTL 1시간"]
+    WHY -->|"kill_switch"| B["즉시 청산\n긴급 상황"]
+    WHY -->|"funding_reversal"| C["즉시 청산\n펀딩비 음수 전환"]
+    WHY -->|"basis_divergence_risk"| D["즉시 청산\n스프레드 과도 확대"]
+    WHY -->|"basis_convergence"| E["청산\n수익 실현"]
+
+    A --> A2{TTL 1시간\n이내 재시작?}
+    A2 -->|"Yes"| A3["포지션 자동 복구\n✅ 수수료 절약"]
+    A2 -->|"No (1시간 초과)"| A4["⚠️ 복구 불가\n거래소 잔여 포지션\n수동 청산 필요"]
+
+    style A fill:#e8f5e9,stroke:#4caf50
+    style B fill:#ffcdd2,stroke:#f44336
+    style C fill:#ffcdd2,stroke:#f44336
+    style D fill:#ffcdd2,stroke:#f44336
+    style A3 fill:#4caf50,color:#fff
+    style A4 fill:#ff9800,color:#fff
+```
+
 ### 상태 저장 데이터
 
 배포 시 Redis `strategy:saved_state:funding_arb` 에 저장되는 정보:

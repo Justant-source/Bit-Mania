@@ -46,6 +46,26 @@ DCA 전략은 6년(2020-2026) Walk-Forward 백테스트에서 다음 결과를 �
 
 **다음 결정**: Phase 4 이후 4주 테스트넷 운영 결과에 따라 재활성화 여부 결정.
 
+```mermaid
+flowchart LR
+    subgraph wf["6년 Walk-Forward 결과"]
+        W1["consistency: 0.409\n기준 0.5 미달"]
+        W2["2022 MDD: -42%\n허용 -25% 초과"]
+        W3["OOS/IS Sharpe 비율\n기준 미달"]
+    end
+    subgraph status["현재 상태"]
+        OFF["⚠️ 비활성\norchestrator 가중치 0%"]
+    end
+    subgraph future["재활성화 조건"]
+        COND["Phase 4 테스트넷\n4주 운영 결과\n기준 통과 시"]
+    end
+
+    wf --> OFF --> COND
+
+    style OFF fill:#ff9800,color:#fff
+    style wf fill:#ffcdd2
+```
+
 ---
 
 ## 기본 파라미터 (설정 참조용)
@@ -145,6 +165,41 @@ volatility:
 
 **개념**: 변동성이 높으면 매수 간격을 길게 (리스크 분산), 금액은 크게 (저점 매수). 낮으면 반대.
 
+```mermaid
+flowchart TD
+    A[DCA 사이클 시작\nbase_amount: $100] --> B[Fear & Greed 지수\n0-100]
+    A --> C[EMA200 대비\n가격 편차]
+    A --> D[RSI 14\n과매수/과매도]
+    A --> E[ATR 14\n변동성]
+
+    B -->|"extreme_fear (0-10)"| B1["× 2.5"]
+    B -->|"fear (11-25)"| B2["× 1.8"]
+    B -->|"neutral (26-50)"| B3["× 1.0"]
+    B -->|"greed (51-75)"| B4["× 0.5"]
+    B -->|"extreme_greed (76-100)"| B5["× 0.2"]
+
+    C -->|"below -30%"| C1["× 3.0"]
+    C -->|"below -20%"| C2["× 2.5"]
+    C -->|"below -10%"| C3["× 1.8"]
+    C -->|"above MA"| C4["× 0.7"]
+
+    D -->|"oversold < 30"| D1["× 1.8"]
+    D -->|"overbought > 70"| D2["× 0.4"]
+
+    E -->|"high vol"| E1["× 1.3 amount\n× 1.5 interval"]
+    E -->|"low vol"| E2["× 0.8 amount\n× 0.7 interval"]
+
+    B1 & B2 & B3 & B4 & B5 --> MULT["곱셈 결합\ncombination: multiply\nclamp: 0.1x ~ 5.0x"]
+    C1 & C2 & C3 & C4 --> MULT
+    D1 & D2 --> MULT
+    E1 & E2 --> MULT
+
+    MULT --> FINAL["최종 매수 금액\nbase_amount × combined_mult"]
+
+    style FINAL fill:#4caf50,color:#fff
+    style MULT fill:#ff9800,color:#fff
+```
+
 ### 멀티플라이어 결합 및 클램핑
 
 ```yaml
@@ -197,6 +252,18 @@ take_profit:
       sell_pct: 25        # +100% 달성 시 25% 추가 매도
   resume_dca_after_tp: true
   resume_cooldown_hours: 48  # 이익 실현 후 48시간 쿨다운
+```
+
+```mermaid
+graph LR
+    P0["진입\n포지션 100%"] -->|"+15% 도달"| P1["10% 매도\n잔여 90%"]
+    P1 -->|"+30% 도달"| P2["15% 매도\n잔여 75%"]
+    P2 -->|"+50% 도달"| P3["20% 매도\n잔여 55%"]
+    P3 -->|"+100% 도달"| P4["25% 매도\n잔여 30%"]
+    P4 -->|"48h 쿨다운 후"| P5["DCA 재개"]
+
+    style P4 fill:#4caf50,color:#fff
+    style P5 fill:#2196f3,color:#fff
 ```
 
 ### 동작 순서

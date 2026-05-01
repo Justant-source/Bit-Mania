@@ -16,6 +16,66 @@ when_to_update: |
 
 ## Redis Pub/Sub 채널
 
+```mermaid
+graph LR
+    subgraph pub["발행자 (Publishers)"]
+        MD["market-data"]
+        FA["funding-arb"]
+        DCA["adaptive-dca"]
+        ORC["strategy-orchestrator"]
+        ENG["execution-engine"]
+    end
+
+    subgraph ch["Redis 채널"]
+        C1["market:ohlcv\n:{exchange}:{symbol}:{tf}"]
+        C2["market:regime"]
+        C3["market:funding:{symbol}"]
+        C4["order:request"]
+        C5["order:update"]
+        C6["strategy:command:{id}"]
+        C7["ce:kill_switch"]
+        C8["system:service_health"]
+        C9["ce:kill_switch:ack"]
+    end
+
+    subgraph sub["구독자 (Subscribers)"]
+        FA2["funding-arb"]
+        DCA2["adaptive-dca"]
+        ORC2["strategy-orchestrator"]
+        ENG2["execution-engine"]
+        TG["telegram-bot"]
+    end
+
+    MD --> C1
+    MD --> C2
+    MD --> C3
+    FA --> C4
+    DCA --> C4
+    ORC --> C6
+    ORC --> C7
+    ORC --> C8
+    ENG --> C5
+    ENG --> C9
+
+    C1 --> FA2
+    C1 --> DCA2
+    C1 --> ORC2
+    C2 --> ORC2
+    C3 --> FA2
+    C4 --> ENG2
+    C5 --> FA2
+    C5 --> DCA2
+    C6 --> FA2
+    C6 --> DCA2
+    C7 --> ENG2
+    C7 --> TG
+    C9 --> ORC2
+
+    style C7 fill:#ff4444,color:#fff
+    style C4 fill:#4caf50,color:#fff
+    style C2 fill:#2196f3,color:#fff
+```
+
 ### 시장 데이터 채널
 
 #### `market:ohlcv:{exchange}:{symbol}:{timeframe}`

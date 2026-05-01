@@ -30,6 +30,21 @@ Jesse 프레임워크 기반 백테스트에서 운영되는 전략들. 현재 *
 | v3 | `funding_arbitrage_v3.py` | `FundingArbitrageWithFGSizer` | 10.2 | v2 + Fear&Greed 동적 포지션 사이징 |
 | check | `sanity_check.py` | `BtcBuyAndHold` | 7.2 | Jesse 엔진 검증 (BTC 매수&홀드) |
 
+### 전략 버전 진화도
+
+```mermaid
+graph LR
+    V1["v1: FundingArbitrage\nPhase 9\n기본 FA\n펀딩비 수취"] -->|"+ FOMC/CPI 필터"| V2
+    V2["v2: WithMacroFilter\nPhase 10.1\n이벤트 기간\n진입 차단"] -->|"+ F&G 사이징"| V3
+    V3["v3: WithFGSizer\nPhase 10.2\n감정 지수 기반\n포지션 크기 조정"]
+    CHECK["sanity_check\nBtcBuyAndHold\n엔진 검증 도구"]
+
+    style V1 fill:#e3f2fd,stroke:#2196f3
+    style V2 fill:#e8f5e9,stroke:#4caf50
+    style V3 fill:#fff3e0,stroke:#ff9800
+    style CHECK fill:#f3e5f5,stroke:#9c27b0
+```
+
 ---
 
 ## 전략 상세사양
@@ -243,6 +258,31 @@ docker compose --profile backtest run --rm jesse_engine \
 | **Monte Carlo 5th percentile Sharpe** | > 0.0 | 확률론적 강건성 |
 | **연간 거래 수** | ≥ 30 | 충분한 샘플 크기 |
 | **Sanity Check CRITICALs** | 0 | 데이터 오류, 룩어헤드 바이어스 없음 |
+
+### V5 Pass Criteria 의사결정 흐름
+
+```mermaid
+flowchart TD
+    BT["백테스트 결과"] --> C1{CAGR ≥ 34%?}
+    C1 -->|No| FAIL
+    C1 -->|Yes| C2{Sharpe ≥ 3.5?}
+    C2 -->|No| FAIL
+    C2 -->|Yes| C3{MDD ≤ -5%?}
+    C3 -->|No| FAIL
+    C3 -->|Yes| C4{WF OOS/IS\nSharpe ≥ 0.6?}
+    C4 -->|No| FAIL
+    C4 -->|Yes| C5{MC 5th pct\nSharpe > 0?}
+    C5 -->|No| FAIL
+    C5 -->|Yes| C6{연간 거래 ≥ 30?}
+    C6 -->|No| FAIL
+    C6 -->|Yes| C7{Sanity Check\nCRITICAL = 0?}
+    C7 -->|No| FAIL
+    C7 -->|Yes| PASS(["✅ V5 PASS\n실전 투입 가능"])
+    FAIL(["❌ V5 FAIL\n파라미터 재조정"])
+
+    style PASS fill:#4caf50,color:#fff
+    style FAIL fill:#f44336,color:#fff
+```
 
 ### FA 전략 기준 (더 보수적)
 - CAGR ≥ 10%

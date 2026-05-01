@@ -23,6 +23,32 @@ when_to_update: |
 
 메인넷으로 전환하기 전 다음 모든 조건을 확인한다. **하나라도 미충족 시 Phase 4 계속**.
 
+```mermaid
+flowchart TD
+    A([Phase 5 전환 시작]) --> B["phase5_preflight.py 실행\n8개 항목 자동 점검"]
+    B --> C{모든 항목 PASS?}
+    C -->|No| D["실패 항목 수정\n재점검"]
+    D --> B
+    C -->|Yes| E["switch_to_mainnet.py 실행"]
+    E --> F["1. .env 백업 생성"]
+    F --> G["2. 현재 포지션 확인"]
+    G --> H["3. DB 현재 상태 스냅샷"]
+    H --> I["4. BYBIT_TESTNET=false 설정"]
+    I --> J["5. PHASE5_MODE=true 설정"]
+    J --> K["6. EXPECTED_INITIAL_BALANCE_USD=200"]
+    K --> L["7. STRICT_MONITORING_HOURS=24"]
+    L --> M["8. Redis 캐시 초기화"]
+    M --> N["9. 서비스 재시작\ndocker compose up -d --force-recreate"]
+    N --> O["잔고 확인\n$200 USDT 검증"]
+    O --> P{잔고 검증 통과?}
+    P -->|No| Q["🚨 즉시 롤백\nswitch_to_testnet.py"]
+    P -->|Yes| R([Phase 5 운영 시작 ✅])
+
+    style R fill:#4caf50,color:#fff
+    style Q fill:#f44336,color:#fff
+    style D fill:#ff9800,color:#fff
+```
+
 ### 체크리스트
 
 **Phase 4 무중단 운영 확인** (필수):
@@ -317,6 +343,21 @@ http://localhost:3002 에서 실시간 확인:
 ## 롤백 절차 (메인넷 → 테스트넷)
 
 문제 발생 시 즉시 테스트넷으로 롤백한다.
+
+```mermaid
+flowchart LR
+    ISSUE["⚠️ 문제 감지\n(손실/오류/이상)"] --> DECIDE{심각도?}
+    DECIDE -->|"경미\n모니터링 필요"| WATCH["24h 강화 모니터링\nTelegram 상태 확인"]
+    DECIDE -->|"심각\n즉시 롤백"| ROLLBACK["switch_to_testnet.py 실행"]
+    ROLLBACK --> R1["BYBIT_TESTNET=true 복원"]
+    R1 --> R2["포지션 수동 확인\nBybit 앱"]
+    R2 --> R3["서비스 재시작"]
+    R3 --> R4["테스트넷 정상 동작 확인"]
+    R4 --> R5([테스트넷 복귀 완료])
+
+    style ROLLBACK fill:#f44336,color:#fff
+    style R5 fill:#2196f3,color:#fff
+```
 
 ```bash
 # 1. 모든 포지션 즉시 청산 (메인넷)

@@ -30,6 +30,29 @@ when_to_update: |
 델타 뉴트럴 포지션               [방향성 리스크 제거]
 ```
 
+```mermaid
+graph LR
+    subgraph spot["현물 (Spot)"]
+        S["BTC 현물 매수\n(Long)"]
+    end
+    subgraph perp["선물 (Perpetual)"]
+        P["BTC 무기한 선물 매도\n(Short × 5 leverage)"]
+    end
+    subgraph result["결과"]
+        DN["델타 뉴트럴\n방향성 PnL ≈ 0"]
+        FR["펀딩비 수취\n8h마다 × 3회/일"]
+    end
+
+    BTC["BTC 가격 변동"] -->|+$100| S
+    BTC -->|-$100 × 5x| P
+    S --> DN
+    P --> DN
+    P -->|"rate × notional"| FR
+
+    style DN fill:#e8f5e9
+    style FR fill:#fff3e0,stroke:#ff9800
+```
+
 ### 수익 메커니즘
 
 - **정산 주기**: Bybit 기준 8시간 (00:00, 08:00, 16:00 UTC) — 하루 3회
@@ -94,6 +117,26 @@ when_to_update: |
 | fa80_lev5_r50 | 80% | 5x | 50% | +33.54% | 1.867 | -7.13% | 32.1x | Sharpe 주의 |
 
 ---
+
+```mermaid
+flowchart TD
+    A[8h Settlement 도래\n00:00 / 08:00 / 16:00 UTC] --> B{funding_rate\n≥ min_rate?}
+    B -->|No| Z[진입 스킵\ncooldown 대기]
+    B -->|Yes| C{consecutive_intervals\n≥ 3회 연속?}
+    C -->|No| Z
+    C -->|Yes| D{predicted_rate\n방향 일치?}
+    D -->|No| Z
+    D -->|Yes| E{OI ≥ $5M\n& spread ≤ 0.05%?}
+    E -->|No| Z
+    E -->|Yes| F{Phase 5?}
+    F -->|Yes| G["임계값 강화 체크\nrate ≥ 25% ann\nconsec ≥ 4회"]
+    F -->|No| H[포지션 오픈\nSpot Long + Perp Short]
+    G -->|Pass| H
+    G -->|Fail| Z
+
+    style H fill:#4caf50,color:#fff
+    style Z fill:#f44336,color:#fff
+```
 
 ## 진입 조건 (entry)
 
@@ -351,6 +394,21 @@ phase5:
 - 2회 펀딩 수취에 BEP: 0.17% ÷ 2 = 0.085% per cycle
 - 연 25% = 8h당 0.0091% (충분한 마진)
 
+```mermaid
+flowchart LR
+    subgraph phase4["Phase 4 (테스트넷)"]
+        p4s["sizing: pct_equity 5%\nmax_concurrent: 5\nentry: rate ≥ 15%\nconsec: 3회"]
+    end
+    subgraph phase5["Phase 5 (메인넷 $200)"]
+        p5s["sizing: fixed_notional $150\nmax_concurrent: 1\nentry: rate ≥ 25%\nconsec: 4회"]
+    end
+    ENV{PHASE5_MODE=true\nor TESTNET=false} -->|Yes| phase5
+    ENV -->|No| phase4
+
+    style phase5 fill:#fff3e0,stroke:#ff9800
+    style phase4 fill:#e3f2fd,stroke:#2196f3
+```
+
 ### NetProfitabilityCheck (funding_tracker.py)
 
 진입 직전 자동 검사:
@@ -391,6 +449,14 @@ weights:
   volatile:          # 고변동 (Sharpe 2.63)
     funding_arb: 0.40
     cash_reserve: 0.60
+```
+
+```mermaid
+pie title 레짐별 FA 자본 배분
+    "ranging (FA 50%)" : 50
+    "volatile (FA 40%)" : 40
+    "trending_up (FA 20%)" : 20
+    "trending_down (FA 10%)" : 10
 ```
 
 **설명**:

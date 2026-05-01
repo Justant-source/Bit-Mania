@@ -21,6 +21,44 @@ when_to_update: |
 2. **Telegram**: AlertDispatcher 기반 실시간 알림 + 상호작용
 3. **Prometheus**: 인프라 메트릭 수집 (30일 보존)
 
+```mermaid
+graph TD
+    subgraph sources["데이터 소스"]
+        SVC["마이크로서비스들\n(execution-engine, funding-arb 등)"]
+        SYS["호스트 시스템\n(CPU, 메모리, 디스크)"]
+        RD["Redis\n(메모리, 클라이언트)"]
+    end
+
+    subgraph collectors["수집"]
+        PROM["Prometheus :9090\n30일 보존"]
+        NE["node-exporter :9100"]
+        RE["redis-exporter :9121"]
+    end
+
+    subgraph visualization["시각화"]
+        GF["Grafana :3002\nadmin / ***REMOVED***"]
+        DB_INT["내부 대시보드\n:3000 (상세)"]
+        DB_PUB["공개 대시보드\n:3001 (요약)"]
+    end
+
+    subgraph alerts["알림"]
+        TG["Telegram\nAlertDispatcher"]
+    end
+
+    SVC -->|"structlog JSON"| PROM
+    SYS --> NE --> PROM
+    RD --> RE --> PROM
+    PROM --> GF
+    SVC --> DB_INT
+    SVC --> DB_PUB
+    GF -->|"임계값 초과"| TG
+    SVC -->|"30분 하트비트"| TG
+    SVC -->|"08:00/20:00 UTC"| TG
+
+    style TG fill:#2196f3,color:#fff
+    style GF fill:#ff9800,color:#fff
+```
+
 ---
 
 ## Grafana 대시보드
@@ -120,6 +158,32 @@ URL: http://localhost:3002
 - TTL 임계값: 오래된 알림은 자동 삭제
 
 **하트비트**: 30분 간격 정상 작동 신호 발송 (너무 많지 않게 조정)
+
+```mermaid
+sequenceDiagram
+    participant ENG as execution-engine
+    participant MKT as market-data
+    participant REDIS as Redis
+    participant ORC as orchestrator (watchdog)
+    participant TG as telegram-bot
+
+    loop 30초마다
+        ENG->>REDIS: SETEX heartbeat:execution TTL=300s
+        ENG->>+ENG: touch /tmp/heartbeat_ok
+        MKT->>REDIS: SETEX heartbeat:market TTL=300s
+    end
+
+    loop 60초마다
+        ORC->>REDIS: GET heartbeat:execution
+        alt 정상 (TTL 남음)
+            REDIS-->>ORC: TTL > 0 ✅
+        else 5분 미수신
+            REDIS-->>ORC: nil (만료됨)
+            ORC->>ORC: KillSwitch.trigger(SYSTEM)
+            ORC->>TG: 🚨 execution-engine 응답 없음
+        end
+    end
+```
 
 **정기 리포트**:
 - **08:00 UTC** (= 17:00 KST): 일일 리포트 (어제의 P&L, 펀딩비)

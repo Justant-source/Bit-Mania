@@ -31,6 +31,52 @@ Jesse Engine은 Phase 7-10 백테스트 환경으로, 자체 엔진(V1-V4)을 �
 
 ---
 
+## Jesse 데이터 파이프라인
+
+```mermaid
+flowchart LR
+    subgraph external["외부 데이터 소스"]
+        BV["Binance Vision\nS3 무료 OHLCV"]
+        CG["Coinalyze API\n펀딩비 히스토리"]
+        FG["Alternative.me\nFear&Greed 지수"]
+        FRED["FRED API\n거시경제 지표"]
+        MC["수동 입력\nFOMC/CPI 달력"]
+    end
+
+    subgraph scripts["수집 스크립트 scripts/data/"]
+        S1["download_binance_vision.py"]
+        S2["fetch_coinalyze_funding.py"]
+        S3["fetch_fear_greed.py"]
+        S4["fetch_fred_macro.py"]
+        S5["build_macro_calendar.py"]
+    end
+
+    subgraph storage["/data/ 볼륨"]
+        D1["/data/binance_vision/\nBTCUSDT 1h Parquet"]
+        D2["/data/funding_rates/\nBTCUSDT_8h Parquet"]
+        D3["/data/sentiment/\nfear_greed Parquet"]
+        D4["/data/macro_events/\nfomc_cpi_calendar.csv"]
+    end
+
+    subgraph jesse["Jesse 실행"]
+        JI["jesse_import.py\nParquet → Jesse DB"]
+        JB["run_backtest.py\nJesse 백테스트"]
+        WF["walk_forward.py\nWF 분석"]
+    end
+
+    BV --> S1 --> D1 --> JI
+    CG --> S2 --> D2 --> JB
+    FG --> S3 --> D3 --> JB
+    FRED --> S4 --> JB
+    MC --> S5 --> D4 --> JB
+    JI --> JB
+    JB --> WF
+
+    style JB fill:#4caf50,color:#fff
+```
+
+---
+
 ## 빠른 시작
 
 ### 1. Jesse 컨테이너 기동

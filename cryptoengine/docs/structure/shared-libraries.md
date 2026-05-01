@@ -10,6 +10,41 @@ last_updated: 2026-05-01
 
 모든 마이크로서비스가 의존하는 핵심 유틸리티 및 도메인 모델 모음.
 
+```mermaid
+graph TD
+    subgraph shared["shared/ — 공유 라이브러리"]
+        direction LR
+        subgraph data["데이터 레이어"]
+            DB["db/\nasyncpg Pool\nRepository 패턴"]
+            MDL["models/\nOrderRequest\nOrderResult\nPortfolioState"]
+        end
+        subgraph comm["통신 레이어"]
+            RD["redis_client.py\nPub/Sub 헬퍼\n자동 재연결"]
+            EX["exchange/bybit.py\nCCXT 래퍼\n테스트넷 토글"]
+        end
+        subgraph safety["안전 레이어"]
+            KS["kill_switch.py\n4단계 보호\nACK 프로토콜"]
+        end
+        subgraph ops["운영 레이어"]
+            CFG["config_loader.py\nYAML + 환경변수"]
+            LOG["log_writer.py\n배치 비동기 DB"]
+            LC["logging_config.py\nstructlog KST"]
+            LE["log_events.py\n95개 이벤트 코드"]
+            TZ["timezone_utils.py\nKST 유틸리티"]
+        end
+    end
+
+    subgraph services["각 마이크로서비스"]
+        SVC["market-data\nexecution-engine\nfunding-arb\n..."]
+    end
+
+    shared -->|"COPY shared /app/shared\nPYTHONPATH=/app"| SVC
+
+    style KS fill:#ffcdd2,stroke:#f44336
+    style RD fill:#e3f2fd,stroke:#2196f3
+    style DB fill:#e8f5e9,stroke:#4caf50
+```
+
 ## 구조 개요
 
 ```
@@ -733,6 +768,17 @@ class LogWriter:
    - 실패 시 로그 드롭 + stderr에 오류 기록
 4. **드롭 경고**: 10개 단위로 stderr 경고 출력 + DB 로그 기록
 5. **종료 시**: 남은 큐 항목 모두 flush
+
+```mermaid
+flowchart LR
+    SVC["서비스 코드\nlog.info(event, ...)"] -->|"enqueue"| Q["비동기 큐\n최대 1,000개\ndropped_count 카운터"]
+    Q -->|"배치 50개\n5초 간격"| DB[(PostgreSQL\nservice_logs)]
+    Q -->|"큐 풀 시\n드롭 + 카운트"| DROP["dropped_count++\n메트릭 노출"]
+    DB -->|"log-retention\n03:00 KST"| CLEAN["DEBUG 7d\nINFO 30d\nWARN 90d\nERROR 365d"]
+
+    style DROP fill:#ff9800,color:#fff
+    style CLEAN fill:#e3f2fd
+```
 
 ### 데이터베이스 스키마
 

@@ -13,6 +13,67 @@ last_updated: 2026-05-01
 
 ## 서비스 목록
 
+```mermaid
+graph TD
+    subgraph infra["🏗️ Infrastructure"]
+        PG[(postgres\n:5432)]
+        RD[(redis\n:6379)]
+        PROM[prometheus\n:9090]
+        NE[node-exporter]
+        RE[redis-exporter]
+        PGB[pg-backup\n02:00 KST]
+        LR[log-retention\n03:00 KST]
+    end
+
+    subgraph core["⚙️ Core Services"]
+        MD[market-data\n시세수집+레짐감지]
+        ORC[strategy-orchestrator\n전략조율+KillSwitch]
+        ENG[execution-engine\n주문실행+안전검증]
+    end
+
+    subgraph strat["📈 Strategies"]
+        FA[funding-arb\n핵심전략]
+        DCA[adaptive-dca\n보조전략\n현재 비활성]
+    end
+
+    subgraph intel["🤖 Intelligence"]
+        LLM[llm-advisor\nClaude API]
+    end
+
+    subgraph iface["📡 Interface"]
+        TG[telegram-bot\n알림+비상명령]
+        DASH[dashboard\n:3000/:3001]
+        GF[grafana\n:3002]
+    end
+
+    subgraph analysis["🔬 Analysis"]
+        BT[backtester\n--profile backtest]
+        WF[wf-scheduler\n월 1일 02:00 KST]
+    end
+
+    PG & RD --> core
+    MD --> RD
+    RD --> ORC & FA & DCA
+    ORC --> RD
+    FA --> RD
+    DCA --> RD
+    RD --> ENG
+    ENG --> PG & RD
+    LLM --> PG
+    TG --> RD
+    DASH --> PG & RD
+    GF --> PG & PROM
+    NE & RE --> PROM
+    PGB --> PG
+    LR --> PG
+    BT -.->|"--profile backtest"| PG
+
+    style FA fill:#ff9800,color:#fff
+    style DCA fill:#bdbdbd,color:#fff
+    style ENG fill:#4caf50,color:#fff
+    style ORC fill:#2196f3,color:#fff
+```
+
 ### 1. Infrastructure Services (인프라)
 
 #### PostgreSQL Database
@@ -215,6 +276,35 @@ kill_switch
   ├─ Publisher: strategy-orchestrator
   ├─ Subscribers: execution-engine, telegram-bot
   └─ Content: { "reason": "daily_loss|max_drawdown|volatility", ... }
+```
+
+---
+
+## 서비스 시작 순서 및 의존성
+
+```mermaid
+flowchart LR
+    PG[(postgres\n헬스체크)] --> MD
+    PG --> ORC
+    PG --> ENG
+    PG --> FA
+    PG --> DCA
+    PG --> LLM
+    PG --> TG
+    PG --> DASH
+    RD[(redis\n헬스체크)] --> MD
+    RD --> ORC
+    RD --> ENG
+    RD --> FA
+    RD --> DCA
+    RD --> TG
+    MD[market-data\n헬스체크] --> ORC
+    MD --> FA
+    ORC[orchestrator] --> FA
+    ORC --> DCA
+
+    style PG fill:#336791,color:#fff
+    style RD fill:#dc382d,color:#fff
 ```
 
 ---

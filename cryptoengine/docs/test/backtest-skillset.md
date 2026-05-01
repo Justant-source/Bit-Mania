@@ -58,6 +58,35 @@ cryptoengine/services/my_backtest.py  ✗
 
 ---
 
+## 백테스트 파이프라인 흐름
+
+```mermaid
+flowchart TD
+    A([백테스트 시작]) --> B["1️⃣ 데이터 준비\nscripts/data/"]
+    B --> B1["download_binance_vision.py\nBTC OHLCV 1h"]
+    B --> B2["fetch_coinalyze_funding.py\n펀딩비 8h 히스토리"]
+    B --> B3["fetch_fear_greed.py\nF&G 지수 DCA용"]
+    B --> B4["build_macro_calendar.py\nFOMC/CPI 이벤트"]
+    B1 & B2 & B3 & B4 --> C["2️⃣ Jesse DB 임포트\njesse_import.py\nParquet → PostgreSQL"]
+    C --> D["3️⃣ Sanity Check\nsanity_check.py\nV5 기준 사전 검증"]
+    D --> E{기본 요건 통과?}
+    E -->|No| F["설정 수정 후 재시도"]
+    F --> D
+    E -->|Yes| G["4️⃣ 단일 백테스트\nrun_backtest.py\n또는 run_fa_backtest.py"]
+    G --> H["5️⃣ Walk-Forward\nwalk_forward.py\nIS 365일 OOS 180일"]
+    H --> I["6️⃣ V5 리포트 생성\ngenerate_v5_report.py"]
+    I --> J{V5 기준 통과?\nCAGR≥34% Sharpe≥3.5\nMDD≤-5%}
+    J -->|No| K["파라미터 조정 후\n반복"]
+    K --> G
+    J -->|Yes| L([백테스트 완료 ✅])
+
+    style L fill:#4caf50,color:#fff
+    style F fill:#ff9800,color:#fff
+    style K fill:#ff9800,color:#fff
+```
+
+---
+
 ## 완전한 스크립트 인덱스
 
 ### 최상위 스크립트 (scripts/)
