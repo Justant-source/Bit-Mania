@@ -1,0 +1,918 @@
+{
+  "title": "Performance & Risk",
+  "uid": "ce-performance-risk",
+  "tags": ["cryptoengine", "performance", "risk"],
+  "timezone": "Asia/Seoul",
+  "refresh": "1m",
+  "schemaVersion": 39,
+  "version": 1,
+  "id": null,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "time_range",
+        "type": "interval",
+        "query": "1d,7d,30d,90d,365d",
+        "current": {
+          "text": "7d",
+          "value": "7d"
+        },
+        "label": "기간"
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Kill Switch",
+        "datasource": {
+          "uid": "cryptoengine-postgres"
+        },
+        "enable": true,
+        "iconColor": "#C62828",
+        "rawQuery": "SELECT triggered_at AS time, CONCAT('Kill Switch: ', reason) AS text FROM kill_switch_events WHERE $__timeFilter(triggered_at)"
+      },
+      {
+        "name": "Regime Change",
+        "datasource": {
+          "uid": "cryptoengine-postgres"
+        },
+        "enable": true,
+        "iconColor": "#9E9E9E",
+        "rawQuery": "SELECT detected_at AS time, CONCAT(from_regime, ' to ', to_regime) AS text FROM regime_transitions WHERE $__timeFilter(detected_at)"
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "url": "/d/ce-overview",
+      "icon": "doc"
+    },
+    {
+      "title": "Strategies & Positions",
+      "url": "/d/ce-strategies-positions"
+    },
+    {
+      "title": "Operations",
+      "url": "/d/ce-operations"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "자산 곡선",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "USD",
+          "format": "time_series",
+          "rawSql": "SELECT snapshot_at AS time, total_equity_usd AS equity FROM portfolio_snapshots WHERE $__timeFilter(snapshot_at) ORDER BY snapshot_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "lineInterpolation": "smooth",
+            "fillOpacity": 5,
+            "showPoints": "never",
+            "lineWidth": 2
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#1976D2"
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "description": "USD 자산 곡선. 어노테이션: Kill Switch(적색 수직선) + 레짐 전환(회색 수직선) 자동 오버레이"
+    },
+    {
+      "id": 2,
+      "title": "일일 PnL",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date AS time, total_equity_usd - LAG(total_equity_usd) OVER (ORDER BY date) AS daily_pnl FROM daily_performance WHERE $__timeFilter(date) ORDER BY date"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#2E7D32",
+                "value": 0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": -45
+      }
+    },
+    {
+      "id": 3,
+      "title": "누적 펀딩 수익",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT timestamp AS time, SUM(amount_usd) OVER (ORDER BY timestamp) AS cumulative_funding FROM funding_payments WHERE $__timeFilter(timestamp) ORDER BY timestamp"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "fillOpacity": 20
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FB8C00"
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "수수료 vs 펀딩수익",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('day', timestamp) AS time, SUM(CASE WHEN type = 'fee' THEN ABS(amount_usd) ELSE 0 END) AS fees_paid, SUM(CASE WHEN type = 'funding' THEN amount_usd ELSE 0 END) AS funding_received, SUM(CASE WHEN type = 'funding' THEN amount_usd ELSE 0 END) - SUM(CASE WHEN type = 'fee' THEN ABS(amount_usd) ELSE 0 END) AS net FROM cash_flows WHERE $__timeFilter(timestamp) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fees_paid"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C62828"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "funding_received"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2E7D32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "net"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1976D2"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "stacking": "none",
+        "barWidth": 0.6
+      },
+      "description": "수수료(적색) vs 펀딩수익(녹색) vs 순수익(청색). cash_flows 테이블 없으면 No Data"
+    },
+    {
+      "id": 5,
+      "title": "드로우다운",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "WITH equity AS (SELECT snapshot_at AS time, total_equity_usd AS eq FROM portfolio_snapshots WHERE $__timeFilter(snapshot_at)), peak AS (SELECT time, MAX(eq) OVER (ORDER BY time) AS peak_eq, eq FROM equity) SELECT time, ((eq - peak_eq) / NULLIF(peak_eq, 0)) * 100 AS drawdown_pct FROM peak ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "fillOpacity": 30,
+            "lineWidth": 1
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C62828"
+          }
+        }
+      },
+      "description": "Peak 대비 현재 낙폭(%). 항상 0 이하"
+    },
+    {
+      "id": 6,
+      "title": "일일 수익률 분포",
+      "type": "histogram",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT daily_return_pct FROM daily_performance WHERE $__timeFilter(date) ORDER BY date"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#1976D2"
+          }
+        }
+      },
+      "options": {
+        "bucketSize": 0.5,
+        "bucketOffset": 0,
+        "fillOpacity": 80
+      }
+    },
+    {
+      "id": 7,
+      "title": "Sharpe (30d)",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH returns AS (SELECT daily_return_pct / 100.0 AS r FROM daily_performance WHERE date >= CURRENT_DATE - INTERVAL '30 days') SELECT AVG(r) / NULLIF(STDDEV(r), 0) * SQRT(365) AS sharpe_30d FROM returns"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0.5
+              },
+              {
+                "color": "#2E7D32",
+                "value": 1.0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Sortino (30d)",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH returns AS (SELECT daily_return_pct / 100.0 AS r FROM daily_performance WHERE date >= CURRENT_DATE - INTERVAL '30 days') SELECT AVG(r) / NULLIF(STDDEV(CASE WHEN r < 0 THEN r END), 0) * SQRT(365) AS sortino_30d FROM returns"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0.5
+              },
+              {
+                "color": "#2E7D32",
+                "value": 1.0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Calmar (30d)",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH returns AS (SELECT daily_return_pct / 100.0 AS r FROM daily_performance WHERE date >= CURRENT_DATE - INTERVAL '30 days') SELECT AVG(r) * 365 / NULLIF(ABS((SELECT MIN(max_drawdown_pct) / 100.0 FROM daily_performance WHERE date >= CURRENT_DATE - INTERVAL '30 days')), 0) AS calmar_30d FROM returns"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0.3
+              },
+              {
+                "color": "#2E7D32",
+                "value": 0.5
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Max Drawdown",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT MIN(max_drawdown_pct) AS max_dd FROM daily_performance WHERE $__timeFilter(date)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B71C1C",
+                "value": null
+              },
+              {
+                "color": "#C62828",
+                "value": -20
+              },
+              {
+                "color": "#F9A825",
+                "value": -10
+              },
+              {
+                "color": "#2E7D32",
+                "value": -5
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "description": "기간 내 최대 낙폭. 음수값"
+    },
+    {
+      "id": 11,
+      "title": "레짐별 PnL 분해",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH trade_with_regime AS (SELECT t.entry_ts, t.pnl, (SELECT regime FROM market_regimes WHERE detected_at <= t.entry_ts ORDER BY detected_at DESC LIMIT 1) AS regime FROM trades t WHERE t.exit_ts IS NOT NULL AND $__timeFilter(t.entry_ts)) SELECT regime, COUNT(*) AS trade_count, SUM(pnl) AS total_pnl, AVG(pnl) AS avg_pnl, SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) AS win_rate FROM trade_with_regime WHERE regime IS NOT NULL GROUP BY regime ORDER BY total_pnl DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "regime"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "RANGING": {
+                        "color": "#757575",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "TRENDING_UP": {
+                        "color": "#2E7D32",
+                        "index": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "TRENDING_DOWN": {
+                        "color": "#C62828",
+                        "index": 2
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "VOLATILE": {
+                        "color": "#6A1B9A",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "win_rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "title": "레짐별 누적 PnL (막대)",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 34,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH trade_with_regime AS (SELECT t.pnl, (SELECT regime FROM market_regimes WHERE detected_at <= t.entry_ts ORDER BY detected_at DESC LIMIT 1) AS regime FROM trades t WHERE t.exit_ts IS NOT NULL AND $__timeFilter(t.entry_ts)) SELECT regime, SUM(pnl) AS total_pnl FROM trade_with_regime WHERE regime IS NOT NULL GROUP BY regime ORDER BY total_pnl DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RANGING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#757575"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "TRENDING_UP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2E7D32"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "TRENDING_DOWN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C62828"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "VOLATILE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#6A1B9A"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "title": "일일 PnL 상세",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 16,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT date, total_equity_usd, fees_paid_usd, daily_return_pct, trade_count, max_drawdown_pct FROM daily_performance WHERE $__timeFilter(date) ORDER BY date DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_equity_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fees_paid_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "daily_return_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#757575",
+                      "value": -0.1
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0.1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_drawdown_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "title": "Kill Switch 발동 이력",
+      "type": "table",
+      "gridPos": {
+        "x": 16,
+        "y": 42,
+        "w": 8,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT triggered_at, level, reason FROM kill_switch_events ORDER BY triggered_at DESC LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "level"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ACTIVE": {
+                        "color": "#B71C1C",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "NORMAL": {
+                        "color": "#2E7D32",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
