@@ -1,0 +1,1266 @@
+{
+  "title": "Operations",
+  "uid": "ce-operations",
+  "tags": ["cryptoengine", "operations", "monitoring"],
+  "timezone": "Asia/Seoul",
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h"]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "custom",
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "label": "서비스",
+        "query": "All,market-data,execution-engine,strategy-orchestrator,funding-arb,llm-advisor,telegram-bot,postgres,redis,dashboard",
+        "allValue": "All",
+        "hide": 0
+      },
+      {
+        "name": "log_level",
+        "type": "custom",
+        "current": {
+          "text": "All",
+          "value": "All"
+        },
+        "label": "로그 레벨",
+        "query": "All,DEBUG,INFO,WARNING,ERROR,CRITICAL",
+        "allValue": "All",
+        "hide": 0
+      },
+      {
+        "name": "log_search",
+        "type": "textbox",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "label": "메시지 검색",
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "url": "/d/ce-overview",
+      "type": "link"
+    },
+    {
+      "title": "Performance & Risk",
+      "url": "/d/ce-performance-risk",
+      "type": "link"
+    },
+    {
+      "title": "Strategies & Positions",
+      "url": "/d/ce-strategies-positions",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "A. 서비스 헬스 그리드 — market-data",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'market-data' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0,
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 2,
+      "title": "A. 서비스 헬스 그리드 — execution-engine",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'execution-engine' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 30
+              },
+              {
+                "color": "#C62828",
+                "value": 120
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <30초 / YELLOW 30초~2분 / RED >2분"
+    },
+    {
+      "id": 3,
+      "title": "A. 서비스 헬스 그리드 — funding-arb",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'funding-arb' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 4,
+      "title": "A. 서비스 헬스 그리드 — strategy-orchestrator",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'strategy-orchestrator' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 5,
+      "title": "A. 서비스 헬스 그리드 — llm-advisor",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'llm-advisor' AND timestamp > NOW() - INTERVAL '24 hours'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 21600
+              },
+              {
+                "color": "#C62828",
+                "value": 43200
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <6시간 / YELLOW 6~12시간 / RED >12시간"
+    },
+    {
+      "id": 6,
+      "title": "A. 서비스 헬스 그리드 — telegram-bot",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'telegram-bot' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 7,
+      "title": "A. 서비스 헬스 그리드 — postgres",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'postgres' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 8,
+      "title": "A. 서비스 헬스 그리드 — redis",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'redis' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 9,
+      "title": "A. 서비스 헬스 그리드 — dashboard (grafana)",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(ROUND(EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::numeric, 0), 999) AS sec FROM service_logs WHERE service = 'dashboard' AND timestamp > NOW() - INTERVAL '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          },
+          "decimals": 0
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      },
+      "description": "GREEN <2분 / YELLOW 2~5분 / RED >5분"
+    },
+    {
+      "id": 10,
+      "title": "B. 인프라 메트릭 — CPU 사용률",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-prometheus",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (avg(irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "CPU %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "area"
+            },
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 60
+              },
+              {
+                "color": "#C62828",
+                "value": 85
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "calcs": ["last"]
+        }
+      },
+      "description": "토큰: <60% safe, 60~85% caution, >85% danger"
+    },
+    {
+      "id": 11,
+      "title": "B. 인프라 메트릭 — 메모리 사용률",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-prometheus",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "Memory %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "area"
+            },
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 70
+              },
+              {
+                "color": "#C62828",
+                "value": 85
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "calcs": ["last"]
+        }
+      },
+      "description": "토큰: <70% safe, 70~85% caution, >85% danger"
+    },
+    {
+      "id": 12,
+      "title": "B. 인프라 메트릭 — 디스크 사용률",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-prometheus",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_avail_bytes{mountpoint=\"/\"}) / node_filesystem_size_bytes{mountpoint=\"/\"} * 100",
+          "legendFormat": "Disk /"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "area"
+            },
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 70
+              },
+              {
+                "color": "#C62828",
+                "value": 85
+              },
+              {
+                "color": "#B71C1C",
+                "value": 90
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "calcs": ["last"]
+        }
+      },
+      "description": "토큰: <70% safe, 70~85% caution, 85~90% danger, >90% critical"
+    },
+    {
+      "id": 13,
+      "title": "B. 인프라 메트릭 — Redis 메모리 사용률",
+      "type": "gauge",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-prometheus",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "redis_memory_used_bytes / redis_memory_max_bytes * 100",
+          "legendFormat": "Redis %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 60
+              },
+              {
+                "color": "#C62828",
+                "value": 80
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "orientation": "auto",
+        "textMode": "value_and_name"
+      },
+      "description": "토큰: <60% safe, 60~80% caution, >80% danger"
+    },
+    {
+      "id": 14,
+      "title": "C. DB & Redis — 테이블 통계",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT 'ohlcv_data' AS table_name, COUNT(*) AS rows, MAX(timestamp)::text AS latest FROM ohlcv_data UNION ALL SELECT 'funding_rates', COUNT(*), MAX(collected_at)::text FROM funding_rates UNION ALL SELECT 'market_regimes', COUNT(*), MAX(detected_at)::text FROM market_regimes UNION ALL SELECT 'positions', COUNT(*), MAX(opened_at)::text FROM positions UNION ALL SELECT 'portfolio_snapshots', COUNT(*), MAX(snapshot_at)::text FROM portfolio_snapshots UNION ALL SELECT 'kill_switch_events', COUNT(*), MAX(triggered_at)::text FROM kill_switch_events UNION ALL SELECT 'llm_reports', COUNT(*), MAX(analyzed_at)::text FROM llm_reports ORDER BY table_name"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          }
+        }
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "table_name",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "title": "C. DB & Redis — Redis 키 카운트",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 24,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-prometheus",
+        "type": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "redis_db_keys{db=\"db0\"}",
+          "legendFormat": "Keys"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#1976D2"
+          },
+          "custom": {
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 16,
+      "title": "D. 데이터 파이프라인 — OHLCV 수집량 (1시간 단위)",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "WITH expected AS (SELECT generate_series(date_trunc('hour', NOW() - INTERVAL '24 hours'), date_trunc('hour', NOW()), '1 hour'::interval) AS expected_hour), actual AS (SELECT date_trunc('hour', timestamp) AS hour, COUNT(*) AS cnt FROM ohlcv_data WHERE timeframe = '1h' AND timestamp > NOW() - INTERVAL '24 hours' GROUP BY hour) SELECT e.expected_hour AS time, COALESCE(a.cnt, 0) AS candles_collected FROM expected e LEFT JOIN actual a ON e.expected_hour = a.hour ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 30
+              },
+              {
+                "color": "#2E7D32",
+                "value": 60
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "D. 데이터 파이프라인 — 펀딩비 수집 갭",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT collected_at AS time, EXTRACT(EPOCH FROM (collected_at - LAG(collected_at) OVER (ORDER BY collected_at))) / 60 AS gap_minutes FROM funding_rates WHERE collected_at >= NOW() - INTERVAL '24 hours' ORDER BY collected_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "custom": {
+            "lineWidth": 1,
+            "showPoints": "auto"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": false,
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "D. 데이터 파이프라인 — LogWriter 큐 모니터링",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "logs_per_min",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('minute', timestamp) AS time, COUNT(*) AS log_count FROM service_logs WHERE timestamp >= NOW() - INTERVAL '6 hours' GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "drops",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('minute', timestamp) AS time, COUNT(*) AS drop_count FROM service_logs WHERE event = 'log_writer_drop' AND timestamp >= NOW() - INTERVAL '6 hours' GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "drops"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C62828"
+                }
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "calcs": ["last", "max"]
+        }
+      },
+      "description": "큐 처리량(좌축, 청색) + 드롭 발생(우축, 적색). 드롭 > 0이면 LogWriter 큐 풀 위험"
+    },
+    {
+      "id": 19,
+      "title": "E. 로그 — 5분별 로그 레벨 분포",
+      "type": "barchart",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('minute', timestamp) - (EXTRACT(MINUTE FROM timestamp)::int % 5) * INTERVAL '1 minute' AS time, level AS metric, COUNT(*) AS cnt FROM service_logs WHERE timestamp >= NOW() - INTERVAL '6 hours' GROUP BY 1, level ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "DEBUG"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#9E9E9E"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "INFO"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1976D2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WARNING"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F9A825"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ERROR"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#C62828"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CRITICAL"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B71C1C"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "stacking": {
+          "mode": "normal",
+          "group": "A"
+        },
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "E. 로그 — 서비스별 오류 수 (ERROR + CRITICAL)",
+      "type": "barchart",
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT service AS metric, COUNT(*) AS errors FROM service_logs WHERE timestamp >= NOW() - INTERVAL '6 hours' AND level IN ('ERROR', 'CRITICAL') GROUP BY service ORDER BY errors DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C62828"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "E. 로그 — 최근 로그 (검색: $log_search)",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT timestamp, service, level, event, message FROM service_logs WHERE timestamp >= NOW() - INTERVAL '6 hours' AND ('All' = '$service' OR service = '$service') AND ('All' = '$log_level' OR level = '$log_level') AND ('' = '$log_search' OR message ILIKE '%' || '$log_search' || '%' OR event ILIKE '%' || '$log_search' || '%') ORDER BY timestamp DESC LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "level"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "DEBUG": {
+                        "color": "#9E9E9E",
+                        "index": 0
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "INFO": {
+                        "color": "#1976D2",
+                        "index": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "WARNING": {
+                        "color": "#F9A825",
+                        "index": 2
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "ERROR": {
+                        "color": "#C62828",
+                        "index": 3
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "CRITICAL": {
+                        "color": "#B71C1C",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "timestamp",
+            "desc": true
+          }
+        ],
+        "showHeader": true
+      },
+      "description": "$log_search 변수로 message/event 텍스트 검색. 빈 값이면 전체. $service/$log_level 필터와 AND 결합"
+    }
+  ]
+}
