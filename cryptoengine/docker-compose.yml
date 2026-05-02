@@ -505,6 +505,69 @@ services:
         reservations:
           memory: 128M
 
+  # ── Track C: Multi-exchange Data Collectors ─────────────────
+  market-data-binance:
+    build:
+      context: .
+      dockerfile: services/market-data/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: cryptoengine
+      DB_USER: cryptoengine
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-***REMOVED***}@redis:6379}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-testnet}
+    command: python /app/binance_collector.py
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
+  market-data-okx:
+    build:
+      context: .
+      dockerfile: services/market-data/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: cryptoengine
+      DB_USER: cryptoengine
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-***REMOVED***}@redis:6379}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-testnet}
+    command: python /app/okx_collector.py
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
 volumes:
   pgdata:
     driver: local

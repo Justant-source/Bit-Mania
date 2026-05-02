@@ -545,6 +545,32 @@ class BotHandlers:
                 date_obj,
             )
 
+            # Track A: Entry rejection analysis (24h)
+            entry_rejections = await conn.fetch(
+                """
+                SELECT event, COUNT(*) as count
+                FROM service_logs
+                WHERE service = 'funding-arb'
+                  AND event IN ('fa_rate_below_threshold', 'fa_consecutive_not_met', 'fa_predicted_misaligned')
+                  AND timestamp > NOW() - INTERVAL '24 hours'
+                GROUP BY event
+                ORDER BY count DESC
+                """,
+            )
+            rejection_summary = {
+                r["event"]: r["count"] for r in entry_rejections
+            } if entry_rejections else {}
+
+            # Track A: Current funding rate vs threshold (from Redis)
+            funding_data = await self.redis.get("market:funding:bybit:BTCUSDT")
+            current_funding_rate = 0.0
+            if funding_data:
+                try:
+                    funding_info = json.loads(funding_data)
+                    current_funding_rate = float(funding_info.get("funding_rate", 0.0))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
         # T-4: compute Sharpe and max DD for the report period
         metrics = await self._fetch_30d_metrics()
 
@@ -570,6 +596,9 @@ class BotHandlers:
                 }
                 for r in strategy_rows
             ],
+            # Track A: KPI fields
+            "entry_rejections_24h": rejection_summary,
+            "current_funding_rate": current_funding_rate,
         }
 
     # ── Command: /pause_all ───────────────────────────────────────

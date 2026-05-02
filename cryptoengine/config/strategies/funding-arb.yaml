@@ -159,8 +159,16 @@ phase5:
   reinvest_ratio: 0.0           # 재투자 비활성 (소액에선 무의미)
   min_position_usd: 50          # Bybit 최소 주문 $65 기준 하향 조정
 
-  # Phase 5 진입 조건 강화 (수수료 현실 반영: 왕복 ~0.17%)
+  # Phase 5 진입 조건 조정 (Track A: BEP 기반 재산정, 7일 보유 기준)
   entry:
-    min_funding_rate_annualized: 25.0   # 15% → 25% (BEP 2회 수취 기준)
-    min_funding_rate: 0.00012           # 0.0001 → 0.00012 (8h 기준 0.012%)
-    consecutive_intervals: 4            # 3 → 4 (더 보수적)
+    min_funding_rate_annualized: 8.0    # 25.0 → 8.0 (Track A: BEP 기반 재산정, 7일 보유 기준 9.9% APR 안전 마진)
+    min_funding_rate: 0.0000731         # 0.00012 → 0.0000731 (= 8/365/3/100)
+    consecutive_intervals: 2            # 4 → 2 (16시간 안정성 확인)
+    require_predicted_alignment: true   # 유지
+
+  # Track A: Phase5 exit 조건 오버라이드
+  exit:
+    min_funding_rate_annualized: 3.0    # 5.0 → 3.0 (수익성 상실 임계값)
+    exit_on_rate_flip: true
+    max_holding_hours: 168              # 7일
+    cooldown_minutes: 60

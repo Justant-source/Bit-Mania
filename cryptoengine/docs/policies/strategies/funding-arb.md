@@ -6,7 +6,7 @@ related_code:
   - cryptoengine/config/strategies/funding-arb.yaml
   - cryptoengine/config/orchestrator.yaml
   - cryptoengine/services/jesse_engine/strategies/
-last_updated: 2026-05-01
+last_updated: 2026-05-02
 when_to_update: |
   - funding-arb.yaml 파라미터 변경 시
   - 백테스트 결과 업데이트 시
@@ -406,7 +406,7 @@ fees:
 
 ## Phase 5 오버라이드 (phase5)
 
-메인넷 소액 실전 $200 USDT 환경용 보수적 설정:
+메인넷 소액 실전 $200 USDT 환경용 설정:
 
 BYBIT_TESTNET=false 또는 PHASE5_MODE=true 시 자동 활성화
 
@@ -422,19 +422,32 @@ phase5:
   min_position_usd: 50                      # 100 → 50 (Bybit 최소 주문 $65 대응)
 ```
 
-### 진입 조건 강화
+### 진입 조건 조정 (Track A)
 
 ```yaml
 phase5:
   entry:
-    min_funding_rate_annualized: 25.0       # 15% → 25% (수수료 현실화)
-    min_funding_rate: 0.00012               # 8h 기준: 0.012% (= 연 44%)
-    consecutive_intervals: 4                # 3 → 4 (더 보수적)
+    min_funding_rate_annualized: 8.0        # 25.0 → 8.0 (Track A: BEP 기반 재산정)
+    min_funding_rate: 0.0000731             # = 8 / 365 / 3 / 100
+    consecutive_intervals: 2                # 4 → 2 (16시간 안정성)
+    require_predicted_alignment: true       # 유지
 ```
 
-**근거**: 왕복 수수료 + 슬리피지 = 0.17% (견적)
-- 2회 펀딩 수취에 BEP: 0.17% ÷ 2 = 0.085% per cycle
-- 연 25% = 8h당 0.0091% (충분한 마진)
+**변경 사유**: 24일간 0거래 문제 해결
+- 기존 25% APR 임계값은 시장 현실(10.95% APR 평균)보다 과도함
+- 7일 보유 기준 9.9% APR은 적절한 안전 마진 제공
+- 2 consecutive intervals (16시간) = 충분한 안정성 확인
+
+### 청산 조건 오버라이드 (Track A)
+
+```yaml
+phase5:
+  exit:
+    min_funding_rate_annualized: 3.0        # 수익성 상실 임계값
+    exit_on_rate_flip: true
+    max_holding_hours: 168                  # 7일
+    cooldown_minutes: 60
+```
 
 ```mermaid
 flowchart LR

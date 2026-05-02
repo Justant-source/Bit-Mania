@@ -44,6 +44,13 @@ TF_BYBIT_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240"}
 # Candle duration in seconds per timeframe
 TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 
+# Track C Phase C1: 분기물 OHLCV + ticker
+QUARTERLY_SYMBOLS_USDT: list[str] = [
+    "BTCUSDM27",  # 2027 March
+    "BTCUSDU26",  # 2026 June
+    "BTCUSDU27",  # 2027 June
+]
+
 MAX_RECONNECT_DELAY = 120  # seconds
 BASE_RECONNECT_DELAY = 1
 
@@ -167,6 +174,11 @@ class MarketDataCollector:
         # Tickers (includes funding rate, mark price, etc.)
         topics.append(f"tickers.{self.symbol}")
 
+        # Track C Phase C1: Subscribe to quarterly symbols (kline + tickers)
+        for qsym in QUARTERLY_SYMBOLS_USDT:
+            topics.append(f"kline.1.{qsym}")
+            topics.append(f"tickers.{qsym}")
+
         subscribe_msg = {"op": "subscribe", "args": topics}
         await ws.send(json.dumps(subscribe_msg))
         log.info(MARKET_WS_CONNECTED, message="WebSocket subscribed", topics=topics)
@@ -205,6 +217,10 @@ class MarketDataCollector:
     # ------------------------------------------------------------------
     # WS handlers
     # ------------------------------------------------------------------
+
+    def _is_quarterly_symbol(self, symbol: str) -> bool:
+        """Check if symbol is a quarterly future."""
+        return symbol in QUARTERLY_SYMBOLS_USDT
 
     async def _on_orderbook(self, msg: dict[str, Any]) -> None:
         """Process orderbook snapshot / delta."""
@@ -247,12 +263,21 @@ class MarketDataCollector:
         """Publish OHLCV candles and persist closed bars."""
         # topic format: kline.{interval}.{symbol}
         parts = topic.split(".")
-        if len(parts) < 2:
+        if len(parts) < 3:
             log.warning(MARKET_OHLCV_STORED, message="invalid kline topic", topic=topic)
             return
         bybit_tf = parts[1]
+        symbol = ".".join(parts[2:])  # Handle symbols with dots (e.g. quarterly)
         tf = TF_MAP.get(bybit_tf, bybit_tf)
-        channel = f"market:ohlcv:{self.exchange}:{self.symbol}:{tf}"
+
+        # Determine which table and channel to use
+        is_quarterly = self._is_quarterly_symbol(symbol)
+        if is_quarterly:
+            channel = f"market:ohlcv:{self.exchange}:{symbol}:{tf}"
+            table = "quarterly_futures_history"
+        else:
+            channel = f"market:ohlcv:{self.exchange}:{symbol}:{tf}"
+            table = "ohlcv_history"
 
         for c in candles:
             try:
@@ -268,7 +293,7 @@ class MarketDataCollector:
             confirmed = c.get("confirm", False)
             ohlcv = {
                 "exchange": self.exchange,
-                "symbol": self.symbol,
+                "symbol": symbol,
                 "timeframe": tf,
                 "open": open_,
                 "high": high,
@@ -281,7 +306,7 @@ class MarketDataCollector:
             await self.redis.publish(channel, json.dumps(ohlcv))
 
             # Cache latest bar in Redis hash for quick lookups
-            cache_key = f"cache:ohlcv:{self.exchange}:{self.symbol}:{tf}"
+            cache_key = f"cache:ohlcv:{self.exchange}:{symbol}:{tf}"
             await self.redis.hset(cache_key, mapping={
                 "open": ohlcv["open"],
                 "high": ohlcv["high"],
@@ -295,31 +320,55 @@ class MarketDataCollector:
             if confirmed:
                 ts_dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
                 async with self.db_pool.acquire() as conn:
-                    await conn.execute(
-                        """
-                        INSERT INTO ohlcv_history (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                        ON CONFLICT (exchange, symbol, timeframe, timestamp) DO UPDATE
-                        SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
-                            close = EXCLUDED.close, volume = EXCLUDED.volume
-                        """,
-                        self.exchange,
-                        self.symbol,
-                        tf,
-                        ts_dt,
-                        open_,
-                        high,
-                        low,
-                        close,
-                        volume,
-                    )
+                    if is_quarterly:
+                        # For quarterly futures, use the quarterly_futures_history table
+                        await conn.execute(
+                            """
+                            INSERT INTO quarterly_futures_history
+                                (exchange, symbol, underlying, expiry_date, timestamp, open, high, low, close, volume)
+                            VALUES ($1, $2, 'BTC', '2099-12-31', $3, $4, $5, $6, $7, $8)
+                            ON CONFLICT (exchange, symbol, timestamp) DO UPDATE
+                            SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
+                                close = EXCLUDED.close, volume = EXCLUDED.volume
+                            """,
+                            self.exchange,
+                            symbol,
+                            ts_dt,
+                            open_,
+                            high,
+                            low,
+                            close,
+                            volume,
+                        )
+                    else:
+                        await conn.execute(
+                            """
+                            INSERT INTO ohlcv_history (exchange, symbol, timeframe, timestamp, open, high, low, close, volume)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            ON CONFLICT (exchange, symbol, timeframe, timestamp) DO UPDATE
+                            SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
+                                close = EXCLUDED.close, volume = EXCLUDED.volume
+                            """,
+                            self.exchange,
+                            symbol,
+                            tf,
+                            ts_dt,
+                            open_,
+                            high,
+                            low,
+                            close,
+                            volume,
+                        )
 
     async def _on_ticker(self, payload: dict[str, Any]) -> None:
         """Handle ticker updates — includes funding rate and mark price."""
-        channel = f"market:ticker:{self.exchange}:{self.symbol}"
+        symbol = payload.get("symbol", self.symbol)
+        is_quarterly = self._is_quarterly_symbol(symbol)
+
+        channel = f"market:ticker:{self.exchange}:{symbol}"
         ticker = {
             "exchange": self.exchange,
-            "symbol": self.symbol,
+            "symbol": symbol,
             "last_price": payload.get("lastPrice"),
             "mark_price": payload.get("markPrice"),
             "index_price": payload.get("indexPrice"),
@@ -331,21 +380,56 @@ class MarketDataCollector:
         }
         await self.redis.publish(channel, json.dumps(ticker))
 
+        # Track C Phase C1: Calculate and store quarterly perp spread
+        if is_quarterly:
+            quarterly_price = payload.get("markPrice")
+            if quarterly_price is not None:
+                # Fetch perp price from cache
+                perp_price_bytes = await self.redis.get(f"cache:price:{self.exchange}:{self.symbol}")
+                if perp_price_bytes:
+                    try:
+                        perp_price = float(perp_price_bytes)
+                        spread = (float(quarterly_price) - perp_price) / perp_price
+                        ts_ms = int(time.time() * 1000)
+                        ts_dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+
+                        async with self.db_pool.acquire() as conn:
+                            await conn.execute(
+                                """
+                                INSERT INTO quarterly_perp_spread
+                                    (quarterly_symbol, perp_symbol, timestamp, spread, quarterly_price, perp_price)
+                                VALUES ($1, $2, $3, $4, $5, $6)
+                                ON CONFLICT (quarterly_symbol, perp_symbol, timestamp) DO NOTHING
+                                """,
+                                symbol,
+                                self.symbol,
+                                ts_dt,
+                                spread,
+                                float(quarterly_price),
+                                perp_price,
+                            )
+                    except (ValueError, TypeError) as e:
+                        log.warning(MARKET_TICKER_RECEIVED, message="spread calculation error", exc=str(e))
+
         # Cache funding rate for quick access
         if payload.get("fundingRate") is not None:
-            funding_channel = f"market:funding:{self.exchange}:{self.symbol}"
+            funding_channel = f"market:funding:{self.exchange}:{symbol}"
             funding_msg = {
                 "exchange": self.exchange,
-                "symbol": self.symbol,
+                "symbol": symbol,
                 "rate": payload["fundingRate"],
                 "predicted_rate": payload.get("nextFundingRate"),
                 "next_funding_time": payload.get("nextFundingTime"),
             }
             await self.redis.publish(funding_channel, json.dumps(funding_msg))
-            await self.redis.hset(f"cache:funding:{self.exchange}:{self.symbol}", mapping={
+            await self.redis.hset(f"cache:funding:{self.exchange}:{symbol}", mapping={
                 "rate": str(payload["fundingRate"]),
                 "next_funding_time": str(payload.get("nextFundingTime", "")),
             })
+
+        # Cache mark price for perp (used for quarterly spread calculation)
+        if not is_quarterly and payload.get("markPrice") is not None:
+            await self.redis.set(f"cache:price:{self.exchange}:{symbol}", str(payload.get("markPrice")))
 
     # ------------------------------------------------------------------
     # Startup gap recovery
