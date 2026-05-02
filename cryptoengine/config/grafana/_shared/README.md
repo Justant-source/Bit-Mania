@@ -28,7 +28,52 @@ config/grafana/dashboards/
 └── mobile/            # Overview (Mobile)
 ```
 
-## Task 7에서 적용 예정
-- Home Dashboard: `GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH` → overview.json
-- PHASE5_MODE 환경변수 토글
-- 기존 json/ 폴더 내 6개 파일 삭제
+---
+
+## 최종 대시보드 맵 (2026-05-02 재설계 완료)
+
+| 폴더 | 대시보드 | uid | 주기 | 용도 |
+|---|---|---|---|---|
+| Trading | Overview | `ce-overview` | 30s | 1순위 진입점, 청산 위험 모니터 |
+| Trading | Performance & Risk | `ce-performance-risk` | 1m | 수익/리스크 시계열 분석 |
+| Trading | Strategies & Positions | `ce-strategies-positions` | 30s | 전략 운영 + 오픈 포지션 |
+| Operations | Operations | `ce-operations` | 30s | 인프라 + 로그 + 데이터 파이프라인 |
+| Analysis | LLM Intelligence | `ce-llm-intelligence` | 5m | LLM 고유 통계 + 권장 vs 실행 일치율 |
+| Mobile | Overview (Mobile) | `ce-overview-mobile` | 30s | 모바일 긴급 대응 (세로 풀폭) |
+
+## 사용 시나리오
+
+| 상황 | 우선 확인 대시보드 |
+|---|---|
+| 출근 첫 화면 | Overview (자동 홈 설정) |
+| 청산 위험 대응 | Overview Row 2 → Strategies & Positions Section D |
+| 전일 성과 리뷰 | Performance & Risk |
+| 전략 진단 | Strategies & Positions |
+| 장애 발생 | Operations |
+| 외출 중 점검 | Mobile Overview |
+| LLM 효용 검토 | LLM Intelligence |
+
+## 변경 이력
+
+### 2026-05-02: Grafana 재설계 완료 (Task 7)
+
+**신규**:
+- 청산 위험 시각화 (Overview Row 2: 4개 패널)
+- 자산 곡선 + Kill Switch / 레짐 어노테이션
+- 인프라 메트릭 시각화 (Operations Section B: CPU/메모리/디스크/Redis)
+- LogWriter 큐 모니터링 (Operations Section D)
+- 로그 검색 변수 ($log_search)
+- Phase 5 일일 손실 한도 표기 ($-10)
+- LLM 권장 vs 실행 일치율 패널 (id=3 교체)
+- Mobile Overview (8개 패널, 세로 전체폭)
+
+**구조**:
+- 폴더: 4개 (Trading/Operations/Analysis/Mobile)
+- 대시보드: 6개 (Trading 3개 + Operations 1개 + Analysis 1개 + Mobile 1개)
+- Home Dashboard: Overview 자동 설정 (GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH)
+- Phase 5 환경변수: PHASE5_MODE (기본값 false)
+
+**삭제**:
+- 레거시 대시보드 6개: main_cockpit, assets_overview, positions_orders, strategy_monitor, service-logs, system_health
+- 구 provisioning YAML: dashboard.yaml
+- json/ 폴더 내 llm_intelligence.json (analysis/ 로 이동)

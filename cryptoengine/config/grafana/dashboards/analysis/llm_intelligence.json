@@ -1,12 +1,13 @@
 {
-  "description": "LLM Intelligence — 최신 AI 판단·리포트 상세·Rating 추이·신뢰도·정확도 추적",
+  "description": "LLM Intelligence — 최신 AI 판단·리포트 상세·Rating 추이·신뢰도·정확도 추적·권장 vs 실행 일치율",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [
-    {"icon": "dashboard", "tags": [], "title": "Asset Overview", "type": "link", "url": "/d/cryptoengine-assets"},
-    {"icon": "dashboard", "tags": [], "title": "Strategy & Regime", "type": "link", "url": "/d/cryptoengine-strategy-monitor"},
+    {"icon": "doc", "tags": [], "title": "Overview", "type": "link", "url": "/d/ce-overview"},
+    {"icon": "doc", "tags": [], "title": "Performance & Risk", "type": "link", "url": "/d/ce-performance-risk"},
+    {"icon": "doc", "tags": [], "title": "Strategies & Positions", "type": "link", "url": "/d/ce-strategies-positions"},
     {"icon": "doc", "tags": [], "title": "LLM Report (HTML)", "type": "link", "url": "/public/reports/latest.html", "targetBlank": true},
     {"icon": "doc", "tags": [], "title": "Report Archive", "type": "link", "url": "/public/reports/", "targetBlank": true}
   ],
@@ -68,23 +69,25 @@
     },
     {
       "datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"},
-      "description": "LLM 판단 시점 레짐",
+      "description": "LLM 권장 방향과 실제 진입 방향이 일치한 비율. 낮으면 LLM advisor 무시 정책 검토 필요. 구간: <50% danger, 50~70% caution, ≥70% safe",
       "fieldConfig": {
         "defaults": {
+          "unit": "percent",
+          "decimals": 1,
           "color": {"mode": "thresholds"},
-          "mappings": [
-            {"options": {"ranging": {"color": "#fbbf24", "index": 0, "text": "🟡 RANGING"}, "trending_up": {"color": "#22c55e", "index": 1, "text": "🟢 TRENDING UP"}, "trending_down": {"color": "#ef4444", "index": 2, "text": "🔴 TRENDING DOWN"}, "volatile": {"color": "#a855f7", "index": 3, "text": "🟣 VOLATILE"}}, "type": "value"}
-          ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
-        },
-        "overrides": []
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "#C62828", "value": null},
+            {"color": "#F9A825", "value": 50},
+            {"color": "#2E7D32", "value": 70}
+          ]}
+        }
       },
       "gridPos": {"h": 6, "w": 5, "x": 9, "y": 1},
       "id": 3,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^regime$/", "values": false}, "textMode": "value"},
+      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value"},
       "pluginVersion": "10.0.0",
-      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT regime FROM llm_reports ORDER BY created_at DESC LIMIT 1", "refId": "A"}],
-      "title": "판단 시점 레짐",
+      "targets": [{"datasource": {"type": "grafana-postgresql-datasource", "uid": "cryptoengine-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "WITH matched AS (\n  SELECT lr.created_at, lr.rating, t.side AS executed_side\n  FROM llm_reports lr\n  LEFT JOIN trades t ON t.entry_ts BETWEEN lr.created_at AND lr.created_at + INTERVAL '1 hour'\n  WHERE lr.created_at >= NOW() - INTERVAL '30 days'\n)\nSELECT ROUND(\n  (SUM(CASE\n    WHEN (rating IN ('BUY', 'STRONG_BUY', 'buy', 'strong_buy') AND executed_side = 'long')\n      OR (rating IN ('SELL', 'STRONG_SELL', 'sell', 'strong_sell') AND executed_side = 'short')\n    THEN 1\n    ELSE 0\n  END)::float / NULLIF(COUNT(executed_side), 0)) * 100, 1\n) AS match_rate_pct\nFROM matched", "refId": "A"}],
+      "title": "LLM 권장 vs 실행 일치율 (30일)",
       "type": "stat"
     },
     {
@@ -310,13 +313,13 @@
     }
   ],
   "refresh": "5m",
-  "schemaVersion": 38,
-  "tags": ["cryptoengine", "llm"],
+  "schemaVersion": 39,
+  "tags": ["cryptoengine", "llm", "analysis"],
   "templating": {"list": []},
   "time": {"from": "now-7d", "to": "now"},
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "Asia/Seoul",
   "title": "LLM Intelligence",
-  "uid": "cryptoengine-llm",
+  "uid": "ce-llm-intelligence",
   "version": 1
 }

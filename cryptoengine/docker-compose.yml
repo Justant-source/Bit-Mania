@@ -361,6 +361,8 @@ services:
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,redis-datasource
       GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
       GF_UNIFIED_ALERTING_ENABLED: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/trading/overview.json
+      PHASE5_MODE: ${PHASE5_MODE:-false}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     volumes:
