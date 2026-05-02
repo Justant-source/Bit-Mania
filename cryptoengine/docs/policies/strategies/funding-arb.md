@@ -295,6 +295,48 @@ exit:
 5. cooldown_minutes 동안 재진입 차단
 ```
 
+```mermaid
+flowchart TD
+    A["포지션 상태: OPEN\nSpot Long + Perp Short\n누적 펀딩: $150"]
+    
+    A --> B{["청산 트리거\n확인"]}
+    
+    B -->|펀딩비 음수 반전| C1["Priority 1\n지급 전환 위험\n즉시 청산"]
+    B -->|Basis > 1.0%| C2["Priority 2\nSpread 급확대\n긴급 청산"]
+    B -->|누적 3% 도달| C3["Priority 3\nTake Profit\nLCO 청산"]
+    B -->|손실 2% 발생| C4["Priority 4\nStop Loss\nSCO 청산"]
+    B -->|720시간 경과| C5["Priority 5\n최대 보유 기간\nTCO 청산"]
+    B -->|Kill Switch| C6["Priority 0\n시스템 긴급\n전체 포지션 청산"]
+    
+    C1 & C2 & C3 & C4 & C5 & C6 --> D["Step 1: 선물 청산\nPerp Short → Market Close\nEx: 0.1 BTC × 5 lev @ $60,000\n명목 $30,000"]
+    
+    D --> E["수수료: $30,000 × 0.055% = $16.50\nEquity 차감"]
+    
+    E --> F["Step 2: 현물 청산\nSpot Long → Market Close\nEx: 0.1 BTC @ $60,050\n명목 $6,005"]
+    
+    F --> G["수수료: 0 (Maker)\nEquity 유지"]
+    
+    G --> H["Step 3: 상태 전환\nOPEN → IDLE\n포지션 기록 완료"]
+    
+    H --> I["Step 4: P&L 최종 계산\n펀딩 수입: +$150\nBasis 변동: ±$2\n총 수수료: -$33\n순 P&L: +$119"]
+    
+    I --> J["Step 5: Cooldown 시작\n60분 동안 신규 진입 차단\n기존 포지션은 유지 가능"]
+    
+    J --> K{["60분 후\n신규 신호?"]}
+    
+    K -->|Yes| L["신규 진입 조건 재확인\n펀딩 ≥ 15% ann\nconsec ≥ 3회"]
+    K -->|No| M["IDLE 유지\n신호 대기"]
+    
+    L --> N{["조건 통과?"]}
+    N -->|Yes| A
+    N -->|No| M
+    M --> K
+    
+    style C1 fill:#f44336,color:#fff
+    style C6 fill:#cc0000,color:#fff
+    style H fill:#4caf50,color:#fff
+```
+
 ---
 
 ## 리스크 관리 (risk)

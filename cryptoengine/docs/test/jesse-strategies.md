@@ -47,6 +47,34 @@ graph LR
 
 ---
 
+## 전략 선택 및 개선 로드맵
+
+```mermaid
+graph TD
+    START["Phase 9: 기본 FA 백테스트"] --> V1["✅ v1: FundingArbitrage\nCAGR ≥ 10%\nSharpe ≥ 1.0?"]
+    
+    V1 -->|Yes| V2["Phase 10.1: 매크로 필터 추가"]
+    V1 -->|No| TUNE1["파라미터 재조정\nmin_funding_rate\nconsecutive_intervals\nleverage 검토"]
+    TUNE1 --> V1
+    
+    V2 --> V2T["v2: WithMacroFilter\nFOMC/CPI 이벤트 필터\n진입 억제\nSharpe 개선?"]
+    
+    V2T -->|Sharpe ≥ 1.2| V3["Phase 10.2: F&G 동적 사이징"]
+    V2T -->|Sharpe < 1.2| KEEP["v1 유지\n매크로 필터 미활성"]
+    
+    V3 --> V3T["v3: WithFGSizer\nFear&Greed 기반\n포지션 동적 조정\nSharpe ≥ 1.5?"]
+    
+    V3T -->|Yes| PROD1["🚀 프로덕션 배포\n(메인넷 가능)\nv3 권장"]
+    V3T -->|No| PROD2["🚀 프로덕션 배포\nv1 또는 v2 선택"]
+    
+    KEEP --> PROD2
+    
+    style PROD1 fill:#4caf50,color:#fff
+    style PROD2 fill:#2196f3,color:#fff
+```
+
+---
+
 ## 전략 상세사양
 
 ### Phase 9 — FundingArbitrage (v1)

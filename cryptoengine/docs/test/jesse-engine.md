@@ -77,6 +77,59 @@ flowchart LR
 
 ---
 
+## Jesse 백테스트 실행 흐름
+
+```mermaid
+flowchart LR
+    START([백테스트 시작]) --> CHECK{["데이터 준비\nOK?"]}
+    
+    CHECK -->|No| PREP["Step 1~5: 데이터 수집\n& Jesse DB 임포트"]
+    PREP --> CHECK
+    
+    CHECK -->|Yes| CHOOSE{["무엇을 실행\n할까?"]}
+    
+    CHOOSE -->|Sanity Check| SC["run_backtest.py\nBtcBuyAndHold\n2024년만"]
+    SC --> SCR["기대: CAGR ~120%\nMDD ~-25%\nSharpe 1.5~2.0"]
+    SCR --> NEXT{["Jesse\n정상?"]}
+    NEXT -->|No| FIX["설정 수정\n← Step 1~5 재실행"]
+    FIX --> CHOOSE
+    NEXT -->|Yes| CHOOSE
+    
+    CHOOSE -->|단일 전략| RUN1["run_backtest.py\nFundingArbitrage\n2023-04 ~ 2026-04"]
+    RUN1 --> R1R["결과 JSON\nCAGR, Sharpe, MDD"]
+    R1R --> ANALYZE1{["V5 기준\n통과?"]}
+    
+    CHOOSE -->|시간 분석| RUN2["walk_forward.py\n365d train\n180d test"]
+    RUN2 --> R2R["WF 리포트\nOOS/IS 비율 ≥ 0.6?"]
+    R2R --> ANALYZE2{["OOS 신뢰도\nOK?"]}
+    
+    CHOOSE -->|환경별 분석| RUN3["regime_split_analysis.py\nbull/transition/compressed"]
+    RUN3 --> R3R["환경별 수익률\n레짐 강건성 검증"]
+    
+    CHOOSE -->|전체 자동| RUN4["run_full_validation.sh\n(5단계 자동)"]
+    RUN4 --> R4R["최종 V5 리포트\n합격/불합격"]
+    
+    ANALYZE1 -->|Yes| PASS["✅ PASS\n메인넷 진입 가능"]
+    ANALYZE1 -->|No| TUNE["파라미터 재조정\n← run_backtest.py 재실행"]
+    TUNE --> RUN1
+    
+    ANALYZE2 -->|Yes| PASS
+    ANALYZE2 -->|No| TUNE
+    
+    R4R --> FINAL{["최종 판정"]}
+    FINAL -->|Pass| PASS
+    FINAL -->|Fail| TUNE
+    
+    PASS --> END(["메인넷 준비 완료 🚀"])
+    
+    style PASS fill:#4caf50,color:#fff
+    style END fill:#4caf50,color:#fff
+    style FIX fill:#ff9800,color:#fff
+    style TUNE fill:#ff9800,color:#fff
+```
+
+---
+
 ## 빠른 시작
 
 ### 1. Jesse 컨테이너 기동

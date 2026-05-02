@@ -60,6 +60,38 @@ flowchart LR
 
 ---
 
+## 체크리스트 수행 순서 및 의존성
+
+```mermaid
+flowchart TD
+    START([Phase 4 시작]) --> C1["✅ 1️⃣ 7개 시나리오\nScenario 1~7\n거래 흐름 검증\n예상 시간: 2-3주"]
+    
+    C1 --> C2["✅ 2️⃣ 7일 무중단 운영\nUptime ≥ 7일\nRestart 0회\n동시 진행 가능\n예상 시간: 7일"]
+    
+    C1 & C2 --> C3["✅ 3️⃣ phase5_preflight.py\n8가지 항목 PASS\n5분 소요"]
+    
+    C1 & C2 --> C4["✅ 4️⃣ resilience-test\n서비스 재시작\nPosition 복구\n5분 소요"]
+    
+    C1 & C2 & C3 & C4 --> C5["✅ 5️⃣ Telegram 알림\n8가지 유형 수신 확인\n동시 진행 가능\n예상 시간: 1-2주"]
+    
+    C1 & C2 --> C6["✅ 6️⃣ stoploss_on_exchange\n3가지 시나리오\nA, B, C 검증\n예상 시간: 3-5일"]
+    
+    C1 & C2 --> C7["✅ 7️⃣ Walk-Forward\n월간 자동 파이프라인\n1회 이상 완료\n예상 시간: 2-3시간"]
+    
+    C3 & C4 & C5 & C6 & C7 --> GATE["🚪 Phase 5 진입 게이트\n모든 항목 PASS 필수"]
+    
+    GATE --> C8["8️⃣ 메인넷 전환\nswitch_to_mainnet.py\n9단계 프로세스\n예상 시간: 30분"]
+    
+    C8 --> FINAL([Phase 5 시작 🚀\n$200 USDT 실전])
+    
+    style C3 fill:#4caf50,color:#fff
+    style C4 fill:#4caf50,color:#fff
+    style GATE fill:#ff9800,color:#fff
+    style FINAL fill:#4caf50,color:#fff
+```
+
+---
+
 ## 완료 체크리스트
 
 ### 1️⃣ 7개 시나리오 체크리스트 완료

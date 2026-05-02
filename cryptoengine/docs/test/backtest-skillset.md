@@ -121,6 +121,34 @@ flowchart TD
 
 ---
 
+## 스크립트 선택 의사결정 흐름
+
+```mermaid
+flowchart TD
+    START{["백테스트 목표는?"]} 
+    
+    START -->|데이터 신선도 관리| D1["데이터 수집<br/>scripts/data/"]
+    START -->|단순 성과 확인| D2["단일 백테스트<br/>run_backtest.py"]
+    START -->|시간대별 성능 분석| D3["Walk-Forward<br/>walk_forward.py"]
+    START -->|시장환경별 성능| D4["레짐 분석<br/>regime_split_analysis.py"]
+    START -->|전체 자동 검증| D5["통합 파이프라인<br/>run_full_validation.sh"]
+    START -->|자체엔진 재현| D6["FA 순수 시뮬레이션<br/>run_fa_backtest.py"]
+    START -->|Jesse 엔진 검증| D7["Sanity Check<br/>sanity_check.py"]
+    
+    D1 --> D1A["1️⃣ download_binance_vision.py<br/>2️⃣ fetch_coinalyze_funding.py<br/>3️⃣ fetch_fear_greed.py<br/>4️⃣ build_macro_calendar.py"]
+    D2 --> D2A["지표 확인:<br/>CAGR, Sharpe, MDD"]
+    D3 --> D3A["OOS/IS 비율 확인:<br/>≥ 0.6 합격"]
+    D4 --> D4A["시장 환경별 수익성<br/>bull/transition/compressed"]
+    D5 --> D5A["30분~2시간\n1️⃣ BT → 2️⃣ WF → 3️⃣ RS\n4️⃣ SC → 5️⃣ Report"]
+    D6 --> D6A["자체엔진 로직\nJesse와 비교"]
+    D7 --> D7A["Jesse 정확성 검증\n2024년 BTC Hold\nExpected: CAGR ~120%"]
+    
+    style D5A fill:#4caf50,color:#fff
+    style D1A fill:#2196f3,color:#fff
+```
+
+---
+
 ## 전형적인 워크플로우
 
 ### 1일차: 데이터 준비 (1~2시간)
