@@ -1,0 +1,1309 @@
+{
+  "title": "Strategies & Positions",
+  "uid": "ce-strategies-positions",
+  "tags": ["cryptoengine", "strategy", "positions"],
+  "timezone": "Asia/Seoul",
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "strategy_id",
+        "type": "query",
+        "datasource": {
+          "uid": "cryptoengine-postgres",
+          "type": "postgres"
+        },
+        "query": "SELECT DISTINCT strategy_id FROM strategy_states ORDER BY strategy_id",
+        "includeAll": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "label": "전략",
+        "sort": 1
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "url": "/d/ce-overview"
+    },
+    {
+      "title": "Performance & Risk",
+      "url": "/d/ce-performance-risk"
+    },
+    {
+      "title": "Operations",
+      "url": "/d/ce-operations"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "자본 배분",
+      "type": "bargauge",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT DISTINCT ON (strategy_id) strategy_id AS metric, allocated_capital AS value FROM strategy_states ORDER BY strategy_id, updated_at DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "text": {}
+      }
+    },
+    {
+      "id": 2,
+      "title": "전략 KPI",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "WITH strategy_pnl AS (\n  SELECT\n    strategy_id,\n    COALESCE(SUM(pnl), 0) AS total_pnl,\n    COUNT(*) AS trade_count\n  FROM trades\n  WHERE filled_at IS NOT NULL\n  GROUP BY strategy_id\n),\nstrategy_state AS (\n  SELECT DISTINCT ON (strategy_id)\n    strategy_id, allocated_capital, current_pnl\n  FROM strategy_states\n  ORDER BY strategy_id, updated_at DESC\n)\nSELECT\n  s.strategy_id,\n  COALESCE(s.allocated_capital, 0) AS allocated_capital,\n  COALESCE(s.current_pnl, 0) AS unrealized_pnl,\n  COALESCE(p.total_pnl, 0) AS realized_pnl_total,\n  COALESCE(p.trade_count, 0) AS trade_count\nFROM strategy_state s\nLEFT JOIN strategy_pnl p ON s.strategy_id = p.strategy_id\nORDER BY s.strategy_id"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unrealized_pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "realized_pnl_total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "allocated_capital"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      }
+    },
+    {
+      "id": 3,
+      "title": "현재 레짐",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT regime FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "RANGING": {
+                  "color": "#757575",
+                  "index": 0,
+                  "text": "RANGING"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "TRENDING_UP": {
+                  "color": "#2E7D32",
+                  "index": 1,
+                  "text": "TRENDING_UP"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "TRENDING_DOWN": {
+                  "color": "#C62828",
+                  "index": 2,
+                  "text": "TRENDING_DOWN"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "VOLATILE": {
+                  "color": "#6A1B9A",
+                  "index": 3,
+                  "text": "VOLATILE"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#757575",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "text": {},
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "레짐 신뢰도",
+      "type": "gauge",
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT confidence * 100 AS confidence_pct FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#9E9E9E",
+                "value": null
+              },
+              {
+                "color": "#1976D2",
+                "value": 50
+              },
+              {
+                "color": "#0D47A1",
+                "value": 75
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      }
+    },
+    {
+      "id": 5,
+      "title": "ADX (추세 강도)",
+      "type": "gauge",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT adx FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 60,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#757575",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 25
+              },
+              {
+                "color": "#2E7D32",
+                "value": 40
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "description": "ADX > 25: 추세 시작, > 40: 강한 추세"
+    },
+    {
+      "id": 6,
+      "title": "볼린저밴드폭",
+      "type": "gauge",
+      "gridPos": {
+        "x": 18,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT bb_width FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 0.1,
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0.03
+              },
+              {
+                "color": "#C62828",
+                "value": 0.06
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "text": {}
+      }
+    },
+    {
+      "id": 7,
+      "title": "펀딩비 트렌드 (7일)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 18,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT collected_at AS time, rate * 100 AS funding_rate_pct FROM funding_rates WHERE collected_at >= NOW() - INTERVAL '7 days' ORDER BY collected_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "다음 펀딩까지",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 12,
+        "w": 6,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT EXTRACT(EPOCH FROM (next_funding_time - NOW())) AS seconds_to_next FROM funding_rates ORDER BY collected_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "text": {},
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 9,
+      "title": "FA 진입 조건 (5개)",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT condition_name, is_met, current_value, threshold, CASE WHEN is_met THEN '✓' ELSE '✗' END AS status FROM fa_entry_conditions ORDER BY condition_order"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "✓": {
+                        "color": "#2E7D32",
+                        "index": 0,
+                        "text": "✓"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "✗": {
+                        "color": "#C62828",
+                        "index": 1,
+                        "text": "✗"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "description": "5개 FA 진입 조건. fa_entry_conditions 테이블 없으면 No Data"
+    },
+    {
+      "id": 10,
+      "title": "오픈 포지션",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT\n  symbol,\n  side,\n  size,\n  entry_price,\n  current_price,\n  unrealized_pnl,\n  CASE WHEN unrealized_pnl IS NOT NULL THEN\n    (unrealized_pnl / NULLIF(size * entry_price / leverage, 0)) * 100\n  ELSE NULL END AS unrealized_pnl_pct,\n  leverage,\n  margin_used,\n  liquidation_price,\n  CASE\n    WHEN side = 'long' THEN\n      ((current_price - liquidation_price) / NULLIF(current_price, 0)) * 100\n    WHEN side = 'short' THEN\n      ((liquidation_price - current_price) / NULLIF(current_price, 0)) * 100\n  END AS liq_distance_pct,\n  EXTRACT(EPOCH FROM (NOW() - opened_at)) / 3600 AS holding_hours\nFROM positions\nWHERE closed_at IS NULL\nORDER BY liq_distance_pct ASC NULLS LAST"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "side"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "long": {
+                        "color": "#2E7D32",
+                        "index": 0,
+                        "text": "▲ LONG"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "short": {
+                        "color": "#C62828",
+                        "index": 1,
+                        "text": "▼ SHORT"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "entry_price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "current_price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "liquidation_price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unrealized_pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unrealized_pnl_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "liq_distance_pct"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "청산까지 거리"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#B71C1C",
+                      "value": null
+                    },
+                    {
+                      "color": "#C62828",
+                      "value": 5
+                    },
+                    {
+                      "color": "#F9A825",
+                      "value": 10
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 20
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "margin_used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "leverage"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "레버리지"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "holding_hours"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "displayName",
+                "value": "보유(시간)"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "description": "P0 핵심: liq_distance_pct 컬럼이 청산 위험을 셀 배경색으로 즉시 표시. <5% 진적색, 5~10% 적색, 10~20% 황색, ≥20% 녹색"
+    },
+    {
+      "id": 11,
+      "title": "일별 펀딩 집계",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT DATE(timestamp) AS date, COUNT(*) AS cnt, SUM(amount_usd) AS total, AVG(rate) * 100 AS avg_rate_pct FROM funding_payments WHERE timestamp >= NOW() - INTERVAL '14 days' GROUP BY DATE(timestamp) ORDER BY date DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      }
+    },
+    {
+      "id": 12,
+      "title": "최근 펀딩 지급",
+      "type": "table",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT timestamp, amount_usd, rate * 100 AS rate_pct, position_size FROM funding_payments ORDER BY timestamp DESC LIMIT 20"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "amount_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rate_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      }
+    },
+    {
+      "id": 13,
+      "title": "레짐 타임라인 + 전략 PnL",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 24,
+        "h": 6
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "regime",
+          "format": "time_series",
+          "rawSql": "SELECT detected_at AS time, CASE regime WHEN 'RANGING' THEN 1 WHEN 'TRENDING_UP' THEN 2 WHEN 'TRENDING_DOWN' THEN -2 WHEN 'VOLATILE' THEN 3 END AS regime_value FROM market_regimes WHERE detected_at >= $__timeFrom AND detected_at <= $__timeTo ORDER BY detected_at"
+        },
+        {
+          "refId": "pnl",
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('hour', filled_at) AS time, SUM(SUM(pnl)) OVER (ORDER BY date_trunc('hour', filled_at)) AS cumulative_pnl FROM trades WHERE filled_at IS NOT NULL AND filled_at >= $__timeFrom AND filled_at <= $__timeTo GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 30,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "regime"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 30
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#757575"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FB8C00"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "최근 거래 내역",
+      "type": "table",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres",
+        "type": "postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT filled_at, strategy_id, symbol, side, order_type, size, entry_price, exit_price, fee, pnl, status FROM trades ORDER BY filled_at DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "entry_price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "exit_price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fee"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pnl"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#C62828",
+                      "value": null
+                    },
+                    {
+                      "color": "#2E7D32",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      }
+    }
+  ]
+}
