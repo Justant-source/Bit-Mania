@@ -46,9 +46,9 @@ TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
 
 # Track C Phase C1: 분기물 OHLCV + ticker
 QUARTERLY_SYMBOLS_USDT: list[str] = [
-    "BTCUSDM27",  # 2027 March
-    "BTCUSDU26",  # 2026 June
-    "BTCUSDU27",  # 2027 June
+    "BTCUSDT-26JUN26",  # 2026 June quarterly
+    "BTCUSDT-25SEP26",  # 2026 September quarterly
+    "BTCUSDT-25DEC26",  # 2026 December quarterly
 ]
 
 MAX_RECONNECT_DELAY = 120  # seconds
