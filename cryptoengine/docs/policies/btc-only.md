@@ -44,6 +44,32 @@ when_to_update: |
 
 ## 근거 (3가지 핵심)
 
+### BTC 단일 운영 정책 개요
+
+```mermaid
+graph TD
+    A["CryptoEngine\nBTC 단일 운영"] --> B["허용"]
+    A --> C["금지"]
+    
+    B --> B1["BTCUSDT\n현물 + 선물 (Bybit)"]
+    
+    C --> C1["ETH, SOL, BNB, XRP\n모든 알트코인"]
+    C --> C2["크로스 심볼 거래\nETH/BTC 상대"]
+    C --> C3["선물 단독\n현물 헤징 없음"]
+    C --> C4["다중 거래소\n차익거래"]
+    
+    B1 --> Result["결과: CAGR +34.87%\nSharpe 3.583"]
+    C1 --> Note["❌ 변동성 과도\n펀딩비 불안정"]
+    C2 --> Note
+    C3 --> Note
+    C4 --> Note
+    
+    style A fill:#2196f3,color:#fff
+    style B1 fill:#4caf50,color:#fff
+    style C1 fill:#f44336,color:#fff
+    style Result fill:#81c784,color:#fff
+```
+
 ### 1. 알트코인 과도한 변동성 (BTC 대비 5-10배)
 
 비트코인은 시가총액과 거래량 기준 가장 성숙한 암호자산이며, 알트코인은 BTC의 5-10배 이상 변동성을 가진다.
@@ -121,6 +147,41 @@ ETH: Basis -0.2% + 펀딩비 5% = +4.8% ⚠️ (Basis가 음수이면 더 낮음
 ---
 
 ## 백테스트 실패 근거
+
+### 백테스트 결과 비교 (2020-2026)
+
+```mermaid
+graph TD
+    A["멀티심볼 시뮬레이션"] --> B["Test 03<br/>BTC + ETH"]
+    A --> C["Test 05<br/>동적 심볼"]
+    A --> D["Test 12<br/>BTC 단독"]
+    
+    B --> B1["CAGR: -8.2% ❌"]
+    B --> B2["Sharpe: -0.334 ❌"]
+    
+    C --> C1["CAGR: -3.1% ❌"]
+    C --> C2["Sharpe: 0.112 ❌"]
+    
+    D --> D1["CAGR: +34.87% ✅"]
+    D --> D2["Sharpe: 3.583 ✅"]
+    D --> D3["MDD: -4.52% ✅"]
+    D --> D4["청산: 0회 ✅"]
+    
+    B1 --> Conclusion["결론: BTC 단독만\n양수 수익 달성"]
+    B2 --> Conclusion
+    C1 --> Conclusion
+    C2 --> Conclusion
+    D1 --> Conclusion
+    D2 --> Conclusion
+    D3 --> Conclusion
+    D4 --> Conclusion
+    
+    Conclusion --> Decision["🎯 BTC 단일 정책\n절대 실행"]
+    
+    style D fill:#4caf50,color:#fff
+    style Conclusion fill:#81c784,color:#fff
+    style Decision fill:#2196f3,color:#fff
+```
 
 ### 멀티심볼 시뮬레이션 결과 (2020-2026 Jesse)
 
@@ -245,6 +306,33 @@ SYMBOLS = ["BTCUSDT_PERP.A"]  # Bybit notation
 
 ## 위반 탐지 및 방지
 
+### 정책 위반 탐지 및 방지 흐름
+
+```mermaid
+graph TD
+    A["📝 코드 작성/수정"] --> B{알트코인\n심볼 추가?}
+    
+    B -->|Yes| C["⚠️ Pre-commit\n검증 실행"]
+    C --> D["grep 검색\nETH, SOL, BNB, XRP"]
+    D --> E{심볼\n발견?}
+    
+    E -->|Yes| F["❌ 빌드 실패\nCI/CD 차단"]
+    E -->|No| G["✅ 통과"]
+    
+    B -->|No| G
+    
+    F --> H["🚫 PR 거부\n또는 커밋 거절"]
+    G --> I["✅ 운영 중\nTelegram 모니터"]
+    
+    I --> J{자동 거래\n위반?}
+    J -->|Yes| K["🚨 Kill Switch L3\n즉시 청산"]
+    J -->|No| L["✅ 정상 운영"]
+    
+    style F fill:#f44336,color:#fff
+    style G fill:#4caf50,color:#fff
+    style K fill:#ff5722,color:#fff
+```
+
 ### 검증 스크립트 (Pre-commit Automation)
 
 ```bash
@@ -303,6 +391,26 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
 ---
 
 ## 정책 변경 프로세스
+
+### 정책 변경 절차 (4단계)
+
+```mermaid
+flowchart LR
+    A["🔒 현재 정책\nBTC 단독"] --> B["1단계: ADR 작성\n기술 근거"]
+    B --> C["2단계: Phase 4\n테스트넷 4주"]
+    C --> D["3단계: 팀 동의\n기술 검토"]
+    D --> E["4단계: Phase 5\n메인넷 배포"]
+    E --> F["✅ 정책 변경\n완료"]
+    
+    B --> B1["백테스트 검증\n최소 6년 데이터"]
+    B1 --> B2["Sharpe > 2.0\nMDD < 5%"]
+    B2 --> C
+    
+    style A fill:#f44336,color:#fff
+    style F fill:#4caf50,color:#fff
+    style B1 fill:#fff3cd
+    style B2 fill:#fff3cd
+```
 
 이 정책을 변경하려면:
 

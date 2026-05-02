@@ -1019,4 +1019,62 @@ docker compose up -d --no-deps market-data execution-engine funding-arb strategy
 
 ---
 
+## 계층별 의존성 구조
+
+```mermaid
+graph TD
+    subgraph core["코어 계층"]
+        TZ["timezone_utils.py\nKST 유틸리티"]
+        CF["config_loader.py\nYAML 설정 로더"]
+    end
+
+    subgraph io["I/O 계층"]
+        DB["db/ — asyncpg 풀\n+ Repository 패턴"]
+        RD["redis_client.py\nPub/Sub 헬퍼"]
+        EX["exchange/bybit.py\nCCXT 래퍼"]
+    end
+
+    subgraph model["모델 계층"]
+        MDL["models/ — 도메인 모델\nOrder, Position, Trade, FundingRate"]
+    end
+
+    subgraph safety["안전 계층"]
+        KS["kill_switch.py\n4단계 보호 + ACK"]
+    end
+
+    subgraph logging["로깅 계층"]
+        LGC["logging_config.py\nstructlog 설정"]
+        LGW["log_writer.py\n비동기 배치 라이터"]
+        LGE["log_events.py\n95개 표준 이벤트"]
+    end
+
+    subgraph services["마이크로서비스"]
+        MD["market-data"]
+        ENG["execution-engine"]
+        FA["funding-arb"]
+        ORC["strategy-orchestrator"]
+        TG["telegram-bot"]
+    end
+
+    core --> io
+    core --> model
+    io --> MDL
+    MDL --> safety
+    TZ --> LGC
+    CF --> services
+    LGE --> LGW
+    LGC --> LGW
+    LGW --> services
+    safety --> services
+    io --> services
+
+    style core fill:#e8f5e9,color:#1b5e20
+    style io fill:#e3f2fd,color:#0d47a1
+    style model fill:#f3e5f5,color:#4a148c
+    style safety fill:#ffcdd2,color:#b71c1c
+    style logging fill:#fff3e0,color:#e65100
+```
+
+---
+
 **최종 수정**: 2026-05-01

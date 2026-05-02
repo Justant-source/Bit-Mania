@@ -104,6 +104,26 @@ else:
 
 ## 안전한 배포 절차
 
+### 배포 단계별 흐름도
+
+```mermaid
+flowchart TD
+    A["1. 코드 수정\ngit commit"] --> B["2. 이미지 빌드\ndocker compose build"]
+    B --> C["3. 서비스 재시작\ndocker compose up -d"]
+    C --> D["Redis 저장\nstrategy:saved_state"]
+    D --> E["1시간 내 재시작?"]
+    E -->|Yes| F["✅ 포지션 자동 복구\n1-2분 대기"]
+    E -->|No| G["❌ TTL 만료\n수동 청산 필요"]
+    F --> H["4. 복구 확인\ngrep 복구"]
+    H --> I["5. 운영 확인\ndocker ps"]
+    I --> J["✅ 배포 완료\n정상 운영"]
+    G --> K["⚠️ 거래소 수동 청산\nBTC-only.md 참조"]
+    
+    style J fill:#4caf50,color:#fff
+    style K fill:#f44336,color:#fff
+    style F fill:#81c784,color:#fff
+```
+
 ### 1. 코드 변경 및 빌드
 
 ```bash
@@ -161,6 +181,33 @@ docker compose logs -f funding-arb | head -20
 
 `shared/` 디렉토리 변경은 모든 서비스에 영향을 주므로 특별 절차가 필요하다:
 
+### shared/ 변경 영향도
+
+```mermaid
+graph TD
+    A["shared/ 변경\n예: kill_switch.py"]
+    A --> B["market-data 영향"]
+    A --> C["execution-engine 영향"]
+    A --> D["funding-arb 영향"]
+    A --> E["strategy-orchestrator 영향"]
+    A --> F["telegram-bot 영향"]
+    
+    subgraph Action["필수 조치"]
+        G["모든 이미지 재빌드\ndocker compose build"]
+        H["순차 재시작\nmarket-data → execution → orchestrator → funding → bot"]
+        I["포지션 복구 확인\n2-3분 대기"]
+    end
+    
+    B --> Action
+    C --> Action
+    D --> Action
+    E --> Action
+    F --> Action
+    
+    style Action fill:#fff3cd,stroke:#ff9800
+    style A fill:#ffcdd2,stroke:#f44336
+```
+
 ### 영향 받는 서비스
 
 ```
@@ -172,7 +219,38 @@ shared/ 변경
 └─ telegram-bot (메시징 영향)
 ```
 
-### 안전한 배포 순서
+### shared/ 변경 배포 순서
+
+```mermaid
+flowchart LR
+    subgraph Phase1["1단계: 이미지 재빌드"]
+        B1["docker compose build\n market-data\n execution-engine\n funding-arb\n strategy-orchestrator\n telegram-bot"]
+    end
+    subgraph Phase2["2단계: 순차 재시작"]
+        B2["market-data\n데이터 수집"]
+        B3["execution-engine\n주문 실행"]
+        B4["strategy-orchestrator\n오케스트레이션"]
+        B5["funding-arb\n전략 (포지션 복구)"]
+        B6["telegram-bot\n알림"]
+    end
+    subgraph Phase3["3-4단계: 검증"]
+        B7["✅ 안정화\n2-3분 대기"]
+        B8["✅ 로그 확인\n포지션 복구 메시지"]
+    end
+    
+    Phase1 --> Phase2
+    B2 --> B3
+    B3 --> B4
+    B4 --> B5
+    B5 --> B6
+    B6 --> Phase3
+    B7 --> B8
+    
+    style Phase1 fill:#e8f5e9
+    style Phase2 fill:#fff3cd
+    style Phase3 fill:#d1ecf1
+    style B8 fill:#4caf50,color:#fff
+```
 
 ```bash
 # 1단계: 이미지 재빌드 (모든 서비스)

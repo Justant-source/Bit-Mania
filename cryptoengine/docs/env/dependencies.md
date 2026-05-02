@@ -13,6 +13,64 @@ CryptoEngine이 사용하는 핵심 Python 라이브러리 및 버전 정보.
 
 ---
 
+## 의존성 계층 구조
+
+```mermaid
+graph TD
+    subgraph stdlib["표준 라이브러리"]
+        asyncio["asyncio\n비동기 프로그래밍"]
+        logging["logging\n구조화 로깅"]
+    end
+
+    subgraph core["핵심 라이브러리"]
+        asyncpg["asyncpg\nPostgreSQL 드라이버"]
+        redis["redis asyncio\nRedis 클라이언트"]
+        ccxt["ccxt\n거래소 통합"]
+        http["aiohttp\nHTTP 클라이언트"]
+    end
+
+    subgraph util["유틸리티"]
+        pydantic["pydantic\n데이터 검증"]
+        structlog["structlog\nJSON 로깅"]
+        dotenv["python-dotenv\n환경변수"]
+    end
+
+    subgraph strategy["전략 (선택)"]
+        pandas["pandas\n데이터프레임"]
+        numpy["numpy\n수치 계산"]
+        jesse["jesse\n백테스트"]
+    end
+
+    subgraph services["마이크로서비스"]
+        MD["market-data"]
+        ENG["execution-engine"]
+        FA["funding-arb"]
+        ORC["strategy-orchestrator"]
+        TG["telegram-bot"]
+    end
+
+    stdlib --> core
+    stdlib --> util
+    core --> util
+    util --> services
+    core --> services
+    pandas --> strategy
+    numpy --> strategy
+    jesse --> strategy
+    strategy -->|선택| services
+
+    style asyncio fill:#e1f5fe,color:#01579b
+    style logging fill:#e1f5fe,color:#01579b
+    style asyncpg fill:#c8e6c9,color:#1b5e20
+    style redis fill:#c8e6c9,color:#1b5e20
+    style ccxt fill:#c8e6c9,color:#1b5e20
+    style pydantic fill:#f3e5f5,color:#4a148c
+    style structlog fill:#f3e5f5,color:#4a148c
+    style jesse fill:#fff3e0,color:#e65100
+```
+
+---
+
 ## 공통 의존성 (모든 서비스)
 
 ### asyncpg

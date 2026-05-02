@@ -16,6 +16,20 @@ when_to_update: |
 
 ## 1. 데이터베이스 개요
 
+```mermaid
+graph LR
+    A["PostgreSQL 16<br/>cryptoengine DB"] --> B["asyncpg<br/>비동기 커넥션 풀<br/>min=2, max=10"]
+    B --> C["Repository 패턴<br/>shared/db/repository.py"]
+    C --> D["모든 Python<br/>서비스"]
+    E["Alembic<br/>shared/db/migrations/"] -.->|"스키마 버전<br/>관리"| A
+    
+    style A fill:#BBDEFB
+    style B fill:#E3F2FD
+    style C fill:#E8F5E9
+    style D fill:#FFF3E0
+    style E fill:#F5F5F5
+```
+
 | 항목 | 내용 |
 |------|------|
 | DBMS | PostgreSQL 16 (Alpine 이미지) |
@@ -40,6 +54,71 @@ postgresql://cryptoengine:<DB_PASSWORD>@postgres:5432/cryptoengine
 ```
 
 환경 변수 `DATABASE_URL`이 설정되지 않으면 기본값 사용.
+
+---
+
+### 테이블 분류도
+
+```mermaid
+graph TB
+    subgraph trades_pos["거래 & 포지션"]
+        trades["trades<br/>주문 체결 기록"]
+        positions["positions<br/>포지션 추적"]
+        orders["grid_orders<br/>그리드 주문"]
+    end
+    
+    subgraph funding["펀딩비 & 수익"]
+        funding_pay["funding_payments<br/>펀딩비 수취"]
+        funding_rate["funding_rate_history<br/>펀딩비 시계열"]
+    end
+    
+    subgraph market["시장 데이터"]
+        ohlcv["ohlcv_history<br/>캔들데이터"]
+        regime["market_regime_history<br/>레짐 이력"]
+        regime_raw["regime_raw_log<br/>원시 레짐"]
+        regime_trans["regime_transitions<br/>확정 전환"]
+    end
+    
+    subgraph portfolio["포트폴리오"]
+        snapshots["portfolio_snapshots<br/>자산 스냅샷"]
+        daily["daily_reports<br/>일별 리포트"]
+        states["strategy_states<br/>전략 상태"]
+        ks_events["kill_switch_events<br/>KS 이벤트"]
+    end
+    
+    subgraph dca_data["DCA & ETF"]
+        dca_pur["dca_purchases<br/>DCA 매입"]
+        etf["etf_flow_history<br/>ETF 흐름"]
+    end
+    
+    subgraph macro["거시경제"]
+        macro_evt["macro_events<br/>경제 이벤트"]
+        macro_ind["macro_indicators<br/>거시 지표"]
+        fg_hist["fear_greed_history<br/>공포탐욕 지수"]
+    end
+    
+    subgraph llm_data["LLM 분석"]
+        llm_judge["llm_judgments<br/>LLM 판단"]
+        llm_report["llm_reports<br/>LLM 리포트"]
+    end
+    
+    subgraph logs["로그 & 기타"]
+        service_logs["service_logs<br/>서비스 로그"]
+        qf["quarterly_futures<br/>분기물 데이터"]
+        liq["liquidation_history<br/>청산 이력"]
+        onchain["onchain_metrics<br/>온체인 지표"]
+        ohlcv_1m["ohlcv_1m_longterm<br/>장기 1분봉"]
+    end
+    
+    style trades_pos fill:#FFE0B2
+    style funding fill:#E1BEE7
+    style market fill:#BBDEFB
+    style portfolio fill:#C8E6C9
+    style dca_data fill:#F8BBD0
+    style macro fill:#FFF9C4
+    style llm_data fill:#E0E0E0
+    style logs fill:#EEEEEE
+```
 
 ---
 
@@ -916,6 +995,23 @@ erDiagram
 - 백업: `pg-backup` 서비스 — 일일 `pg_dump` (02:00 KST), 7일 보존, `pg-backups` Docker 볼륨
 
 ### 테이블별 데이터 증가 예상
+
+```mermaid
+graph LR
+    A["ohlcv_history<br/>1분 캔들<br/>~1,440/일"] --> B["월간<br/>~43,200"]
+    C["funding_rate_history<br/>8시간마다<br/>~3/일"] --> D["월간<br/>~90"]
+    E["portfolio_snapshots<br/>매시간<br/>~24/일"] --> F["월간<br/>~720"]
+    G["market_regime_history<br/>레짐 변경 시<br/>~5-20/일"] --> H["월간<br/>~150-600"]
+    I["trades<br/>전략 활동<br/>변동적"] --> J["변동적"]
+    K["llm_reports<br/>6시간마다<br/>~4/일"] --> L["월간<br/>~120"]
+    
+    style A fill:#BBDEFB
+    style C fill:#C8E6C9
+    style E fill:#F8BBD0
+    style G fill:#FFF9C4
+    style I fill:#FFE0B2
+    style K fill:#E0E0E0
+```
 
 | 테이블 | 주기 | 일일 예상 레코드 | 월간 누적 |
 |--------|------|-----------------|-----------|

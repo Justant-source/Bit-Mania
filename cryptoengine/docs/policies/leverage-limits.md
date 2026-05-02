@@ -26,6 +26,29 @@ when_to_update: |
 
 ## 현재 설정: fa80_lev5_r30
 
+### 레버리지 설정 시각화
+
+```mermaid
+graph TD
+    A["초기 자본: $10,000"] --> B["FA 할당 80%\n$8,000"]
+    B --> C["5배 레버리지\n명목 $40,000"]
+    C --> D["포지션 크기\n0.8 BTC @ $50,000"]
+    
+    subgraph Performance["백테스트 성과 2020-2026"]
+        E["CAGR: +34.87% ✅"]
+        F["Sharpe: 3.583 ✅"]
+        G["MDD: -4.52% ✅"]
+        H["청산: 0회 ✅"]
+    end
+    
+    D --> Performance
+    
+    style B fill:#e8f5e9,stroke:#4caf50
+    style C fill:#fff3cd,stroke:#ff9800
+    style D fill:#e3f2fd,stroke:#2196f3
+    style Performance fill:#f5f5f5
+```
+
 ### 파라미터
 
 | 파라미터 | 값 | 설명 |
@@ -63,6 +86,43 @@ qty = notional / btc_price      # 0.8 BTC
 
 ## 후보 설정 (비교 분석)
 
+### 3가지 설정 비교
+
+```mermaid
+graph TD
+    subgraph Baseline["Baseline: fa80_lev5_r30"]
+        B1["CAGR: +34.87%"]
+        B2["Sharpe: 3.583"]
+        B3["MDD: -4.52%"]
+    end
+    
+    subgraph Conservative["Conservative: fa80_lev4_r30"]
+        C1["CAGR: +28.56%"]
+        C2["Sharpe: 3.556"]
+        C3["MDD: -3.20%"]
+        C4["손실 회피력 높음"]
+    end
+    
+    subgraph Aggressive["Aggressive: fa80_lev5_r50"]
+        A1["CAGR: +33.54%"]
+        A2["Sharpe: 1.867"]
+        A3["MDD: -6.89%"]
+        A4["변동성 높음"]
+    end
+    
+    Baseline --> Decision{"선택 기준"}
+    Conservative --> Decision
+    Aggressive --> Decision
+    
+    Decision -->|현재 선택| Baseline
+    Decision -->|MDD 최소화| Conservative
+    Decision -->|수익 극대화| Aggressive
+    
+    style Baseline fill:#81c784,color:#fff
+    style Conservative fill:#fff9c4,color:#000
+    style Aggressive fill:#ffccbc,color:#000
+```
+
 ### fa80_lev4_r30 (보수적 차선책)
 
 | 지표 | fa80_lev5_r30 | fa80_lev4_r30 | 비고 |
@@ -96,6 +156,28 @@ qty = notional / btc_price      # 0.8 BTC
 ---
 
 ## 마진 안전성 모니터링
+
+### 마진 안전성 위험 레벨
+
+```mermaid
+graph TD
+    A["마진비율 계산\n가용 마진 / 유지 마진"] --> B{현재\n비율?}
+    
+    B -->|> 10x| C["🟢 안전\n정상 운영"]
+    B -->|5x ~ 10x| D["🟡 경고\nTelegram 알림"]
+    B -->|3x ~ 5x| E["🔴 위험\n포지션 축소 검토"]
+    B -->|< 3x| F["🔴🔴 긴급\n즉시 포지션 축소"]
+    
+    C --> G["Grafana 모니터링\n실시간 확인"]
+    D --> G
+    E --> H["리포지셔닝\n25% 축소"]
+    F --> I["전체 청산\nKill Switch 발동"]
+    
+    style C fill:#4caf50,color:#fff
+    style D fill:#ff9800,color:#fff
+    style E fill:#f44336,color:#fff
+    style F fill:#b71c1c,color:#fff
+```
 
 ### 최소 안전 기준
 

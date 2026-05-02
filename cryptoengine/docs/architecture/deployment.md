@@ -25,6 +25,56 @@ when_to_update: |
 모든 서비스는 단일 `docker-compose.yml`로 관리되며, 총 **19개 서비스**가 7개 그룹으로 구성된다.
 전체 할당 리소스: CPU ~6.6 코어, 메모리 ~4.3GB.
 
+```mermaid
+graph TB
+    subgraph infra["🏗️ Infrastructure 6개"]
+        postgres["postgres:5432"]
+        pgbak["pg-backup"]
+        redis["redis:6379"]
+        prom["prometheus:9090"]
+        nexp["node-exporter"]
+        rexp["redis-exporter"]
+    end
+    
+    subgraph core["⚙️ Core 3개"]
+        md["market-data"]
+        orch["strategy-orchestrator"]
+        exec["execution-engine"]
+    end
+    
+    subgraph strat["📈 Strategy 2개"]
+        fa["funding-arb"]
+        dca["adaptive-dca"]
+    end
+    
+    subgraph intel["🧠 Intelligence 1개"]
+        llm["llm-advisor"]
+    end
+    
+    subgraph iface["🖥️ Interface 3개"]
+        tg["telegram-bot"]
+        dash["dashboard"]
+        graf["grafana:3002"]
+    end
+    
+    subgraph analysis["📊 Analysis 2개"]
+        bt["backtester"]
+        wf["wf-scheduler"]
+    end
+    
+    subgraph util["⚙️ Utility 1개"]
+        logret["log-retention"]
+    end
+    
+    style infra fill:#E8EAF6
+    style core fill:#E8F5E9
+    style strat fill:#FFF3E0
+    style intel fill:#F3E5F5
+    style iface fill:#E0F7FA
+    style analysis fill:#FFEBEE
+    style util fill:#F5F5F5
+```
+
 ### 서비스 그룹 및 상세 정보
 
 | 서비스 | 이미지 | 역할 | 헬스체크 | CPU/메모리 |
@@ -148,6 +198,26 @@ redis (healthy) ──── market-data, strategy-orchestrator
 
 프로젝트 루트의 `.env` 파일에서 모든 비밀 값과 환경 변수를 관리한다.
 
+```mermaid
+graph LR
+    env[".env 파일"] --> bybit["Bybit API<br/>API_KEY<br/>API_SECRET<br/>TESTNET"]
+    env --> external["외부 API<br/>COINGLASS_KEY<br/>ANTHROPIC_KEY<br/>TELEGRAM_TOKEN"]
+    env --> db["데이터베이스<br/>DB_PASSWORD"]
+    env --> optional["선택적<br/>REDIS_URL<br/>LOG_LEVEL<br/>PORT 설정"]
+    
+    bybit -->|"market-data<br/>execution-engine"| services["서비스들"]
+    external -->|"market-data<br/>llm-advisor<br/>telegram-bot"| services
+    db -->|"모든 서비스"| services
+    optional -->|"런타임 설정"| services
+    
+    style env fill:#FFF3E0
+    style bybit fill:#FFEBEE
+    style external fill:#E1BEE7
+    style db fill:#F5F5F5
+    style optional fill:#E3F2FD
+    style services fill:#E8F5E9
+```
+
 ```bash
 # Bybit API (테스트넷)
 BYBIT_API_KEY=<api-key>
@@ -222,6 +292,39 @@ vim config/orchestrator.yaml  # max_daily_drawdown_pct 값 수정
 
 별도의 네트워크 정의 없이 Docker Compose 기본 브리지 네트워크를 사용한다.
 모든 서비스는 **컨테이너 이름**으로 상호 통신한다.
+
+```mermaid
+graph TB
+    subgraph host["WSL Ubuntu 호스트"]
+        subgraph internal["Docker 내부 브리지 네트워크"]
+            postgres["postgres:5432"]
+            redis["redis:6379"]
+            services["모든 서비스들<br/>컨테이너 이름으로<br/>상호 통신"]
+        end
+        
+        subgraph exposed["호스트 포트 바인딩"]
+            p1["3000 - dashboard<br/>내부"]
+            p2["3001 - dashboard<br/>공개"]
+            p3["3002 - grafana"]
+            p4["5432 - postgres<br/>개발용"]
+            p5["6379 - redis<br/>개발용"]
+            p6["9090 - prometheus"]
+        end
+    end
+    
+    postgres -.->|"컨테이너명"| services
+    redis -.->|"컨테이너명"| services
+    p1 --> services
+    p2 --> services
+    p3 --> services
+    p4 --> postgres
+    p5 --> redis
+    p6 --> services
+    
+    style internal fill:#E3F2FD
+    style exposed fill:#FFF3E0
+    style host fill:#F5F5F5
+```
 
 예시:
 - DB 접속: `postgres:5432`

@@ -102,6 +102,64 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 서비스 간 통신은 Redis Pub/Sub 채널을 통해 이루어진다. 느슨한 결합(loose coupling)으로 서비스 독립성을 보장한다.
 
+```mermaid
+graph TB
+    subgraph pub["발행자"]
+        md["market-data"]
+        orch["orchestrator"]
+        exec["execution-engine"]
+        strat["각 전략"]
+    end
+    
+    subgraph channels["Redis Pub/Sub 채널"]
+        c1["market:funding_rate"]
+        c2["market:regime"]
+        c3["strategy:command:{id}"]
+        c4["order:request"]
+        c5["order:update"]
+        c6["kill_switch"]
+        c7["system:service_health"]
+        c8["system:config_reload"]
+        c9["telegram:notification"]
+    end
+    
+    subgraph sub["구독자"]
+        fa["funding-arb"]
+        dca["adaptive-dca"]
+        o2["orchestrator"]
+        exec2["execution-engine"]
+        tg["telegram-bot"]
+        audit["감사 로그"]
+    end
+    
+    md --> c1
+    md --> c2
+    orch --> c3
+    strat --> c4
+    exec --> c5
+    orch --> c6
+    orch --> c7
+    orch --> c8
+    orch --> c9
+    
+    c1 --> fa
+    c1 --> o2
+    c2 --> o2
+    c3 --> fa
+    c3 --> dca
+    c4 --> exec2
+    c5 --> fa
+    c5 --> dca
+    c6 --> exec2
+    c7 --> audit
+    c8 --> audit
+    c9 --> tg
+    
+    style pub fill:#E8F5E9
+    style channels fill:#E3F2FD
+    style sub fill:#FFF3E0
+```
+
 | 채널 | 발행자 | 구독자 | 메시지 내용 |
 |------|--------|--------|------------|
 | `market:funding_rate` | market-data | funding-arb, orchestrator | 현재 펀딩비율, 다음 정산 시각 |
@@ -192,22 +250,45 @@ graph LR
 
 ## 6. 데이터 흐름
 
-```
-Bybit WebSocket ──→ market-data ──→ Redis Pub/Sub ──→ 전략 서비스들
-                         │                                  │
-                         ▼                                  ▼
-                    PostgreSQL                        order:request
-                   (OHLCV, 펀딩비)                         │
-                                                           ▼
-                                                   execution-engine
-                                                           │
-                                                           ▼
-                                                     Bybit REST API
-                                                     (주문 실행)
-                                                           │
-                                                           ▼
-                                                     order:update
-                                                     (체결 알림)
+```mermaid
+graph LR
+    subgraph ext["외부"]
+        bybit["Bybit WebSocket<br/>+ REST API"]
+    end
+    
+    subgraph core["코어 서비스"]
+        md["market-data<br/>시세 수집"]
+        orch["orchestrator<br/>전략 조율"]
+        exec["execution-engine<br/>주문 실행"]
+    end
+    
+    subgraph strat["전략"]
+        fa["funding-arb"]
+        dca["adaptive-dca"]
+    end
+    
+    subgraph storage["저장소"]
+        pg["PostgreSQL<br/>OHLCV, 펀딩비"]
+        redis["Redis Pub/Sub"]
+    end
+    
+    bybit -->|"WebSocket"| md
+    md --> pg
+    md --> redis
+    redis -->|"market:regime"| orch
+    redis -->|"market:funding"| fa
+    orch -->|"strategy:*:command"| fa
+    orch -->|"strategy:*:command"| dca
+    fa -->|"order:request"| exec
+    dca -->|"order:request"| exec
+    exec -->|"order:result"| redis
+    exec -->|"REST API"| bybit
+    exec --> pg
+    
+    style ext fill:#E1BEE7
+    style core fill:#E8F5E9
+    style strat fill:#FFF3E0
+    style storage fill:#E3F2FD
 ```
 
 **상세 흐름:**

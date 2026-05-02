@@ -27,6 +27,19 @@ Kill Switch는 `shared/kill_switch.py`에 구현된 상태 기반(stateful) 비�
 
 ### 1.1 레벨 정의
 
+```mermaid
+graph TD
+    A["Kill Switch<br/>4단계 시스템"] --> B["L1 - STRATEGY<br/>개별 전략 정지<br/>해당 전략만 정지"]
+    A --> C["L2 - PORTFOLIO<br/>포트폴리오 드로다운<br/>일간-5%/주간-10%/월간-15%<br/>전체 전략 정지"]
+    A --> D["L3 - SYSTEM<br/>시스템 건강성 실패<br/>API 무응답/인프라 장애<br/>모든 포지션 시장가 청산"]
+    A --> E["L4 - MANUAL<br/>수동 비상 정지<br/>Telegram /kill<br/>즉시 전량 청산<br/>자동 복구 불가"]
+    
+    style B fill:#FFEBEE
+    style C fill:#EF9A9A
+    style D fill:#E57373
+    style E fill:#F44336
+```
+
 | 레벨 | 이름 | 트리거 조건 | 영향 범위 |
 |------|------|-------------|-----------|
 | **L1 — STRATEGY** | 개별 전략 정지 | 전략별 손실 한도 초과 (`check_strategy()`) | 해당 전략만 정지 |
@@ -163,6 +176,26 @@ class KillSwitch:
 ### 4.1 레짐 적응형 가중치 배분
 
 오케스트레이터가 시장 레짐을 감지하고, 레짐에 따라 자본 배분을 조절한다.
+
+```mermaid
+graph TB
+    subgraph regimes["시장 레짐"]
+        R1["횡보<br/>ranging"]
+        R2["상승추세<br/>trending_up"]
+        R3["하락추세<br/>trending_down"]
+        R4["고변동<br/>volatile"]
+    end
+    
+    R1 --> A["펀딩 차익: 50%<br/>현금: 50%"]
+    R2 --> B["펀딩 차익: 20%<br/>현금: 80%"]
+    R3 --> C["펀딩 차익: 10%<br/>현금: 90%<br/>⚠️ 리스크 최소화"]
+    R4 --> D["펀딩 차익: 40%<br/>현금: 60%"]
+    
+    style A fill:#FFF3E0
+    style B fill:#FFE0B2
+    style C fill:#FFCDD2
+    style D fill:#FFF9C4
+```
 
 | 레짐 | 펀딩 차익 | 그리드 | DCA | 현금 |
 |------|----------|--------|-----|------|

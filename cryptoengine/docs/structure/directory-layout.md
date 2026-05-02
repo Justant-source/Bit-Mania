@@ -10,6 +10,83 @@ last_updated: 2026-05-01
 
 CryptoEngine 전체 파일 레이아웃 및 설명.
 
+## 전체 구조 개요
+
+```mermaid
+graph TD
+    subgraph root["프로젝트 루트\nBit-Mania/"]
+        README["README.md"]
+        CLAUDE["CLAUDE.md\n작업 가이드"]
+        MAKE["Makefile"]
+        ENV["/.env\n민감 정보"]
+        GIT["/.gitignore"]
+    end
+
+    subgraph main["cryptoengine/\n메인 프로젝트"]
+        subgraph compose["Docker & 설정"]
+            DCF["docker-compose.yml"]
+            ENVE[".env.example"]
+        end
+
+        subgraph cfg["config/\n설정 파일"]
+            STRAT["strategies/\nfunding-arb.yaml\nadaptive-dca.yaml"]
+            EXCH["exchanges/\nbybit.yaml"]
+            GRF["grafana/\ndashboards/"]
+        end
+
+        subgraph shared["shared/\n공유 라이브러리"]
+            MDL["models/\nOrder, Position, Trade"]
+            EX["exchange/\nbybit.py CCXT"]
+            DB["db/\nPool + Repository"]
+            REDIS["redis_client.py"]
+            CFG["config_loader.py"]
+            KS["kill_switch.py"]
+            LOG["log_events.py\nlog_writer.py\nlogging_config.py"]
+        end
+
+        subgraph mig["migrations/\nDB 스키마"]
+            M1["001_init_schema.sql"]
+            M2["002_funding.sql"]
+            M3["003_logs.sql"]
+            M4["004_regime.sql"]
+        end
+
+        subgraph doc["docs/\n프로젝트 문서"]
+            SYS["structure/\nservices.md\nshared-libraries.md"]
+            ENV["env/\ndocker.md\nenv-vars.md\ngraflana-setup.md"]
+            TEST["test/\nbacktest-skillset.md\njesse-engine.md"]
+        end
+
+        subgraph svc["services/\n19개 마이크로서비스"]
+            MD["market-data/"]
+            ENG["execution-engine/"]
+            FA["funding-arb/\n(핵심 전략)"]
+            DCA["adaptive-dca/"]
+            ORC["strategy-orchestrator/"]
+            TG["telegram-bot/"]
+            DASH["dashboard/"]
+            JE["jesse_engine/\nbacktest"]
+        end
+    end
+
+    root -->|포함| main
+    main --> compose
+    main --> cfg
+    main --> shared
+    main --> mig
+    main --> doc
+    main --> svc
+
+    style main fill:#e8f5e9,color:#1b5e20
+    style shared fill:#f3e5f5,color:#4a148c
+    style FA fill:#ff9800,color:#fff
+    style doc fill:#e3f2fd,color:#0d47a1
+```
+
+---
+
+## 디렉토리 상세 구조
+
 ```
 Bit-Mania/
 ├── README.md                           # 프로젝트 개요

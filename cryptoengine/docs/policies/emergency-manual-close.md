@@ -33,6 +33,39 @@ when_to_update: |
 
 ---
 
+## 비상 청산 전체 흐름
+
+```mermaid
+flowchart TD
+    A["⚠️ 비상 상황 발생\n봇 응답 없음 또는 서버 다운"] --> B["Step 0: 사전 확인\n30초"]
+    B --> C["Bybit 앱 로그인\nPoS 계정 조회"]
+    C --> D["Step 1: Perp 포지션 청산\n(먼저!)"]
+    D --> E["BTCUSDT Short\n시장가 전량 청산"]
+    E --> F["Step 2: Spot BTC 매도\n(두번째!)"]
+    F --> G["Bybit Spot\nBTC/USDT 시장가 전량"]
+    G --> H["Step 3: 미체결 주문 취소"]
+    H --> I["[미체결 주문]\nStopMarket 주문 취소"]
+    I --> J["Step 4: 청산 완료 확인"]
+    J --> K{청산\n완료?}
+    K -->|Yes| L["Step 5: 봇/DB 상태 정리"]
+    K -->|No| M["❌ 반복\nStep 1-3"]
+    L --> N["SSH: docker compose ps"]
+    N --> O["DB: positions 업데이트"]
+    O --> P["Redis: 캐시 클리어"]
+    P --> Q["서비스 재시작"]
+    Q --> R["Step 6: 원인 분석"]
+    R --> S["로그 검토\nKill Switch 확인"]
+    S --> T["Step 7: 사고 보고"]
+    T --> U["✅ 청산 완료\n손실 기록"]
+    
+    M --> D
+    
+    style U fill:#4caf50,color:#fff
+    style A fill:#f44336,color:#fff
+    style D fill:#ff9800,color:#fff
+    style F fill:#ff9800,color:#fff
+```
+
 ## 0. 사전 확인 (30초)
 
 청산 전 현재 포지션을 파악한다.
@@ -49,6 +82,24 @@ when_to_update: |
 ---
 
 ## 1. Bybit 앱에서 선물(Perp) 포지션 청산
+
+### 청산 순서도 (Perp → Spot 반드시 이 순서)
+
+```mermaid
+flowchart LR
+    A["포지션 구조\nSpot Long + Perp Short\n델타 중립"] --> B["1️⃣ Perp 청산\n(레버리지 제거)"]
+    B --> C["BTCUSDT Short\n시장가 청산"]
+    C --> D["✅ 마진 회수"]
+    D --> E["2️⃣ Spot 청산\n(BTC 매도)"]
+    E --> F["BTC/USDT 시장가\n전량 매도"]
+    F --> G["✅ 현금화 완료"]
+    
+    style B fill:#ff9800,color:#fff
+    style E fill:#ff9800,color:#fff
+    style G fill:#4caf50,color:#fff
+    
+    note["⚠️ 반드시 Perp → Spot\n순서 지키기!<br/>역순 진행 시 delta 노출 발생"]
+```
 
 ### 1a. 모바일 앱
 

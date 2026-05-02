@@ -342,6 +342,67 @@ STRICT_MONITORING_HOURS=24
 PHASE5_MODE=true
 ```
 
+#### Phase 4 vs Phase 5 전환 흐름
+
+```mermaid
+graph TD
+    subgraph phase4["Phase 4: 테스트넷 (현재)"]
+        ENV4A["BYBIT_TESTNET=true"]
+        ENV4B["BYBIT_API_KEY=testnet_xxx"]
+        ENV4C["BYBIT_SECRET_KEY=testnet_xxx"]
+        ENV4D["로그 레벨: DEBUG/INFO"]
+        ENV4E["상대값 Kill Switch\n-5% daily, -10% weekly"]
+    end
+
+    subgraph preflight["Phase 5 전환 전"]
+        CHK["scripts/phase5_preflight.py\n8개 항목 검증"]
+        CHK1["✓ Bybit 메인넷 키 테스트"]
+        CHK2["✓ 초기 잔고 검증 ±10%"]
+        CHK3["✓ 레버리지 5배 이하"]
+        CHK4["✓ DB/Redis 연결"]
+        PASS["모든 항목 PASS"]
+    end
+
+    subgraph switch["Phase 5 전환"]
+        MAIN["scripts/switch_to_mainnet.py\n9단계 + 이중 확인"]
+        MAIN1["1-2. 현재 상태 백업"]
+        MAIN3["3-5. 메인넷 키 설정"]
+        MAIN6["6. 환경변수 업데이트"]
+        MAIN9["9. 최종 확인"]
+    end
+
+    subgraph phase5["Phase 5: 메인넷 (진입 후)"]
+        ENV5A["BYBIT_TESTNET=false"]
+        ENV5B["BYBIT_API_KEY=mainnet_xxx"]
+        ENV5C["BYBIT_SECRET_KEY=mainnet_xxx"]
+        ENV5D["EXPECTED_INITIAL_BALANCE_USD=200"]
+        ENV5E["STRICT_MONITORING_HOURS=24"]
+        ENV5F["PHASE5_MODE=true"]
+        ENV5G["절대값 Kill Switch\n-$10 daily, -$20 weekly"]
+    end
+
+    phase4 --> CHK
+    CHK --> CHK1
+    CHK --> CHK2
+    CHK --> CHK3
+    CHK --> CHK4
+    CHK1 --> PASS
+    CHK2 --> PASS
+    CHK3 --> PASS
+    CHK4 --> PASS
+    PASS --> MAIN
+    MAIN --> MAIN1
+    MAIN --> MAIN3
+    MAIN --> MAIN6
+    MAIN --> MAIN9
+    MAIN9 --> phase5
+
+    style phase4 fill:#c8e6c9,color:#1b5e20
+    style PASS fill:#a5d6a7,color:#1b5e20
+    style MAIN fill:#fff9c4,color:#f57f17
+    style phase5 fill:#ffccbc,color:#bf360c
+```
+
 ---
 
 ## 환경 변수 검증

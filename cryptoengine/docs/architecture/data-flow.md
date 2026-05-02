@@ -28,13 +28,16 @@ when_to_update: |
 `market-data` 서비스가 Bybit WebSocket V5 Public API로부터 실시간 데이터를 수집하고,
 Redis Pub/Sub로 즉시 브로드캐스트하며 PostgreSQL에 영구 저장한다.
 
-```
-Bybit WebSocket (V5 Public Linear)
-        |
-   market-data 서비스
-    /         \
-Redis Pub/Sub   PostgreSQL
-(실시간 전파)    (영구 저장)
+```mermaid
+graph LR
+    A["Bybit WebSocket<br/>V5 Public Linear"] --> B["market-data<br/>서비스"]
+    B --> C["Redis Pub/Sub<br/>실시간 전파"]
+    B --> D["PostgreSQL<br/>영구 저장"]
+    
+    style A fill:#E1BEE7
+    style B fill:#E8F5E9
+    style C fill:#E3F2FD
+    style D fill:#F5F5F5
 ```
 
 ### 1.2 WebSocket 스트림
@@ -195,16 +198,19 @@ funding-arb 전략이 관심 있는 데이터:
 - **위험 임계값**: 0.10%/8h (연 43.8%) → 극단적 상황 (역펀딩 또는 Bybit 유동성 부족)
 
 funding-arb 포지션 보유 시:
-```
-현물 롱 + 선물 숏 포지션 유지
-  ↓
-매 5분마다 지갑 조회 (execution-engine)
-  ↓
-정산 시각 5분 전 → 포지션 확정 (선물 매도 레그, 현물 매수 레그)
-  ↓
-펀딩비 확정 → Redis `market:funding` 채널 발행
-  ↓
-다음 사이클 대기
+
+```mermaid
+graph TD
+    A["현물 롱 + 선물 숏<br/>포지션 유지"] --> B["매 5분마다<br/>지갑 조회<br/>execution-engine"]
+    B --> C["정산 시각<br/>5분 전"]
+    C --> D["포지션 확정<br/>선물 매도 레그<br/>현물 매수 레그"]
+    D --> E["펀딩비 확정<br/>Redis market:funding<br/>채널 발행"]
+    E --> F["다음 사이클 대기"]
+    
+    style A fill:#E8F5E9
+    style C fill:#FFF3E0
+    style D fill:#E3F2FD
+    style E fill:#E3F2FD
 ```
 
 ---
@@ -213,37 +219,29 @@ funding-arb 포지션 보유 시:
 
 각 핵심 서비스는 30초마다 하트비트를 발행하고, orchestrator는 60초마다 상태를 체크:
 
+```mermaid
+graph LR
+    A["market-data<br/>execution-engine<br/>30초마다"] -->|"Redis SETEX<br/>TTL=5분"| B["heartbeat:{service}"]
+    A -->|"파일 TOUCH"| C["/tmp/heartbeat_ok"]
+    C -->|"Docker<br/>healthcheck"| D["✓ 성공"]
+    
+    E["orchestrator<br/>watchdog<br/>60초마다"] -->|"Redis GET"| B
+    B --> F{"존재?"}
+    F -->|YES| G["system:service_health<br/>= healthy"]
+    F -->|NO| H["서비스 다운 감지"]
+    H -->|execution-engine| I["⚠️ KILL SWITCH 발동<br/>주문 실행 불가"]
+    H -->|market-data| J["⚠️ KILL SWITCH 발동<br/>시장 데이터 없음"]
+    H -->|비핵심| K["service_health<br/>= degraded<br/>경고만"]
+    I --> L["Telegram<br/>알림"]
+    J --> L
+    
+    style A fill:#E8F5E9
+    style B fill:#E3F2FD
+    style E fill:#E8F5E9
+    style I fill:#FFCDD2
+    style J fill:#FFCDD2
+    style L fill:#FFF3E0
 ```
-market-data / execution-engine  (30초마다)
-  ↓
-Redis SETEX "heartbeat:{service}" <5분 TTL>
-  ↓
-파일 TOUCH "/tmp/heartbeat_ok"
-  ↓
-Docker healthcheck 성공
-```
-
-```
-orchestrator watchdog (60초마다)
-  ↓
-Redis GET "heartbeat:market-data" 등 확인
-  ↓
-존재?
-  ├─ YES  → system:service_health = "healthy"
-  └─ NO   → 서비스 다운 감지
-            ├─ execution-engine 다운 → ⚠️ KILL SWITCH 발동
-            │   (주문 실행 불가 → 포지션 청산)
-            │
-            ├─ market-data 다운 → ⚠️ KILL SWITCH 발동
-            │   (시장 데이터 없음 → 전략 정지)
-            │
-            └─ 비핵심 서비스 다운 → system:service_health = "degraded"
-                                 (경고만, 거래 계속)
-```
-
-Telegram 알림 (critical 수준):
-- `telegram:notification` 채널로 발행
-- 사용자 ACK 대기 (옵션)
 
 ---
 
@@ -251,23 +249,20 @@ Telegram 알림 (critical 수준):
 
 `config/orchestrator.yaml`의 Kill Switch 섹션은 **서비스 재시작 없이** 변경 가능:
 
-```
-1. 사용자가 orchestrator.yaml 수정
-   ↓
-2. orchestrator가 30초마다 파일 mtime 폴링
-   ↓
-3. 변경 감지 → 재로드
-   ↓
-4. Redis "system:config_reload" 채널 발행
-   {
-     "section": "kill_switch",
-     "changed_keys": ["max_daily_drawdown_pct"],
-     "new_values": {"max_daily_drawdown_pct": 0.06},
-     "old_values": {"max_daily_drawdown_pct": 0.05},
-     "timestamp": "2026-05-01T12:34:56Z"
-   }
-   ↓
-5. 다음 평가 사이클(5분)에 신규 설정 적용
+```mermaid
+graph TD
+    A["사용자가<br/>orchestrator.yaml 수정"] --> B["orchestrator가<br/>30초마다<br/>파일 mtime 폴링"]
+    B --> C{"변경<br/>감지?"}
+    C -->|NO| B
+    C -->|YES| D["YAML 재로드"]
+    D --> E["Redis 채널 발행<br/>system:config_reload"]
+    E --> F["변경 내용:<br/>section=kill_switch<br/>changed_keys=<br/>max_daily_drawdown_pct<br/>new/old_values"]
+    F --> G["다음 평가 사이클<br/>5분 내에 적용"]
+    
+    style A fill:#FFF3E0
+    style D fill:#E3F2FD
+    style E fill:#E3F2FD
+    style G fill:#C8E6C9
 ```
 
 **주의**: 마이그레이션 관련 설정(strategy_states 등)은 핫 리로드 불가
@@ -474,14 +469,21 @@ Docker healthcheck가 이 파일 존재 여부로 컨테이너 상태를 판단�
 
 ### 5.1 Prometheus 메트릭
 
-```
-각 서비스 (/metrics 엔드포인트)
-        |
-        v
-   Prometheus (스크래핑)
-        |
-        v
-    Grafana (시각화, 포트 3002)
+```mermaid
+graph LR
+    A["각 서비스<br/>/metrics 엔드포인트"] -->|"15초 주기"| B["Prometheus<br/>:9090"]
+    C["node-exporter<br/>:9100"] --> B
+    D["redis-exporter<br/>:9121"] --> B
+    B --> E["Grafana<br/>:3002<br/>시각화"]
+    
+    F["시스템 리소스<br/>CPU, 메모리<br/>디스크, 네트워크"] -.-> C
+    G["Redis 메트릭<br/>연결 수, 메모리<br/>키 수, Pub/Sub"] -.-> D
+    
+    style A fill:#E8F5E9
+    style B fill:#FFEB3B
+    style C fill:#BBDEFB
+    style D fill:#BBDEFB
+    style E fill:#E0F7FA
 ```
 
 - **node-exporter**: 시스템 리소스 (CPU, 메모리, 디스크, 네트워크)

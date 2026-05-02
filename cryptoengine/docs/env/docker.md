@@ -131,6 +131,67 @@ docker compose logs --follow funding-arb
 4. strategy-orchestrator (조율)
 5. telegram-bot (알림)
 
+#### 기동 순서 및 의존성 시각화
+
+```mermaid
+graph TD
+    subgraph infra["1단계: 인프라 (헬스체크 대기)"]
+        PG["PostgreSQL\n:5432"]
+        RD["Redis\n:6379"]
+    end
+
+    subgraph core["2단계: 핵심 서비스 (postgres/redis 이후)"]
+        MD["market-data\n시세 + 레짐"]
+        ENG["execution-engine\n주문 실행"]
+        ORC["strategy-orchestrator\n조율 + Kill Switch"]
+        TG["telegram-bot\n알림"]
+    end
+
+    subgraph strategy["3단계: 전략 (orchestrator 이후)"]
+        FA["funding-arb\n펀딩비 차익"]
+        DCA["adaptive-dca\nFear & Greed"]
+    end
+
+    subgraph aux["4단계: 보조 서비스 (독립적)"]
+        DASH["dashboard\n웹 대시보드"]
+        GF["grafana\n모니터링"]
+    end
+
+    subgraph batch["5단계: 배치 (필요 시만)"]
+        JE["jesse_engine\n--profile backtest"]
+        WF["wf-scheduler\n월 1일 02:00"]
+        LLM["llm-advisor\nClaude 분석"]
+    end
+
+    subgraph mgmt["6단계: 관리 (필요 시만)"]
+        PGB["pg-backup\n02:00 KST"]
+        LR["log-retention\n03:00 KST"]
+    end
+
+    PG -->|healthcheck| MD
+    PG -->|healthcheck| ENG
+    PG -->|healthcheck| ORC
+    PG -->|healthcheck| TG
+    RD -->|healthcheck| MD
+    RD -->|healthcheck| ENG
+    RD -->|healthcheck| ORC
+    RD -->|healthcheck| TG
+
+    MD -->|펀딩비 + 레짐| ORC
+    ORC -->|자본 배분| FA
+    ORC -->|자본 배분| DCA
+    ORC -->|Kill Switch| ENG
+
+    FA -->|주문 요청| ENG
+    DCA -->|주문 요청| ENG
+
+    style PG fill:#336791,color:#fff
+    style RD fill:#dc382d,color:#fff
+    style FA fill:#ff9800,color:#fff
+    style ENG fill:#4caf50,color:#fff
+    style ORC fill:#2196f3,color:#fff
+```
+
 ---
 
 ### 3. 프리플라이트 & Phase 5 준비

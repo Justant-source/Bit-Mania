@@ -54,6 +54,56 @@ CryptoEngine 모니터링 대시보드 초기화 및 공개 설정 가이드.
 2. **URL**: http://prometheus:9090
 3. "Save & test"
 
+#### 데이터소스 설정 흐름
+
+```mermaid
+flowchart LR
+    subgraph setup["Grafana 초기 설정"]
+        LOGIN["1. admin / ***REMOVED*** 로그인\nhttp://localhost:3002"]
+        CONFIG["2. Configuration → Data Sources"]
+        PGADD["3. Add PostgreSQL"]
+    end
+
+    subgraph pgconfig["PostgreSQL 연결"]
+        HOST["Host: postgres:5432"]
+        DB["Database: cryptoengine"]
+        USER["User: cryptoengine"]
+        PASS["Password: ***REMOVED***"]
+        TEST["Save & Test"]
+    end
+
+    subgraph datasources["데이터소스 목록"]
+        PG["✓ PostgreSQL\ntrades, positions, logs"]
+        PROM["✓ Prometheus 선택\nnode metrics, redis stats"]
+    end
+
+    subgraph dashboards["대시보드 생성"]
+        PERF["Live Performance\n내부용"]
+        STRAT["Strategy Monitor\n내부용"]
+        REGIME["Market Regime\n내부용"]
+        PUBLIC["Public Dashboard\n공개용"]
+    end
+
+    LOGIN --> CONFIG
+    CONFIG --> PGADD
+    PGADD --> HOST
+    PGADD --> DB
+    PGADD --> USER
+    PGADD --> PASS
+    PASS --> TEST
+    TEST --> PG
+    TEST -.->|선택| PROM
+    PG --> PERF
+    PG --> STRAT
+    PG --> REGIME
+    PG --> PUBLIC
+
+    style LOGIN fill:#e3f2fd,color:#0d47a1
+    style PG fill:#c8e6c9,color:#1b5e20
+    style PERF fill:#fff3e0,color:#e65100
+    style PUBLIC fill:#f3e5f5,color:#4a148c
+```
+
 ---
 
 ## 대시보드 목록
@@ -148,6 +198,28 @@ grafana:
 
 6. **URL 복사 및 저장**
    - 이 URL로 누구나 대시보드 접근 가능 (로그인 불필요)
+
+#### 공개 대시보드 공유 흐름
+
+```mermaid
+sequenceDiagram
+    participant User as 사용자
+    participant Grafana as Grafana<br/>3002
+    participant Browser as 브라우저<br/>공개 URL
+
+    User->>Grafana: 1. 로그인 (admin)
+    User->>Grafana: 2. Public Performance 선택
+    User->>Grafana: 3. Share → Public Dashboard 탭
+    User->>Grafana: 4. Enable sharing 토글 ON
+    Grafana->>Grafana: 5. 고유 토큰 생성
+    Grafana-->>User: 6. 공개 URL 표시<br/>http://localhost:3002/public-dashboards/token
+    User->>Browser: 7. 공개 URL 복사 및 공유
+    Browser->>Grafana: 8. 외부 사용자 접근<br/>로그인 불필요
+    Grafana->>Browser: 9. 공개 대시보드 렌더링<br/>Cumulative PnL, Win Rate 등
+    Browser-->>User: 10. 성과 지표 표시
+
+    Note over Browser: 공개 정보만 노출<br/>계정 잔고, 포지션, API 키 숨김
+```
 
 ### 3. 공개 링크 테스트
 
