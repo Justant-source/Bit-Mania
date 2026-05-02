@@ -41,6 +41,7 @@ class RegimeMLModel:
     def __init__(self, redis: aioredis.Redis, config: dict[str, Any]) -> None:
         self._redis = redis
         self._config = config
+        self._redis_url: str = config.get("_redis_url", "redis://localhost:6379")
         self._retrain_interval_hours = config.get("retrain_interval_hours", 6)
         self._lookback_days = config.get("training_lookback_days", 30)
         self._min_samples = config.get("min_training_samples", 500)
@@ -190,10 +191,11 @@ class RegimeMLModel:
         """Train a new LightGBM model on historical features."""
         log.info(SERVICE_HEALTH_OK, message="regime model retrain start")
 
-        # Load training data synchronously via a new event loop
+        # Load training data with an isolated event loop + fresh Redis connection.
+        # Using self._redis (main loop) from a background thread causes cross-loop errors.
         loop = asyncio.new_event_loop()
         try:
-            df = loop.run_until_complete(self._load_training_data())
+            df = loop.run_until_complete(self._load_training_data_isolated())
         finally:
             loop.close()
 
@@ -279,20 +281,37 @@ class RegimeMLModel:
             self._model_accuracy = best_accuracy
             self._last_train_time = datetime.now(timezone.utc)
 
-        # Cache model in Redis
+        # Cache model in Redis with isolated connection (binary-safe, no decode_responses)
         try:
-            loop = asyncio.new_event_loop()
             model_bytes = pickle.dumps(best_model)
-            loop.run_until_complete(
-                self._redis.set(REDIS_KEY_MODEL, model_bytes, ex=86400)
-            )
-            loop.close()
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(self._save_model_isolated(model_bytes))
+            finally:
+                loop.close()
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="model cache failed")
 
-    async def _load_training_data(self) -> pd.DataFrame | None:
+    async def _load_training_data_isolated(self) -> pd.DataFrame | None:
+        """Load feature history with a fresh Redis connection (safe for background threads)."""
+        redis = aioredis.from_url(self._redis_url, decode_responses=True)
+        try:
+            return await self._load_training_data(redis)
+        finally:
+            await redis.aclose()
+
+    async def _save_model_isolated(self, model_bytes: bytes) -> None:
+        """Persist serialised model bytes with a binary-safe Redis connection."""
+        redis = aioredis.from_url(self._redis_url, decode_responses=False)
+        try:
+            await redis.set(REDIS_KEY_MODEL, model_bytes, ex=86400)
+        finally:
+            await redis.aclose()
+
+    async def _load_training_data(self, redis: aioredis.Redis | None = None) -> pd.DataFrame | None:
         """Load feature history from Redis for training."""
-        raw_entries = await self._redis.lrange(REDIS_KEY_FEATURE_HISTORY, 0, -1)
+        r = redis if redis is not None else self._redis
+        raw_entries = await r.lrange(REDIS_KEY_FEATURE_HISTORY, 0, -1)
         if not raw_entries:
             return None
 
@@ -324,7 +343,12 @@ class RegimeMLModel:
 
     async def _load_cached_model(self) -> None:
         """Try to load a previously trained model from Redis."""
-        raw = await self._redis.get(REDIS_KEY_MODEL)
+        # decode_responses=False so pickle bytes are returned as-is, not decoded to str
+        redis = aioredis.from_url(self._redis_url, decode_responses=False)
+        try:
+            raw = await redis.get(REDIS_KEY_MODEL)
+        finally:
+            await redis.aclose()
         if raw:
             try:
                 model = pickle.loads(raw)  # noqa: S301

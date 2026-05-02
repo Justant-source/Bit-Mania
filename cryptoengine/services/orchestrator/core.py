@@ -142,6 +142,7 @@ class StrategyOrchestrator:
 
         ml_config = self._config.get("regime_ml", {})
         if ml_config.get("enabled", True):
+            ml_config = {**ml_config, "_redis_url": redis_url}
             self._regime_model = RegimeMLModel(self._redis, ml_config)
             await self._regime_model.start()
             self._di_index = DissimilarityIndex(ml_config)

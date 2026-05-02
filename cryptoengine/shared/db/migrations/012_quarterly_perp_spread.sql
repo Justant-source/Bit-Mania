@@ -16,3 +16,8 @@ CREATE TABLE IF NOT EXISTS quarterly_perp_spread (
 
 CREATE INDEX IF NOT EXISTS idx_qps_symbol_time ON quarterly_perp_spread (quarterly_symbol, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_qps_time ON quarterly_perp_spread (timestamp DESC);
+
+-- Required by collector.py ON CONFLICT (quarterly_symbol, perp_symbol, timestamp) DO NOTHING
+ALTER TABLE quarterly_perp_spread
+    ADD CONSTRAINT IF NOT EXISTS quarterly_perp_spread_symbol_ts_key
+    UNIQUE (quarterly_symbol, perp_symbol, timestamp);
