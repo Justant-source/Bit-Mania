@@ -154,6 +154,10 @@ class AdaptiveDCAStrategy(BaseStrategy):
         if not self._scheduler.is_buy_time():
             return
 
+        if self.allocated_capital <= 0:
+            self._log.warning(DCA_MULTIPLIER_CALC, message="자본 배정 없음, DCA 스킵", capital=self.allocated_capital)
+            return
+
         # Fetch current F&G index
         fng_index = await self._fng_collector.get_current_index()
 
