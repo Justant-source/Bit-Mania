@@ -57,7 +57,7 @@
       },
       "options": {
         "mode": "html",
-        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:8px 16px;box-sizing:border-box\">\n  <div style=\"display:flex;align-items:center;gap:16px\">\n    <button onclick=\"(function(){var btn=this;btn.disabled=true;btn.textContent='⏳ 분석 시작 중...';fetch('http://localhost:8091/trigger').then(function(r){return r.text()}).then(function(){btn.textContent='✅ 분석 시작됨';setTimeout(function(){btn.disabled=false;btn.textContent='🔍 LLM 분석 즉시 실행';},5000)}).catch(function(){btn.disabled=false;btn.textContent='❌ 연결 실패 — 재시도';});}).call(this)\"\n            style=\"background:#e94560;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;transition:opacity .2s\"\n            onmouseover=\"this.style.opacity='.85'\" onmouseout=\"this.style.opacity='1'\">\n      🔍 LLM 분석 즉시 실행\n    </button>\n    <span style=\"color:#aaa;font-size:13px\">다음 정기 분석까지 기다리지 않고 즉시 실행합니다</span>\n  </div>\n  <a href=\"http://localhost:8091/status\" target=\"_blank\"\n     style=\"color:#666;font-size:12px;text-decoration:none\">\n    📊 마지막 분석 시각 확인\n  </a>\n</div>"
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:10px 20px;box-sizing:border-box;background:#1a1a2e;border-radius:4px\">\n  <div style=\"display:flex;align-items:center;gap:20px\">\n    <a href=\"http://100.81.189.92:8091/trigger\" target=\"_blank\"\n       style=\"display:inline-block;background:#e94560;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:bold;letter-spacing:0.5px\">\n      &#128269; LLM 분석 즉시 실행\n    </a>\n    <span style=\"color:#aaa;font-size:13px\">클릭 후 새 탭에서 확인 &mdash; 완료까지 약 5~20분</span>\n  </div>\n  <a href=\"http://100.81.189.92:8091/status\" target=\"_blank\"\n     style=\"color:#666;font-size:12px;text-decoration:none;white-space:nowrap\">\n    &#128202; 마지막 분석 시각\n  </a>\n</div>"
       },
       "transparent": false,
       "fieldConfig": {
@@ -607,21 +607,6 @@
       ],
       "title": "최신 분석 요약 (5건)",
       "type": "table"
-    },
-    {
-      "type": "text",
-      "title": "리포트 보기",
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 18,
-        "y": 11
-      },
-      "id": 12,
-      "options": {
-        "mode": "html",
-        "content": "<div style=\"display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px\">\n  <a href=\"/public/reports/latest.html\" target=\"_blank\" style=\"display:inline-block;padding:14px 28px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-size:16px;font-weight:600;text-align:center;transition:background 0.2s\">최신 리포트 자세히 보기</a>\n  <a href=\"/public/reports/\" target=\"_blank\" style=\"display:inline-block;padding:10px 20px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:8px;text-decoration:none;font-size:13px;text-align:center\">리포트 아카이브</a>\n  <p style=\"color:#64748b;font-size:12px;text-align:center;margin-top:8px\">6시간마다 자동 생성<br/>Claude Code CLI 분석</p>\n</div>"
-      }
     },
     {
       "datasource": {
