@@ -148,9 +148,11 @@ class MarketDataCollector:
                 raise
             except Exception:
                 exc_type, exc_val, _ = sys.exc_info()
+                # Log as general service error (not WebSocket-specific)
+                # to distinguish from WS protocol errors
                 log.error(
-                    MARKET_WS_RECONNECTING,
-                    message="WebSocket unexpected error, reconnecting",
+                    SERVICE_HEALTH_FAIL,
+                    message="WebSocket loop error, reconnecting",
                     exc=str(exc_val),
                     exc_type=exc_type.__name__ if exc_type else "Unknown",
                 )

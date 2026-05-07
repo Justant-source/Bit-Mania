@@ -91,7 +91,7 @@ class FundingMonitor:
                 )
             )
         else:
-            log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass API key missing, multi-exchange funding comparison disabled")
+            log.info(SERVICE_STARTED, message="CoinGlass API key missing, multi-exchange funding comparison disabled")
 
         try:
             await asyncio.gather(*tasks)
