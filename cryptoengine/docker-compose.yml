@@ -283,7 +283,7 @@ services:
       - ${HOME}/.claude/settings.json:/home/claude/.claude/settings.json:ro
       - llm-reports:/app/reports
     ports:
-      - "127.0.0.1:8091:8091"
+      - "8091:8091"
     deploy:
       resources:
         limits:
