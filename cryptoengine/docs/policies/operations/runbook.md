@@ -19,16 +19,16 @@ when_to_update: |
 
 ```mermaid
 flowchart TD
-    START([시스템 시작]) --> INF["1단계: 인프라 기동\npostgres / redis / grafana"]
-    INF --> WAIT{헬스체크 통과?}
+    START(["시스템 시작"]) --> INF["1단계: 인프라 기동\npostgres / redis / grafana"]
+    INF --> WAIT{"헬스체크 통과?"}
     WAIT -->|대기| WAIT
     WAIT -->|통과| CORE["2단계: 핵심 서비스\nmarket-data\nexecution-engine\nstrategy-orchestrator\nfunding-arb"]
     CORE --> AUX["3단계: 보조 서비스\ntelegram-bot / dashboard"]
     AUX --> CHECK["4단계: 상태 확인\ndocker compose ps"]
-    CHECK --> VERIFY{모두 Running?}
+    CHECK --> VERIFY{"모두 Running?"}
     VERIFY -->|No| FIX["로그 확인\ndocker compose logs -f"]
     FIX --> CORE
-    VERIFY -->|Yes| DONE([운영 시작 ✅])
+    VERIFY -->|Yes| DONE(["운영 시작 ✅"])
 
     style DONE fill:#4caf50,color:#fff
     style FIX fill:#ff9800,color:#fff
@@ -233,8 +233,8 @@ docker compose logs --tail=20 <서비스명> | grep -E "ready|running|started"
 
 ```mermaid
 flowchart TD
-    KS["🚨 Kill Switch 발동\nTelegram 알림 수신"] --> CHECK["Redis 확인\nredis-cli GET ce:kill_switch:active"]
-    CHECK --> LEVEL{레벨 확인}
+    KS["Kill Switch 발동\nTelegram 알림 수신"] --> CHECK["Redis 확인\nredis-cli GET ce:kill_switch:active"]
+    CHECK --> LEVEL{"레벨 확인"}
     LEVEL -->|"L1: STRATEGY"| L1["해당 전략 로그 확인\n4시간 자동 재개 대기"]
     LEVEL -->|"L2: PORTFOLIO"| L2["포트폴리오 손실 분석\n4시간 자동 재개 대기"]
     LEVEL -->|"L3: SYSTEM"| L3["인프라 상태 점검\ndocker compose ps 확인\n수동 /reset 필요"]

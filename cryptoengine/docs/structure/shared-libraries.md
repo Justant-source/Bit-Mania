@@ -1029,13 +1029,13 @@ graph TD
     end
 
     subgraph io["I/O 계층"]
-        DB["db/ — asyncpg 풀\n+ Repository 패턴"]
+        DB["db/ - asyncpg 풀\n+ Repository 패턴"]
         RD["redis_client.py\nPub/Sub 헬퍼"]
         EX["exchange/bybit.py\nCCXT 래퍼"]
     end
 
     subgraph model["모델 계층"]
-        MDL["models/ — 도메인 모델\nOrder, Position, Trade, FundingRate"]
+        MDL["models/ - 도메인 모델\nOrder, Position, Trade, FundingRate"]
     end
 
     subgraph safety["안전 계층"]

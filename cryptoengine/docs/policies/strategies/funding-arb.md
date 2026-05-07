@@ -43,8 +43,8 @@ graph LR
         FR["펀딩비 수취\n8h마다 × 3회/일"]
     end
 
-    BTC["BTC 가격 변동"] -->|+$100| S
-    BTC -->|-$100 × 5x| P
+    BTC["BTC 가격 변동"] -->|"+$100"| S
+    BTC -->|"-$100 × 5x"| P
     S --> DN
     P --> DN
     P -->|"rate × notional"| FR
@@ -120,19 +120,19 @@ graph LR
 
 ```mermaid
 flowchart TD
-    A[8h Settlement 도래\n00:00 / 08:00 / 16:00 UTC] --> B{funding_rate\n≥ min_rate?}
-    B -->|No| Z[진입 스킵\ncooldown 대기]
-    B -->|Yes| C{consecutive_intervals\n≥ 3회 연속?}
-    C -->|No| Z
-    C -->|Yes| D{predicted_rate\n방향 일치?}
-    D -->|No| Z
-    D -->|Yes| E{OI ≥ $5M\n& spread ≤ 0.05%?}
-    E -->|No| Z
-    E -->|Yes| F{Phase 5?}
-    F -->|Yes| G["임계값 강화 체크\nrate ≥ 25% ann\nconsec ≥ 4회"]
-    F -->|No| H[포지션 오픈\nSpot Long + Perp Short]
-    G -->|Pass| H
-    G -->|Fail| Z
+    A[8h Settlement 도래\n00:00 / 08:00 / 16:00 UTC] --> B{"funding_rate\ngreater equal min_rate?"}
+    B -->|"No"| Z[진입 스킵\ncooldown 대기]
+    B -->|"Yes"| C{"consecutive_intervals\ngreater equal 3회 연속?"}
+    C -->|"No"| Z
+    C -->|"Yes"| D{"predicted_rate\n방향 일치?"}
+    D -->|"No"| Z
+    D -->|"Yes"| E{"OI 5M 이상\nand spread 0.05% 초과?"}
+    E -->|"No"| Z
+    E -->|"Yes"| F{Phase 5?}
+    F -->|"Yes"| G["임계값 강화 체크\nrate ≥ 25% ann\nconsec ≥ 4회"]
+    F -->|"No"| H[포지션 오픈\nSpot Long + Perp Short]
+    G -->|"Pass"| H
+    G -->|"Fail"| Z
 
     style H fill:#4caf50,color:#fff
     style Z fill:#f44336,color:#fff
@@ -301,12 +301,12 @@ flowchart TD
     
     A --> B{["청산 트리거\n확인"]}
     
-    B -->|펀딩비 음수 반전| C1["Priority 1\n지급 전환 위험\n즉시 청산"]
-    B -->|Basis > 1.0%| C2["Priority 2\nSpread 급확대\n긴급 청산"]
-    B -->|누적 3% 도달| C3["Priority 3\nTake Profit\nLCO 청산"]
-    B -->|손실 2% 발생| C4["Priority 4\nStop Loss\nSCO 청산"]
-    B -->|720시간 경과| C5["Priority 5\n최대 보유 기간\nTCO 청산"]
-    B -->|Kill Switch| C6["Priority 0\n시스템 긴급\n전체 포지션 청산"]
+    B -->|"펀딩비 음수 반전"| C1["Priority 1\n지급 전환 위험\n즉시 청산"]
+    B -->|"Basis > 1.0%"| C2["Priority 2\nSpread 급확대\n긴급 청산"]
+    B -->|"누적 3% 도달"| C3["Priority 3\nTake Profit\nLCO 청산"]
+    B -->|"손실 2% 발생"| C4["Priority 4\nStop Loss\nSCO 청산"]
+    B -->|"720시간 경과"| C5["Priority 5\n최대 보유 기간\nTCO 청산"]
+    B -->|"Kill Switch"| C6["Priority 0\n시스템 긴급\n전체 포지션 청산"]
     
     C1 & C2 & C3 & C4 & C5 & C6 --> D["Step 1: 선물 청산\nPerp Short → Market Close\nEx: 0.1 BTC × 5 lev @ $60,000\n명목 $30,000"]
     
@@ -457,8 +457,8 @@ flowchart LR
     subgraph phase5["Phase 5 (메인넷 $200)"]
         p5s["sizing: fixed_notional $150\nmax_concurrent: 1\nentry: rate ≥ 25%\nconsec: 4회"]
     end
-    ENV{PHASE5_MODE=true\nor TESTNET=false} -->|Yes| phase5
-    ENV -->|No| phase4
+    ENV{PHASE5_MODE=true\nor TESTNET=false} -->|"Yes"| phase5
+    ENV -->|"No"| phase4
 
     style phase5 fill:#fff3e0,stroke:#ff9800
     style phase4 fill:#e3f2fd,stroke:#2196f3

@@ -69,7 +69,7 @@ graph TD
         end
     end
 
-    root -->|포함| main
+    root -->|"포함"| main
     main --> compose
     main --> cfg
     main --> shared

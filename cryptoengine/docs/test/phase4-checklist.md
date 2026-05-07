@@ -35,7 +35,7 @@ flowchart LR
     end
 
     subgraph phase5["Phase 5 — 메인넷 소액 실전"]
-        P["$200 USDT 실전 운영\nSTRICT_MONITORING 24h"]
+        P["$200 USDT 실전 운영<br/>STRICT_MONITORING 24h"]
     end
 
     C1 & C2 & C3 & C4 & C5 & C6 & C7 --> gate
@@ -66,23 +66,23 @@ flowchart LR
 flowchart TD
     START([Phase 4 시작]) --> C1["✅ 1️⃣ 7개 시나리오\nScenario 1~7\n거래 흐름 검증\n예상 시간: 2-3주"]
     
-    C1 --> C2["✅ 2️⃣ 7일 무중단 운영\nUptime ≥ 7일\nRestart 0회\n동시 진행 가능\n예상 시간: 7일"]
+    C1 --> C2["✅ 2️⃣ 7일 무중단 운영<br/>Uptime ≥ 7일<br/>Restart 0회<br/>동시 진행 가능<br/>예상 시간: 7일"]
     
-    C1 & C2 --> C3["✅ 3️⃣ phase5_preflight.py\n8가지 항목 PASS\n5분 소요"]
+    C1 & C2 --> C3["✅ 3️⃣ phase5_preflight.py<br/>8가지 항목 PASS<br/>5분 소요"]
     
-    C1 & C2 --> C4["✅ 4️⃣ resilience-test\n서비스 재시작\nPosition 복구\n5분 소요"]
+    C1 & C2 --> C4["✅ 4️⃣ resilience-test<br/>서비스 재시작<br/>Position 복구<br/>5분 소요"]
     
-    C1 & C2 & C3 & C4 --> C5["✅ 5️⃣ Telegram 알림\n8가지 유형 수신 확인\n동시 진행 가능\n예상 시간: 1-2주"]
+    C1 & C2 & C3 & C4 --> C5["✅ 5️⃣ Telegram 알림<br/>8가지 유형 수신 확인<br/>동시 진행 가능<br/>예상 시간: 1-2주"]
     
-    C1 & C2 --> C6["✅ 6️⃣ stoploss_on_exchange\n3가지 시나리오\nA, B, C 검증\n예상 시간: 3-5일"]
+    C1 & C2 --> C6["✅ 6️⃣ stoploss_on_exchange<br/>3가지 시나리오<br/>A, B, C 검증<br/>예상 시간: 3-5일"]
     
-    C1 & C2 --> C7["✅ 7️⃣ Walk-Forward\n월간 자동 파이프라인\n1회 이상 완료\n예상 시간: 2-3시간"]
+    C1 & C2 --> C7["✅ 7️⃣ Walk-Forward<br/>월간 자동 파이프라인<br/>1회 이상 완료<br/>예상 시간: 2-3시간"]
     
-    C3 & C4 & C5 & C6 & C7 --> GATE["🚪 Phase 5 진입 게이트\n모든 항목 PASS 필수"]
+    C3 & C4 & C5 & C6 & C7 --> GATE["🚪 Phase 5 진입 게이트<br/>모든 항목 PASS 필수"]
     
-    GATE --> C8["8️⃣ 메인넷 전환\nswitch_to_mainnet.py\n9단계 프로세스\n예상 시간: 30분"]
+    GATE --> C8["8️⃣ 메인넷 전환<br/>switch_to_mainnet.py<br/>9단계 프로세스<br/>예상 시간: 30분"]
     
-    C8 --> FINAL([Phase 5 시작 🚀\n$200 USDT 실전])
+    C8 --> FINAL(["Phase 5 시작 🚀<br/>$200 USDT 실전"])
     
     style C3 fill:#4caf50,color:#fff
     style C4 fill:#4caf50,color:#fff
@@ -644,19 +644,19 @@ docker compose logs -f funding-arb execution-engine | grep -i error
 
 ```mermaid
 flowchart TD
-    START([Phase 4 완료 확인]) --> P1{7일 무중단 운영\nRunning 유지?}
+    START(["Phase 4 완료 확인"]) --> P1{"7일 무중단 운영<br/>Running 유지?"}
     P1 -->|No| CONT["Phase 4 계속"]
-    P1 -->|Yes| P2{phase5_preflight.py\n8항목 PASS?}
+    P1 -->|Yes| P2{"phase5_preflight.py<br/>8항목 PASS?"}
     P2 -->|No| FIX["실패 항목 수정"]
     FIX --> P2
-    P2 -->|Yes| P3{마지막 백테스트\nCAGR+34% 재확인?}
+    P2 -->|Yes| P3{"마지막 백테스트<br/>CAGR+34% 재확인?"}
     P3 -->|No| ANALYZE["파라미터 재검토"]
-    P3 -->|Yes| P4{팀 동의 완료?}
+    P3 -->|Yes| P4{"팀 동의 완료?"}
     P4 -->|No| WAIT["대기"]
     P4 -->|Yes| SWITCH["switch_to_mainnet.py 실행"]
-    SWITCH --> VERIFY{$200 잔고 확인\nAPI 연결 성공?}
-    VERIFY -->|No| ROLLBACK["즉시 롤백\nswitch_to_testnet.py"]
-    VERIFY -->|Yes| DONE([Phase 5 시작 🚀])
+    SWITCH --> VERIFY{"$200 잔고 확인<br/>API 연결 성공?"}
+    VERIFY -->|No| ROLLBACK["즉시 롤백<br/>switch_to_testnet.py"]
+    VERIFY -->|Yes| DONE(["Phase 5 시작 🚀"])
 
     style DONE fill:#4caf50,color:#fff
     style ROLLBACK fill:#f44336,color:#fff

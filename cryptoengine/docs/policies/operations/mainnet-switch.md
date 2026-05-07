@@ -25,8 +25,8 @@ when_to_update: |
 
 ```mermaid
 flowchart TD
-    A([Phase 5 전환 시작]) --> B["phase5_preflight.py 실행\n8개 항목 자동 점검"]
-    B --> C{모든 항목 PASS?}
+    A(["Phase 5 전환 시작"]) --> B["phase5_preflight.py 실행\n8개 항목 자동 점검"]
+    B --> C{"모든 항목 PASS?"}
     C -->|No| D["실패 항목 수정\n재점검"]
     D --> B
     C -->|Yes| E["switch_to_mainnet.py 실행"]
@@ -40,9 +40,9 @@ flowchart TD
     L --> M["8. Redis 캐시 초기화"]
     M --> N["9. 서비스 재시작\ndocker compose up -d --force-recreate"]
     N --> O["잔고 확인\n$200 USDT 검증"]
-    O --> P{잔고 검증 통과?}
-    P -->|No| Q["🚨 즉시 롤백\nswitch_to_testnet.py"]
-    P -->|Yes| R([Phase 5 운영 시작 ✅])
+    O --> P{"잔고 검증 통과?"}
+    P -->|No| Q["즉시 롤백\nswitch_to_testnet.py"]
+    P -->|Yes| R(["Phase 5 운영 시작 ✅"])
 
     style R fill:#4caf50,color:#fff
     style Q fill:#f44336,color:#fff
@@ -346,14 +346,14 @@ http://localhost:3002 에서 실시간 확인:
 
 ```mermaid
 flowchart LR
-    ISSUE["⚠️ 문제 감지\n(손실/오류/이상)"] --> DECIDE{심각도?}
+    ISSUE["문제 감지\n(손실/오류/이상)"] --> DECIDE{"심각도?"}
     DECIDE -->|"경미\n모니터링 필요"| WATCH["24h 강화 모니터링\nTelegram 상태 확인"]
     DECIDE -->|"심각\n즉시 롤백"| ROLLBACK["switch_to_testnet.py 실행"]
     ROLLBACK --> R1["BYBIT_TESTNET=true 복원"]
     R1 --> R2["포지션 수동 확인\nBybit 앱"]
     R2 --> R3["서비스 재시작"]
     R3 --> R4["테스트넷 정상 동작 확인"]
-    R4 --> R5([테스트넷 복귀 완료])
+    R4 --> R5(["테스트넷 복귀 완료"])
 
     style ROLLBACK fill:#f44336,color:#fff
     style R5 fill:#2196f3,color:#fff

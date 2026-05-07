@@ -351,11 +351,11 @@ graph TD
         ENV4B["BYBIT_API_KEY=testnet_xxx"]
         ENV4C["BYBIT_SECRET_KEY=testnet_xxx"]
         ENV4D["로그 레벨: DEBUG/INFO"]
-        ENV4E["상대값 Kill Switch\n-5% daily, -10% weekly"]
+        ENV4E["상대값 Kill Switch<br/>-5% daily, -10% weekly"]
     end
 
     subgraph preflight["Phase 5 전환 전"]
-        CHK["scripts/phase5_preflight.py\n8개 항목 검증"]
+        CHK["scripts/phase5_preflight.py<br/>8개 항목 검증"]
         CHK1["✓ Bybit 메인넷 키 테스트"]
         CHK2["✓ 초기 잔고 검증 ±10%"]
         CHK3["✓ 레버리지 5배 이하"]
@@ -364,7 +364,7 @@ graph TD
     end
 
     subgraph switch["Phase 5 전환"]
-        MAIN["scripts/switch_to_mainnet.py\n9단계 + 이중 확인"]
+        MAIN["scripts/switch_to_mainnet.py<br/>9단계 + 이중 확인"]
         MAIN1["1-2. 현재 상태 백업"]
         MAIN3["3-5. 메인넷 키 설정"]
         MAIN6["6. 환경변수 업데이트"]
@@ -378,7 +378,7 @@ graph TD
         ENV5D["EXPECTED_INITIAL_BALANCE_USD=200"]
         ENV5E["STRICT_MONITORING_HOURS=24"]
         ENV5F["PHASE5_MODE=true"]
-        ENV5G["절대값 Kill Switch\n-$10 daily, -$20 weekly"]
+        ENV5G["절대값 Kill Switch<br/>-$10 daily, -$20 weekly"]
     end
 
     phase4 --> CHK

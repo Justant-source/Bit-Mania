@@ -29,10 +29,10 @@ last_updated: 2026-05-01
 
 ```mermaid
 graph LR
-    SPOT["현물 BTC 매수\n(Long)"] --> NEUTRAL["델타 뉴트럴\n가격 노출 0"]
-    PERP["선물 BTC 매도\n(Short × 5x)"] --> NEUTRAL
-    NEUTRAL --> INCOME["펀딩비 수취\n8h × 3회/일"]
-    INCOME --> RATE["연환산 30~35%\n(fa80_lev5_r30 기준)"]
+    SPOT["현물 BTC 매수<br/>(Long)"] --> NEUTRAL["델타 뉴트럴<br/>가격 노출 0"]
+    PERP["선물 BTC 매도<br/>(Short × 5x)"] --> NEUTRAL
+    NEUTRAL --> INCOME["펀딩비 수취<br/>8h × 3회/일"]
+    INCOME --> RATE["연환산 30~35%<br/>(fa80_lev5_r30 기준)"]
 
     style NEUTRAL fill:#e8f5e9
     style INCOME fill:#fff3e0,stroke:#ff9800
@@ -209,10 +209,10 @@ FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
 
 ```mermaid
 graph TD
-    KS["KillSwitch\nshared/kill_switch.py"] --> L1["L1 STRATEGY\n전략 단위 정지"]
-    KS --> L2["L2 PORTFOLIO\n전체 포트폴리오 정지"]
-    KS --> L3["L3 SYSTEM\n시스템 장애 감지"]
-    KS --> L4["L4 MANUAL\n운영자 수동 발동"]
+    KS["KillSwitch<br/>shared/kill_switch.py"] --> L1["L1 STRATEGY<br/>전략 단위 정지"]
+    KS --> L2["L2 PORTFOLIO<br/>전체 포트폴리오 정지"]
+    KS --> L3["L3 SYSTEM<br/>시스템 장애 감지"]
+    KS --> L4["L4 MANUAL<br/>운영자 수동 발동"]
 
     L1 -->|"4h 쿨다운"| AUTO["자동 재개"]
     L2 -->|"4h 쿨다운"| AUTO

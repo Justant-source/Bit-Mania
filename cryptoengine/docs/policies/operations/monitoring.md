@@ -176,11 +176,11 @@ sequenceDiagram
     loop 60초마다
         ORC->>REDIS: GET heartbeat:execution
         alt 정상 (TTL 남음)
-            REDIS-->>ORC: TTL > 0 ✅
+            REDIS-->>ORC: TTL > 0 OK
         else 5분 미수신
             REDIS-->>ORC: nil (만료됨)
             ORC->>ORC: KillSwitch.trigger(SYSTEM)
-            ORC->>TG: 🚨 execution-engine 응답 없음
+            ORC->>TG: execution-engine 응답 없음
         end
     end
 ```

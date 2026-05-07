@@ -52,14 +52,14 @@ class KillLevel(IntEnum):
 stateDiagram-v2
     direction LR
     [*] --> NONE : 시스템 시작
-    NONE --> STRATEGY : check_strategy()\npnl ≤ max_drawdown
-    NONE --> PORTFOLIO : check()\ndrawdown 임계값 초과
+    NONE --> STRATEGY : check_strategy()<br/>pnl ≤ max_drawdown
+    NONE --> PORTFOLIO : check()<br/>drawdown 임계값 초과
     NONE --> SYSTEM : system_healthy=False
-    NONE --> MANUAL : trigger_manual()\nTelegram /kill
-    STRATEGY --> NONE : cooldown 4h 경과\nauto_resume()
-    PORTFOLIO --> NONE : cooldown 4h 경과\nauto_resume()
+    NONE --> MANUAL : trigger_manual()<br/>Telegram /kill
+    STRATEGY --> NONE : cooldown 4h 경과<br/>auto_resume()
+    PORTFOLIO --> NONE : cooldown 4h 경과<br/>auto_resume()
     SYSTEM --> NONE : reset_manual() 호출
-    MANUAL --> NONE : reset_manual() 호출\n(자동 재개 불가)
+    MANUAL --> NONE : reset_manual() 호출<br/>자동 재개 불가
 
     note right of MANUAL
         Level 4는 auto_resume() 불가
@@ -403,27 +403,27 @@ Kill Switch 발동 → execution-engine이 포지션 청산 확인 → orchestra
 
 ```mermaid
 sequenceDiagram
-    participant ORC as orchestrator
-    participant REDIS as Redis
-    participant ENG as execution-engine
-    participant TG as telegram-bot
+    participant ORC as "orchestrator"
+    participant REDIS as "Redis"
+    participant ENG as "execution-engine"
+    participant TG as "telegram-bot"
 
     ORC->>ORC: _trigger(level, reason)
-    ORC->>REDIS: PUBLISH ce:kill_switch {level, reason}
+    ORC->>REDIS: PUBLISH ce:kill_switch<br/>(level, reason)
     ORC->>REDIS: SET ce:kill_switch:active "1"
     REDIS-->>ENG: 구독 메시지 수신
     REDIS-->>TG: 구독 메시지 수신
     ENG->>ENG: 모든 주문 취소
     ENG->>ENG: 포지션 시장가 청산
-    ENG->>REDIS: PUBLISH ce:kill_switch:ack {status: ok}
+    ENG->>REDIS: PUBLISH ce:kill_switch:ack<br/>(status: ok)
     TG->>TG: 🚨 알림 포맷
     TG-->>User: Telegram 긴급 메시지
 
-    alt ACK 수신 (5초 이내)
+    alt ACK 수신 5초 이내
         REDIS-->>ORC: ACK 수신
         ORC->>ORC: log KILL_SWITCH_ACK_SENT
-    else ACK 미수신 (타임아웃)
-        ORC->>ORC: 재시도 (최대 3회)
+    else ACK 미수신 타임아웃
+        ORC->>ORC: 재시도 최대 3회
         ORC->>ORC: log KILL_SWITCH_ACK_MISSING
         ORC-->>TG: 수동 개입 요청
     end
@@ -483,18 +483,18 @@ KillSwitch(
 
 ```mermaid
 flowchart TD
-    A[check 호출\ndrawdown 측정] --> B{is_triggered?}
+    A["check 호출<br/>drawdown 측정"] --> B{is_triggered?}
     B -->|Yes| C{cooldown 만료?}
-    C -->|Yes| D[_reset\nNONE으로 복귀]
-    C -->|No| E[현재 레벨 유지]
+    C -->|Yes| D["_reset<br/>NONE으로 복귀"]
+    C -->|No| E["현재 레벨 유지"]
     B -->|No| F{system_healthy?}
-    F -->|No| G[SYSTEM 트리거]
-    F -->|Yes| H{Daily drawdown\n≤ -5%?}
-    H -->|No| I{Weekly drawdown\n≤ -10%?}
-    I -->|No| J{Monthly drawdown\n≤ -15%?}
-    J -->|No| K[KillLevel.NONE\n정상 운영]
+    F -->|No| G["SYSTEM 트리거"]
+    F -->|Yes| H{Daily drawdown<br/>≤ -5%?}
+    H -->|No| I{Weekly drawdown<br/>≤ -10%?}
+    I -->|No| J{Monthly drawdown<br/>≤ -15%?}
+    J -->|No| K["KillLevel.NONE<br/>정상 운영"]
     H -->|Yes| L{Phase5 AND 모드?}
-    L -->|No| M[PORTFOLIO 트리거]
+    L -->|No| M["PORTFOLIO 트리거"]
     L -->|Yes| N{abs_loss ≥ $10?}
     N -->|Yes| M
     N -->|No| K
@@ -546,21 +546,21 @@ kill_switch:
 
 ```mermaid
 flowchart LR
-    subgraph L1["Level 1 — STRATEGY"]
-        s1["전략 손익\n≤ max_drawdown"]
-        s2["해당 전략만 정지\n포지션 청산\n4h 후 자동 재개"]
+    subgraph L1["Level 1 STRATEGY"]
+        s1["전략 손익<br/>≤ max_drawdown"]
+        s2["해당 전략만 정지<br/>포지션 청산<br/>4h 후 자동 재개"]
     end
-    subgraph L2["Level 2 — PORTFOLIO"]
-        p1["포트폴리오\ndrawdown 초과"]
-        p2["전체 전략 정지\n모든 포지션 청산\n4h 후 자동 재개"]
+    subgraph L2["Level 2 PORTFOLIO"]
+        p1["포트폴리오<br/>drawdown 초과"]
+        p2["전체 전략 정지<br/>모든 포지션 청산<br/>4h 후 자동 재개"]
     end
-    subgraph L3["Level 3 — SYSTEM"]
-        sys1["API 오류 50회\n하트비트 5분 미수신"]
-        sys2["전체 청산\n수동 reset 필요"]
+    subgraph L3["Level 3 SYSTEM"]
+        sys1["API 오류 50회<br/>하트비트 5분 미수신"]
+        sys2["전체 청산<br/>수동 reset 필요"]
     end
-    subgraph L4["Level 4 — MANUAL"]
-        m1["Telegram /kill\n운영자 직접 발동"]
-        m2["즉시 전체 청산\n자동 재개 절대 불가"]
+    subgraph L4["Level 4 MANUAL"]
+        m1["Telegram /kill<br/>운영자 직접 발동"]
+        m2["즉시 전체 청산<br/>자동 재개 절대 불가"]
     end
 
     s1 --> s2

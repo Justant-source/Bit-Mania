@@ -104,14 +104,14 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 ```mermaid
 graph TB
-    subgraph pub["발행자"]
+    subgraph pub["Publishers"]
         md["market-data"]
         orch["orchestrator"]
         exec["execution-engine"]
-        strat["각 전략"]
+        strat["strategies"]
     end
     
-    subgraph channels["Redis Pub/Sub 채널"]
+    subgraph channels["Redis Pub/Sub Channels"]
         c1["market:funding_rate"]
         c2["market:regime"]
         c3["strategy:command:{id}"]
@@ -123,13 +123,13 @@ graph TB
         c9["telegram:notification"]
     end
     
-    subgraph sub["구독자"]
+    subgraph sub["Subscribers"]
         fa["funding-arb"]
         dca["adaptive-dca"]
         o2["orchestrator"]
         exec2["execution-engine"]
         tg["telegram-bot"]
-        audit["감사 로그"]
+        audit["audit logs"]
     end
     
     md --> c1
@@ -178,39 +178,39 @@ graph TB
 
 ```mermaid
 graph LR
-    subgraph ext["외부 API"]
-        bybit_ws["Bybit WebSocket<br/>(실시간 시세)"]
-        bybit_rest["Bybit REST API<br/>(주문 실행)"]
+    subgraph ext["External API"]
+        bybit_ws["Bybit WebSocket<br/>(real-time price)"]
+        bybit_rest["Bybit REST API<br/>(order execution)"]
         telegram_api["Telegram API"]
         anthropic_api["Anthropic API<br/>(Claude)"]
     end
 
-    subgraph infra["Infrastructure 인프라"]
+    subgraph infra["Infrastructure"]
         pg["PostgreSQL 16<br/>:5432"]
         redis["Redis 7<br/>:6379<br/>Pub/Sub + Cache"]
-        prom["Prometheus<br/>:9090<br/>30일 보존"]
+        prom["Prometheus<br/>:9090<br/>30day retention"]
         node_exp["Node Exporter<br/>:9100"]
         redis_exp["Redis Exporter<br/>:9121"]
     end
 
-    subgraph core["Core 핵심 서비스"]
-        market_data["market-data<br/>시세 수집<br/>+ 레짐 감지"]
-        orchestrator["strategy-orchestrator<br/>전략 조율<br/>+ Kill Switch"]
-        execution["execution-engine<br/>주문 실행<br/>+ 안전 검증"]
+    subgraph core["Core Services"]
+        market_data["market-data<br/>price collection<br/>+ regime detection"]
+        orchestrator["strategy-orchestrator<br/>strategy coordination<br/>+ Kill Switch"]
+        execution["execution-engine<br/>order execution<br/>+ safety validation"]
     end
 
-    subgraph strat["Strategy 전략"]
-        funding["funding-arb<br/>핵심 전략<br/>펀딩비 수취"]
-        dca["adaptive-dca<br/>보조 전략<br/>Fear&Greed DCA"]
+    subgraph strat["Strategy"]
+        funding["funding-arb<br/>core strategy<br/>funding rate income"]
+        dca["adaptive-dca<br/>auxiliary strategy<br/>Fear&Greed DCA"]
     end
 
-    subgraph intel["Intelligence 지능"]
-        llm["llm-advisor<br/>Anthropic SDK<br/>시장 분석"]
+    subgraph intel["Intelligence"]
+        llm["llm-advisor<br/>Anthropic SDK<br/>market analysis"]
     end
 
-    subgraph iface["Interface 인터페이스"]
-        tg_bot["telegram-bot<br/>알림 + 비상 명령"]
-        dash["dashboard<br/>내부:3000<br/>공개:3001"]
+    subgraph iface["Interface"]
+        tg_bot["telegram-bot<br/>alerts + emergency<br/>commands"]
+        dash["dashboard<br/>internal:3000<br/>public:3001"]
         grafana["Grafana<br/>:3002"]
     end
 
@@ -252,23 +252,23 @@ graph LR
 
 ```mermaid
 graph LR
-    subgraph ext["외부"]
+    subgraph ext["External"]
         bybit["Bybit WebSocket<br/>+ REST API"]
     end
     
-    subgraph core["코어 서비스"]
-        md["market-data<br/>시세 수집"]
-        orch["orchestrator<br/>전략 조율"]
-        exec["execution-engine<br/>주문 실행"]
+    subgraph core["Core Services"]
+        md["market-data<br/>price collection"]
+        orch["orchestrator<br/>strategy coordination"]
+        exec["execution-engine<br/>order execution"]
     end
     
-    subgraph strat["전략"]
+    subgraph strat["Strategy"]
         fa["funding-arb"]
         dca["adaptive-dca"]
     end
     
-    subgraph storage["저장소"]
-        pg["PostgreSQL<br/>OHLCV, 펀딩비"]
+    subgraph storage["Storage"]
+        pg["PostgreSQL<br/>OHLCV, funding rate"]
         redis["Redis Pub/Sub"]
     end
     

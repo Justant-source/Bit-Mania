@@ -310,22 +310,22 @@ SYMBOLS = ["BTCUSDT_PERP.A"]  # Bybit notation
 
 ```mermaid
 graph TD
-    A["📝 코드 작성/수정"] --> B{알트코인\n심볼 추가?}
+    A["📝 코드 작성/수정"] --> B{알트코인<br/>심볼 추가?}
     
-    B -->|Yes| C["⚠️ Pre-commit\n검증 실행"]
-    C --> D["grep 검색\nETH, SOL, BNB, XRP"]
-    D --> E{심볼\n발견?}
+    B -->|Yes| C["⚠️ Pre-commit<br/>검증 실행"]
+    C --> D["grep 검색<br/>ETH, SOL, BNB, XRP"]
+    D --> E{심볼<br/>발견?}
     
-    E -->|Yes| F["❌ 빌드 실패\nCI/CD 차단"]
+    E -->|Yes| F["❌ 빌드 실패<br/>CI/CD 차단"]
     E -->|No| G["✅ 통과"]
     
     B -->|No| G
     
-    F --> H["🚫 PR 거부\n또는 커밋 거절"]
-    G --> I["✅ 운영 중\nTelegram 모니터"]
+    F --> H["🚫 PR 거부<br/>또는 커밋 거절"]
+    G --> I["✅ 운영 중<br/>Telegram 모니터"]
     
-    I --> J{자동 거래\n위반?}
-    J -->|Yes| K["🚨 Kill Switch L3\n즉시 청산"]
+    I --> J{자동 거래<br/>위반?}
+    J -->|Yes| K["🚨 Kill Switch L3<br/>즉시 청산"]
     J -->|No| L["✅ 정상 운영"]
     
     style F fill:#f44336,color:#fff
@@ -396,14 +396,14 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
 
 ```mermaid
 flowchart LR
-    A["🔒 현재 정책\nBTC 단독"] --> B["1단계: ADR 작성\n기술 근거"]
-    B --> C["2단계: Phase 4\n테스트넷 4주"]
-    C --> D["3단계: 팀 동의\n기술 검토"]
-    D --> E["4단계: Phase 5\n메인넷 배포"]
-    E --> F["✅ 정책 변경\n완료"]
+    A["🔒 현재 정책<br/>BTC 단독"] --> B["1단계: ADR 작성<br/>기술 근거"]
+    B --> C["2단계: Phase 4<br/>테스트넷 4주"]
+    C --> D["3단계: 팀 동의<br/>기술 검토"]
+    D --> E["4단계: Phase 5<br/>메인넷 배포"]
+    E --> F["✅ 정책 변경<br/>완료"]
     
-    B --> B1["백테스트 검증\n최소 6년 데이터"]
-    B1 --> B2["Sharpe > 2.0\nMDD < 5%"]
+    B --> B1["백테스트 검증<br/>최소 6년 데이터"]
+    B1 --> B2["Sharpe > 2.0<br/>MDD < 5%"]
     B2 --> C
     
     style A fill:#f44336,color:#fff

@@ -30,9 +30,9 @@ when_to_update: |
 
 ```mermaid
 graph TD
-    A["초기 자본: $10,000"] --> B["FA 할당 80%\n$8,000"]
-    B --> C["5배 레버리지\n명목 $40,000"]
-    C --> D["포지션 크기\n0.8 BTC @ $50,000"]
+    A["초기 자본: $10,000"] --> B["FA 할당 80%<br/>$8,000"]
+    B --> C["5배 레버리지<br/>명목 $40,000"]
+    C --> D["포지션 크기<br/>0.8 BTC @ $50,000"]
     
     subgraph Performance["백테스트 성과 2020-2026"]
         E["CAGR: +34.87% ✅"]
@@ -110,7 +110,7 @@ graph TD
         A4["변동성 높음"]
     end
     
-    Baseline --> Decision{"선택 기준"}
+    Baseline --> Decision{선택 기준}
     Conservative --> Decision
     Aggressive --> Decision
     
@@ -161,17 +161,17 @@ graph TD
 
 ```mermaid
 graph TD
-    A["마진비율 계산\n가용 마진 / 유지 마진"] --> B{현재\n비율?}
+    A["마진비율 계산<br/>가용 마진 / 유지 마진"] --> B{현재<br/>비율?}
     
-    B -->|> 10x| C["🟢 안전\n정상 운영"]
-    B -->|5x ~ 10x| D["🟡 경고\nTelegram 알림"]
-    B -->|3x ~ 5x| E["🔴 위험\n포지션 축소 검토"]
-    B -->|< 3x| F["🔴🔴 긴급\n즉시 포지션 축소"]
+    B -->|"&gt; 10x"| C["🟢 안전<br/>정상 운영"]
+    B -->|"5x ~ 10x"| D["🟡 경고<br/>Telegram 알림"]
+    B -->|"3x ~ 5x"| E["🔴 위험<br/>포지션 축소 검토"]
+    B -->|"&lt; 3x"| F["🔴🔴 긴급<br/>즉시 포지션 축소"]
     
-    C --> G["Grafana 모니터링\n실시간 확인"]
+    C --> G["Grafana 모니터링<br/>실시간 확인"]
     D --> G
-    E --> H["리포지셔닝\n25% 축소"]
-    F --> I["전체 청산\nKill Switch 발동"]
+    E --> H["리포지셔닝<br/>25% 축소"]
+    F --> I["전체 청산<br/>Kill Switch 발동"]
     
     style C fill:#4caf50,color:#fff
     style D fill:#ff9800,color:#fff

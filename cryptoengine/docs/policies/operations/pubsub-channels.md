@@ -18,7 +18,7 @@ when_to_update: |
 
 ```mermaid
 graph LR
-    subgraph pub["발행자 (Publishers)"]
+    subgraph pub["Publishers"]
         MD["market-data"]
         FA["funding-arb"]
         DCA["adaptive-dca"]
@@ -26,7 +26,7 @@ graph LR
         ENG["execution-engine"]
     end
 
-    subgraph ch["Redis 채널"]
+    subgraph ch["Redis Channels"]
         C1["market:ohlcv\n:{exchange}:{symbol}:{tf}"]
         C2["market:regime"]
         C3["market:funding:{symbol}"]
@@ -38,7 +38,7 @@ graph LR
         C9["ce:kill_switch:ack"]
     end
 
-    subgraph sub["구독자 (Subscribers)"]
+    subgraph sub["Subscribers"]
         FA2["funding-arb"]
         DCA2["adaptive-dca"]
         ORC2["strategy-orchestrator"]

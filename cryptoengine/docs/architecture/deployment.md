@@ -27,7 +27,7 @@ when_to_update: |
 
 ```mermaid
 graph TB
-    subgraph infra["🏗️ Infrastructure 6개"]
+    subgraph infra["Infrastructure 6개"]
         postgres["postgres:5432"]
         pgbak["pg-backup"]
         redis["redis:6379"]
@@ -36,33 +36,33 @@ graph TB
         rexp["redis-exporter"]
     end
     
-    subgraph core["⚙️ Core 3개"]
+    subgraph core["Core 3개"]
         md["market-data"]
         orch["strategy-orchestrator"]
         exec["execution-engine"]
     end
     
-    subgraph strat["📈 Strategy 2개"]
+    subgraph strat["Strategy 2개"]
         fa["funding-arb"]
         dca["adaptive-dca"]
     end
     
-    subgraph intel["🧠 Intelligence 1개"]
+    subgraph intel["Intelligence 1개"]
         llm["llm-advisor"]
     end
     
-    subgraph iface["🖥️ Interface 3개"]
+    subgraph iface["Interface 3개"]
         tg["telegram-bot"]
         dash["dashboard"]
         graf["grafana:3002"]
     end
     
-    subgraph analysis["📊 Analysis 2개"]
+    subgraph analysis["Analysis 2개"]
         bt["backtester"]
         wf["wf-scheduler"]
     end
     
-    subgraph util["⚙️ Utility 1개"]
+    subgraph util["Utility 1개"]
         logret["log-retention"]
     end
     
@@ -200,15 +200,15 @@ redis (healthy) ──── market-data, strategy-orchestrator
 
 ```mermaid
 graph LR
-    env[".env 파일"] --> bybit["Bybit API<br/>API_KEY<br/>API_SECRET<br/>TESTNET"]
-    env --> external["외부 API<br/>COINGLASS_KEY<br/>ANTHROPIC_KEY<br/>TELEGRAM_TOKEN"]
-    env --> db["데이터베이스<br/>DB_PASSWORD"]
-    env --> optional["선택적<br/>REDIS_URL<br/>LOG_LEVEL<br/>PORT 설정"]
+    env[".env file"] --> bybit["Bybit API<br/>API_KEY<br/>API_SECRET<br/>TESTNET"]
+    env --> external["External API<br/>COINGLASS_KEY<br/>ANTHROPIC_KEY<br/>TELEGRAM_TOKEN"]
+    env --> db["Database<br/>DB_PASSWORD"]
+    env --> optional["Optional<br/>REDIS_URL<br/>LOG_LEVEL<br/>PORT setting"]
     
-    bybit -->|"market-data<br/>execution-engine"| services["서비스들"]
+    bybit -->|"market-data<br/>execution-engine"| services["Services"]
     external -->|"market-data<br/>llm-advisor<br/>telegram-bot"| services
-    db -->|"모든 서비스"| services
-    optional -->|"런타임 설정"| services
+    db -->|"all services"| services
+    optional -->|"runtime config"| services
     
     style env fill:#FFF3E0
     style bybit fill:#FFEBEE
@@ -295,25 +295,25 @@ vim config/orchestrator.yaml  # max_daily_drawdown_pct 값 수정
 
 ```mermaid
 graph TB
-    subgraph host["WSL Ubuntu 호스트"]
-        subgraph internal["Docker 내부 브리지 네트워크"]
+    subgraph host["WSL Ubuntu Host"]
+        subgraph internal["Docker Bridge Network"]
             postgres["postgres:5432"]
             redis["redis:6379"]
-            services["모든 서비스들<br/>컨테이너 이름으로<br/>상호 통신"]
+            services["All services<br/>Container names<br/>mutual communication"]
         end
         
-        subgraph exposed["호스트 포트 바인딩"]
-            p1["3000 - dashboard<br/>내부"]
-            p2["3001 - dashboard<br/>공개"]
+        subgraph exposed["Host Port Bindings"]
+            p1["3000 - dashboard<br/>internal"]
+            p2["3001 - dashboard<br/>public"]
             p3["3002 - grafana"]
-            p4["5432 - postgres<br/>개발용"]
-            p5["6379 - redis<br/>개발용"]
+            p4["5432 - postgres<br/>dev"]
+            p5["6379 - redis<br/>dev"]
             p6["9090 - prometheus"]
         end
     end
     
-    postgres -.->|"컨테이너명"| services
-    redis -.->|"컨테이너명"| services
+    postgres -.->|"container name"| services
+    redis -.->|"container name"| services
     p1 --> services
     p2 --> services
     p3 --> services
@@ -382,40 +382,40 @@ graph TB
 
 ```mermaid
 graph TB
-    subgraph ext["외부 API"]
+    subgraph ext["External API"]
         bybit["Bybit<br/>API"]
         telegram["Telegram<br/>API"]
         anthropic["Anthropic<br/>API"]
     end
 
-    subgraph host["WSL Ubuntu 호스트"]
+    subgraph host["WSL Ubuntu Host"]
         subgraph compose["Docker Compose Stack"]
-            subgraph infra["인프라 Infrastructure"]
+            subgraph infra["Infrastructure"]
                 pg["postgres<br/>:5432"]
                 redis["redis<br/>:6379"]
             end
 
-            subgraph core["코어 서비스 Core"]
+            subgraph core["Core Services"]
                 md["market-data"]
                 orch["orchestrator"]
                 exec["execution-engine"]
             end
 
-            subgraph strat["전략 서비스 Strategy"]
+            subgraph strat["Strategy Services"]
                 farb["funding-arb"]
                 dca["adaptive-dca"]
             end
 
-            subgraph intel["인텔리전스 Intelligence"]
+            subgraph intel["Intelligence"]
                 llm["llm-advisor"]
             end
 
-            subgraph iface["인터페이스 Interface"]
+            subgraph iface["Interface"]
                 tbot["telegram-bot"]
                 dash["dashboard<br/>:3000/3001"]
             end
 
-            subgraph obs["모니터링 Observability"]
+            subgraph obs["Observability"]
                 prom["prometheus<br/>:9090"]
                 grafana["grafana<br/>:3002"]
                 nexp["node-exporter"]
@@ -423,7 +423,7 @@ graph TB
             end
         end
 
-        subgraph vols["영구 볼륨<br/>Named Volumes"]
+        subgraph vols["Named Volumes"]
             pgdata["pgdata"]
             redisdata["redisdata"]
             grafana_data["grafana-data"]
