@@ -45,12 +45,34 @@
   ],
   "panels": [
     {
+      "id": 200,
+      "type": "text",
+      "title": "LLM 분석 수동 실행",
+      "description": "버튼을 클릭하면 즉시 LLM 분석을 시작합니다 (완료까지 약 5~20분)",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;align-items:center;justify-content:space-between;height:100%;padding:8px 16px;box-sizing:border-box\">\n  <div style=\"display:flex;align-items:center;gap:16px\">\n    <button onclick=\"(function(){var btn=this;btn.disabled=true;btn.textContent='⏳ 분석 시작 중...';fetch('http://localhost:8091/trigger').then(function(r){return r.text()}).then(function(){btn.textContent='✅ 분석 시작됨';setTimeout(function(){btn.disabled=false;btn.textContent='🔍 LLM 분석 즉시 실행';},5000)}).catch(function(){btn.disabled=false;btn.textContent='❌ 연결 실패 — 재시도';});}).call(this)\"\n            style=\"background:#e94560;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;transition:opacity .2s\"\n            onmouseover=\"this.style.opacity='.85'\" onmouseout=\"this.style.opacity='1'\">\n      🔍 LLM 분석 즉시 실행\n    </button>\n    <span style=\"color:#aaa;font-size:13px\">다음 정기 분석까지 기다리지 않고 즉시 실행합니다</span>\n  </div>\n  <a href=\"http://localhost:8091/status\" target=\"_blank\"\n     style=\"color:#666;font-size:12px;text-decoration:none\">\n    📊 마지막 분석 시각 확인\n  </a>\n</div>"
+      },
+      "transparent": false,
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "pluginVersion": "10.4.14"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 3
       },
       "id": 100,
       "title": "최신 LLM 판단 요약",
@@ -115,7 +137,7 @@
         "h": 6,
         "w": 5,
         "x": 0,
-        "y": 1
+        "y": 4
       },
       "id": 1,
       "options": {
@@ -187,7 +209,7 @@
         "h": 6,
         "w": 4,
         "x": 5,
-        "y": 1
+        "y": 4
       },
       "id": 2,
       "options": {
@@ -255,7 +277,7 @@
         "h": 6,
         "w": 5,
         "x": 9,
-        "y": 1
+        "y": 4
       },
       "id": 3,
       "options": {
@@ -318,7 +340,7 @@
         "h": 6,
         "w": 5,
         "x": 14,
-        "y": 1
+        "y": 4
       },
       "id": 4,
       "options": {
@@ -394,7 +416,7 @@
         "h": 6,
         "w": 5,
         "x": 19,
-        "y": 1
+        "y": 4
       },
       "id": 5,
       "options": {
@@ -432,7 +454,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 10
       },
       "id": 101,
       "title": "최신 LLM 리포트",
@@ -555,7 +577,7 @@
         "h": 8,
         "w": 18,
         "x": 0,
-        "y": 8
+        "y": 11
       },
       "id": 11,
       "options": {
@@ -593,7 +615,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 8
+        "y": 11
       },
       "id": 12,
       "options": {
@@ -714,7 +736,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 19
       },
       "id": 6,
       "options": {
@@ -751,7 +773,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 31
       },
       "id": 102,
       "title": "LLM 판단 이력 & 추이",
@@ -816,7 +838,7 @@
         "h": 6,
         "w": 14,
         "x": 0,
-        "y": 29
+        "y": 32
       },
       "id": 7,
       "options": {
@@ -875,7 +897,7 @@
         "h": 6,
         "w": 10,
         "x": 14,
-        "y": 29
+        "y": 32
       },
       "id": 8,
       "options": {
@@ -911,7 +933,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 38
       },
       "id": 103,
       "title": "판단 정확도 & 이력",
@@ -942,7 +964,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 39
       },
       "id": 9,
       "options": {
@@ -1089,7 +1111,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 39
       },
       "id": 10,
       "options": {

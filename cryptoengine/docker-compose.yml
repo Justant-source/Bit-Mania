@@ -282,6 +282,8 @@ services:
       - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
       - ${HOME}/.claude/settings.json:/home/claude/.claude/settings.json:ro
       - llm-reports:/app/reports
+    ports:
+      - "127.0.0.1:8091:8091"
     deploy:
       resources:
         limits:
@@ -360,6 +362,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,redis-datasource
       GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
+      GF_PANELS_DISABLE_SANITIZE_HTML: "true"
       GF_UNIFIED_ALERTING_ENABLED: "true"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/trading/overview.json
       PHASE5_MODE: ${PHASE5_MODE:-false}

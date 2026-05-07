@@ -19,6 +19,7 @@ from typing import Any
 
 import structlog
 import yaml
+from aiohttp import web
 
 from shared.log_events import *
 from shared.logging_config import setup_logging
@@ -73,6 +74,7 @@ class LLMAdvisorService:
         self._analysis_task: asyncio.Task[None] | None = None
         self._request_task: asyncio.Task[None] | None = None
         self._reflection_task: asyncio.Task[None] | None = None
+        self._http_runner: web.AppRunner | None = None
 
     async def start(self) -> None:
         """Initialize connections and start scheduled tasks."""
@@ -108,6 +110,7 @@ class LLMAdvisorService:
         self._reflection_task = asyncio.create_task(
             self._daily_reflection_loop(), name="daily-reflection"
         )
+        await self._start_http_server()
         log.info(SERVICE_STARTED, message="LLM Advisor 서비스 시작")
 
     async def stop(self) -> None:
@@ -120,12 +123,72 @@ class LLMAdvisorService:
                     await task
                 except asyncio.CancelledError:
                     pass
+        if self._http_runner:
+            await self._http_runner.cleanup()
         await self._context_builder.close()
         if self._redis:
             await self._redis.aclose()
         log.info(SERVICE_STOPPED, message="LLM Advisor 서비스 종료")
         await close_pool()
         await close_log_writer()
+
+    # ── HTTP trigger server ────────────────────────────────────────────
+
+    async def _start_http_server(self) -> None:
+        """Start aiohttp server on port 8090 for manual Grafana trigger."""
+        app = web.Application()
+        app.router.add_get("/trigger", self._http_trigger)
+        app.router.add_get("/status", self._http_status)
+
+        self._http_runner = web.AppRunner(app)
+        await self._http_runner.setup()
+        site = web.TCPSite(self._http_runner, "0.0.0.0", 8091)
+        await site.start()
+        log.info(SERVICE_STARTED, message="LLM HTTP trigger server 시작 (port 8091)")
+
+    async def _http_trigger(self, request: web.Request) -> web.Response:
+        """Publish on-demand analysis request to Redis and return HTML feedback."""
+        await self._redis.publish(
+            REQUEST_CHANNEL,
+            json.dumps({"trigger": "manual", "source": "grafana"}),
+        )
+        log.info(LLM_ANALYSIS_START, message="수동 분석 요청 수신 (Grafana)", trigger="manual")
+        html = """<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>LLM 분석</title>
+<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+.box{text-align:center;background:#16213e;padding:40px;border-radius:12px;border:1px solid #0f3460}
+h2{color:#e94560;margin-bottom:10px}p{color:#aaa}
+a{color:#e94560;text-decoration:none;margin-top:20px;display:inline-block}</style>
+</head>
+<body><div class="box">
+<h2>✅ 분석 시작됨</h2>
+<p>LLM 분석이 백그라운드에서 실행 중입니다.<br>완료까지 약 5~20분 소요됩니다.</p>
+<p>결과는 Grafana <strong>LLM Intelligence</strong> 대시보드에서 확인하세요.</p>
+<a href="javascript:window.close()">창 닫기</a>
+</div></body></html>"""
+        return web.Response(text=html, content_type="text/html")
+
+    async def _http_status(self, request: web.Request) -> web.Response:
+        """Return last analysis timestamp from DB."""
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT created_at, rating, confidence FROM llm_reports "
+                    "ORDER BY created_at DESC LIMIT 1"
+                )
+            if row:
+                data = {
+                    "last_analysis": row["created_at"].isoformat(),
+                    "rating": row["rating"],
+                    "confidence": float(row["confidence"] or 0),
+                }
+            else:
+                data = {"last_analysis": None, "rating": None, "confidence": None}
+        except Exception as exc:
+            data = {"error": str(exc)}
+        return web.json_response(data)
 
     async def _scheduled_analysis_loop(self) -> None:
         """Run full analysis every 6 hours."""
