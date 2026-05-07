@@ -1,11 +1,15 @@
 {
   "title": "Strategies & Positions",
   "uid": "ce-strategies-positions",
-  "tags": ["cryptoengine", "strategy", "positions"],
+  "tags": [
+    "cryptoengine",
+    "strategy",
+    "positions"
+  ],
   "timezone": "Asia/Seoul",
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "time": {
     "from": "now-7d",
     "to": "now"
@@ -101,7 +105,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH strategy_pnl AS (\n  SELECT\n    strategy_id,\n    COALESCE(SUM(pnl), 0) AS total_pnl,\n    COUNT(*) AS trade_count\n  FROM trades\n  WHERE filled_at IS NOT NULL\n  GROUP BY strategy_id\n),\nstrategy_state AS (\n  SELECT DISTINCT ON (strategy_id)\n    strategy_id, allocated_capital, current_pnl\n  FROM strategy_states\n  ORDER BY strategy_id, updated_at DESC\n)\nSELECT\n  s.strategy_id,\n  COALESCE(s.allocated_capital, 0) AS allocated_capital,\n  COALESCE(s.current_pnl, 0) AS unrealized_pnl,\n  COALESCE(p.total_pnl, 0) AS realized_pnl_total,\n  COALESCE(p.trade_count, 0) AS trade_count\nFROM strategy_state s\nLEFT JOIN strategy_pnl p ON s.strategy_id = p.strategy_id\nORDER BY s.strategy_id"
+          "rawSql": "SELECT\n  s.strategy_id,\n  COALESCE(s.allocated_capital, 0) AS allocated_capital,\n  COALESCE(s.current_pnl, 0) AS total_pnl,\n  s.position_count AS trade_count,\n  s.is_running\nFROM strategy_states s\nORDER BY s.strategy_id"
         }
       ],
       "fieldConfig": {
@@ -238,7 +242,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT regime FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+          "rawSql": "SELECT new_regime FROM regime_transitions WHERE confirmed = TRUE ORDER BY confirmed_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -247,37 +251,22 @@
             {
               "type": "value",
               "options": {
-                "RANGING": {
+                "ranging": {
                   "color": "#757575",
                   "index": 0,
                   "text": "RANGING"
-                }
-              }
-            },
-            {
-              "type": "value",
-              "options": {
-                "TRENDING_UP": {
+                },
+                "trending_up": {
                   "color": "#2E7D32",
                   "index": 1,
-                  "text": "TRENDING_UP"
-                }
-              }
-            },
-            {
-              "type": "value",
-              "options": {
-                "TRENDING_DOWN": {
+                  "text": "TRENDING UP"
+                },
+                "trending_down": {
                   "color": "#C62828",
                   "index": 2,
-                  "text": "TRENDING_DOWN"
-                }
-              }
-            },
-            {
-              "type": "value",
-              "options": {
-                "VOLATILE": {
+                  "text": "TRENDING DOWN"
+                },
+                "volatile": {
                   "color": "#6A1B9A",
                   "index": 3,
                   "text": "VOLATILE"
@@ -325,7 +314,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT confidence * 100 AS confidence_pct FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+          "rawSql": "SELECT confidence * 100 AS confidence_pct FROM regime_transitions WHERE confirmed = TRUE ORDER BY confirmed_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -377,7 +366,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT adx FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+          "rawSql": "SELECT (indicators->>'adx')::float AS adx FROM regime_transitions WHERE confirmed = TRUE AND indicators IS NOT NULL ORDER BY confirmed_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -429,7 +418,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT bb_width FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+          "rawSql": "SELECT (indicators->>'bb_width')::float AS bb_width FROM regime_transitions WHERE confirmed = TRUE AND indicators IS NOT NULL ORDER BY confirmed_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -481,7 +470,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT collected_at AS time, rate * 100 AS funding_rate_pct FROM funding_rates WHERE collected_at >= NOW() - INTERVAL '7 days' ORDER BY collected_at"
+          "rawSql": "SELECT collected_at AS time, rate * 100 AS funding_rate_pct FROM funding_rates WHERE symbol='BTCUSDT' AND collected_at >= NOW() - INTERVAL '7 days' ORDER BY collected_at"
         }
       ],
       "fieldConfig": {
@@ -528,7 +517,7 @@
     },
     {
       "id": 8,
-      "title": "다음 펀딩까지",
+      "title": "현재 펀딩비율 (연환산)",
       "type": "stat",
       "gridPos": {
         "x": 18,
@@ -544,21 +533,39 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT EXTRACT(EPOCH FROM (next_funding_time - NOW())) AS seconds_to_next FROM funding_rates ORDER BY collected_at DESC LIMIT 1"
+          "rawSql": "SELECT rate * 3 * 365 * 100 AS annualized_pct FROM funding_rates WHERE symbol='BTCUSDT' ORDER BY collected_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "percent",
+          "decimals": 1,
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 0
+              },
+              {
+                "color": "#2E7D32",
+                "value": 25
+              }
+            ]
           }
         }
       },
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "text": {},
         "textMode": "auto"
       }
@@ -581,13 +588,14 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT condition_name, is_met, current_value, threshold, CASE WHEN is_met THEN '✓' ELSE '✗' END AS status FROM fa_entry_conditions ORDER BY condition_order"
+          "rawSql": "SELECT * FROM (\n  SELECT 1 AS sort_order,\n    '① 펀딩비율 ≥ 임계값' AS \"진입 조건\",\n    ROUND((rate * 100)::numeric, 4) || '% / 8h' AS \"현재값\",\n    '0.0120% / 8h (연 25%)' AS \"임계값\",\n    CASE WHEN rate >= 0.00012 THEN '✅ 충족'\n      ELSE '❌ 미충족 (연 ' || ROUND((rate * 3 * 365 * 100)::numeric, 1) || '% < 25%)'\n    END AS \"상태\"\n  FROM (SELECT rate FROM funding_rates WHERE symbol = 'BTCUSDT' ORDER BY collected_at DESC LIMIT 1) latest\n\n  UNION ALL\n\n  SELECT 2, '② 연속 4틱 초과',\n    (SELECT SUM(CASE WHEN rate >= 0.00012 THEN 1 ELSE 0 END) FROM (SELECT rate FROM funding_rates WHERE symbol='BTCUSDT' ORDER BY collected_at DESC LIMIT 4) r)::text || ' / 4',\n    '4 연속', '❌ 미충족 (실시간 카운터는 전략 내부)'\n\n  UNION ALL\n\n  SELECT 3, '③ BEP 순수익성 (2사이클)',\n    ROUND((rate * 150 * 5 * 2)::numeric, 4) || ' - ' || ROUND((150 * 0.00130 * 2)::numeric, 4) || ' USDT',\n    '> 0 USDT',\n    CASE WHEN (rate * 150 * 5 * 2 - 150 * 0.00130 * 2) > 0 THEN '✅ 충족'\n      ELSE '❌ 미충족 (수수료 > 펀딩수익)' END\n  FROM (SELECT rate FROM funding_rates WHERE symbol = 'BTCUSDT' ORDER BY collected_at DESC LIMIT 1) latest\n\n  UNION ALL\n\n  SELECT 4, '④ 빈 포지션 슬롯',\n    (SELECT COUNT(*) FROM positions WHERE closed_at IS NULL AND strategy_id='funding_arb')::text || ' / 1',\n    '< 1',\n    CASE WHEN (SELECT COUNT(*) FROM positions WHERE closed_at IS NULL AND strategy_id='funding_arb') < 1\n      THEN '✅ 충족 (빈 슬롯)' ELSE '❌ 미충족' END\n\n  UNION ALL\n\n  SELECT 5, '⑤ Kill Switch 비활성',\n    CASE WHEN EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN '활성 (차단)' ELSE '비활성 (정상)' END,\n    '비활성',\n    CASE WHEN NOT EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL)\n      THEN '✅ 충족' ELSE '❌ 미충족' END\n) sub ORDER BY sort_order"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "none",
           "custom": {
-            "align": "auto",
+            "align": "left",
             "cellOptions": {
               "type": "auto"
             }
@@ -597,7 +605,19 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "status"
+              "options": "sort_order"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "상태"
             },
             "properties": [
               {
@@ -610,22 +630,22 @@
                 "id": "mappings",
                 "value": [
                   {
-                    "type": "value",
+                    "type": "regex",
                     "options": {
-                      "✓": {
+                      "pattern": ".*✅.*",
+                      "result": {
                         "color": "#2E7D32",
-                        "index": 0,
-                        "text": "✓"
+                        "index": 0
                       }
                     }
                   },
                   {
-                    "type": "value",
+                    "type": "regex",
                     "options": {
-                      "✗": {
+                      "pattern": ".*❌.*",
+                      "result": {
                         "color": "#C62828",
-                        "index": 1,
-                        "text": "✗"
+                        "index": 1
                       }
                     }
                   }
@@ -633,7 +653,19 @@
               },
               {
                 "id": "custom.width",
-                "value": 60
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "진입 조건"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
               }
             ]
           }
@@ -650,7 +682,7 @@
         },
         "showHeader": true
       },
-      "description": "5개 FA 진입 조건. fa_entry_conditions 테이블 없으면 No Data"
+      "description": "5개 FA 진입 조건 실시간 체크 (funding_rate_history 기반)"
     },
     {
       "id": 10,
@@ -670,7 +702,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  symbol,\n  side,\n  size,\n  entry_price,\n  current_price,\n  unrealized_pnl,\n  CASE WHEN unrealized_pnl IS NOT NULL THEN\n    (unrealized_pnl / NULLIF(size * entry_price / leverage, 0)) * 100\n  ELSE NULL END AS unrealized_pnl_pct,\n  leverage,\n  margin_used,\n  liquidation_price,\n  CASE\n    WHEN side = 'long' THEN\n      ((current_price - liquidation_price) / NULLIF(current_price, 0)) * 100\n    WHEN side = 'short' THEN\n      ((liquidation_price - current_price) / NULLIF(current_price, 0)) * 100\n  END AS liq_distance_pct,\n  EXTRACT(EPOCH FROM (NOW() - opened_at)) / 3600 AS holding_hours\nFROM positions\nWHERE closed_at IS NULL\nORDER BY liq_distance_pct ASC NULLS LAST"
+          "rawSql": "SELECT\n  symbol, side, size, entry_price, current_price, unrealized_pnl,\n  CASE WHEN unrealized_pnl IS NOT NULL AND size > 0 AND entry_price > 0 AND leverage > 0 THEN\n    ROUND((unrealized_pnl / (size * entry_price / leverage) * 100)::numeric, 2)\n  ELSE NULL END AS unrealized_pnl_pct,\n  leverage,\n  ROUND((size * entry_price / NULLIF(leverage, 0))::numeric, 2) AS margin_used,\n  CASE WHEN leverage > 0 THEN\n    CASE WHEN side = 'long' THEN ROUND((entry_price * (1 - 0.9/leverage))::numeric, 2)\n         WHEN side = 'short' THEN ROUND((entry_price * (1 + 0.9/leverage))::numeric, 2)\n    END\n  ELSE NULL END AS est_liq_price,\n  CASE\n    WHEN side = 'long' AND current_price > 0 AND leverage > 0 THEN\n      ROUND(((current_price - entry_price * (1 - 0.9/leverage)) / current_price * 100)::numeric, 2)\n    WHEN side = 'short' AND current_price > 0 AND leverage > 0 THEN\n      ROUND(((entry_price * (1 + 0.9/leverage) - current_price) / current_price * 100)::numeric, 2)\n  END AS liq_distance_pct,\n  ROUND(EXTRACT(EPOCH FROM (NOW() - opened_at)) / 3600, 1) AS holding_hours\nFROM positions\nWHERE closed_at IS NULL\nORDER BY liq_distance_pct ASC NULLS LAST"
         }
       ],
       "fieldConfig": {
@@ -818,7 +850,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "청산까지 거리"
+                "value": "청산까지 거리(추정)"
               },
               {
                 "id": "unit",
@@ -915,7 +947,7 @@
         },
         "showHeader": true
       },
-      "description": "P0 핵심: liq_distance_pct 컬럼이 청산 위험을 셀 배경색으로 즉시 표시. <5% 진적색, 5~10% 적색, 10~20% 황색, ≥20% 녹색"
+      "description": "P0: liq_distance_pct 청산 거리(5x leverage 기준 추정). <5% 진적색, 5~10% 적색, 10~20% 황색, ≥20% 녹색"
     },
     {
       "id": 11,
@@ -935,7 +967,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT DATE(timestamp) AS date, COUNT(*) AS cnt, SUM(amount_usd) AS total, AVG(rate) * 100 AS avg_rate_pct FROM funding_payments WHERE timestamp >= NOW() - INTERVAL '14 days' GROUP BY DATE(timestamp) ORDER BY date DESC"
+          "rawSql": "SELECT\n  DATE(collected_at) AS date,\n  COUNT(*) AS cnt,\n  SUM(payment) AS total,\n  AVG(funding_rate) * 100 AS avg_rate_pct\nFROM funding_payments\nWHERE collected_at >= NOW() - INTERVAL '14 days'\nGROUP BY DATE(collected_at)\nORDER BY date DESC"
         }
       ],
       "fieldConfig": {
@@ -1004,7 +1036,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT timestamp, amount_usd, rate * 100 AS rate_pct, position_size FROM funding_payments ORDER BY timestamp DESC LIMIT 20"
+          "rawSql": "SELECT\n  collected_at AS timestamp,\n  payment AS amount_usd,\n  funding_rate * 100 AS rate_pct,\n  position_size\nFROM funding_payments\nORDER BY collected_at DESC\nLIMIT 20"
         }
       ],
       "fieldConfig": {
@@ -1085,13 +1117,13 @@
     },
     {
       "id": 13,
-      "title": "레짐 타임라인 + 전략 PnL",
-      "type": "timeseries",
+      "title": "레짐 타임라인 (7일)",
+      "type": "state-timeline",
       "gridPos": {
         "x": 0,
         "y": 40,
         "w": 24,
-        "h": 6
+        "h": 8
       },
       "datasource": {
         "uid": "cryptoengine-postgres",
@@ -1099,88 +1131,79 @@
       },
       "targets": [
         {
-          "refId": "regime",
-          "format": "time_series",
-          "rawSql": "SELECT detected_at AS time, CASE regime WHEN 'RANGING' THEN 1 WHEN 'TRENDING_UP' THEN 2 WHEN 'TRENDING_DOWN' THEN -2 WHEN 'VOLATILE' THEN 3 END AS regime_value FROM market_regimes WHERE detected_at >= $__timeFrom AND detected_at <= $__timeTo ORDER BY detected_at"
-        },
-        {
-          "refId": "pnl",
-          "format": "time_series",
-          "rawSql": "SELECT date_trunc('hour', filled_at) AS time, SUM(SUM(pnl)) OVER (ORDER BY date_trunc('hour', filled_at)) AS cumulative_pnl FROM trades WHERE filled_at IS NOT NULL AND filled_at >= $__timeFrom AND filled_at <= $__timeTo GROUP BY 1 ORDER BY 1"
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT confirmed_at AS time, 'Market Regime' AS metric, new_regime AS state\nFROM regime_transitions\nWHERE confirmed = TRUE\n  AND confirmed_at > NOW() - INTERVAL '7 days'\nORDER BY confirmed_at",
+          "editorMode": "code",
+          "rawQuery": true,
+          "datasource": {
+            "uid": "cryptoengine-postgres",
+            "type": "postgres"
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 30,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ranging": {
+                  "color": "#757575",
+                  "index": 0,
+                  "text": "RANGING"
+                },
+                "trending_up": {
+                  "color": "#2E7D32",
+                  "index": 1,
+                  "text": "TRENDING UP"
+                },
+                "trending_down": {
+                  "color": "#C62828",
+                  "index": 2,
+                  "text": "TRENDING DOWN"
+                },
+                "volatile": {
+                  "color": "#6A1B9A",
+                  "index": 3,
+                  "text": "VOLATILE"
+                }
+              }
             }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#757575",
+                "value": null
+              }
+            ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "regime"
-            },
-            "properties": [
-              {
-                "id": "custom.drawStyle",
-                "value": "bars"
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 30
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#757575"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "pnl"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "currencyUSD"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FB8C00"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
+        "alignValue": "left",
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "auto",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
         }
       }
     },
@@ -1202,7 +1225,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT filled_at, strategy_id, symbol, side, order_type, size, entry_price, exit_price, fee, pnl, status FROM trades ORDER BY filled_at DESC LIMIT 50"
+          "rawSql": "SELECT\n  filled_at,\n  strategy_id,\n  symbol,\n  side,\n  order_type,\n  quantity AS size,\n  price AS entry_price,\n  NULL::numeric AS exit_price,\n  fee,\n  pnl,\n  status\nFROM trades\nORDER BY filled_at DESC\nLIMIT 50"
         }
       ],
       "fieldConfig": {

@@ -1,224 +1,527 @@
 {
   "title": "Overview (Mobile)",
   "uid": "ce-overview-mobile",
-  "tags": ["cryptoengine", "mobile"],
+  "tags": [
+    "cryptoengine",
+    "mobile"
+  ],
   "timezone": "Asia/Seoul",
   "refresh": "30s",
   "schemaVersion": 39,
-  "time": {"from": "now-24h", "to": "now"},
-  "templating": {"list": []},
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
   "id": null,
   "editable": true,
   "description": "모바일 긴급 대응 대시보드 — 총자산, 일일PnL, 미실현PnL, Kill Switch, 청산거리, 마진비율, 일일손실한도, 시스템상태",
   "links": [
-    {"title": "Desktop Overview", "url": "/d/ce-overview", "icon": "doc"}
+    {
+      "title": "Desktop Overview",
+      "url": "/d/ce-overview",
+      "icon": "doc"
+    }
   ],
   "panels": [
     {
       "id": 1,
       "title": "총 자산",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 3},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT total_equity_usd AS current_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT total_equity AS current_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "#757575", "value": null}]}
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#757575",
+                "value": null
+              }
+            ]
+          }
         }
       },
-      "options": {"colorMode": "value", "graphMode": "area", "textMode": "value_and_name"}
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      }
     },
     {
       "id": 2,
       "title": "일일 PnL",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 3, "w": 24, "h": 3},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "WITH today_data AS (\n  SELECT total_equity_usd,\n    LAG(total_equity_usd) OVER (ORDER BY snapshot_at) AS prev_equity\n  FROM portfolio_snapshots\n  WHERE snapshot_at >= CURRENT_DATE\n  ORDER BY snapshot_at DESC\n  LIMIT 1\n)\nSELECT COALESCE(total_equity_usd - prev_equity, 0) AS daily_pnl_usd FROM today_data"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 3
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH today_data AS (\n  SELECT total_equity,\n    LAG(total_equity) OVER (ORDER BY snapshot_at) AS prev_equity\n  FROM portfolio_snapshots\n  WHERE snapshot_at >= CURRENT_DATE\n  ORDER BY snapshot_at DESC\n  LIMIT 1\n)\nSELECT COALESCE(total_equity - prev_equity, 0) AS daily_pnl_usd FROM today_data"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [
-            {"color": "#C62828", "value": null},
-            {"color": "#757575", "value": -0.01},
-            {"color": "#2E7D32", "value": 0.01}
-          ]}
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#C62828",
+                "value": null
+              },
+              {
+                "color": "#757575",
+                "value": -0.01
+              },
+              {
+                "color": "#2E7D32",
+                "value": 0.01
+              }
+            ]
+          }
         }
       },
-      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"}
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
     },
     {
       "id": 3,
       "title": "미실현 PnL & 오픈 포지션",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 6, "w": 24, "h": 3},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT COALESCE(SUM(unrealized_pnl), 0) AS total_unrealized_pnl, COUNT(*) AS open_position_count FROM positions WHERE is_open = true"
-      }],
-      "fieldConfig": {
-        "defaults": {"unit": "currencyUSD"},
-        "overrides": [{
-          "matcher": {"id": "byName", "options": "open_position_count"},
-          "properties": [
-            {"id": "unit", "value": "short"},
-            {"id": "displayName", "value": "오픈 포지션"}
-          ]
-        }]
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 3
       },
-      "options": {"colorMode": "value", "graphMode": "none", "textMode": "value_and_name", "orientation": "horizontal"}
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  COALESCE(SUM(current_pnl), 0) AS total_unrealized_pnl,\n  COUNT(*) FILTER (WHERE position_count > 0) AS open_position_count\nFROM strategy_states"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "open_position_count"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "displayName",
+                "value": "오픈 포지션"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      }
     },
     {
       "id": 4,
       "title": "Kill Switch 상태",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 9, "w": 24, "h": 3},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT COALESCE(level, 'NORMAL') AS ks_level FROM kill_switch_events ORDER BY triggered_at DESC LIMIT 1"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 3
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN 'ACTIVE' ELSE 'NORMAL' END AS ks_status"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "#757575", "value": null}]},
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#757575",
+                "value": null
+              }
+            ]
+          },
           "mappings": [
-            {"type": "value", "options": {"NORMAL": {"text": "✓ NORMAL", "color": "#2E7D32", "index": 0}}},
-            {"type": "value", "options": {"ACTIVE": {"text": "ACTIVE", "color": "#B71C1C", "index": 1}}},
-            {"type": "value", "options": {"LEVEL_1": {"text": "🟡 LEVEL 1", "color": "#F9A825", "index": 2}}},
-            {"type": "value", "options": {"LEVEL_2": {"text": "🟠 LEVEL 2", "color": "#FB923C", "index": 3}}},
-            {"type": "value", "options": {"LEVEL_3": {"text": "🔴 LEVEL 3", "color": "#DC2626", "index": 4}}},
-            {"type": "value", "options": {"LEVEL_4": {"text": "💥 LEVEL 4", "color": "#991B1B", "index": 5}}},
-            {"type": "special", "options": {"match": "null", "result": {"text": "NORMAL", "color": "#2E7D32"}}}
+            {
+              "type": "value",
+              "options": {
+                "NORMAL": {
+                  "text": "✓ NORMAL",
+                  "color": "#2E7D32",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "ACTIVE": {
+                  "text": "ACTIVE",
+                  "color": "#B71C1C",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "LEVEL_1": {
+                  "text": "🟡 LEVEL 1",
+                  "color": "#F9A825",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "LEVEL_2": {
+                  "text": "🟠 LEVEL 2",
+                  "color": "#FB923C",
+                  "index": 3
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "LEVEL_3": {
+                  "text": "🔴 LEVEL 3",
+                  "color": "#DC2626",
+                  "index": 4
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "LEVEL_4": {
+                  "text": "💥 LEVEL 4",
+                  "color": "#991B1B",
+                  "index": 5
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "NORMAL",
+                  "color": "#2E7D32"
+                }
+              }
+            }
           ]
         }
       },
-      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"}
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
     },
     {
       "id": 5,
       "title": "청산까지 거리 (최소값)",
       "type": "bargauge",
-      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 4},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT\n  COALESCE(symbol, 'N/A') AS symbol,\n  ROUND(CASE\n    WHEN side = 'long' THEN ((current_price - liquidation_price) / NULLIF(current_price, 0)) * 100\n    WHEN side = 'short' THEN ((liquidation_price - current_price) / NULLIF(current_price, 0)) * 100\n    ELSE 0\n  END, 2) AS liq_distance_pct\nFROM positions\nWHERE is_open = true\nORDER BY liq_distance_pct ASC\nLIMIT 1"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  'N/A' AS symbol,\n  NULL::numeric AS liq_distance_pct\nFROM strategy_states\nWHERE FALSE"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "min": 0,
           "max": 50,
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [
-            {"color": "#B71C1C", "value": null},
-            {"color": "#C62828", "value": 5},
-            {"color": "#F9A825", "value": 10},
-            {"color": "#2E7D32", "value": 20}
-          ]}
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B71C1C",
+                "value": null
+              },
+              {
+                "color": "#C62828",
+                "value": 5
+              },
+              {
+                "color": "#F9A825",
+                "value": 10
+              },
+              {
+                "color": "#2E7D32",
+                "value": 20
+              }
+            ]
+          }
         }
       },
-      "options": {"displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true, "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/liq_distance_pct/"}}
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/liq_distance_pct/"
+        }
+      }
     },
     {
       "id": 6,
       "title": "마진 사용률",
       "type": "gauge",
-      "gridPos": {"x": 0, "y": 16, "w": 24, "h": 4},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT ROUND(\n  (COALESCE(SUM(margin_used), 0) / NULLIFY(NULLIF((SELECT total_equity_usd FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1), 0), 0)) * 100, 1\n) AS margin_ratio FROM positions WHERE is_open = true"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(\n  (COALESCE(SUM(size * entry_price / NULLIF(leverage, 0)), 0)\n   / NULLIF((SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1), 0) * 100\n  )::numeric, 1\n) AS margin_ratio_pct\nFROM positions WHERE closed_at IS NULL"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "min": 0,
           "max": 100,
-          "thresholds": {"mode": "absolute", "steps": [
-            {"color": "#2E7D32", "value": null},
-            {"color": "#F9A825", "value": 50},
-            {"color": "#C62828", "value": 70},
-            {"color": "#B71C1C", "value": 85}
-          ]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 50
+              },
+              {
+                "color": "#C62828",
+                "value": 70
+              },
+              {
+                "color": "#B71C1C",
+                "value": 85
+              }
+            ]
+          }
         }
       },
-      "options": {"showThresholdLabels": false, "showThresholdMarkers": true}
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      }
     },
     {
       "id": 7,
       "title": "일일 손실 한도 진행도 ($-10)",
       "type": "bargauge",
-      "gridPos": {"x": 0, "y": 20, "w": 24, "h": 4},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "WITH today_pnl AS (\n  SELECT\n    (SELECT total_equity_usd FROM portfolio_snapshots WHERE snapshot_at >= CURRENT_DATE ORDER BY snapshot_at ASC LIMIT 1) AS day_start,\n    (SELECT total_equity_usd FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1) AS current_eq\n)\nSELECT ROUND(\n  CASE WHEN current_eq - day_start < 0 THEN (ABS(current_eq - day_start) / 10.0) * 100 ELSE 0 END, 1\n) AS loss_limit_progress_pct\nFROM today_pnl"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 4
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH today_pnl AS (\n  SELECT\n    (SELECT total_equity FROM portfolio_snapshots WHERE snapshot_at >= CURRENT_DATE ORDER BY snapshot_at ASC LIMIT 1) AS day_start,\n    (SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1) AS current_eq\n)\nSELECT ROUND(\n  CASE WHEN current_eq - day_start < 0 THEN (ABS(current_eq - day_start) / 10.0) * 100 ELSE 0 END, 1\n) AS loss_limit_progress_pct\nFROM today_pnl"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "min": 0,
           "max": 100,
-          "thresholds": {"mode": "absolute", "steps": [
-            {"color": "#2E7D32", "value": null},
-            {"color": "#F9A825", "value": 50},
-            {"color": "#C62828", "value": 70},
-            {"color": "#B71C1C", "value": 90}
-          ]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 50
+              },
+              {
+                "color": "#C62828",
+                "value": 70
+              },
+              {
+                "color": "#B71C1C",
+                "value": 90
+              }
+            ]
+          }
         }
       },
-      "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/loss_limit_progress_pct/"}}
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/loss_limit_progress_pct/"
+        }
+      }
     },
     {
       "id": 8,
       "title": "시스템 상태",
       "type": "stat",
-      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 2},
-      "datasource": {"uid": "cryptoengine-postgres"},
-      "targets": [{
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true,
-        "rawSql": "SELECT\n  service,\n  EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::int AS last_seen_sec\nFROM service_logs\nWHERE timestamp > NOW() - INTERVAL '1 hour'\nGROUP BY service\nORDER BY service"
-      }],
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 2
+      },
+      "datasource": {
+        "uid": "cryptoengine-postgres"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  service,\n  EXTRACT(EPOCH FROM (NOW() - MAX(timestamp)))::int AS last_seen_sec\nFROM service_logs\nWHERE timestamp > NOW() - INTERVAL '1 hour'\nGROUP BY service\nORDER BY service"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "thresholds": {"mode": "absolute", "steps": [
-            {"color": "#2E7D32", "value": null},
-            {"color": "#F9A825", "value": 120},
-            {"color": "#C62828", "value": 300}
-          ]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2E7D32",
+                "value": null
+              },
+              {
+                "color": "#F9A825",
+                "value": 120
+              },
+              {
+                "color": "#C62828",
+                "value": 300
+              }
+            ]
+          }
         }
       },
-      "options": {"colorMode": "background", "graphMode": "none", "textMode": "name", "orientation": "horizontal"},
-      "links": [{"title": "Desktop Overview", "url": "/d/ce-overview"}]
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "orientation": "horizontal"
+      },
+      "links": [
+        {
+          "title": "Desktop Overview",
+          "url": "/d/ce-overview"
+        }
+      ]
     }
-  ]
+  ],
+  "version": 2
 }

@@ -1,11 +1,15 @@
 {
   "title": "Overview",
   "uid": "ce-overview",
-  "tags": ["cryptoengine", "overview", "p0"],
+  "tags": [
+    "cryptoengine",
+    "overview",
+    "p0"
+  ],
   "timezone": "Asia/Seoul",
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "description": "CryptoEngine 트레이딩 시스템 종합 대시보드. Hero KPI + Risk Status + 자산 곡선 + 전략 분석",
   "time": {
     "from": "now-24h",
@@ -88,7 +92,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH latest AS (SELECT total_equity AS total_equity_usd, snapshot_at FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1), yesterday AS (SELECT total_equity AS total_equity_usd FROM portfolio_snapshots WHERE snapshot_at <= NOW() - INTERVAL '24 hours' ORDER BY snapshot_at DESC LIMIT 1) SELECT l.total_equity_usd AS current_equity, l.total_equity_usd - y.total_equity_usd AS delta_24h_usd, ((l.total_equity_usd - y.total_equity_usd) / NULLIF(y.total_equity_usd, 0)) * 100 AS delta_24h_pct FROM latest l, yesterday y"
+          "rawSql": "WITH latest AS (SELECT total_equity AS total_equity, snapshot_at FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1), yesterday AS (SELECT total_equity AS total_equity FROM portfolio_snapshots WHERE snapshot_at <= NOW() - INTERVAL '24 hours' ORDER BY snapshot_at DESC LIMIT 1) SELECT l.total_equity AS current_equity, l.total_equity - y.total_equity AS delta_24h_usd, ((l.total_equity - y.total_equity) / NULLIF(y.total_equity, 0)) * 100 AS delta_24h_pct FROM latest l, yesterday y"
         }
       ],
       "fieldConfig": {
@@ -146,7 +150,9 @@
         "graphMode": "area",
         "colorMode": "value",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "/^current_equity$/"
         }
       },
@@ -169,7 +175,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT daily_pnl AS daily_pnl_usd, daily_return AS daily_return_pct FROM daily_reports WHERE date = CURRENT_DATE LIMIT 1"
+          "rawSql": "SELECT COALESCE(realized_pnl_today, 0) AS daily_pnl_usd, COALESCE(daily_drawdown * 100, 0) AS daily_return_pct FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -201,7 +207,9 @@
         "colorMode": "background",
         "graphMode": "none",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "/^daily_pnl_usd$/"
         }
       },
@@ -256,7 +264,9 @@
         "colorMode": "background",
         "graphMode": "none",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "/^mtd_pnl_usd$/"
         }
       },
@@ -279,7 +289,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(unrealized_pnl), 0) AS total_unrealized_pnl, COUNT(*) AS open_position_count FROM positions WHERE closed_at IS NULL"
+          "rawSql": "SELECT\n  COALESCE(SUM(current_pnl), 0) AS total_unrealized_pnl,\n  COUNT(*) FILTER (WHERE position_count > 0) AS open_position_count\nFROM strategy_states"
         }
       ],
       "fieldConfig": {
@@ -330,7 +340,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT level FROM kill_switch_events ORDER BY triggered_at DESC LIMIT 1"
+          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM kill_switch_events WHERE resolved_at IS NULL) THEN 'ACTIVE' ELSE 'NORMAL' END AS ks_status"
         }
       ],
       "fieldConfig": {
@@ -404,7 +414,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT symbol, side, CASE WHEN side = 'long' THEN ((current_price - liquidation_price) / NULLIF(current_price, 0)) * 100 WHEN side = 'short' THEN ((liquidation_price - current_price) / NULLIF(current_price, 0)) * 100 END AS liq_distance_pct FROM positions WHERE closed_at IS NULL ORDER BY liq_distance_pct ASC NULLS LAST LIMIT 1"
+          "rawSql": "SELECT\n  'N/A' AS symbol,\n  NULL::numeric AS liq_distance_pct\nFROM strategy_states\nWHERE FALSE"
         }
       ],
       "fieldConfig": {
@@ -443,7 +453,9 @@
         "orientation": "horizontal",
         "showUnfilled": true,
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "/liq_distance_pct/"
         }
       },
@@ -466,7 +478,7 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "WITH margin_calc AS (SELECT COALESCE(SUM(unrealized_pnl), 0) as total_unrealized_pnl, (SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1) AS total_equity FROM positions WHERE closed_at IS NULL) SELECT CASE WHEN total_equity > 0 THEN (total_unrealized_pnl / total_equity) * 100 ELSE NULL END AS margin_ratio_pct FROM margin_calc"
+          "rawSql": "SELECT\n  ROUND(\n    (COALESCE(SUM(allocated_capital), 0)\n     / NULLIF((SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1), 0) * 100\n    )::numeric, 1\n  ) AS margin_ratio_pct\nFROM strategy_states"
         }
       ],
       "fieldConfig": {
@@ -561,7 +573,9 @@
         "displayMode": "gradient",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "/loss_limit_progress_pct/"
         }
       },
@@ -629,7 +643,7 @@
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT date_trunc('day', filled_at) AS time, strategy_id AS metric, SUM(SUM(pnl)) OVER (PARTITION BY strategy_id ORDER BY date_trunc('day', filled_at)) AS cumulative_pnl FROM trades WHERE filled_at IS NOT NULL AND filled_at >= NOW() - INTERVAL '30 days' GROUP BY 1, strategy_id ORDER BY 1"
+          "rawSql": "SELECT\n  snapshot_at AS time,\n  strategy_id AS metric,\n  ROUND((current_pnl)::numeric, 2) AS cumulative_pnl\nFROM portfolio_snapshots ps,\n  jsonb_array_elements(strategies) AS elem\nCROSS JOIN LATERAL (\n  SELECT elem->>'strategy_id' AS strategy_id,\n         (elem->>'current_pnl')::numeric AS current_pnl\n) strat\nWHERE $__timeFilter(snapshot_at)\n  AND strategy_id IS NOT NULL\nORDER BY snapshot_at"
         }
       ],
       "fieldConfig": {
@@ -682,16 +696,22 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT 'Cash (USDT)' AS category, ((SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1) - COALESCE(SUM(unrealized_pnl), 0)) AS value FROM positions WHERE closed_at IS NULL UNION ALL SELECT strategy_id, SUM(unrealized_pnl) FROM positions WHERE closed_at IS NULL GROUP BY strategy_id"
+          "rawSql": "SELECT 'Cash (USDT)' AS category,\n  GREATEST(\n    (SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1)\n    - COALESCE((SELECT SUM(allocated_capital) FROM strategy_states), 0),\n    0\n  ) AS value\nUNION ALL\nSELECT strategy_id, COALESCE(allocated_capital, 0)\nFROM strategy_states\nWHERE allocated_capital > 0\nORDER BY category"
         }
       ],
       "options": {
         "pieType": "donut",
-        "displayLabels": ["name", "percent"],
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
         "legend": {
           "displayMode": "table",
           "placement": "right",
-          "values": ["value", "percent"]
+          "values": [
+            "value",
+            "percent"
+          ]
         }
       }
     },
@@ -717,17 +737,17 @@
         {
           "refId": "B",
           "format": "table",
-          "rawSql": "SELECT regime FROM market_regimes ORDER BY detected_at DESC LIMIT 1"
+          "rawSql": "SELECT new_regime FROM regime_transitions WHERE confirmed = TRUE ORDER BY confirmed_at DESC LIMIT 1"
         },
         {
           "refId": "C",
           "format": "table",
-          "rawSql": "SELECT rate * 100 AS funding_rate_pct FROM funding_rates ORDER BY collected_at DESC LIMIT 1"
+          "rawSql": "SELECT rate * 100 AS funding_rate_pct FROM funding_rates WHERE symbol='BTCUSDT' ORDER BY collected_at DESC LIMIT 1"
         },
         {
           "refId": "D",
           "format": "table",
-          "rawSql": "SELECT rating FROM llm_reports ORDER BY analyzed_at DESC LIMIT 1"
+          "rawSql": "SELECT rating FROM llm_reports ORDER BY created_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
