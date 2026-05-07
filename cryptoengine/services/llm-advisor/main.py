@@ -39,6 +39,8 @@ SERVICE_NAME = "llm-advisor"
 ANALYSIS_INTERVAL_HOURS = 6
 REQUEST_CHANNEL = "llm:request"
 ADVISORY_CHANNEL = "llm:advisory"
+ANALYSIS_STATE_KEY = "llm:analysis:state"   # Redis key tracking running analysis
+FORCE_RESTART_THRESHOLD_SEC = 1800          # 30분 초과 시 강제 재시작 허용
 
 
 def _load_config() -> dict[str, Any]:
@@ -75,6 +77,7 @@ class LLMAdvisorService:
         self._request_task: asyncio.Task[None] | None = None
         self._reflection_task: asyncio.Task[None] | None = None
         self._http_runner: web.AppRunner | None = None
+        self._active_analysis: asyncio.Task[None] | None = None  # 현재 실행 중인 분석 태스크
 
     async def start(self) -> None:
         """Initialize connections and start scheduled tasks."""
@@ -138,6 +141,7 @@ class LLMAdvisorService:
         """Start aiohttp server on port 8090 for manual Grafana trigger."""
         app = web.Application()
         app.router.add_get("/trigger", self._http_trigger)
+        app.router.add_get("/force-trigger", self._http_force_trigger)
         app.router.add_get("/status", self._http_status)
 
         self._http_runner = web.AppRunner(app)
@@ -146,28 +150,81 @@ class LLMAdvisorService:
         await site.start()
         log.info(SERVICE_STARTED, message="LLM HTTP trigger server 시작 (port 8091)")
 
+    def _html_page(self, title: str, body: str) -> web.Response:
+        """Return a styled HTML page."""
+        html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>{title}</title>
+<style>
+  body{{font-family:sans-serif;background:#1a1a2e;color:#eee;
+       display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+  .box{{text-align:center;background:#16213e;padding:40px 48px;border-radius:12px;
+        border:1px solid #0f3460;max-width:480px}}
+  h2{{margin-bottom:12px}} p{{color:#aaa;line-height:1.6}}
+  .btn{{display:inline-block;padding:10px 24px;border-radius:6px;
+        text-decoration:none;font-weight:bold;margin-top:16px;margin-right:8px}}
+  .btn-red{{background:#e94560;color:#fff}}
+  .btn-gray{{background:#333;color:#aaa}}
+</style></head>
+<body><div class="box">{body}</div></body></html>"""
+        return web.Response(text=html, content_type="text/html")
+
     async def _http_trigger(self, request: web.Request) -> web.Response:
-        """Publish on-demand analysis request to Redis and return HTML feedback."""
+        """Check if analysis is running; block duplicates, allow force after 30 min."""
+        state_raw = await self._redis.get(ANALYSIS_STATE_KEY)
+
+        if state_raw:
+            try:
+                state = json.loads(state_raw)
+                started_at = datetime.fromisoformat(state["started_at"])
+                elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
+                trigger_label = state.get("trigger", "unknown")
+
+                if elapsed < FORCE_RESTART_THRESHOLD_SEC:
+                    # 30분 미만 → 실행 중 안내, 새 분석 차단
+                    body = f"""<h2>⏳ 분석 진행 중</h2>
+<p>{elapsed_min}분 {elapsed_sec}초 전에 시작한 리포트가 작성 중입니다.<br>
+<small style="color:#555">트리거: {trigger_label}</small></p>
+<p>완료까지 약 5~20분 소요됩니다.<br>Grafana 대시보드에서 결과를 확인하세요.</p>
+<a href="javascript:window.close()" class="btn btn-gray">창 닫기</a>"""
+                    return self._html_page("분석 진행 중", body)
+                else:
+                    # 30분 초과 → 강제 재시작 옵션 제공
+                    body = f"""<h2>⚠️ 분석이 지연되고 있습니다</h2>
+<p>{elapsed_min}분 {elapsed_sec}초 전에 시작한 분석이 아직 완료되지 않았습니다.<br>
+<small style="color:#555">트리거: {trigger_label}</small></p>
+<p>기존 분석을 폐기하고 새로 시작하거나,<br>조금 더 기다릴 수 있습니다.</p>
+<a href="/force-trigger" class="btn btn-red">🔄 폐기 후 새 분석 시작</a>
+<a href="javascript:window.close()" class="btn btn-gray">기다리기</a>"""
+                    return self._html_page("분석 지연", body)
+            except Exception:
+                await self._redis.delete(ANALYSIS_STATE_KEY)
+
+        # 진행 중인 분석 없음 → 새로 시작
         await self._redis.publish(
             REQUEST_CHANNEL,
             json.dumps({"trigger": "manual", "source": "grafana"}),
         )
         log.info(LLM_ANALYSIS_START, message="수동 분석 요청 수신 (Grafana)", trigger="manual")
-        html = """<!DOCTYPE html>
-<html lang="ko">
-<head><meta charset="utf-8"><title>LLM 분석</title>
-<style>body{font-family:sans-serif;background:#1a1a2e;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-.box{text-align:center;background:#16213e;padding:40px;border-radius:12px;border:1px solid #0f3460}
-h2{color:#e94560;margin-bottom:10px}p{color:#aaa}
-a{color:#e94560;text-decoration:none;margin-top:20px;display:inline-block}</style>
-</head>
-<body><div class="box">
-<h2>✅ 분석 시작됨</h2>
+        body = """<h2 style="color:#4ade80">✅ 분석 시작됨</h2>
 <p>LLM 분석이 백그라운드에서 실행 중입니다.<br>완료까지 약 5~20분 소요됩니다.</p>
 <p>결과는 Grafana <strong>LLM Intelligence</strong> 대시보드에서 확인하세요.</p>
-<a href="javascript:window.close()">창 닫기</a>
-</div></body></html>"""
-        return web.Response(text=html, content_type="text/html")
+<a href="javascript:window.close()" class="btn btn-gray">창 닫기</a>"""
+        return self._html_page("분석 시작됨", body)
+
+    async def _http_force_trigger(self, request: web.Request) -> web.Response:
+        """Cancel stuck analysis and start a new one."""
+        await self._redis.publish(
+            REQUEST_CHANNEL,
+            json.dumps({"trigger": "force_manual", "source": "grafana", "force": True}),
+        )
+        log.warning(LLM_API_ERROR, message="강제 재시작 요청 (Grafana)", trigger="force_manual")
+        body = """<h2 style="color:#fb923c">🔄 강제 재시작됨</h2>
+<p>기존 분석을 폐기하고 새 분석을 시작했습니다.<br>완료까지 약 5~20분 소요됩니다.</p>
+<a href="javascript:window.close()" class="btn btn-gray">창 닫기</a>"""
+        return self._html_page("강제 재시작", body)
 
     async def _http_status(self, request: web.Request) -> web.Response:
         """Return last analysis timestamp from DB."""
@@ -228,9 +285,26 @@ a{color:#e94560;text-decoration:none;margin-top:20px;display:inline-block}</styl
                 try:
                     request = json.loads(message["data"])
                     trigger = request.get("trigger", "on_demand")
-                    await self._run_analysis(trigger, request)
+                    force = request.get("force", False)
+
+                    # 강제 재시작: 현재 분석 태스크 취소
+                    if force and self._active_analysis and not self._active_analysis.done():
+                        log.warning(LLM_API_ERROR, message="강제 재시작 — 진행 중 분석 취소")
+                        self._active_analysis.cancel()
+                        try:
+                            await self._active_analysis
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                        await self._redis.delete(ANALYSIS_STATE_KEY)
+
+                    self._active_analysis = asyncio.create_task(
+                        self._run_analysis(trigger, request)
+                    )
+                    await self._active_analysis
                 except json.JSONDecodeError:
                     log.warning(LLM_API_ERROR, message="잘못된 요청 데이터")
+                except asyncio.CancelledError:
+                    pass
                 except Exception:
                     log.exception(LLM_API_ERROR, message="온디맨드 분석 오류")
         except asyncio.CancelledError:
@@ -243,7 +317,23 @@ a{color:#e94560;text-decoration:none;margin-top:20px;display:inline-block}</styl
         self, trigger: str, request: dict[str, Any] | None = None
     ) -> None:
         """Execute the full analysis pipeline, persist report, and publish advisory."""
+        started_at = datetime.now(timezone.utc)
+        await self._redis.set(
+            ANALYSIS_STATE_KEY,
+            json.dumps({"started_at": started_at.isoformat(), "trigger": trigger}),
+            ex=7200,  # 2시간 TTL (비정상 종료 시 자동 만료)
+        )
         log.info(LLM_ANALYSIS_START, message="분석 시작", trigger=trigger)
+        try:
+            await self._run_analysis_inner(trigger, request)
+        finally:
+            await self._redis.delete(ANALYSIS_STATE_KEY)
+            self._active_analysis = None
+
+    async def _run_analysis_inner(
+        self, trigger: str, request: dict[str, Any] | None = None
+    ) -> None:
+        """Internal analysis pipeline (called by _run_analysis)."""
 
         # Gather market context from DB (primary) + Redis (fallback)
         context = await self._gather_market_context()
