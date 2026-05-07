@@ -372,7 +372,7 @@ ls -la cryptoengine/services/jesse_engine/scripts/
 
 ### 3. README 업데이트
 
-[`cryptoengine/services/jesse_engine/scripts/README.md`](../../../../services/jesse_engine/scripts/README.md)에 다음 시점에 반드시 업데이트:
+`cryptoengine/services/jesse_engine/scripts/README.md` (미생성)에 다음 시점에 반드시 업데이트:
 
 - **스크립트 추가** → 테이블에 행 추가
 - **파라미터 변경** → 해당 행 업데이트

@@ -11,24 +11,24 @@ last_updated: 2026-05-02
 
 | 코드 | 문서 |
 |------|------|
-| `services/strategies/base_strategy.py` | [strategies/](strategies/) |
-| `services/strategies/funding-arb/**` | [strategies/funding_arb.md](strategies/funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/strategies/adaptive-dca/**` | [strategies/adaptive_dca.md](strategies/adaptive_dca.md) |
-| `config/strategies/funding-arb.yaml` | [strategies/funding_arb.md](strategies/funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
-| `config/strategies/adaptive-dca.yaml` | [strategies/adaptive_dca.md](strategies/adaptive_dca.md) |
-| `services/jesse_engine/strategies/multi_symbol_funding_arb.py` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/jesse_engine/strategies/cross_exchange_fa.py` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) |
-| `services/jesse_engine/strategies/dynamic_threshold_fa.py` | [strategies/funding_arb.md](strategies/funding_arb.md) |
-| `services/jesse_engine/configs/multi_symbol_fa.yaml` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) |
-| `services/jesse_engine/scripts/data/coinalyze_client.py` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) |
-| `services/jesse_engine/scripts/data/fetch_multi_symbol.py` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) |
-| `services/jesse_engine/scripts/data/fetch_multi_exchange.py` | [adrs/ADR-003-multi-symbol-funding-arb.md](adrs/ADR-003-multi-symbol-funding-arb.md) |
+| `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
+| `services/strategies/funding-arb/**` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/adaptive-dca/**` | [test/strategies/003_adaptive_dca.md](test/strategies/003_adaptive_dca.md) |
+| `config/strategies/funding-arb.yaml` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
+| `config/strategies/adaptive-dca.yaml` | [test/strategies/003_adaptive_dca.md](test/strategies/003_adaptive_dca.md) |
+| `services/jesse_engine/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/jesse_engine/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `services/jesse_engine/strategies/dynamic_threshold_fa.py` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) |
+| `services/jesse_engine/configs/multi_symbol_fa.yaml` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `services/jesse_engine/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `services/jesse_engine/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `services/jesse_engine/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 
 ## 실행 / 주문
 
 | 코드 | 문서 |
 |------|------|
-| `services/execution/**` | [architecture/data-flow.md](architecture/data-flow.md) · [runbook.md](runbook.md) |
+| `services/execution/**` | [architecture/data-flow.md](architecture/data-flow.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
 | `services/orchestrator/**` | [architecture/system-overview.md](architecture/system-overview.md) |
 | `services/market-data/**` | [architecture/data-flow.md](architecture/data-flow.md) · [policies/btc-only.md](policies/btc-only.md) |
 | `services/market-data/collector.py` | [architecture/data-flow.md](architecture/data-flow.md) |
@@ -48,11 +48,11 @@ last_updated: 2026-05-02
 
 | 코드 | 문서 |
 |------|------|
-| `docker-compose.yml` | [structure/services.md](structure/services.md) · [runbook.md](runbook.md) |
+| `docker-compose.yml` | [structure/services.md](structure/services.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
 | `shared/db/migrations/*.sql` | [structure/README.md](structure/README.md) |
 | `shared/db/migrations/012_quarterly_perp_spread.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
 | `shared/db/migrations/013_multi_exchange.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
-| `.env` | [runbook.md](runbook.md) |
+| `.env` | [policies/operations/runbook.md](policies/operations/runbook.md) |
 
 ## 공유 라이브러리
 

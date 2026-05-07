@@ -82,7 +82,7 @@ flowchart TD
 - [ ] 메인넷 API 키 확보 (Bybit 계정 → API 관리)
 - [ ] 메인넷 API 시크릿 확보
 - [ ] Telegram 봇 토큰 확인 (메인넷 전용 봇 권장)
-- [ ] 비상 청산 SOP 휴대폰 저장 ([emergency-manual-close.md](emergency-manual-close.md))
+- [ ] 비상 청산 SOP 휴대폰 저장 ([emergency-manual-close.md](../emergency-manual-close.md))
 
 ---
 
@@ -435,7 +435,7 @@ GO 신호 받으면:
 
 ## 관련 문서
 
-- [../../deployment-position.md](../../deployment-position.md) — 배포 시 포지션 보호
-- [../../kill-switch.md](../../kill-switch.md) — Kill Switch (Phase 5 절대값 AND)
-- [../../emergency-manual-close.md](../../emergency-manual-close.md) — 비상 청산 SOP
+- [../deployment-position.md](../deployment-position.md) — 배포 시 포지션 보호
+- [../kill-switch.md](../kill-switch.md) — Kill Switch (Phase 5 절대값 AND)
+- [../emergency-manual-close.md](../emergency-manual-close.md) — 비상 청산 SOP
 - [deployment-procedure.md](deployment-procedure.md) — Docker 배포 절차

@@ -26,9 +26,9 @@ last_updated: 2026-05-01
 - 서비스 비상 정지: `make emergency` (모든 포지션 청산)
 
 ### Phase 전환
-- Phase 4→5 진입 (메인넷): [scripts/switch_to_mainnet.py](../scripts/switch_to_mainnet.py)
-- 메인넷→테스트넷 롤백: [scripts/switch_to_testnet.py](../scripts/switch_to_testnet.py)
-- 실전 전환 체크: [scripts/phase5_preflight.py](../scripts/phase5_preflight.py) 8개 항목 PASS 필수
+- Phase 4→5 진입 (메인넷): [scripts/switch_to_mainnet.py](../cryptoengine/scripts/switch_to_mainnet.py)
+- 메인넷→테스트넷 롤백: [scripts/switch_to_testnet.py](../cryptoengine/scripts/switch_to_testnet.py)
+- 실전 전환 체크: [scripts/phase5_preflight.py](../cryptoengine/scripts/phase5_preflight.py) 8개 항목 PASS 필수
 - 상세 절차: [policies/operations/mainnet-switch.md](policies/operations/mainnet-switch.md)
 
 ### 백테스트 실행

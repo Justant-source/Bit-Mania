@@ -438,4 +438,4 @@ flowchart LR
 - [leverage-limits.md](leverage-limits.md) — 레버리지 제한 (5x 하드 캡, BTC 기준)
 - [strategies/funding-arb.md](strategies/funding-arb.md) — Funding Arb 전략 (BTCUSDT)
 - [strategies/adaptive-dca.md](strategies/adaptive-dca.md) — Adaptive DCA (BTCUSDT)
-- [ADR/001: BTC Single-Symbol Operations](../archive/CLAUDE_history.md) — 정책 배경 및 근거
+- [ADR/001: BTC 단일 운영 정책](../ADR/001.%20BTC%20단일%20운영%20정책_2026-05-01.md) — 정책 배경 및 근거

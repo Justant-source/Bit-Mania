@@ -534,4 +534,4 @@ class MarketRegime(BaseModel):
 
 - [runbook.md](runbook.md) — 운영 매뉴얼
 - [../kill-switch.md](../kill-switch.md) — Kill Switch 정책
-- [../../strategies/funding-arb.md](../../strategies/funding-arb.md) — Funding Arb 전략
+- [../strategies/funding-arb.md](../strategies/funding-arb.md) — Funding Arb 전략

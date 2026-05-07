@@ -710,4 +710,4 @@ Kill Switch는 자본 보호의 최후 방어선이다. 다음은 절대 금지:
 - [deployment-position.md](deployment-position.md) — 배포 시 포지션 보호
 - [emergency-manual-close.md](emergency-manual-close.md) — 비상 수동 청산 SOP
 - [operations/runbook.md](operations/runbook.md) — Kill Switch 대응 절차
-- [orchestrator.yaml](../../config/orchestrator.yaml) — 설정 파일
+- [orchestrator.yaml](../../cryptoengine/config/orchestrator.yaml) — 설정 파일
