@@ -200,13 +200,13 @@ redis (healthy) ──── market-data, strategy-orchestrator
 
 ```mermaid
 graph LR
-    env[".env file"] --> bybit["Bybit API<br/>API_KEY<br/>API_SECRET<br/>TESTNET"]
-    env --> external["External API<br/>COINGLASS_KEY<br/>ANTHROPIC_KEY<br/>TELEGRAM_TOKEN"]
-    env --> db["Database<br/>DB_PASSWORD"]
-    env --> optional["Optional<br/>REDIS_URL<br/>LOG_LEVEL<br/>PORT setting"]
+    env[".env file"] --> bybit["Bybit API<br>API_KEY<br>API_SECRET<br>TESTNET"]
+    env --> external["External API<br>COINGLASS_KEY<br>ANTHROPIC_KEY<br>TELEGRAM_TOKEN"]
+    env --> db["Database<br>DB_PASSWORD"]
+    env --> optional["Optional<br>REDIS_URL<br>LOG_LEVEL<br>PORT setting"]
     
-    bybit -->|"market-data<br/>execution-engine"| services["Services"]
-    external -->|"market-data<br/>llm-advisor<br/>telegram-bot"| services
+    bybit -->|"market-data<br>execution-engine"| services["Services"]
+    external -->|"market-data<br>llm-advisor<br>telegram-bot"| services
     db -->|"all services"| services
     optional -->|"runtime config"| services
     
@@ -299,15 +299,15 @@ graph TB
         subgraph internal["Docker Bridge Network"]
             postgres["postgres:5432"]
             redis["redis:6379"]
-            services["All services<br/>Container names<br/>mutual communication"]
+            services["All services<br>Container names<br>mutual communication"]
         end
         
         subgraph exposed["Host Port Bindings"]
-            p1["3000 - dashboard<br/>internal"]
-            p2["3001 - dashboard<br/>public"]
+            p1["3000 - dashboard<br>internal"]
+            p2["3001 - dashboard<br>public"]
             p3["3002 - grafana"]
-            p4["5432 - postgres<br/>dev"]
-            p5["6379 - redis<br/>dev"]
+            p4["5432 - postgres<br>dev"]
+            p5["6379 - redis<br>dev"]
             p6["9090 - prometheus"]
         end
     end
@@ -383,16 +383,16 @@ graph TB
 ```mermaid
 graph TB
     subgraph ext["External API"]
-        bybit["Bybit<br/>API"]
-        telegram["Telegram<br/>API"]
-        anthropic["Anthropic<br/>API"]
+        bybit["Bybit<br>API"]
+        telegram["Telegram<br>API"]
+        anthropic["Anthropic<br>API"]
     end
 
     subgraph host["WSL Ubuntu Host"]
         subgraph compose["Docker Compose Stack"]
             subgraph infra["Infrastructure"]
-                pg["postgres<br/>:5432"]
-                redis["redis<br/>:6379"]
+                pg["postgres<br>:5432"]
+                redis["redis<br>:6379"]
             end
 
             subgraph core["Core Services"]
@@ -412,12 +412,12 @@ graph TB
 
             subgraph iface["Interface"]
                 tbot["telegram-bot"]
-                dash["dashboard<br/>:3000/3001"]
+                dash["dashboard<br>:3000/3001"]
             end
 
             subgraph obs["Observability"]
-                prom["prometheus<br/>:9090"]
-                grafana["grafana<br/>:3002"]
+                prom["prometheus<br>:9090"]
+                grafana["grafana<br>:3002"]
                 nexp["node-exporter"]
                 rexp["redis-exporter"]
             end

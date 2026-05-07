@@ -47,15 +47,15 @@ CryptoEngine은 **dev/stage 환경 없이 prod에 직접 배포**한다. 따라�
 ```mermaid
 flowchart TD
     STOP["서비스 종료/재시작"] --> WHY{종료 사유?}
-    WHY -->|service_shutdown<br/>배포·재시작| A["포지션 유지<br/>Redis에 상태 저장<br/>TTL 1시간"]
-    WHY -->|kill_switch| B["즉시 청산<br/>긴급 상황"]
-    WHY -->|funding_reversal| C["즉시 청산<br/>펀딩비 음수 전환"]
-    WHY -->|basis_divergence_risk| D["즉시 청산<br/>스프레드 과도 확대"]
-    WHY -->|basis_convergence| E["청산<br/>수익 실현"]
+    WHY -->|service_shutdown<br>배포·재시작| A["포지션 유지<br>Redis에 상태 저장<br>TTL 1시간"]
+    WHY -->|kill_switch| B["즉시 청산<br>긴급 상황"]
+    WHY -->|funding_reversal| C["즉시 청산<br>펀딩비 음수 전환"]
+    WHY -->|basis_divergence_risk| D["즉시 청산<br>스프레드 과도 확대"]
+    WHY -->|basis_convergence| E["청산<br>수익 실현"]
 
-    A --> A2{TTL 1시간<br/>이내 재시작?}
-    A2 -->|Yes| A3["포지션 자동 복구<br/>✅ 수수료 절약"]
-    A2 -->|No 1시간 초과| A4["⚠️ 복구 불가<br/>거래소 잔여 포지션<br/>수동 청산 필요"]
+    A --> A2{TTL 1시간<br>이내 재시작?}
+    A2 -->|Yes| A3["포지션 자동 복구<br>✅ 수수료 절약"]
+    A2 -->|No 1시간 초과| A4["⚠️ 복구 불가<br>거래소 잔여 포지션<br>수동 청산 필요"]
 
     style A fill:#e8f5e9,stroke:#4caf50
     style B fill:#ffcdd2,stroke:#f44336
@@ -108,16 +108,16 @@ else:
 
 ```mermaid
 flowchart TD
-    A["1. 코드 수정<br/>git commit"] --> B["2. 이미지 빌드<br/>docker compose build"]
-    B --> C["3. 서비스 재시작<br/>docker compose up -d"]
-    C --> D["Redis 저장<br/>strategy:saved_state"]
+    A["1. 코드 수정<br>git commit"] --> B["2. 이미지 빌드<br>docker compose build"]
+    B --> C["3. 서비스 재시작<br>docker compose up -d"]
+    C --> D["Redis 저장<br>strategy:saved_state"]
     D --> E["1시간 내 재시작?"]
-    E -->|Yes| F["✅ 포지션 자동 복구<br/>1-2분 대기"]
-    E -->|No| G["❌ TTL 만료<br/>수동 청산 필요"]
-    F --> H["4. 복구 확인<br/>grep 복구"]
-    H --> I["5. 운영 확인<br/>docker ps"]
-    I --> J["✅ 배포 완료<br/>정상 운영"]
-    G --> K["⚠️ 거래소 수동 청산<br/>BTC-only.md 참조"]
+    E -->|Yes| F["✅ 포지션 자동 복구<br>1-2분 대기"]
+    E -->|No| G["❌ TTL 만료<br>수동 청산 필요"]
+    F --> H["4. 복구 확인<br>grep 복구"]
+    H --> I["5. 운영 확인<br>docker ps"]
+    I --> J["✅ 배포 완료<br>정상 운영"]
+    G --> K["⚠️ 거래소 수동 청산<br>BTC-only.md 참조"]
     
     style J fill:#4caf50,color:#fff
     style K fill:#f44336,color:#fff
@@ -185,7 +185,7 @@ docker compose logs -f funding-arb | head -20
 
 ```mermaid
 graph TD
-    A["shared/ 변경<br/>예: kill_switch.py"]
+    A["shared/ 변경<br>예: kill_switch.py"]
     A --> B["market-data 영향"]
     A --> C["execution-engine 영향"]
     A --> D["funding-arb 영향"]
@@ -193,9 +193,9 @@ graph TD
     A --> F["telegram-bot 영향"]
     
     subgraph Action["필수 조치"]
-        G["모든 이미지 재빌드<br/>docker compose build"]
-        H["순차 재시작<br/>market-data → execution → orchestrator → funding → bot"]
-        I["포지션 복구 확인<br/>2-3분 대기"]
+        G["모든 이미지 재빌드<br>docker compose build"]
+        H["순차 재시작<br>market-data → execution → orchestrator → funding → bot"]
+        I["포지션 복구 확인<br>2-3분 대기"]
     end
     
     B --> Action
@@ -224,18 +224,18 @@ shared/ 변경
 ```mermaid
 flowchart LR
     subgraph Phase1["1단계: 이미지 재빌드"]
-        B1["docker compose build<br/>market-data<br/>execution-engine<br/>funding-arb<br/>strategy-orchestrator<br/>telegram-bot"]
+        B1["docker compose build<br>market-data<br>execution-engine<br>funding-arb<br>strategy-orchestrator<br>telegram-bot"]
     end
     subgraph Phase2["2단계: 순차 재시작"]
-        B2["market-data<br/>데이터 수집"]
-        B3["execution-engine<br/>주문 실행"]
-        B4["strategy-orchestrator<br/>오케스트레이션"]
-        B5["funding-arb<br/>전략 (포지션 복구)"]
-        B6["telegram-bot<br/>알림"]
+        B2["market-data<br>데이터 수집"]
+        B3["execution-engine<br>주문 실행"]
+        B4["strategy-orchestrator<br>오케스트레이션"]
+        B5["funding-arb<br>전략 (포지션 복구)"]
+        B6["telegram-bot<br>알림"]
     end
     subgraph Phase3["3-4단계: 검증"]
-        B7["✅ 안정화<br/>2-3분 대기"]
-        B8["✅ 로그 확인<br/>포지션 복구 메시지"]
+        B7["✅ 안정화<br>2-3분 대기"]
+        B8["✅ 로그 확인<br>포지션 복구 메시지"]
     end
     
     Phase1 --> Phase2

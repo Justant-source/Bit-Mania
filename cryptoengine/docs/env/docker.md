@@ -136,36 +136,36 @@ docker compose logs --follow funding-arb
 ```mermaid
 graph TD
     subgraph infra["1단계: 인프라 (헬스체크 대기)"]
-        PG["PostgreSQL<br/>:5432"]
-        RD["Redis<br/>:6379"]
+        PG["PostgreSQL<br>:5432"]
+        RD["Redis<br>:6379"]
     end
 
     subgraph core["2단계: 핵심 서비스 (postgres/redis 이후)"]
-        MD["market-data<br/>시세 + 레짐"]
-        ENG["execution-engine<br/>주문 실행"]
-        ORC["strategy-orchestrator<br/>조율 + Kill Switch"]
-        TG["telegram-bot<br/>알림"]
+        MD["market-data<br>시세 + 레짐"]
+        ENG["execution-engine<br>주문 실행"]
+        ORC["strategy-orchestrator<br>조율 + Kill Switch"]
+        TG["telegram-bot<br>알림"]
     end
 
     subgraph strategy["3단계: 전략 (orchestrator 이후)"]
-        FA["funding-arb<br/>펀딩비 차익"]
-        DCA["adaptive-dca<br/>Fear & Greed"]
+        FA["funding-arb<br>펀딩비 차익"]
+        DCA["adaptive-dca<br>Fear & Greed"]
     end
 
     subgraph aux["4단계: 보조 서비스 (독립적)"]
-        DASH["dashboard<br/>웹 대시보드"]
-        GF["grafana<br/>모니터링"]
+        DASH["dashboard<br>웹 대시보드"]
+        GF["grafana<br>모니터링"]
     end
 
     subgraph batch["5단계: 배치 (필요 시만)"]
-        JE["jesse_engine<br/>--profile backtest"]
-        WF["wf-scheduler<br/>월 1일 02:00"]
-        LLM["llm-advisor<br/>Claude 분석"]
+        JE["jesse_engine<br>--profile backtest"]
+        WF["wf-scheduler<br>월 1일 02:00"]
+        LLM["llm-advisor<br>Claude 분석"]
     end
 
     subgraph mgmt["6단계: 관리 (필요 시만)"]
-        PGB["pg-backup<br/>02:00 KST"]
-        LR["log-retention<br/>03:00 KST"]
+        PGB["pg-backup<br>02:00 KST"]
+        LR["log-retention<br>03:00 KST"]
     end
 
     PG -->|"healthcheck"| MD

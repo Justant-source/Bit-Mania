@@ -30,9 +30,9 @@ Redis Pub/Sub로 즉시 브로드캐스트하며 PostgreSQL에 영구 저장한�
 
 ```mermaid
 graph LR
-    A["Bybit WebSocket<br/>V5 Public Linear"] --> B["market-data<br/>서비스"]
-    B --> C["Redis Pub/Sub<br/>실시간 전파"]
-    B --> D["PostgreSQL<br/>영구 저장"]
+    A["Bybit WebSocket<br>V5 Public Linear"] --> B["market-data<br>서비스"]
+    B --> C["Redis Pub/Sub<br>실시간 전파"]
+    B --> D["PostgreSQL<br>영구 저장"]
     
     style A fill:#E1BEE7
     style B fill:#E8F5E9
@@ -201,10 +201,10 @@ funding-arb 포지션 보유 시:
 
 ```mermaid
 graph TD
-    A["현물 롱 + 선물 숏<br/>포지션 유지"] --> B["매 5분마다<br/>지갑 조회<br/>execution-engine"]
-    B --> C["정산 시각<br/>5분 전"]
-    C --> D["포지션 확정<br/>선물 매도 레그<br/>현물 매수 레그"]
-    D --> E["펀딩비 확정<br/>Redis market:funding<br/>채널 발행"]
+    A["현물 롱 + 선물 숏<br>포지션 유지"] --> B["매 5분마다<br>지갑 조회<br>execution-engine"]
+    B --> C["정산 시각<br>5분 전"]
+    C --> D["포지션 확정<br>선물 매도 레그<br>현물 매수 레그"]
+    D --> E["펀딩비 확정<br>Redis market:funding<br>채널 발행"]
     E --> F["다음 사이클 대기"]
     
     style A fill:#E8F5E9
@@ -221,18 +221,18 @@ graph TD
 
 ```mermaid
 graph LR
-    A["market-data<br/>execution-engine<br/>30초마다"] -->|"Redis SETEX<br/>TTL=5분"| B["heartbeat:{service}"]
+    A["market-data<br>execution-engine<br>30초마다"] -->|"Redis SETEX<br>TTL=5분"| B["heartbeat:{service}"]
     A -->|"파일 TOUCH"| C["/tmp/heartbeat_ok"]
-    C -->|"Docker<br/>healthcheck"| D["✓ 성공"]
+    C -->|"Docker<br>healthcheck"| D["✓ 성공"]
     
-    E["orchestrator<br/>watchdog<br/>60초마다"] -->|"Redis GET"| B
+    E["orchestrator<br>watchdog<br>60초마다"] -->|"Redis GET"| B
     B --> F{"존재?"}
-    F -->|YES| G["system:service_health<br/>= healthy"]
+    F -->|YES| G["system:service_health<br>= healthy"]
     F -->|NO| H["서비스 다운 감지"]
-    H -->|execution-engine| I["⚠️ KILL SWITCH 발동<br/>주문 실행 불가"]
-    H -->|market-data| J["⚠️ KILL SWITCH 발동<br/>시장 데이터 없음"]
-    H -->|비핵심| K["service_health<br/>= degraded<br/>경고만"]
-    I --> L["Telegram<br/>알림"]
+    H -->|execution-engine| I["⚠️ KILL SWITCH 발동<br>주문 실행 불가"]
+    H -->|market-data| J["⚠️ KILL SWITCH 발동<br>시장 데이터 없음"]
+    H -->|비핵심| K["service_health<br>= degraded<br>경고만"]
+    I --> L["Telegram<br>알림"]
     J --> L
     
     style A fill:#E8F5E9
@@ -251,13 +251,13 @@ graph LR
 
 ```mermaid
 graph TD
-    A["사용자가<br/>orchestrator.yaml 수정"] --> B["orchestrator가<br/>30초마다<br/>파일 mtime 폴링"]
-    B --> C{"변경<br/>감지?"}
+    A["사용자가<br>orchestrator.yaml 수정"] --> B["orchestrator가<br>30초마다<br>파일 mtime 폴링"]
+    B --> C{"변경<br>감지?"}
     C -->|NO| B
     C -->|YES| D["YAML 재로드"]
-    D --> E["Redis 채널 발행<br/>system:config_reload"]
-    E --> F["변경 내용:<br/>section=kill_switch<br/>changed_keys=<br/>max_daily_drawdown_pct<br/>new/old_values"]
-    F --> G["다음 평가 사이클<br/>5분 내에 적용"]
+    D --> E["Redis 채널 발행<br>system:config_reload"]
+    E --> F["변경 내용:<br>section=kill_switch<br>changed_keys=<br>max_daily_drawdown_pct<br>new/old_values"]
+    F --> G["다음 평가 사이클<br>5분 내에 적용"]
     
     style A fill:#FFF3E0
     style D fill:#E3F2FD
@@ -335,27 +335,27 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    actor Strategy as 전략<br/>(funding-arb)
-    participant Redis as Redis<br/>Pub/Sub
+    actor Strategy as 전략<br>(funding-arb)
+    participant Redis as Redis<br>Pub/Sub
     participant ExecEngine as execution-engine
     participant Safety as SafetyGuard
     participant Bybit as Bybit API
     participant DB as PostgreSQL
 
-    Strategy->>Redis: OrderRequest 발행<br/>order:request 채널
+    Strategy->>Redis: OrderRequest 발행<br>order:request 채널
     Redis->>ExecEngine: 메시지 수신
-    ExecEngine->>ExecEngine: 1. 멱등성 검사<br/>(request_id 중복)
-    ExecEngine->>Safety: 2. 안전 검증<br/>check_order()
-    Safety->>Safety: - 주문 규모<br/>- 레버리지<br/>- 마진<br/>- 슬리피지<br/>- 네트워크<br/>- API Rate Limit
+    ExecEngine->>ExecEngine: 1. 멱등성 검사<br>(request_id 중복)
+    ExecEngine->>Safety: 2. 안전 검증<br>check_order()
+    Safety->>Safety: - 주문 규모<br>- 레버리지<br>- 마진<br>- 슬리피지<br>- 네트워크<br>- API Rate Limit
     Safety-->>ExecEngine: 검증 결과
     alt 검증 실패
         ExecEngine->>DB: 주문 거부 기록
-        ExecEngine->>Redis: OrderResult 발행<br/>(status=rejected)
+        ExecEngine->>Redis: OrderResult 발행<br>(status=rejected)
     else 검증 통과
-        ExecEngine->>Bybit: 3. 주문 실행<br/>POST /v5/order/create
+        ExecEngine->>Bybit: 3. 주문 실행<br>POST /v5/order/create
         Bybit-->>ExecEngine: 주문 결과
-        ExecEngine->>DB: 4. 결과 저장<br/>orders 테이블
-        ExecEngine->>Redis: 5. 체결 알림<br/>order:result<br/>order:result:funding_arb
+        ExecEngine->>DB: 4. 결과 저장<br>orders 테이블
+        ExecEngine->>Redis: 5. 체결 알림<br>order:result<br>order:result:funding_arb
         Redis->>Strategy: 체결 결과 수신
     end
 ```
@@ -407,18 +407,18 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    A["execution-engine<br/>60초마다"] --> B["지갑 잔고 조회<br/>Bybit REST API"]
-    B --> C["Redis:<br/>cache:wallet_balance<br/>TTL 300s"]
-    C --> D["orchestrator<br/>PortfolioMonitor"]
-    D --> E["5분마다<br/>오케스트레이션 사이클"]
-    E --> F["1. 레짐 조회<br/>cache:regime"]
-    F --> G["2. 가중치 산출<br/>WeightManager"]
-    G --> H["3. LLM Advisory<br/>최대 15% 조정"]
-    H --> I["4. 포트폴리오 평가<br/>PortfolioMonitor.evaluate"]
-    I --> J["5. Kill Switch<br/>조건 검사"]
-    J --> K["6. 자본 배분<br/>명령 발행"]
-    K --> L["strategy:*:command<br/>각 전략으로 배분"]
-    L --> M["전략들:<br/>포지션 조정"]
+    A["execution-engine<br>60초마다"] --> B["지갑 잔고 조회<br>Bybit REST API"]
+    B --> C["Redis:<br>cache:wallet_balance<br>TTL 300s"]
+    C --> D["orchestrator<br>PortfolioMonitor"]
+    D --> E["5분마다<br>오케스트레이션 사이클"]
+    E --> F["1. 레짐 조회<br>cache:regime"]
+    F --> G["2. 가중치 산출<br>WeightManager"]
+    G --> H["3. LLM Advisory<br>최대 15% 조정"]
+    H --> I["4. 포트폴리오 평가<br>PortfolioMonitor.evaluate"]
+    I --> J["5. Kill Switch<br>조건 검사"]
+    J --> K["6. 자본 배분<br>명령 발행"]
+    K --> L["strategy:*:command<br>각 전략으로 배분"]
+    L --> M["전략들:<br>포지션 조정"]
 
     style A fill:#E3F2FD
     style E fill:#E3F2FD
@@ -444,16 +444,16 @@ Kill Switch 발동 시:
 
 ```mermaid
 graph TD
-    A["execution-engine<br/>market-data 서비스"] -->|30초마다| B["Redis setex<br/>TTL=5분"]
-    B --> C["heartbeat:{service}<br/>키 생성"]
-    D["orchestrator 워치독<br/>60초마다"] -->|확인| C
+    A["execution-engine<br>market-data 서비스"] -->|30초마다| B["Redis setex<br>TTL=5분"]
+    B --> C["heartbeat:{service}<br>키 생성"]
+    D["orchestrator 워치독<br>60초마다"] -->|확인| C
     C --> E{"키 존재?"}
-    E -->|예| F["system:service_health<br/>=healthy"]
+    E -->|예| F["system:service_health<br>=healthy"]
     E -->|아니오| G["서비스 다운 감지"]
     G -->|execution-engine| H["Kill Switch 발동"]
-    G -->|비핵심 서비스| I["service_health<br/>=degraded"]
-    H --> J["전략 정지<br/>포지션 청산"]
-    H --> K["telegram:notification<br/>채널 발행"]
+    G -->|비핵심 서비스| I["service_health<br>=degraded"]
+    H --> J["전략 정지<br>포지션 청산"]
+    H --> K["telegram:notification<br>채널 발행"]
 
     style A fill:#E3F2FD
     style D fill:#E3F2FD
@@ -471,13 +471,13 @@ Docker healthcheck가 이 파일 존재 여부로 컨테이너 상태를 판단�
 
 ```mermaid
 graph LR
-    A["각 서비스<br/>/metrics 엔드포인트"] -->|"15초 주기"| B["Prometheus<br/>:9090"]
-    C["node-exporter<br/>:9100"] --> B
-    D["redis-exporter<br/>:9121"] --> B
-    B --> E["Grafana<br/>:3002<br/>시각화"]
+    A["각 서비스<br>/metrics 엔드포인트"] -->|"15초 주기"| B["Prometheus<br>:9090"]
+    C["node-exporter<br>:9100"] --> B
+    D["redis-exporter<br>:9121"] --> B
+    B --> E["Grafana<br>:3002<br>시각화"]
     
-    F["시스템 리소스<br/>CPU, 메모리<br/>디스크, 네트워크"] -.-> C
-    G["Redis 메트릭<br/>연결 수, 메모리<br/>키 수, Pub/Sub"] -.-> D
+    F["시스템 리소스<br>CPU, 메모리<br>디스크, 네트워크"] -.-> C
+    G["Redis 메트릭<br>연결 수, 메모리<br>키 수, Pub/Sub"] -.-> D
     
     style A fill:#E8F5E9
     style B fill:#FFEB3B
@@ -508,9 +508,9 @@ Grafana가 PostgreSQL에 직접 쿼리하여 다음 데이터를 시각화:
 
 ```mermaid
 graph LR
-    A["Redis Pub/Sub<br/>system:kill_switch<br/>market:funding 등"] --> B["telegram-bot<br/>구독"]
-    B --> C["알림 포맷팅<br/>+ 전송"]
-    C --> D["Telegram 채팅<br/>사용자 알림"]
+    A["Redis Pub/Sub<br>system:kill_switch<br>market:funding 등"] --> B["telegram-bot<br>구독"]
+    B --> C["알림 포맷팅<br>+ 전송"]
+    C --> D["Telegram 채팅<br>사용자 알림"]
 
     style A fill:#E3F2FD
     style B fill:#E3F2FD

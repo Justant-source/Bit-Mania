@@ -36,11 +36,11 @@ Jesse Engine은 Phase 7-10 백테스트 환경으로, 자체 엔진(V1-V4)을 �
 ```mermaid
 flowchart LR
     subgraph external["외부 데이터 소스"]
-        BV["Binance Vision<br/>S3 무료 OHLCV"]
-        CG["Coinalyze API<br/>펀딩비 히스토리"]
-        FG["Alternative.me<br/>Fear&Greed 지수"]
-        FRED["FRED API<br/>거시경제 지표"]
-        MC["수동 입력<br/>FOMC/CPI 달력"]
+        BV["Binance Vision<br>S3 무료 OHLCV"]
+        CG["Coinalyze API<br>펀딩비 히스토리"]
+        FG["Alternative.me<br>Fear&Greed 지수"]
+        FRED["FRED API<br>거시경제 지표"]
+        MC["수동 입력<br>FOMC/CPI 달력"]
     end
 
     subgraph scripts["수집 스크립트 scripts/data/"]
@@ -52,16 +52,16 @@ flowchart LR
     end
 
     subgraph storage["/data/ 볼륨"]
-        D1["/data/binance_vision/<br/>BTCUSDT 1h Parquet"]
-        D2["/data/funding_rates/<br/>BTCUSDT_8h Parquet"]
-        D3["/data/sentiment/<br/>fear_greed Parquet"]
-        D4["/data/macro_events/<br/>fomc_cpi_calendar.csv"]
+        D1["/data/binance_vision/<br>BTCUSDT 1h Parquet"]
+        D2["/data/funding_rates/<br>BTCUSDT_8h Parquet"]
+        D3["/data/sentiment/<br>fear_greed Parquet"]
+        D4["/data/macro_events/<br>fomc_cpi_calendar.csv"]
     end
 
     subgraph jesse["Jesse 실행"]
-        JI["jesse_import.py<br/>Parquet → Jesse DB"]
-        JB["run_backtest.py<br/>Jesse 백테스트"]
-        WF["walk_forward.py<br/>WF 분석"]
+        JI["jesse_import.py<br>Parquet → Jesse DB"]
+        JB["run_backtest.py<br>Jesse 백테스트"]
+        WF["walk_forward.py<br>WF 분석"]
     end
 
     BV --> S1 --> D1 --> JI
@@ -83,31 +83,31 @@ flowchart LR
 flowchart LR
     START([백테스트 시작]) --> CHECK{["데이터 준비 OK?"]}
     
-    CHECK -->|No| PREP["Step 1~5: 데이터 수집<br/>& Jesse DB 임포트"]
+    CHECK -->|No| PREP["Step 1~5: 데이터 수집<br>& Jesse DB 임포트"]
     PREP --> CHECK
     
     CHECK -->|Yes| CHOOSE{["무엇을 실행 할까?"]}
     
-    CHOOSE -->|Sanity Check| SC["run_backtest.py<br/>BtcBuyAndHold<br/>2024년만"]
-    SC --> SCR["기대: CAGR ~120%<br/>MDD ~-25%<br/>Sharpe 1.5~2.0"]
+    CHOOSE -->|Sanity Check| SC["run_backtest.py<br>BtcBuyAndHold<br>2024년만"]
+    SC --> SCR["기대: CAGR ~120%<br>MDD ~-25%<br>Sharpe 1.5~2.0"]
     SCR --> NEXT{["Jesse 정상?"]}
     NEXT -->|No| FIX["설정 수정\n← Step 1~5 재실행"]
     FIX --> CHOOSE
     NEXT -->|Yes| CHOOSE
     
-    CHOOSE -->|단일 전략| RUN1["run_backtest.py<br/>FundingArbitrage<br/>2023-04 ~ 2026-04"]
-    RUN1 --> R1R["결과 JSON<br/>CAGR, Sharpe, MDD"]
+    CHOOSE -->|단일 전략| RUN1["run_backtest.py<br>FundingArbitrage<br>2023-04 ~ 2026-04"]
+    RUN1 --> R1R["결과 JSON<br>CAGR, Sharpe, MDD"]
     R1R --> ANALYZE1{["V5 기준 통과?"]}
     
-    CHOOSE -->|시간 분석| RUN2["walk_forward.py<br/>365d train<br/>180d test"]
-    RUN2 --> R2R["WF 리포트<br/>OOS/IS 비율 ≥ 0.6?"]
+    CHOOSE -->|시간 분석| RUN2["walk_forward.py<br>365d train<br>180d test"]
+    RUN2 --> R2R["WF 리포트<br>OOS/IS 비율 ≥ 0.6?"]
     R2R --> ANALYZE2{["OOS 신뢰도 OK?"]}
     
-    CHOOSE -->|환경별 분석| RUN3["regime_split_analysis.py<br/>bull/transition/compressed"]
-    RUN3 --> R3R["환경별 수익률<br/>레짐 강건성 검증"]
+    CHOOSE -->|환경별 분석| RUN3["regime_split_analysis.py<br>bull/transition/compressed"]
+    RUN3 --> R3R["환경별 수익률<br>레짐 강건성 검증"]
     
-    CHOOSE -->|전체 자동| RUN4["run_full_validation.sh<br/>(5단계 자동)"]
-    RUN4 --> R4R["최종 V5 리포트<br/>합격/불합격"]
+    CHOOSE -->|전체 자동| RUN4["run_full_validation.sh<br>(5단계 자동)"]
+    RUN4 --> R4R["최종 V5 리포트<br>합격/불합격"]
     
     ANALYZE1 -->|Yes| PASS["✅ PASS\n메인넷 진입 가능"]
     ANALYZE1 -->|No| TUNE["파라미터 재조정\n← run_backtest.py 재실행"]

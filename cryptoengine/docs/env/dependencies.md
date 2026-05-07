@@ -18,27 +18,27 @@ CryptoEngine이 사용하는 핵심 Python 라이브러리 및 버전 정보.
 ```mermaid
 graph TD
     subgraph stdlib["표준 라이브러리"]
-        asyncio["asyncio<br/>비동기 프로그래밍"]
-        logging["logging<br/>구조화 로깅"]
+        asyncio["asyncio<br>비동기 프로그래밍"]
+        logging["logging<br>구조화 로깅"]
     end
 
     subgraph core["핵심 라이브러리"]
-        asyncpg["asyncpg<br/>PostgreSQL 드라이버"]
-        redis["redis asyncio<br/>Redis 클라이언트"]
-        ccxt["ccxt<br/>거래소 통합"]
-        http["aiohttp<br/>HTTP 클라이언트"]
+        asyncpg["asyncpg<br>PostgreSQL 드라이버"]
+        redis["redis asyncio<br>Redis 클라이언트"]
+        ccxt["ccxt<br>거래소 통합"]
+        http["aiohttp<br>HTTP 클라이언트"]
     end
 
     subgraph util["유틸리티"]
-        pydantic["pydantic<br/>데이터 검증"]
-        structlog["structlog<br/>JSON 로깅"]
-        dotenv["python-dotenv<br/>환경변수"]
+        pydantic["pydantic<br>데이터 검증"]
+        structlog["structlog<br>JSON 로깅"]
+        dotenv["python-dotenv<br>환경변수"]
     end
 
     subgraph strategy["전략 (선택)"]
-        pandas["pandas<br/>데이터프레임"]
-        numpy["numpy<br/>수치 계산"]
-        jesse["jesse<br/>백테스트"]
+        pandas["pandas<br>데이터프레임"]
+        numpy["numpy<br>수치 계산"]
+        jesse["jesse<br>백테스트"]
     end
 
     subgraph services["마이크로서비스"]

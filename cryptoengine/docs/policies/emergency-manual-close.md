@@ -37,26 +37,26 @@ when_to_update: |
 
 ```mermaid
 flowchart TD
-    A["⚠️ 비상 상황 발생<br/>봇 응답 없음 또는 서버 다운"] --> B["Step 0: 사전 확인<br/>30초"]
-    B --> C["Bybit 앱 로그인<br/>PoS 계정 조회"]
-    C --> D["Step 1: Perp 포지션 청산<br/>먼저"]
-    D --> E["BTCUSDT Short<br/>시장가 전량 청산"]
-    E --> F["Step 2: Spot BTC 매도<br/>두번째"]
-    F --> G["Bybit Spot<br/>BTC/USDT 시장가 전량"]
+    A["⚠️ 비상 상황 발생<br>봇 응답 없음 또는 서버 다운"] --> B["Step 0: 사전 확인<br>30초"]
+    B --> C["Bybit 앱 로그인<br>PoS 계정 조회"]
+    C --> D["Step 1: Perp 포지션 청산<br>먼저"]
+    D --> E["BTCUSDT Short<br>시장가 전량 청산"]
+    E --> F["Step 2: Spot BTC 매도<br>두번째"]
+    F --> G["Bybit Spot<br>BTC/USDT 시장가 전량"]
     G --> H["Step 3: 미체결 주문 취소"]
-    H --> I["미체결 주문<br/>StopMarket 주문 취소"]
+    H --> I["미체결 주문<br>StopMarket 주문 취소"]
     I --> J["Step 4: 청산 완료 확인"]
-    J --> K{청산<br/>완료?}
+    J --> K{청산<br>완료?}
     K -->|Yes| L["Step 5: 봇/DB 상태 정리"]
-    K -->|No| M["❌ 반복<br/>Step 1-3"]
+    K -->|No| M["❌ 반복<br>Step 1-3"]
     L --> N["SSH: docker compose ps"]
     N --> O["DB: positions 업데이트"]
     O --> P["Redis: 캐시 클리어"]
     P --> Q["서비스 재시작"]
     Q --> R["Step 6: 원인 분석"]
-    R --> S["로그 검토<br/>Kill Switch 확인"]
+    R --> S["로그 검토<br>Kill Switch 확인"]
     S --> T["Step 7: 사고 보고"]
-    T --> U["✅ 청산 완료<br/>손실 기록"]
+    T --> U["✅ 청산 완료<br>손실 기록"]
     
     M --> D
     
@@ -87,11 +87,11 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A["포지션 구조<br/>Spot Long + Perp Short<br/>델타 중립"] --> B["1️⃣ Perp 청산<br/>레버리지 제거"]
-    B --> C["BTCUSDT Short<br/>시장가 청산"]
+    A["포지션 구조<br>Spot Long + Perp Short<br>델타 중립"] --> B["1️⃣ Perp 청산<br>레버리지 제거"]
+    B --> C["BTCUSDT Short<br>시장가 청산"]
     C --> D["✅ 마진 회수"]
-    D --> E["2️⃣ Spot 청산<br/>BTC 매도"]
-    E --> F["BTC/USDT 시장가<br/>전량 매도"]
+    D --> E["2️⃣ Spot 청산<br>BTC 매도"]
+    E --> F["BTC/USDT 시장가<br>전량 매도"]
     F --> G["✅ 현금화 완료"]
     
     style B fill:#ff9800,color:#fff

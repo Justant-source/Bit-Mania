@@ -52,14 +52,14 @@ class KillLevel(IntEnum):
 stateDiagram-v2
     direction LR
     [*] --> NONE : 시스템 시작
-    NONE --> STRATEGY : check_strategy()<br/>pnl ≤ max_drawdown
-    NONE --> PORTFOLIO : check()<br/>drawdown 임계값 초과
+    NONE --> STRATEGY : check_strategy()<br>pnl ≤ max_drawdown
+    NONE --> PORTFOLIO : check()<br>drawdown 임계값 초과
     NONE --> SYSTEM : system_healthy=False
-    NONE --> MANUAL : trigger_manual()<br/>Telegram /kill
-    STRATEGY --> NONE : cooldown 4h 경과<br/>auto_resume()
-    PORTFOLIO --> NONE : cooldown 4h 경과<br/>auto_resume()
+    NONE --> MANUAL : trigger_manual()<br>Telegram /kill
+    STRATEGY --> NONE : cooldown 4h 경과<br>auto_resume()
+    PORTFOLIO --> NONE : cooldown 4h 경과<br>auto_resume()
     SYSTEM --> NONE : reset_manual() 호출
-    MANUAL --> NONE : reset_manual() 호출<br/>자동 재개 불가
+    MANUAL --> NONE : reset_manual() 호출<br>자동 재개 불가
 
     note right of MANUAL
         Level 4는 auto_resume() 불가
@@ -409,13 +409,13 @@ sequenceDiagram
     participant TG as "telegram-bot"
 
     ORC->>ORC: _trigger(level, reason)
-    ORC->>REDIS: PUBLISH ce:kill_switch<br/>(level, reason)
+    ORC->>REDIS: PUBLISH ce:kill_switch<br>(level, reason)
     ORC->>REDIS: SET ce:kill_switch:active "1"
     REDIS-->>ENG: 구독 메시지 수신
     REDIS-->>TG: 구독 메시지 수신
     ENG->>ENG: 모든 주문 취소
     ENG->>ENG: 포지션 시장가 청산
-    ENG->>REDIS: PUBLISH ce:kill_switch:ack<br/>(status: ok)
+    ENG->>REDIS: PUBLISH ce:kill_switch:ack<br>(status: ok)
     TG->>TG: 🚨 알림 포맷
     TG-->>User: Telegram 긴급 메시지
 
@@ -483,16 +483,16 @@ KillSwitch(
 
 ```mermaid
 flowchart TD
-    A["check 호출<br/>drawdown 측정"] --> B{is_triggered?}
+    A["check 호출<br>drawdown 측정"] --> B{is_triggered?}
     B -->|Yes| C{cooldown 만료?}
-    C -->|Yes| D["_reset<br/>NONE으로 복귀"]
+    C -->|Yes| D["_reset<br>NONE으로 복귀"]
     C -->|No| E["현재 레벨 유지"]
     B -->|No| F{system_healthy?}
     F -->|No| G["SYSTEM 트리거"]
-    F -->|Yes| H{Daily drawdown<br/>≤ -5%?}
-    H -->|No| I{Weekly drawdown<br/>≤ -10%?}
-    I -->|No| J{Monthly drawdown<br/>≤ -15%?}
-    J -->|No| K["KillLevel.NONE<br/>정상 운영"]
+    F -->|Yes| H{Daily drawdown<br>≤ -5%?}
+    H -->|No| I{Weekly drawdown<br>≤ -10%?}
+    I -->|No| J{Monthly drawdown<br>≤ -15%?}
+    J -->|No| K["KillLevel.NONE<br>정상 운영"]
     H -->|Yes| L{Phase5 AND 모드?}
     L -->|No| M["PORTFOLIO 트리거"]
     L -->|Yes| N{abs_loss ≥ $10?}
@@ -547,20 +547,20 @@ kill_switch:
 ```mermaid
 flowchart LR
     subgraph L1["Level 1 STRATEGY"]
-        s1["전략 손익<br/>≤ max_drawdown"]
-        s2["해당 전략만 정지<br/>포지션 청산<br/>4h 후 자동 재개"]
+        s1["전략 손익<br>≤ max_drawdown"]
+        s2["해당 전략만 정지<br>포지션 청산<br>4h 후 자동 재개"]
     end
     subgraph L2["Level 2 PORTFOLIO"]
-        p1["포트폴리오<br/>drawdown 초과"]
-        p2["전체 전략 정지<br/>모든 포지션 청산<br/>4h 후 자동 재개"]
+        p1["포트폴리오<br>drawdown 초과"]
+        p2["전체 전략 정지<br>모든 포지션 청산<br>4h 후 자동 재개"]
     end
     subgraph L3["Level 3 SYSTEM"]
-        sys1["API 오류 50회<br/>하트비트 5분 미수신"]
-        sys2["전체 청산<br/>수동 reset 필요"]
+        sys1["API 오류 50회<br>하트비트 5분 미수신"]
+        sys2["전체 청산<br>수동 reset 필요"]
     end
     subgraph L4["Level 4 MANUAL"]
-        m1["Telegram /kill<br/>운영자 직접 발동"]
-        m2["즉시 전체 청산<br/>자동 재개 절대 불가"]
+        m1["Telegram /kill<br>운영자 직접 발동"]
+        m2["즉시 전체 청산<br>자동 재개 절대 불가"]
     end
 
     s1 --> s2

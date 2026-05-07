@@ -179,39 +179,39 @@ graph TB
 ```mermaid
 graph LR
     subgraph ext["External API"]
-        bybit_ws["Bybit WebSocket<br/>(real-time price)"]
-        bybit_rest["Bybit REST API<br/>(order execution)"]
+        bybit_ws["Bybit WebSocket<br>(real-time price)"]
+        bybit_rest["Bybit REST API<br>(order execution)"]
         telegram_api["Telegram API"]
-        anthropic_api["Anthropic API<br/>(Claude)"]
+        anthropic_api["Anthropic API<br>(Claude)"]
     end
 
     subgraph infra["Infrastructure"]
-        pg["PostgreSQL 16<br/>:5432"]
-        redis["Redis 7<br/>:6379<br/>Pub/Sub + Cache"]
-        prom["Prometheus<br/>:9090<br/>30day retention"]
-        node_exp["Node Exporter<br/>:9100"]
-        redis_exp["Redis Exporter<br/>:9121"]
+        pg["PostgreSQL 16<br>:5432"]
+        redis["Redis 7<br>:6379<br>Pub/Sub + Cache"]
+        prom["Prometheus<br>:9090<br>30day retention"]
+        node_exp["Node Exporter<br>:9100"]
+        redis_exp["Redis Exporter<br>:9121"]
     end
 
     subgraph core["Core Services"]
-        market_data["market-data<br/>price collection<br/>+ regime detection"]
-        orchestrator["strategy-orchestrator<br/>strategy coordination<br/>+ Kill Switch"]
-        execution["execution-engine<br/>order execution<br/>+ safety validation"]
+        market_data["market-data<br>price collection<br>+ regime detection"]
+        orchestrator["strategy-orchestrator<br>strategy coordination<br>+ Kill Switch"]
+        execution["execution-engine<br>order execution<br>+ safety validation"]
     end
 
     subgraph strat["Strategy"]
-        funding["funding-arb<br/>core strategy<br/>funding rate income"]
-        dca["adaptive-dca<br/>auxiliary strategy<br/>Fear&Greed DCA"]
+        funding["funding-arb<br>core strategy<br>funding rate income"]
+        dca["adaptive-dca<br>auxiliary strategy<br>Fear&Greed DCA"]
     end
 
     subgraph intel["Intelligence"]
-        llm["llm-advisor<br/>Anthropic SDK<br/>market analysis"]
+        llm["llm-advisor<br>Anthropic SDK<br>market analysis"]
     end
 
     subgraph iface["Interface"]
-        tg_bot["telegram-bot<br/>alerts + emergency<br/>commands"]
-        dash["dashboard<br/>internal:3000<br/>public:3001"]
-        grafana["Grafana<br/>:3002"]
+        tg_bot["telegram-bot<br>alerts + emergency<br>commands"]
+        dash["dashboard<br>internal:3000<br>public:3001"]
+        grafana["Grafana<br>:3002"]
     end
 
     bybit_ws --> market_data
@@ -253,13 +253,13 @@ graph LR
 ```mermaid
 graph LR
     subgraph ext["External"]
-        bybit["Bybit WebSocket<br/>+ REST API"]
+        bybit["Bybit WebSocket<br>+ REST API"]
     end
     
     subgraph core["Core Services"]
-        md["market-data<br/>price collection"]
-        orch["orchestrator<br/>strategy coordination"]
-        exec["execution-engine<br/>order execution"]
+        md["market-data<br>price collection"]
+        orch["orchestrator<br>strategy coordination"]
+        exec["execution-engine<br>order execution"]
     end
     
     subgraph strat["Strategy"]
@@ -268,7 +268,7 @@ graph LR
     end
     
     subgraph storage["Storage"]
-        pg["PostgreSQL<br/>OHLCV, funding rate"]
+        pg["PostgreSQL<br>OHLCV, funding rate"]
         redis["Redis Pub/Sub"]
     end
     

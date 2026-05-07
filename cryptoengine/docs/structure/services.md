@@ -480,17 +480,17 @@ sequenceDiagram
     MD->>MD: Bybit 펀딩비 수집
     MD->>Redis: 발행: market:funding_rate
     ORC->>Redis: 구독: market:funding_rate
-    ORC->>ORC: 자본 배분 계산<br/>funding-arb: 80%
+    ORC->>ORC: 자본 배분 계산<br>funding-arb: 80%
     ORC->>Redis: 발행: strategy:command:funding-arb
     
     FA->>Redis: 구독: market:funding_rate
     FA->>Redis: 구독: strategy:command:funding-arb
-    FA->>FA: 조건 검사<br/>연속 3회 양수 펀딩비
+    FA->>FA: 조건 검사<br>연속 3회 양수 펀딩비
     Note over FA: 조건 만족 → 진입 결정
     
-    FA->>Redis: 발행: order:request<br/>LONG 선물 + SHORT 스팟
+    FA->>Redis: 발행: order:request<br>LONG 선물 + SHORT 스팟
     ENG->>Redis: 구독: order:request
-    ENG->>BYBIT: 주문 실행<br/>create_order()
+    ENG->>BYBIT: 주문 실행<br>create_order()
     BYBIT->>BYBIT: 주문 체결
     BYBIT->>ENG: 체결 확인
     
@@ -510,18 +510,18 @@ sequenceDiagram
         ENG->>FA: Kill Switch 신호 체크
     end
     
-    FA->>FA: 기저 극단 확산 감지<br/>basis_divergence_risk
+    FA->>FA: 기저 극단 확산 감지<br>basis_divergence_risk
     FA->>Redis: 발행: order:request (CLOSE)
     
     ENG->>Redis: 구독: order:request (CLOSE)
     ENG->>BYBIT: 청산 주문 실행
     BYBIT->>ENG: 체결 확인
     
-    ENG->>PG: 업데이트: positions<br/>status=closed
+    ENG->>PG: 업데이트: positions<br>status=closed
     ENG->>Redis: 발행: order:update (closed)
     
     TG->>PG: 포지션 종료 감지
-    TG->>TG: Telegram 메시지<br/>"포지션 청산: 기저 극단 +$50"
+    TG->>TG: Telegram 메시지<br>"포지션 청산: 기저 극단 +$50"
     TG->>TG: 알림 발송
 
     Note over TG,BYBIT: 라이브 거래 종료

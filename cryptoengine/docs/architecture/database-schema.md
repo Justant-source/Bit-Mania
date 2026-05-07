@@ -18,10 +18,10 @@ when_to_update: |
 
 ```mermaid
 graph LR
-    A["PostgreSQL 16<br/>cryptoengine DB"] --> B["asyncpg<br/>비동기 커넥션 풀<br/>min=2, max=10"]
-    B --> C["Repository 패턴<br/>shared/db/repository.py"]
-    C --> D["모든 Python<br/>서비스"]
-    E["Alembic<br/>shared/db/migrations/"] -.->|"스키마 버전<br/>관리"| A
+    A["PostgreSQL 16<br>cryptoengine DB"] --> B["asyncpg<br>비동기 커넥션 풀<br>min=2, max=10"]
+    B --> C["Repository 패턴<br>shared/db/repository.py"]
+    C --> D["모든 Python<br>서비스"]
+    E["Alembic<br>shared/db/migrations/"] -.->|"스키마 버전<br>관리"| A
     
     style A fill:#BBDEFB
     style B fill:#E3F2FD
@@ -62,52 +62,52 @@ postgresql://cryptoengine:<DB_PASSWORD>@postgres:5432/cryptoengine
 ```mermaid
 graph TB
     subgraph trades_pos["거래 & 포지션"]
-        trades["trades<br/>주문 체결 기록"]
-        positions["positions<br/>포지션 추적"]
-        orders["grid_orders<br/>그리드 주문"]
+        trades["trades<br>주문 체결 기록"]
+        positions["positions<br>포지션 추적"]
+        orders["grid_orders<br>그리드 주문"]
     end
     
     subgraph funding["펀딩비 & 수익"]
-        funding_pay["funding_payments<br/>펀딩비 수취"]
-        funding_rate["funding_rate_history<br/>펀딩비 시계열"]
+        funding_pay["funding_payments<br>펀딩비 수취"]
+        funding_rate["funding_rate_history<br>펀딩비 시계열"]
     end
     
     subgraph market["시장 데이터"]
-        ohlcv["ohlcv_history<br/>캔들데이터"]
-        regime["market_regime_history<br/>레짐 이력"]
-        regime_raw["regime_raw_log<br/>원시 레짐"]
-        regime_trans["regime_transitions<br/>확정 전환"]
+        ohlcv["ohlcv_history<br>캔들데이터"]
+        regime["market_regime_history<br>레짐 이력"]
+        regime_raw["regime_raw_log<br>원시 레짐"]
+        regime_trans["regime_transitions<br>확정 전환"]
     end
     
     subgraph portfolio["포트폴리오"]
-        snapshots["portfolio_snapshots<br/>자산 스냅샷"]
-        daily["daily_reports<br/>일별 리포트"]
-        states["strategy_states<br/>전략 상태"]
-        ks_events["kill_switch_events<br/>KS 이벤트"]
+        snapshots["portfolio_snapshots<br>자산 스냅샷"]
+        daily["daily_reports<br>일별 리포트"]
+        states["strategy_states<br>전략 상태"]
+        ks_events["kill_switch_events<br>KS 이벤트"]
     end
     
     subgraph dca_data["DCA & ETF"]
-        dca_pur["dca_purchases<br/>DCA 매입"]
-        etf["etf_flow_history<br/>ETF 흐름"]
+        dca_pur["dca_purchases<br>DCA 매입"]
+        etf["etf_flow_history<br>ETF 흐름"]
     end
     
     subgraph macro["거시경제"]
-        macro_evt["macro_events<br/>경제 이벤트"]
-        macro_ind["macro_indicators<br/>거시 지표"]
-        fg_hist["fear_greed_history<br/>공포탐욕 지수"]
+        macro_evt["macro_events<br>경제 이벤트"]
+        macro_ind["macro_indicators<br>거시 지표"]
+        fg_hist["fear_greed_history<br>공포탐욕 지수"]
     end
     
     subgraph llm_data["LLM 분석"]
-        llm_judge["llm_judgments<br/>LLM 판단"]
-        llm_report["llm_reports<br/>LLM 리포트"]
+        llm_judge["llm_judgments<br>LLM 판단"]
+        llm_report["llm_reports<br>LLM 리포트"]
     end
     
     subgraph logs["로그 & 기타"]
-        service_logs["service_logs<br/>서비스 로그"]
-        qf["quarterly_futures<br/>분기물 데이터"]
-        liq["liquidation_history<br/>청산 이력"]
-        onchain["onchain_metrics<br/>온체인 지표"]
-        ohlcv_1m["ohlcv_1m_longterm<br/>장기 1분봉"]
+        service_logs["service_logs<br>서비스 로그"]
+        qf["quarterly_futures<br>분기물 데이터"]
+        liq["liquidation_history<br>청산 이력"]
+        onchain["onchain_metrics<br>온체인 지표"]
+        ohlcv_1m["ohlcv_1m_longterm<br>장기 1분봉"]
     end
     
     style trades_pos fill:#FFE0B2
@@ -998,12 +998,12 @@ erDiagram
 
 ```mermaid
 graph LR
-    A["ohlcv_history<br/>1분 캔들<br/>~1,440/일"] --> B["월간<br/>~43,200"]
-    C["funding_rate_history<br/>8시간마다<br/>~3/일"] --> D["월간<br/>~90"]
-    E["portfolio_snapshots<br/>매시간<br/>~24/일"] --> F["월간<br/>~720"]
-    G["market_regime_history<br/>레짐 변경 시<br/>~5-20/일"] --> H["월간<br/>~150-600"]
-    I["trades<br/>전략 활동<br/>변동적"] --> J["변동적"]
-    K["llm_reports<br/>6시간마다<br/>~4/일"] --> L["월간<br/>~120"]
+    A["ohlcv_history<br>1분 캔들<br>~1,440/일"] --> B["월간<br>~43,200"]
+    C["funding_rate_history<br>8시간마다<br>~3/일"] --> D["월간<br>~90"]
+    E["portfolio_snapshots<br>매시간<br>~24/일"] --> F["월간<br>~720"]
+    G["market_regime_history<br>레짐 변경 시<br>~5-20/일"] --> H["월간<br>~150-600"]
+    I["trades<br>전략 활동<br>변동적"] --> J["변동적"]
+    K["llm_reports<br>6시간마다<br>~4/일"] --> L["월간<br>~120"]
     
     style A fill:#BBDEFB
     style C fill:#C8E6C9

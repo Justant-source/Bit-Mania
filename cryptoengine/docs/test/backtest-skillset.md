@@ -62,21 +62,21 @@ cryptoengine/services/my_backtest.py  ✗
 
 ```mermaid
 flowchart TD
-    A(["백테스트 시작"]) --> B["1️⃣ 데이터 준비<br/>scripts/data/"]
-    B --> B1["download_binance_vision.py<br/>BTC OHLCV 1h"]
-    B --> B2["fetch_coinalyze_funding.py<br/>펀딩비 8h 히스토리"]
-    B --> B3["fetch_fear_greed.py<br/>F&G 지수 DCA용"]
-    B --> B4["build_macro_calendar.py<br/>FOMC/CPI 이벤트"]
-    B1 & B2 & B3 & B4 --> C["2️⃣ Jesse DB 임포트<br/>jesse_import.py<br/>Parquet → PostgreSQL"]
-    C --> D["3️⃣ Sanity Check<br/>sanity_check.py<br/>V5 기준 사전 검증"]
+    A(["백테스트 시작"]) --> B["1️⃣ 데이터 준비<br>scripts/data/"]
+    B --> B1["download_binance_vision.py<br>BTC OHLCV 1h"]
+    B --> B2["fetch_coinalyze_funding.py<br>펀딩비 8h 히스토리"]
+    B --> B3["fetch_fear_greed.py<br>F&G 지수 DCA용"]
+    B --> B4["build_macro_calendar.py<br>FOMC/CPI 이벤트"]
+    B1 & B2 & B3 & B4 --> C["2️⃣ Jesse DB 임포트<br>jesse_import.py<br>Parquet → PostgreSQL"]
+    C --> D["3️⃣ Sanity Check<br>sanity_check.py<br>V5 기준 사전 검증"]
     D --> E{기본 요건 통과?}
     E -->|No| F["설정 수정 후 재시도"]
     F --> D
-    E -->|Yes| G["4️⃣ 단일 백테스트<br/>run_backtest.py<br/>또는 run_fa_backtest.py"]
-    G --> H["5️⃣ Walk-Forward<br/>walk_forward.py<br/>IS 365일 OOS 180일"]
-    H --> I["6️⃣ V5 리포트 생성<br/>generate_v5_report.py"]
-    I --> J{"V5 기준 통과?<br/>CAGR≥34% Sharpe≥3.5<br/>MDD≤-5%"}
-    J -->|No| K["파라미터 조정 후<br/>반복"]
+    E -->|Yes| G["4️⃣ 단일 백테스트<br>run_backtest.py<br>또는 run_fa_backtest.py"]
+    G --> H["5️⃣ Walk-Forward<br>walk_forward.py<br>IS 365일 OOS 180일"]
+    H --> I["6️⃣ V5 리포트 생성<br>generate_v5_report.py"]
+    I --> J{"V5 기준 통과?<br>CAGR≥34% Sharpe≥3.5<br>MDD≤-5%"}
+    J -->|No| K["파라미터 조정 후<br>반복"]
     K --> G
     J -->|Yes| L(["백테스트 완료 ✅"])
 
@@ -127,18 +127,18 @@ flowchart TD
 flowchart TD
     START{["백테스트 목표는?"]}
     
-    START -->|데이터 신선도 관리| D1["데이터 수집<br/>scripts/data/"]
-    START -->|단순 성과 확인| D2["단일 백테스트<br/>run_backtest.py"]
-    START -->|시간대별 성능 분석| D3["Walk-Forward<br/>walk_forward.py"]
-    START -->|시장환경별 성능| D4["레짐 분석<br/>regime_split_analysis.py"]
-    START -->|전체 자동 검증| D5["통합 파이프라인<br/>run_full_validation.sh"]
-    START -->|자체엔진 재현| D6["FA 순수 시뮬레이션<br/>run_fa_backtest.py"]
-    START -->|Jesse 엔진 검증| D7["Sanity Check<br/>sanity_check.py"]
+    START -->|데이터 신선도 관리| D1["데이터 수집<br>scripts/data/"]
+    START -->|단순 성과 확인| D2["단일 백테스트<br>run_backtest.py"]
+    START -->|시간대별 성능 분석| D3["Walk-Forward<br>walk_forward.py"]
+    START -->|시장환경별 성능| D4["레짐 분석<br>regime_split_analysis.py"]
+    START -->|전체 자동 검증| D5["통합 파이프라인<br>run_full_validation.sh"]
+    START -->|자체엔진 재현| D6["FA 순수 시뮬레이션<br>run_fa_backtest.py"]
+    START -->|Jesse 엔진 검증| D7["Sanity Check<br>sanity_check.py"]
     
-    D1 --> D1A["1️⃣ download_binance_vision.py<br/>2️⃣ fetch_coinalyze_funding.py<br/>3️⃣ fetch_fear_greed.py<br/>4️⃣ build_macro_calendar.py"]
-    D2 --> D2A["지표 확인:<br/>CAGR, Sharpe, MDD"]
-    D3 --> D3A["OOS/IS 비율 확인:<br/>≥ 0.6 합격"]
-    D4 --> D4A["시장 환경별 수익성<br/>bull/transition/compressed"]
+    D1 --> D1A["1️⃣ download_binance_vision.py<br>2️⃣ fetch_coinalyze_funding.py<br>3️⃣ fetch_fear_greed.py<br>4️⃣ build_macro_calendar.py"]
+    D2 --> D2A["지표 확인:<br>CAGR, Sharpe, MDD"]
+    D3 --> D3A["OOS/IS 비율 확인:<br>≥ 0.6 합격"]
+    D4 --> D4A["시장 환경별 수익성<br>bull/transition/compressed"]
     D5 --> D5A["30분~2시간\n1️⃣ BT → 2️⃣ WF → 3️⃣ RS\n4️⃣ SC → 5️⃣ Report"]
     D6 --> D6A["자체엔진 로직\nJesse와 비교"]
     D7 --> D7A["Jesse 정확성 검증\n2024년 BTC Hold\nExpected: CAGR ~120%"]

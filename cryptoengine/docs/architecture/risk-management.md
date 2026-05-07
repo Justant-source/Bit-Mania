@@ -29,10 +29,10 @@ Kill Switch는 `shared/kill_switch.py`에 구현된 상태 기반(stateful) 비�
 
 ```mermaid
 graph TD
-    A["Kill Switch<br/>4단계 시스템"] --> B["L1 - STRATEGY<br/>개별 전략 정지<br/>해당 전략만 정지"]
-    A --> C["L2 - PORTFOLIO<br/>포트폴리오 드로다운<br/>일간-5%/주간-10%/월간-15%<br/>전체 전략 정지"]
-    A --> D["L3 - SYSTEM<br/>시스템 건강성 실패<br/>API 무응답/인프라 장애<br/>모든 포지션 시장가 청산"]
-    A --> E["L4 - MANUAL<br/>수동 비상 정지<br/>Telegram /kill<br/>즉시 전량 청산<br/>자동 복구 불가"]
+    A["Kill Switch<br>4단계 시스템"] --> B["L1 - STRATEGY<br>개별 전략 정지<br>해당 전략만 정지"]
+    A --> C["L2 - PORTFOLIO<br>포트폴리오 드로다운<br>일간-5%/주간-10%/월간-15%<br>전체 전략 정지"]
+    A --> D["L3 - SYSTEM<br>시스템 건강성 실패<br>API 무응답/인프라 장애<br>모든 포지션 시장가 청산"]
+    A --> E["L4 - MANUAL<br>수동 비상 정지<br>Telegram /kill<br>즉시 전량 청산<br>자동 복구 불가"]
     
     style B fill:#FFEBEE
     style C fill:#EF9A9A
@@ -180,16 +180,16 @@ class KillSwitch:
 ```mermaid
 graph TB
     subgraph regimes["시장 레짐"]
-        R1["횡보<br/>ranging"]
-        R2["상승추세<br/>trending_up"]
-        R3["하락추세<br/>trending_down"]
-        R4["고변동<br/>volatile"]
+        R1["횡보<br>ranging"]
+        R2["상승추세<br>trending_up"]
+        R3["하락추세<br>trending_down"]
+        R4["고변동<br>volatile"]
     end
     
-    R1 --> A["펀딩 차익: 50%<br/>현금: 50%"]
-    R2 --> B["펀딩 차익: 20%<br/>현금: 80%"]
-    R3 --> C["펀딩 차익: 10%<br/>현금: 90%<br/>⚠️ 리스크 최소화"]
-    R4 --> D["펀딩 차익: 40%<br/>현금: 60%"]
+    R1 --> A["펀딩 차익: 50%<br>현금: 50%"]
+    R2 --> B["펀딩 차익: 20%<br>현금: 80%"]
+    R3 --> C["펀딩 차익: 10%<br>현금: 90%<br>⚠️ 리스크 최소화"]
+    R4 --> D["펀딩 차익: 40%<br>현금: 60%"]
     
     style A fill:#FFF3E0
     style B fill:#FFE0B2
@@ -250,65 +250,65 @@ graph TB
 
 ```mermaid
 flowchart TD
-    Start([전략이 주문 요청 생성]) --> GenID["request_id 부여<br/>멱등성 보장"]
-    GenID --> CheckIdempotent{"멱등성<br/>검사"}
-    CheckIdempotent -->|중복| RejectDup["주문 거부<br/>order_duplicate_skipped"]
+    Start([전략이 주문 요청 생성]) --> GenID["request_id 부여<br>멱등성 보장"]
+    GenID --> CheckIdempotent{"멱등성<br>검사"}
+    CheckIdempotent -->|중복| RejectDup["주문 거부<br>order_duplicate_skipped"]
     CheckIdempotent -->|통과| Safety["=== 안전 검증 시작 ==="]
     
-    Safety --> V1["1. 최대 주문 규모 검증<br/>notional <= 100,000 USD"]
-    V1 -->|실패| Reject1["주문 거부<br/>order_size_exceeded"]
-    V1 -->|통과| V2["2. 레버리지 한도 검증<br/>명시적 + 암묵적 이중 검증"]
-    V2 -->|실패| Reject2["주문 거부<br/>leverage_exceeded"]
-    V2 -->|통과| V3["3. 가용 마진 검증<br/>free margin >= 50 USD"]
-    V3 -->|실패| Reject3["주문 거부<br/>insufficient_margin"]
-    V3 -->|통과| V4["4. 슬리피지 검증<br/>편차 <= 0.5%"]
-    V4 -->|실패| Reject4["주문 거부<br/>slippage_exceeded"]
-    V4 -->|통과| V5["5. 네트워크 건강성<br/>마지막 응답 < 30초"]
-    V5 -->|실패| Network["L3 SYSTEM<br/>Kill Switch"]
-    V5 -->|통과| V6["6. API 호출 제한<br/>< 108회/분"]
-    V6 -->|실패| Reject6["주문 거부<br/>rate_limit_near"]
-    V6 -->|통과| CheckKS{"Kill Switch<br/>활성?"}
+    Safety --> V1["1. 최대 주문 규모 검증<br>notional <= 100,000 USD"]
+    V1 -->|실패| Reject1["주문 거부<br>order_size_exceeded"]
+    V1 -->|통과| V2["2. 레버리지 한도 검증<br>명시적 + 암묵적 이중 검증"]
+    V2 -->|실패| Reject2["주문 거부<br>leverage_exceeded"]
+    V2 -->|통과| V3["3. 가용 마진 검증<br>free margin >= 50 USD"]
+    V3 -->|실패| Reject3["주문 거부<br>insufficient_margin"]
+    V3 -->|통과| V4["4. 슬리피지 검증<br>편차 <= 0.5%"]
+    V4 -->|실패| Reject4["주문 거부<br>slippage_exceeded"]
+    V4 -->|통과| V5["5. 네트워크 건강성<br>마지막 응답 < 30초"]
+    V5 -->|실패| Network["L3 SYSTEM<br>Kill Switch"]
+    V5 -->|통과| V6["6. API 호출 제한<br>< 108회/분"]
+    V6 -->|실패| Reject6["주문 거부<br>rate_limit_near"]
+    V6 -->|통과| CheckKS{"Kill Switch<br>활성?"}
     
-    CheckKS -->|예| KSBlock["주문 실행 차단<br/>사유 로그"]
-    CheckKS -->|아니오| Portfolio["포트폴리오<br/>상태 평가"]
+    CheckKS -->|예| KSBlock["주문 실행 차단<br>사유 로그"]
+    CheckKS -->|아니오| Portfolio["포트폴리오<br>상태 평가"]
     
-    Portfolio --> L1{"전략별<br/>드로다운<br/>초과?"}
-    L1 -->|예| L1Trigger["L1 STRATEGY 발동<br/>해당 전략만 정지<br/>4시간 쿨다운"]
+    Portfolio --> L1{"전략별<br>드로다운<br>초과?"}
+    L1 -->|예| L1Trigger["L1 STRATEGY 발동<br>해당 전략만 정지<br>4시간 쿨다운"]
     L1 -->|아니오| L2
-    L1Trigger --> Resume1{"쿨다운<br/>경과?"}
+    L1Trigger --> Resume1{"쿨다운<br>경과?"}
     Resume1 -->|예| Resume1OK["전략 재개"]
     Resume1 -->|아니오| Waiting1["대기 계속"]
     
-    L2{"포트폴리오<br/>드로다운<br/>초과?"}
-    L2 -->|예| L2Trigger["L2 PORTFOLIO 발동<br/>모든 전략 정지<br/>60분 쿨다운"]
+    L2{"포트폴리오<br>드로다운<br>초과?"}
+    L2 -->|예| L2Trigger["L2 PORTFOLIO 발동<br>모든 전략 정지<br>60분 쿨다운"]
     L2 -->|아니오| L3
-    L2Trigger --> Resume2{"쿨다운<br/>경과?"}
+    L2Trigger --> Resume2{"쿨다운<br>경과?"}
     Resume2 -->|예| Resume2OK["전체 전략 재개"]
     Resume2 -->|아니오| Waiting2["대기 계속"]
     
-    L3{"시스템 건강성<br/>실패?"}
-    L3 -->|예| L3Trigger["L3 SYSTEM 발동<br/>전 포지션<br/>시장가 청산"]
+    L3{"시스템 건강성<br>실패?"}
+    L3 -->|예| L3Trigger["L3 SYSTEM 발동<br>전 포지션<br>시장가 청산"]
     L3 -->|아니오| L4
-    L3Trigger --> Resume3{"쿨다운 경과<br/>AND<br/>시스템 정상?"}
+    L3Trigger --> Resume3{"쿨다운 경과<br>AND<br>시스템 정상?"}
     Resume3 -->|예| Resume3OK["서비스 재시작"]
     Resume3 -->|아니오| Waiting3["대시보드 모니터링"]
     
-    L4{"수동 비상<br/>명령?"}
-    L4 -->|예| L4Trigger["L4 MANUAL 발동<br/>즉시 전량 청산<br/>자동 복구 불가"]
+    L4{"수동 비상<br>명령?"}
+    L4 -->|예| L4Trigger["L4 MANUAL 발동<br>즉시 전량 청산<br>자동 복구 불가"]
     L4 -->|아니오| Execute["모든 검증 통과"]
-    L4Trigger --> ManualReset["수동 해제 필요<br/>reset_manual() 호출"]
-    ManualReset --> WaitManual["운영자 확인<br/>후 재개"]
+    L4Trigger --> ManualReset["수동 해제 필요<br>reset_manual() 호출"]
+    ManualReset --> WaitManual["운영자 확인<br>후 재개"]
     
-    Execute --> PlaceOrder["Bybit API<br/>주문 전송"]
-    PlaceOrder --> Success{"주문<br/>성공?"}
-    Success -->|예| SaveDB["trades 테이블<br/>기록"]
-    Success -->|아니오| Retry{"재시도<br/>3회 이내?"}
+    Execute --> PlaceOrder["Bybit API<br>주문 전송"]
+    PlaceOrder --> Success{"주문<br>성공?"}
+    Success -->|예| SaveDB["trades 테이블<br>기록"]
+    Success -->|아니오| Retry{"재시도<br>3회 이내?"}
     Retry -->|예| PlaceOrder
-    Retry -->|아니오| SaveReject["주문 실패<br/>기록"]
+    Retry -->|아니오| SaveReject["주문 실패<br>기록"]
     
-    SaveDB --> Notify["order:result<br/>Redis 발행"]
-    SaveReject --> NotifyFail["실패 알림<br/>Telegram"]
-    Notify --> StrategyUpdate["strategy:status<br/>갱신"]
+    SaveDB --> Notify["order:result<br>Redis 발행"]
+    SaveReject --> NotifyFail["실패 알림<br>Telegram"]
+    Notify --> StrategyUpdate["strategy:status<br>갱신"]
     
     RejectDup --> End([종료])
     Reject1 --> End
