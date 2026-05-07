@@ -155,20 +155,23 @@ phase5:
   sizing_mode: fixed_notional
   fixed_notional_usd: 150       # $200 × 75% (안전 버퍼)
   max_concurrent_positions: 1   # 동시 포지션 1개 (소액 리스크 관리)
-  fa_capital_ratio: 0.75        # 0.80 → 0.75
-  reinvest_ratio: 0.0           # 재투자 비활성 (소액에선 무의미)
+  fa_capital_ratio: 0.75
+  reinvest_ratio: 0.0
   min_position_usd: 50          # Bybit 최소 주문 $65 기준 하향 조정
 
-  # Phase 5 진입 조건 조정 (Track A: BEP 기반 재산정, 7일 보유 기준)
+  # Option A 진입 조건: BEP 게이트 + 임계값 동시 조정
+  # 비용: 라운드트립 ~0.26% (수수료 0.155%×2 + 슬리피지 0.12% 추정)
+  # BEP 30 cycle (≈10일) 기준 필요 APR ≈ 9.1%, 안전 마진 위해 5% APR 진입
   entry:
-    min_funding_rate_annualized: 8.0    # 25.0 → 8.0 (Track A: BEP 기반 재산정, 7일 보유 기준 9.9% APR 안전 마진)
-    min_funding_rate: 0.0000731         # 0.00012 → 0.0000731 (= 8/365/3/100)
-    consecutive_intervals: 2            # 4 → 2 (16시간 안정성 확인)
-    require_predicted_alignment: true   # 유지
+    min_funding_rate_annualized: 5.0    # 8.0 → 5.0 (Option A: 진입 빈도 확보)
+    min_funding_rate: 0.0000457         # = 5/365/3/100
+    consecutive_intervals: 2            # 16시간 연속 확인 유지
+    min_cycles_to_profit: 30            # BEP 게이트를 10일 윈도우로 확장 (기본 2.0은 수학적 불가)
+    require_predicted_alignment: true
 
-  # Track A: Phase5 exit 조건 오버라이드
+  # Option A exit 조건
   exit:
-    min_funding_rate_annualized: 3.0    # 5.0 → 3.0 (수익성 상실 임계값)
+    min_funding_rate_annualized: 2.0    # 3.0 → 2.0 (조기 청산 완화, 검증 단계)
     exit_on_rate_flip: true
-    max_holding_hours: 168              # 7일
+    max_holding_hours: 168              # 명시 유지; 실제 적용은 base 720h (별도 ADR 예정)
     cooldown_minutes: 60

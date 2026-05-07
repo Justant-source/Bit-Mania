@@ -281,3 +281,39 @@ verdict: CONDITIONAL_PASS
 **문서 작성**: 2026-05-02  
 **기반**: Phase 3~13 전체 테스트 히스토리 통합  
 **다음 갱신**: Phase 5 임계값 조정 후 또는 월 1회 실운영 분석
+
+---
+
+## Round 9 (2026-05-08): Option A — BEP 게이트 버그 수정
+
+### 발견된 문제
+메인넷 1개월 운영 0건 체결. 진입 임계값(8% APR)이 낮음에도 게이트 5(`is_entry_net_profitable`)가 모든 진입을 차단.
+
+**근본 원인**: `min_cycles_to_profit=2.0` 하드코딩.
+
+### 수학적 검증
+
+| BEP 윈도우 | Cycles | 필요 APR | Bybit 상한(10.95%) 통과? |
+|---|---|---|---|
+| 2 cycle (기존) | 2 | 136.9% | ❌ 절대 불가 |
+| 30 cycle (Option A) | 30 | 9.13% | ✅ 가능 |
+| 90 cycle (base 720h) | 90 | 3.04% | ✅ 여유 |
+
+라운드트립 비용 ($150 notional, Bybit taker): 수수료 0.31% + 슬리피지 추정 0.12% ≈ **$0.645**  
+(funding_tracker 내 가정 $0.375 대비 72% 과소 추정 — 실측으로 21일 검증 예정)
+
+### 수정 내용
+
+- `strategy.py`: `self._min_cycles_to_profit` — `phase5.entry.min_cycles_to_profit`으로 config-driven 노출
+- `strategy.py`: `is_entry_net_profitable()` 호출 시 `min_cycles_to_profit=self._min_cycles_to_profit` 전달
+- `strategy.py`: 진입 거부 로그 3종 DEBUG→INFO 격상 + 표준 이벤트명 (`FA_RATE_BELOW_THRESHOLD`, `FA_CONSECUTIVE_NOT_MET`, `FA_BEP_NOT_PROFITABLE`)
+- `shared/log_events.py`: `FA_BEP_NOT_PROFITABLE` 상수 추가
+- `config/strategies/funding-arb.yaml`: `min_cycles_to_profit: 30`, `min_funding_rate_annualized: 8.0 → 5.0`
+
+### 기대 효과
+- BEP 게이트가 5% APR 이상 펀딩비에서 통과 가능
+- 21일 검증 기간 목표: 5-10건 체결
+
+### 미확인 가설 (21일 실측으로 검증 예정)
+1. funding_tracker 내 슬리피지 가정($0.18)이 실제($0.31+)와 차이 — postmortem으로 실측
+2. `phase5.exit.max_holding_hours: 168` 코드에서 무시됨 (base `720h` 적용 중) — 별도 ADR 예정

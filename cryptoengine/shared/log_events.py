@@ -43,6 +43,7 @@ FA_REINVEST = "fa_reinvest"
 FA_RATE_BELOW_THRESHOLD = "fa_rate_below_threshold"
 FA_CONSECUTIVE_NOT_MET = "fa_consecutive_not_met"
 FA_PREDICTED_MISALIGNED = "fa_predicted_misaligned"
+FA_BEP_NOT_PROFITABLE = "fa_bep_not_profitable"    # BEP gate rejected entry
 
 # === DCA ===
 DCA_PURCHASE = "dca_purchase"
@@ -157,6 +158,7 @@ EVENT_LEVELS: dict[str, str] = {
     FA_RATE_BELOW_THRESHOLD: "INFO",       # Track A: DEBUG→INFO (24일 0거래 재발 방지)
     FA_CONSECUTIVE_NOT_MET: "INFO",        # Track A: DEBUG→INFO
     FA_PREDICTED_MISALIGNED: "INFO",       # Track A: DEBUG→INFO
+    FA_BEP_NOT_PROFITABLE: "INFO",         # Option A: BEP gate rejection
     # DCA
     DCA_PURCHASE: "INFO",
     DCA_MULTIPLIER_CALC: "DEBUG",

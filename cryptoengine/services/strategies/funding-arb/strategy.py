@@ -114,6 +114,13 @@ class FundingArbStrategy(BaseStrategy):
         self._consecutive_intervals: int = int(_p5_entry.get("consecutive_intervals", _base_intervals))
         self._consecutive_above_count: int = 0
 
+        # BEP gate: cycles allowed to reach breakeven. Default 2.0 is mathematically
+        # impossible at Bybit taker fees ($150 notional). phase5.entry.min_cycles_to_profit
+        # overrides this (Option A: 30 cycles ≈ 10 days).
+        self._min_cycles_to_profit: float = float(
+            _p5_entry.get("min_cycles_to_profit", 2.0)
+        )
+
         # Fee rates (Bybit: spot taker 0.01%, perp taker 0.055%)
         self.spot_fee_rate: float = config.get("fees", {}).get("spot_fee_rate", 0.0001)
         self.perp_fee_rate: float = config.get("fees", {}).get("perp_fee_rate", 0.00055)
@@ -378,10 +385,12 @@ class FundingArbStrategy(BaseStrategy):
             return False
 
         if funding.rate < self.min_funding_rate:
-            self._log.debug(
-                "funding_rate_too_low",
+            self._log.info(
+                FA_RATE_BELOW_THRESHOLD,
                 rate=funding.rate,
                 threshold=self.min_funding_rate,
+                rate_apr=round(funding.rate * 3 * 365 * 100, 2),
+                threshold_apr=round(self.min_funding_rate * 3 * 365 * 100, 2),
             )
             return False
 
@@ -401,8 +410,8 @@ class FundingArbStrategy(BaseStrategy):
 
         # Consecutive intervals check: N ticks must exceed threshold before entry
         if self._consecutive_above_count < self._consecutive_intervals:
-            self._log.debug(
-                "consecutive_intervals_not_met",
+            self._log.info(
+                FA_CONSECUTIVE_NOT_MET,
                 count=self._consecutive_above_count,
                 required=self._consecutive_intervals,
             )
@@ -418,13 +427,15 @@ class FundingArbStrategy(BaseStrategy):
             if not self._funding_tracker.is_entry_net_profitable(
                 funding_rate_8h=funding.rate,
                 position_usd=notional,
+                min_cycles_to_profit=self._min_cycles_to_profit,
                 spot_fee_rate=self.spot_fee_rate,
                 perp_fee_rate=self.perp_fee_rate,
             ):
-                self._log.debug(
-                    "entry_not_net_profitable",
+                self._log.info(
+                    FA_BEP_NOT_PROFITABLE,
                     funding_rate=funding.rate,
                     notional_usd=notional,
+                    min_cycles_required=self._min_cycles_to_profit,
                 )
                 return False
 
