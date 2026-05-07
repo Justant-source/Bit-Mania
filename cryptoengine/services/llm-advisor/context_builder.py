@@ -239,9 +239,10 @@ class ContextBuilder:
 
         results = {}
         health_map: dict[str, SourceHealth] = {}
+        # Per-source timeout: 30s (faster fail-over, allowing 5 sources ~120s total)
         for name, task in tasks.items():
             try:
-                result = await asyncio.wait_for(task, timeout=60)
+                result = await asyncio.wait_for(task, timeout=30)
                 # V2: get_context() returns tuple[dict, SourceHealth]
                 if isinstance(result, tuple) and len(result) == 2:
                     results[name], health_map[name] = result
@@ -250,11 +251,11 @@ class ContextBuilder:
                     results[name] = result
                     health_map[name] = SourceHealth(status="HEALTHY")
             except asyncio.TimeoutError:
-                logger.error("source_timeout", source=name)
-                results[name] = self._sources[name]._fallback_context("timeout after 60s")
+                logger.error("source_timeout", source=name, timeout=30)
+                results[name] = self._sources[name]._fallback_context("timeout after 30s")
                 health_map[name] = SourceHealth(
                     status="BROKEN",
-                    failure_reason="timeout after 60s",
+                    failure_reason="timeout after 30s",
                     failure_stage="http",
                 )
             except Exception as e:

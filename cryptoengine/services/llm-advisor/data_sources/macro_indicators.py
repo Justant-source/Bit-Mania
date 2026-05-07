@@ -210,7 +210,7 @@ class MacroIndicatorsSource(BaseDataSource):
         }
 
     async def _fetch_fred_all(self, api_key: str) -> dict[str, Any]:
-        """Fetch all configured FRED series."""
+        """Fetch all configured FRED series with per-series timeout."""
         if not api_key:
             logger.warning("fred_api_key_missing", hint="Set FRED_API_KEY env var")
             return {}
@@ -226,7 +226,16 @@ class MacroIndicatorsSource(BaseDataSource):
         results: dict[str, Any] = {}
         for name, task in tasks.items():
             try:
-                results[name] = await task
+                # Per-series timeout: 10 seconds (5 series * 10s ≈ 50s max)
+                results[name] = await asyncio.wait_for(task, timeout=10)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "fred_series_timeout",
+                    series=name,
+                    series_id=FRED_SERIES.get(name),
+                    timeout=10,
+                )
+                results[name] = []
             except Exception as exc:
                 logger.warning("fred_series_failed", series=name, error=str(exc))
                 results[name] = []

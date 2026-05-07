@@ -129,8 +129,9 @@ class LLMAdvisorService:
 
     async def _scheduled_analysis_loop(self) -> None:
         """Run full analysis every 6 hours."""
-        # Overall timeout for a single analysis run (15 min)
-        _ANALYSIS_TIMEOUT = 900
+        # Overall timeout for a single analysis run (20 min)
+        # Allows: context gathering ~10s + data sources (5 × 30s) ~150s + LLM invocations ~300s
+        _ANALYSIS_TIMEOUT = 1200
         while self._running:
             try:
                 await asyncio.wait_for(
@@ -141,6 +142,7 @@ class LLMAdvisorService:
                 log.error(
                     LLM_API_ERROR,
                     message=f"분석 전체 타임아웃 ({_ANALYSIS_TIMEOUT}초) — 다음 주기에 재시도",
+                    hint="Check if FRED API or other data sources are slow/unavailable",
                 )
             except asyncio.CancelledError:
                 break
@@ -203,6 +205,7 @@ class LLMAdvisorService:
             regime_data = context.get("regime", {})
             regime_str = regime_data.get("current", "unknown") if isinstance(regime_data, dict) else str(regime_data or "unknown")
 
+            log.info(LLM_ANALYSIS_START, message="외부 데이터 수집 시작", sources=["etf", "onchain", "macro", "derivatives", "research"])
             market_ctx = await self._context_builder.build(
                 btc_price=btc_price,
                 price_change_24h=context.get("price_change_24h_pct", 0),
@@ -217,7 +220,15 @@ class LLMAdvisorService:
                 message="외부 데이터 수집 완료",
                 freshness=market_ctx.data_freshness_score,
                 broken=market_ctx.broken_sources,
+                degraded=market_ctx.degraded_sources,
             )
+        except asyncio.TimeoutError:
+            log.error(
+                LLM_API_ERROR,
+                message="외부 데이터 수집 타임아웃 (각 소스 30초 제한)",
+                hint="Check FRED API / yfinance / on-chain API availability",
+            )
+            context["_v2_prompt_vars"] = None
         except Exception:
             log.exception(LLM_API_ERROR, message="외부 데이터 수집 실패, 기본값 사용")
             context["_v2_prompt_vars"] = None
@@ -329,7 +340,19 @@ class LLMAdvisorService:
             )
             prompt = ASSET_REPORT_PROMPT.format(**fmt_vars)
 
-            report_data = await self._model_manager.invoke(prompt, timeout=90)
+            try:
+                report_data = await asyncio.wait_for(
+                    self._model_manager.invoke(prompt, timeout=90),
+                    timeout=120  # Allow 90s for LLM + 30s for overhead
+                )
+            except asyncio.TimeoutError:
+                log.warning(
+                    LLM_API_ERROR,
+                    message="자산 리포트 생성 타임아웃 (120초)",
+                    hint="LLM response was too slow or API unavailable",
+                )
+                report_data = None
+
             if report_data is None:
                 log.warning(LLM_API_ERROR, message="자산 리포트 생성 결과 없음")
                 return None
