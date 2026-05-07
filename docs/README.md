@@ -13,7 +13,7 @@ last_updated: 2026-05-01
 > - 백테스트 성과: CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회
 > - 운영 모드: 테스트넷 (`BYBIT_TESTNET=true`)
 
-이 디렉토리(`cryptoengine/docs/`)가 프로젝트의 **유일한 문서 source-of-truth**이다.
+이 디렉토리(`docs/`)가 프로젝트의 **유일한 문서 source-of-truth**이다.
 어떤 코드를 수정하든 [CODE_MAP.md](CODE_MAP.md) 에서 관련 문서를 찾아 함께 업데이트해야 한다.
 
 ---

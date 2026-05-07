@@ -19,30 +19,30 @@
 
 ## 문서 관리 규칙 ★ 필수
 
-**모든 프로젝트 문서는 `cryptoengine/docs/` 단일 트리에서 관리한다.**
+**모든 프로젝트 문서는 `docs/` 단일 트리에서 관리한다.**
 
-새 컨텍스트 진입 시: `cryptoengine/docs/README.md` (Map of Content)를 먼저 읽는다.
+새 컨텍스트 진입 시: `docs/README.md` (Map of Content)를 먼저 읽는다.
 
 ### 코드 ↔ 문서 동기화
 코드 수정 시 같은 커밋에서 관련 문서를 업데이트한다:
-1. `cryptoengine/docs/CODE_MAP.md` 역인덱스에서 변경 코드 경로 검색
+1. `docs/CODE_MAP.md` 역인덱스에서 변경 코드 경로 검색
 2. 해당 doc의 `last_updated` frontmatter 갱신
 3. 신규 영역은 같은 커밋에서 doc 신규 작성 + CODE_MAP.md 행 추가
 
 문서 미업데이트는 작업 미완으로 간주한다.
 
 ### 참고 문서
-- `cryptoengine/docs/README.md` — MOC (시작점)
-- `cryptoengine/docs/CODE_MAP.md` — 코드 경로 → 문서 역인덱스
-- `cryptoengine/docs/glossary.md` — 용어집
-- `cryptoengine/docs/architecture/` — 시스템 설계
-- `cryptoengine/docs/policies/` — 정책 + Kill Switch
-- `cryptoengine/docs/strategies/` — 전략 사양
-- `cryptoengine/docs/runbook.md` — Docker 운영 가이드
+- `docs/README.md` — MOC (시작점)
+- `docs/CODE_MAP.md` — 코드 경로 → 문서 역인덱스
+- `docs/glossary.md` — 용어집
+- `docs/architecture/` — 시스템 설계
+- `docs/policies/` — 정책 + Kill Switch
+- `docs/strategies/` — 전략 사양
+- `docs/runbook.md` — Docker 운영 가이드
 
 ## 배포 및 운영
 
-→ `cryptoengine/docs/runbook.md` 참조
+→ `docs/runbook.md` 참조
 
 포지션 보호 원칙: 배포(재시작)는 포지션을 청산하지 않는다. `service_shutdown` 사유로 종료될 때 Redis에 상태를 저장한 뒤, 1시간 내 재시작 시 자동 복구된다.
 
@@ -57,7 +57,7 @@ docker compose build market-data execution-engine funding-arb strategy-orchestra
 
 ## Docker 및 공유 라이브러리
 
-→ `cryptoengine/docs/runbook.md` + `cryptoengine/docs/structure/README.md` 참조
+→ `docs/runbook.md` + `docs/structure/README.md` 참조
 
 **빌드 컨텍스트**: 프로젝트 루트(`.`)에서 COPY 경로는 `cryptoengine/` 프리픽스 사용.
 ```dockerfile
@@ -75,10 +75,10 @@ make emergency                              # 비상 청산
 
 ## 참고 문서
 
-**프로젝트 구조**: `cryptoengine/docs/structure/services.md`
-**Redis Pub/Sub 채널**: `cryptoengine/docs/architecture/data-flow.md`
-**PostgreSQL 테이블**: `cryptoengine/docs/structure/README.md`
-**환경 변수**: `cryptoengine/docs/runbook.md`
+**프로젝트 구조**: `docs/structure/services.md`
+**Redis Pub/Sub 채널**: `docs/architecture/data-flow.md`
+**PostgreSQL 테이블**: `docs/structure/README.md`
+**환경 변수**: `docs/runbook.md`
 **백테스트 스킬셋**: `services/jesse_engine/scripts/README.md`
 
 ## 코드 작업 시 필수 규칙
@@ -91,7 +91,7 @@ make emergency                              # 비상 청산
 
 ## 다음 작업
 
-→ `cryptoengine/docs/archive/CLAUDE_history.md` 및 본 CLAUDE.md의 "현재 진행 상태" 참조
+→ `docs/archive/CLAUDE_history.md` 및 본 CLAUDE.md의 "현재 진행 상태" 참조
 
 **Phase 4 → 5 전환**:
 ```bash

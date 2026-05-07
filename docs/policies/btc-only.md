@@ -386,7 +386,7 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
   - 상태: Accepted
   - 배경: 멀티심볼 백테스트 실패 (Test 03, 05 음수 결과)
 
-근거 자료: `/home/justant/Data/Bit-Mania/cryptoengine/docs/archive/CLAUDE_history.md`
+근거 자료: `/home/justant/Data/Bit-Mania/docs/archive/CLAUDE_history.md`
 
 ---
 

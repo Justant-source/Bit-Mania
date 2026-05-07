@@ -8,9 +8,9 @@
 
 ## 문서
 
-모든 프로젝트 문서는 `cryptoengine/docs/` 에서 관리됩니다.
+모든 프로젝트 문서는 `docs/` 에서 관리됩니다.
 
-**시작하기**: [`cryptoengine/docs/README.md`](cryptoengine/docs/README.md) (Map of Content)
+**시작하기**: [`docs/README.md`](docs/README.md) (Map of Content)
 
 **작업 가이드**: [`CLAUDE.md`](CLAUDE.md) (루트 가이드 + 진입 규칙)
 
@@ -51,4 +51,4 @@ docker compose ps
 
 ## 세부 정보
 
-더 많은 정보는 `cryptoengine/docs/README.md` 를 참조하세요.
+더 많은 정보는 `docs/README.md` 를 참조하세요.
