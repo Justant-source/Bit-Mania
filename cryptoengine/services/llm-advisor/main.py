@@ -1,7 +1,9 @@
 """LLM Advisor — entry point.
 
-Schedules periodic analysis every 4 hours and subscribes to the
-llm:request Redis channel for on-demand analysis requests.
+Subscribes to the llm:request Redis channel for on-demand analysis requests
+and exposes an HTTP trigger endpoint for manual execution from Grafana.
+Scheduled (6-hour) auto-analysis is disabled; reports are generated only
+on explicit trigger.
 Full analysis reports are persisted to the ``llm_reports`` table
 for dashboard browsing.
 """
@@ -104,9 +106,8 @@ class LLMAdvisorService:
         self._reflection = DailyReflection(self._redis)
 
         self._running = True
-        self._analysis_task = asyncio.create_task(
-            self._scheduled_analysis_loop(), name="scheduled-analysis"
-        )
+        # Scheduled auto-analysis disabled — manual trigger only (Grafana HTTP button)
+        self._analysis_task = None
         self._request_task = asyncio.create_task(
             self._subscribe_requests(), name="request-subscriber"
         )

@@ -28,6 +28,19 @@ class FearGreedCollector:
     def __init__(self, redis: RedisClient) -> None:
         self._redis = redis
         self._log = logger.bind(component="fear_greed_collector")
+        # Persistent session: reused across calls to avoid "Unclosed client session"
+        # warnings when per-request sessions are cancelled mid-flight.
+        self._session: aiohttp.ClientSession | None = None
+
+    def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def close(self) -> None:
+        if self._session and not self._session.closed:
+            await self._session.close()
+        self._session = None
 
     async def get_current_index(self) -> int:
         """Return the current F&G index value (0-100).
@@ -70,38 +83,37 @@ class FearGreedCollector:
                 pass
 
         try:
-            async with aiohttp.ClientSession() as session:
-                params = {"limit": days, "format": "json"}
-                async with session.get(FNG_API_URL, params=params) as resp:
-                    if resp.status != 200:
-                        self._log.warning("fng_api_error", status=resp.status)
-                        return []
+            session = self._get_session()
+            params = {"limit": days, "format": "json"}
+            async with session.get(FNG_API_URL, params=params) as resp:
+                if resp.status != 200:
+                    self._log.warning("fng_api_error", status=resp.status)
+                    return []
 
-                    body = await resp.json()
-                    raw_data = body.get("data", [])
+                body = await resp.json()
+                raw_data = body.get("data", [])
 
-                    result: list[dict[str, Any]] = []
-                    for entry in raw_data:
-                        result.append(
-                            {
-                                "value": int(entry.get("value", 50)),
-                                "timestamp": entry.get("timestamp", ""),
-                                "classification": entry.get(
-                                    "value_classification", "Neutral"
-                                ),
-                            }
-                        )
-
-                    # Cache the result
-                    import json
-                    await self._redis.set(
-                        cache_key,
-                        json.dumps(result),
-                        ttl=CACHE_TTL,
+                result: list[dict[str, Any]] = []
+                for entry in raw_data:
+                    result.append(
+                        {
+                            "value": int(entry.get("value", 50)),
+                            "timestamp": entry.get("timestamp", ""),
+                            "classification": entry.get(
+                                "value_classification", "Neutral"
+                            ),
+                        }
                     )
 
-                    self._log.info("fng_history_fetched", days=days, count=len(result))
-                    return result
+                import json
+                await self._redis.set(
+                    cache_key,
+                    json.dumps(result),
+                    ttl=CACHE_TTL,
+                )
+
+                self._log.info("fng_history_fetched", days=days, count=len(result))
+                return result
 
         except Exception:
             self._log.exception("fng_history_fetch_error")
@@ -110,27 +122,27 @@ class FearGreedCollector:
     async def _fetch_from_api(self) -> int | None:
         """Fetch the latest F&G index value from Alternative.me."""
         try:
-            async with aiohttp.ClientSession() as session:
-                params = {"limit": 1, "format": "json"}
-                async with session.get(FNG_API_URL, params=params) as resp:
-                    if resp.status != 200:
-                        self._log.warning("fng_api_error", status=resp.status)
-                        return None
+            session = self._get_session()
+            params = {"limit": 1, "format": "json"}
+            async with session.get(FNG_API_URL, params=params) as resp:
+                if resp.status != 200:
+                    self._log.warning("fng_api_error", status=resp.status)
+                    return None
 
-                    body = await resp.json()
-                    data = body.get("data", [])
-                    if not data:
-                        self._log.warning("fng_api_empty_response")
-                        return None
+                body = await resp.json()
+                data = body.get("data", [])
+                if not data:
+                    self._log.warning("fng_api_empty_response")
+                    return None
 
-                    value = int(data[0].get("value", 50))
-                    self._log.info(
-                        DCA_MULTIPLIER_CALC,
-                        message="공포탐욕지수 조회 완료",
-                        value=value,
-                        classification=data[0].get("value_classification"),
-                    )
-                    return value
+                value = int(data[0].get("value", 50))
+                self._log.info(
+                    DCA_MULTIPLIER_CALC,
+                    message="공포탐욕지수 조회 완료",
+                    value=value,
+                    classification=data[0].get("value_classification"),
+                )
+                return value
 
         except Exception:
             self._log.exception("fng_fetch_error")
