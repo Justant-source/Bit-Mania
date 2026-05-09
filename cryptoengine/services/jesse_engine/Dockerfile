@@ -1,7 +1,7 @@
 FROM salehmir/jesse:latest
 
 # Install additional dependencies for our strategies
-RUN pip install polars==0.20.31 asyncpg --quiet
+RUN pip install polars==0.20.31 asyncpg scikit-optimize --quiet
 
 # Copy project structure
 WORKDIR /jesse-project

@@ -18,6 +18,7 @@ cryptoengine/backtest-results/data/
 
 # Jesse backtest runtime artifacts (UUID raw results)
 cryptoengine/services/jesse_engine/storage/json/
+cryptoengine/services/jesse_engine/storage/csv/
 
 # LLM Advisor data source runtime files
 cryptoengine/services/llm-advisor/alerts/*.md

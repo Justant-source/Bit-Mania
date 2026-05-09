@@ -5,9 +5,11 @@ services:
     volumes:
       - ./strategies:/jesse-project/strategies
       - ./scripts:/jesse-project/scripts
+      - /tmp/jesse_backtest_patched.py:/jesse-docker/jesse/research/backtest.py:ro
       - ../../backtest-results/data:/data:ro
       - ./storage:/jesse-project/storage
       - ./.env:/jesse-project/.env:ro
+      - ../../../.result:/result
     environment:
       - DB_PASSWORD=${DB_PASSWORD}
       - DATA_DIR=/data
