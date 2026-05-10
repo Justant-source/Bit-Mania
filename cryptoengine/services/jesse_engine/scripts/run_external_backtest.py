@@ -447,16 +447,16 @@ def run(args):
     # Warmup: need 220 bars in target TF units (enough for SMA200 + margin)
     warmup_days = max(60, tf_hours * 220 // 24 + 1)
     wu_start_dt = start_dt - timedelta(days=warmup_days)
-    min_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    if wu_start_dt < min_date:
-        # No pre-period data: slice warmup from front of main (220 TF-bars = enough for EMA200).
-        # Trim main to start after warmup to avoid look-ahead overlap.
-        warmup_1h_bars = min(tf_hours * 220, len(candles_1h) // 4)
-        warmup_1h = candles_1h[:warmup_1h_bars]
-        candles_1h = candles_1h[warmup_1h_bars:]  # main starts after warmup — no overlap
-    else:
-        wu_start = wu_start_dt.strftime('%Y-%m-%d')
-        warmup_1h = _load_1h(wu_start, start)
+    # Warmup must come from pre-period data on disk (2019 parquet backfilled).
+    # Never slice warmup from the main window — that silently pushes the trading
+    # start date forward and invalidates BnH and regime-sensitive comparisons.
+    wu_start = wu_start_dt.strftime('%Y-%m-%d')
+    warmup_1h = _load_1h(wu_start, start)
+    if len(warmup_1h) < tf_hours * 200:
+        raise RuntimeError(
+            f'Insufficient warmup candles for {tf}: got {len(warmup_1h)} 1h bars, '
+            f'need {tf_hours * 200}. Backfill {wu_start} → {start} first.'
+        )
 
     if tf != '1h':
         # Resample 1h → target TF, then expand to 1m for Jesse's base format.

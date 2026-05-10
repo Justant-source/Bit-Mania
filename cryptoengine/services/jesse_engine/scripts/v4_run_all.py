@@ -25,7 +25,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-RESULT_DIR = Path('/result/v4')
+RESULT_DIR = Path('/result/9-strategies')
 SCRIPTS    = Path('/jesse-project/scripts')
 
 TIMEFRAMES = ['1h', '2h', '4h', '1D']
@@ -51,7 +51,7 @@ def _jobs(tf_filter: str | None = None) -> list[dict]:
     tfs = [tf_filter] if tf_filter else TIMEFRAMES
     for tf in tfs:
         # BuyAndHold first (benchmark)
-        bnh_out = RESULT_DIR / tf / 'buy_and_hold'
+        bnh_out = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
         jobs.append({
             'tf':     tf,
             'cls':    'BuyAndHoldStrategy',
@@ -63,7 +63,7 @@ def _jobs(tf_filter: str | None = None) -> list[dict]:
         # Strategy variants
         for cls, d in STRATEGIES:
             for var in VARIANTS:
-                out = RESULT_DIR / tf / d / var
+                out = RESULT_DIR / d / tf / var
                 jobs.append({
                     'tf':    tf,
                     'cls':   cls,

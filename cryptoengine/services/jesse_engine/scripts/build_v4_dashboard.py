@@ -24,7 +24,7 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).parent
 JESSE_ROOT = SCRIPT_DIR.parent            # cryptoengine/services/jesse_engine/
 CE_ROOT    = JESSE_ROOT.parent.parent     # cryptoengine/
-RESULT_DIR = Path('/home/justant/Data/Bit-Mania/.result/v4')
+RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '9-strategies'
 BTC_KLINES = CE_ROOT / 'backtest-results' / 'data' / 'binance_vision' / 'klines' / 'BTCUSDT'
 DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '9-strategies' / 'dashboard.html'
 
@@ -37,7 +37,7 @@ START_MS    = int(datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
 # BnH Sharpe per TF (from SUMMARY.md)
-BNH_SHARPE = {'1h': 0.825, '2h': 0.926, '4h': 0.912, '1D': 0.922}
+BNH_SHARPE = {'1h': 0.859, '2h': 0.975, '4h': 0.986, '1D': 0.984}
 
 # ─── Strategy metadata (Korean / English bilingual) ───────────────────────────
 STRATEGY_META: dict[str, dict] = {
@@ -431,13 +431,13 @@ def collect_all_results() -> dict:
 
     for tf in TIMEFRAMES:
         # BuyAndHold
-        bnh_folder = RESULT_DIR / tf / 'buy_and_hold'
+        bnh_folder = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
         if bnh_folder.exists():
             _process(tf, 'buy_and_hold', 'buy_and_hold', bnh_folder)
         # Strategies
         for strat in STRATEGIES:
             for var in VARIANTS:
-                folder = RESULT_DIR / tf / strat / var
+                folder = RESULT_DIR / strat / tf / var
                 if folder.exists():
                     _process(tf, strat, var, folder)
 

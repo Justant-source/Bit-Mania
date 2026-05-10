@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-RESULT_DIR = Path('/result/v4')
+RESULT_DIR = Path('/result/9-strategies')
 TIMEFRAMES = ['1h', '2h', '4h', '1D']
 YEARS      = [2020, 2021, 2022, 2023, 2024, 2025]
 START_BAL  = 1_000.0
@@ -98,7 +98,7 @@ def collect() -> list[dict]:
     rows = []
     for tf in TIMEFRAMES:
         # BnH
-        bnh_path = RESULT_DIR / tf / 'buy_and_hold'
+        bnh_path = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
         bnh_stats = load_stats(bnh_path)
         bnh_sharpe = bnh_stats.get('sharpe_ratio', 0.0) if bnh_stats else 0.0
         bnh_monthly = load_monthly(bnh_path)
@@ -111,7 +111,7 @@ def collect() -> list[dict]:
         # Strategies
         for cls, d in STRATEGIES:
             for var in VARIANTS:
-                path = RESULT_DIR / tf / d / var
+                path = RESULT_DIR / d / tf / var
                 stats = load_stats(path)
                 monthly = load_monthly(path)
                 yearly, final = simulate(monthly)
