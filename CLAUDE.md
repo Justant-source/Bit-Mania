@@ -80,6 +80,7 @@ make emergency                              # 비상 청산
 **PostgreSQL 테이블**: `docs/structure/README.md`
 **환경 변수**: `docs/runbook.md`
 **백테스트 스킬셋**: `services/jesse_engine/scripts/README.md`
+**백테스트 헬퍼 가이드**: `cryptoengine/tests/backtest/README.md` (스크립트는 `services/jesse_engine/scripts/` 단일 관리)
 
 ## 코드 작업 시 필수 규칙
 

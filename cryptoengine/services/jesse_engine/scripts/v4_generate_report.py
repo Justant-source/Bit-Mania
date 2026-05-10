@@ -15,7 +15,7 @@ from pathlib import Path
 
 RESULT_DIR = Path('/result/9-strategies')
 TIMEFRAMES = ['1h', '2h', '4h', '1D']
-YEARS      = [2020, 2021, 2022, 2023, 2024, 2025]
+YEARS      = [2021, 2022, 2023, 2024, 2025]
 START_BAL  = 1_000.0
 
 STRATEGIES = [

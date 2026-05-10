@@ -6,8 +6,11 @@ import json
 import os
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).parent
+BATCH1_DIR = SCRIPT_DIR.parent.parent.parent.parent / 'backtest-results' / 'data' / 'batch_1'
+
 # BnH benchmark
-BNH_STATS_PATH = ".result/batch_1/buy_and_hold/stats.json"
+BNH_STATS_PATH = str(BATCH1_DIR / 'buy_and_hold' / 'stats.json')
 
 def load_stats(path):
     """Load stats.json file"""
@@ -148,8 +151,8 @@ def create_decision_md(strat_name, strat_dir, bidirectional_path, longonly_path,
 """
 
     # Write to file
-    output_path = f".result/batch_1/{strat_dir}/decision.md"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    output_path = BATCH1_DIR / strat_dir / 'decision.md'
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
         f.write(content)
 
@@ -206,7 +209,7 @@ def create_summary_md(all_results):
     summary += f"PASS 수: {sum(1 for s, r in all_results.items() for v, st in r.items() if st and st.get('verdict') == 'PASS')}/6\n"
     summary += f"Tier A: {tier_a}, Tier B: {tier_b}, Tier C: {tier_c}\n"
 
-    with open(".result/batch_1/SUMMARY.md", 'w') as f:
+    with open(BATCH1_DIR / 'SUMMARY.md', 'w') as f:
         f.write(summary)
 
     print(f"Created .result/batch_1/SUMMARY.md")
@@ -230,8 +233,8 @@ def main():
     ]
 
     for strat_name, strat_dir in strategies:
-        bid_path = f".result/batch_1/{strat_dir}/bidirectional/stats.json"
-        lo_path = f".result/batch_1/{strat_dir}/long_only/stats.json"
+        bid_path = str(BATCH1_DIR / strat_dir / 'bidirectional' / 'stats.json')
+        lo_path = str(BATCH1_DIR / strat_dir / 'long_only' / 'stats.json')
 
         print(f"\nAnalyzing {strat_name}...")
 

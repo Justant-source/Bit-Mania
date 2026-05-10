@@ -458,7 +458,7 @@ def load_btc_1d() -> list[dict]:
     if not frames:
         return []
     df = pd.concat(frames).sort_values('open_time')
-    df = df[(df['open_time'] >= pd.Timestamp('2020-01-01', tz='UTC')) &
+    df = df[(df['open_time'] >= pd.Timestamp('2021-04-01', tz='UTC')) &
             (df['open_time'] <= pd.Timestamp('2025-12-31', tz='UTC'))]
     return [
         {

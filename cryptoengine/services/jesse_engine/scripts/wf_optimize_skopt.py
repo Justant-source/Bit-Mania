@@ -42,7 +42,7 @@ from run_external_backtest import _load_1h, _extract_metrics, EXCHANGE_NAME, SYM
 from external._long_only_factory import make_long_only
 
 # ── Config ────────────────────────────────────────────────────────────────────
-IS_START  = '2020-01-01'
+IS_START  = '2021-04-01'
 IS_END    = '2022-12-31'
 OOS_START = '2023-01-01'
 OOS_END   = '2025-12-31'

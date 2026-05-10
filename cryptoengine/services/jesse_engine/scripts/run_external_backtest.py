@@ -557,7 +557,7 @@ def parse_args():
     p = argparse.ArgumentParser(description='External strategy backtest runner')
     p.add_argument('--strategy', required=True, help='Strategy class name')
     p.add_argument('--output',   required=True, help='Output directory path')
-    p.add_argument('--start',    default='2020-01-01')
+    p.add_argument('--start',    default='2021-04-01')
     p.add_argument('--end',      default='2025-12-31')
     p.add_argument('--balance',  type=float, default=10_000.0)
     p.add_argument('--fee',      type=float, default=0.00055)

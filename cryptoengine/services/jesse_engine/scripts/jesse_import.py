@@ -266,7 +266,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Import Binance Vision Parquet → Jesse PostgreSQL")
     p.add_argument("--symbol",    default="BTCUSDT", help="e.g. BTCUSDT")
     p.add_argument("--timeframe", default="1h",      help="1h | 4h | 1d")
-    p.add_argument("--start",     default="2020-01-01", help="YYYY-MM-DD")
+    p.add_argument("--start",     default="2021-04-01", help="YYYY-MM-DD")
     p.add_argument("--end",       default="2026-04-01", help="YYYY-MM-DD")
     p.add_argument("--verify",    action="store_true", help="Verify row count after import")
     return p.parse_args()

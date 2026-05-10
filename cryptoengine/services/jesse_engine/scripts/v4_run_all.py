@@ -104,7 +104,7 @@ def run_one(job: dict) -> dict:
         '--variant',  job['var'],
         '--balance',  '10000',
         '--leverage', '1',
-        '--start',    '2020-01-01',
+        '--start',    '2021-04-01',
         '--end',      '2025-12-31',
         '--no-upsample',
         '--timeframe', job['tf'],
