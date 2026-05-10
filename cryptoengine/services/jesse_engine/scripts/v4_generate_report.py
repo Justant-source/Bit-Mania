@@ -96,19 +96,22 @@ def tier(stats: dict | None, bnh_sharpe: float) -> str:
 
 def collect() -> list[dict]:
     rows = []
+    # BnH exists only for 1D — use its Sharpe as the universal benchmark
+    bnh_1d_path = RESULT_DIR / 'buy_and_hold' / '1D' / 'buy_and_hold'
+    bnh_1d_stats = load_stats(bnh_1d_path)
+    universal_bnh_sharpe = bnh_1d_stats.get('sharpe_ratio', 0.0) if bnh_1d_stats else 0.0
+
     for tf in TIMEFRAMES:
-        # BnH
-        bnh_path = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
-        bnh_stats = load_stats(bnh_path)
-        bnh_sharpe = bnh_stats.get('sharpe_ratio', 0.0) if bnh_stats else 0.0
-        bnh_monthly = load_monthly(bnh_path)
-        bnh_yearly, bnh_final = simulate(bnh_monthly)
-        rows.append({
-            'tf': tf, 'strat': 'buy_and_hold', 'variant': '-',
-            'stats': bnh_stats, 'yearly': bnh_yearly, 'final_bal': bnh_final,
-            'bnh_sharpe': bnh_sharpe, 'tier': 'BNH',
-        })
-        # Strategies
+        # BnH row: 1D only
+        if tf == '1D':
+            bnh_monthly = load_monthly(bnh_1d_path)
+            bnh_yearly, bnh_final = simulate(bnh_monthly)
+            rows.append({
+                'tf': tf, 'strat': 'buy_and_hold', 'variant': '-',
+                'stats': bnh_1d_stats, 'yearly': bnh_yearly, 'final_bal': bnh_final,
+                'bnh_sharpe': universal_bnh_sharpe, 'tier': 'BNH',
+            })
+        # Strategies (all TFs use universal 1D BnH Sharpe for tier classification)
         for cls, d in STRATEGIES:
             for var in VARIANTS:
                 path = RESULT_DIR / d / tf / var
@@ -118,8 +121,8 @@ def collect() -> list[dict]:
                 rows.append({
                     'tf': tf, 'strat': d, 'variant': var,
                     'stats': stats, 'yearly': yearly, 'final_bal': final,
-                    'bnh_sharpe': bnh_sharpe,
-                    'tier': tier(stats, bnh_sharpe),
+                    'bnh_sharpe': universal_bnh_sharpe,
+                    'tier': tier(stats, universal_bnh_sharpe),
                 })
     return rows
 

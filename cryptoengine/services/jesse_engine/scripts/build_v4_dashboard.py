@@ -33,11 +33,11 @@ TIMEFRAMES  = ['1h', '2h', '4h', '1D']
 STRATEGIES  = ['bbpb', 'bbwp', 'stoch', 'momentum_ma', 'supertrend',
                'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323']
 VARIANTS    = ['bidirectional', 'long_only']
-START_MS    = int(datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+START_MS    = int(datetime(2021, 4, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
-# BnH Sharpe per TF (from SUMMARY.md)
-BNH_SHARPE = {'1h': 0.859, '2h': 0.975, '4h': 0.986, '1D': 0.984}
+# BnH Sharpe: 1D only (universal benchmark, 2021-04-01 ~ 2025-12-31)
+BNH_SHARPE = {'1h': 0.418, '2h': 0.418, '4h': 0.418, '1D': 0.418}
 
 # ─── Strategy metadata (Korean / English bilingual) ───────────────────────────
 STRATEGY_META: dict[str, dict] = {

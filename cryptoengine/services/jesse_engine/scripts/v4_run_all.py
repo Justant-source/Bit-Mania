@@ -50,16 +50,17 @@ def _jobs(tf_filter: str | None = None) -> list[dict]:
     jobs = []
     tfs = [tf_filter] if tf_filter else TIMEFRAMES
     for tf in tfs:
-        # BuyAndHold first (benchmark)
-        bnh_out = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
-        jobs.append({
-            'tf':     tf,
-            'cls':    'BuyAndHoldStrategy',
-            'dir':    'buy_and_hold',
-            'var':    'buy_and_hold',
-            'out':    str(bnh_out),
-            'label':  f'[{tf}] buy_and_hold',
-        })
+        # BuyAndHold benchmark: 1D only (single universal benchmark)
+        if tf == '1D':
+            bnh_out = RESULT_DIR / 'buy_and_hold' / tf / 'buy_and_hold'
+            jobs.append({
+                'tf':     tf,
+                'cls':    'BuyAndHoldStrategy',
+                'dir':    'buy_and_hold',
+                'var':    'buy_and_hold',
+                'out':    str(bnh_out),
+                'label':  f'[{tf}] buy_and_hold',
+            })
         # Strategy variants
         for cls, d in STRATEGIES:
             for var in VARIANTS:
