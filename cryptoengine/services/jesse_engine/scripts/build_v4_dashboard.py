@@ -32,7 +32,9 @@ DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '9-strategies' / 'dashboar
 TIMEFRAMES  = ['1h', '2h', '4h', '1D']
 STRATEGIES  = ['bbpb', 'bbwp', 'stoch', 'momentum_ma', 'supertrend',
                'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323']
-VARIANTS    = ['bidirectional', 'long_only']
+VARIANTS    = ['bidirectional', 'long_only',
+               'bidirectional_x2', 'long_only_x2',
+               'bidirectional_x3', 'long_only_x3']
 START_MS    = int(datetime(2021, 4, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
@@ -459,7 +461,7 @@ def load_btc_1d() -> list[dict]:
         return []
     df = pd.concat(frames).sort_values('open_time')
     df = df[(df['open_time'] >= pd.Timestamp('2021-04-01', tz='UTC')) &
-            (df['open_time'] <= pd.Timestamp('2025-12-31', tz='UTC'))]
+            (df['open_time'] <= pd.Timestamp('2026-04-30', tz='UTC'))]
     return [
         {
             't': int(row.open_time.timestamp() * 1000),
@@ -475,10 +477,10 @@ def load_btc_1d() -> list[dict]:
 # ─── Derived metrics helpers ─────────────────────────────────────────────────
 
 def _compute_daily_returns(equity_points: list[dict]) -> list[float]:
-    """Trade-based equity → 2191 daily forward-filled pct returns (2020-01-02 … 2025-12-31)."""
+    """Trade-based equity → 1855 daily forward-filled pct returns (2021-04-02 … 2026-04-30)."""
     import datetime as dt
-    start = dt.date(2020, 1, 1)
-    n = 2192  # days inclusive
+    start = dt.date(2021, 4, 1)
+    n = 1856  # days inclusive (2021-04-01..2026-04-30)
 
     # Build (day_idx, value) list from equity points
     updates: list[tuple[int, float]] = []
@@ -499,7 +501,7 @@ def _compute_daily_returns(equity_points: list[dict]) -> list[float]:
             ui += 1
         eq[i] = cur
 
-    # Daily pct returns (length 2191)
+    # Daily pct returns (length 1855)
     rets: list[float] = []
     for i in range(1, n):
         prev = eq[i - 1]
@@ -1139,11 +1141,14 @@ function renderHeatmap() {
     div.innerHTML = '<div class="empty-state">전략을 선택하면 월별 손익 히트맵이 표시됩니다.</div>';
     return;
   }
-  // Build month labels 2020-01 … 2025-12
+  // Build month labels 2021-04 … 2026-04
   const months = [];
-  for (let y = 2020; y <= 2025; y++)
-    for (let m = 1; m <= 12; m++)
+  for (let y = 2021; y <= 2026; y++)
+    for (let m = 1; m <= 12; m++) {
+      if (y === 2021 && m < 4) continue;
+      if (y === 2026 && m > 4) break;
       months.push(`${y}-${String(m).padStart(2,'0')}`);
+    }
 
   const zData = [], yLabels = [];
 
@@ -1328,10 +1333,10 @@ function renderDescription() {
 
 // ── JS math helpers ──────────────────────────────────────
 const BTC_DATES = DATA.btc_1d.map(p => new Date(p.t));  // parallel to btc_1d
-const N_DAYS = 2191;  // returns_daily length (2020-01-02..2025-12-31)
-// Day-index corresponding to a returns_daily index: i → 2020-01-02 + i days
+const N_DAYS = 1855;  // returns_daily length (2021-04-02..2026-04-30)
+// Day-index corresponding to a returns_daily index: i → 2021-04-02 + i days
 function dayLabel(i) {
-  const d = new Date(Date.UTC(2020, 0, 2) + i * 86400000);
+  const d = new Date(Date.UTC(2021, 3, 2) + i * 86400000);
   return d.toISOString().slice(0,10);
 }
 
@@ -1813,7 +1818,7 @@ function renderMonteCarloChart() {
   Plotly.newPlot(div, traces, layout, { responsive:true, displayModeBar:false });
 }
 
-// ── D2: Risk-Adjusted Scatter (all 76) ────────────────────
+// ── D2: Risk-Adjusted Scatter (all results) ────────────────
 function renderRiskScatter() {
   const div = document.getElementById('chart-scatter');
   if (!div) return;
@@ -2071,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
 """
 
 
-def generate_html(data_json: str, plotlyjs: str) -> str:
+def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
     gen_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -2090,7 +2095,7 @@ def generate_html(data_json: str, plotlyjs: str) -> str:
   <aside class="sidebar">
     <div class="header">
       <div class="h1" style="font-size:14px;font-weight:700;color:#f0f6fc">V4 백테스트 대시보드</div>
-      <div class="subtitle">초기 자본 $10,000 · 2020-01 ~ 2025-12 · 9가지 전략 · 76개 백테스트</div>
+      <div class="subtitle">초기 자본 $10,000 · 2021-04 ~ 2026-04 · 9가지 전략 · {n_results}개 백테스트</div>
     </div>
 
     <!-- Filters -->
@@ -2106,6 +2111,10 @@ def generate_html(data_json: str, plotlyjs: str) -> str:
       <div class="filter-row">
         <span class="tag active" data-filter="variant" data-value="long_only">롱전용</span>
         <span class="tag active" data-filter="variant" data-value="bidirectional">양방향</span>
+        <span class="tag active" data-filter="variant" data-value="long_only_x2">롱x2</span>
+        <span class="tag active" data-filter="variant" data-value="bidirectional_x2">양방x2</span>
+        <span class="tag active" data-filter="variant" data-value="long_only_x3">롱x3</span>
+        <span class="tag active" data-filter="variant" data-value="bidirectional_x3">양방x3</span>
         <span class="tag active" data-filter="variant" data-value="buy_and_hold">매수보유</span>
       </div>
       <div class="filter-label" style="margin-top:6px">정렬 / 보기</div>
@@ -2261,9 +2270,9 @@ def generate_html(data_json: str, plotlyjs: str) -> str:
       </div>
     </div>
 
-    <!-- D2: Risk-Adjusted Scatter (all 76) -->
+    <!-- D2: Risk-Adjusted Scatter (all results) -->
     <div class="chart-card">
-      <div class="chart-title">위험조정 산점도 (전체 76개) <small>x: MDD, y: CAGR, 크기: 거래 수, 색상: Sharpe · 클릭하면 선택</small></div>
+      <div class="chart-title">위험조정 산점도 (전체 {n_results}개) <small>x: MDD, y: CAGR, 크기: 거래 수, 색상: Sharpe · 클릭하면 선택</small></div>
       <div class="chart-wrap" id="chart-scatter">
         <div class="empty-state">로딩 중…</div>
       </div>
@@ -2279,7 +2288,7 @@ def generate_html(data_json: str, plotlyjs: str) -> str:
 
     <!-- D4: Tornado/Radar -->
     <div class="chart-card">
-      <div class="chart-title">Radar 지표 비교 <small>Sharpe · Sortino · MDD역수 · 승률 · PF · Calmar — 전체 76개 기준 정규화</small></div>
+      <div class="chart-title">Radar 지표 비교 <small>Sharpe · Sortino · MDD역수 · 승률 · PF · Calmar — 전체 {n_results}개 기준 정규화</small></div>
       <div class="chart-wrap" id="chart-tornado">
         <div class="empty-state">전략을 선택하면 Radar 차트가 표시됩니다.</div>
       </div>
@@ -2368,7 +2377,7 @@ def main():
     print(f'  Plotly.js: {len(plotlyjs)/1024:.0f} KB')
 
     print(f'Generating HTML → {out}')
-    html = generate_html(data_json, plotlyjs)
+    html = generate_html(data_json, plotlyjs, total)
     out.write_text(html, encoding='utf-8')
     size_mb = len(html.encode('utf-8')) / 1024 / 1024
     print(f'  Output: {size_mb:.1f} MB')

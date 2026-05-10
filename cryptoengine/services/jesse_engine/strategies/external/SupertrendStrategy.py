@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from jesse.strategies import Strategy
 import jesse.indicators as ta
+import os
+
+LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class SupertrendStrategy(Strategy):
@@ -64,12 +67,12 @@ class SupertrendStrategy(Strategy):
         return not self._st_is_uptrend and fast < slow and self.price < dema
 
     def go_long(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.buy = qty, self.price
         self._last_entry = self.price
 
     def go_short(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.sell = qty, self.price
         self._last_entry = self.price
 

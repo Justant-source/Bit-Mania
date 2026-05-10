@@ -15,8 +15,8 @@ from pathlib import Path
 
 RESULT_DIR = Path('/result/9-strategies')
 TIMEFRAMES = ['1h', '2h', '4h', '1D']
-YEARS      = [2021, 2022, 2023, 2024, 2025]
-START_BAL  = 1_000.0
+YEARS      = [2021, 2022, 2023, 2024, 2025, 2026]
+START_BAL  = 10_000.0
 
 STRATEGIES = [
     ('BBPBStrategy',                'bbpb'),
@@ -29,7 +29,9 @@ STRATEGIES = [
     ('SupertrendTrendTypeStrategy', 'supertrend_trendtype'),
     ('TradeIQ220323Strategy',       'tradeiq_220323'),
 ]
-VARIANTS = ['bidirectional', 'long_only']
+VARIANTS = ['bidirectional', 'long_only',
+            'bidirectional_x2', 'long_only_x2',
+            'bidirectional_x3', 'long_only_x3']
 
 
 # ── Loaders ───────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ def simulate(monthly: dict[str, float], start: float = START_BAL) -> tuple[dict[
         yr_pnl = sum(monthly.get(f'{yr}-{m:02d}', 0.0) for m in range(1, 13))
         ret_pct = (yr_pnl / yr_start * 100) if (yr_start > 0 and not liquidated) else 0.0
         balance = yr_start + yr_pnl
-        if balance <= 0 and not liquidated:
+        if balance <= START_BAL * 0.05 and not liquidated:
             liquidated = True
             balance = 0.0
         yearly[yr] = {'ret_pct': ret_pct, 'end_bal': balance, 'liquidated': liquidated}
@@ -115,6 +117,9 @@ def collect() -> list[dict]:
         for cls, d in STRATEGIES:
             for var in VARIANTS:
                 path = RESULT_DIR / d / tf / var
+                # Skip leveraged variants if directory doesn't exist yet
+                if var.endswith(('_x2', '_x3')) and not path.exists():
+                    continue
                 stats = load_stats(path)
                 monthly = load_monthly(path)
                 yearly, final = simulate(monthly)
@@ -165,8 +170,8 @@ def write_matrix(rows: list[dict]) -> None:
         f'**생성 방식**: `v4_generate_report.py` (LLM 직접 작성 금지)',
         f'**초기 자금**: ${START_BAL:,.0f}',
         '',
-        f'| 전략 | 변형 | TF | {yr_hdrs} | $1,000→ | Sharpe | MDD | Tier |',
-        f'|------|-----|----|{"|----|" * len(YEARS)}---------|--------|-----|------|',
+        f'| 전략 | 변형 | TF | {yr_hdrs} | $10,000→ | Sharpe | MDD | Tier |',
+        f'|------|-----|----|{"|----|" * len(YEARS)}----------|--------|-----|------|',
     ]
     for r in rows:
         yr_cells = ' | '.join(fmt_ret(r['yearly'], yr) for yr in YEARS)
@@ -185,12 +190,17 @@ def write_summary(rows: list[dict]) -> None:
     ts = datetime.now(timezone.utc).isoformat()
 
     strat_rows = [r for r in rows if r['variant'] != '-']
+    base_rows = [r for r in strat_rows
+                 if not r['variant'].endswith('_x2') and not r['variant'].endswith('_x3')]
+    lev_rows  = [r for r in strat_rows
+                 if r['variant'].endswith('_x2') or r['variant'].endswith('_x3')]
+
     tier_counts = {t: 0 for t in ['A', 'B', 'C', 'FAILED']}
-    for r in strat_rows:
+    for r in base_rows:
         tier_counts[r['tier']] = tier_counts.get(r['tier'], 0) + 1
 
     top10 = sorted(
-        [r for r in strat_rows if r['stats'] is not None],
+        [r for r in base_rows if r['stats'] is not None],
         key=lambda r: r['final_bal'], reverse=True
     )[:10]
 
@@ -211,8 +221,8 @@ def write_summary(rows: list[dict]) -> None:
         '',
         '## BnH 벤치마크 (TF별)',
         '',
-        '| TF | Sharpe | CAGR | $1,000→ |',
-        '|----|--------|------|---------|',
+        '| TF | Sharpe | CAGR | $10,000→ |',
+        '|----|--------|------|----------|',
     ]
     for r in rows:
         if r['variant'] == '-':
@@ -222,10 +232,10 @@ def write_summary(rows: list[dict]) -> None:
 
     lines += [
         '',
-        '## Top 10 — 최고 누적 잔고 (전략, 변형, TF)',
+        '## Top 10 — 최고 누적 잔고 (전략, 변형, TF) · x1 기준',
         '',
-        '| 순위 | 전략 | 변형 | TF | $1,000→ | Sharpe | MDD | Tier |',
-        '|------|------|-----|----|---------|--------|-----|------|',
+        '| 순위 | 전략 | 변형 | TF | $10,000→ | Sharpe | MDD | Tier |',
+        '|------|------|-----|----|----------|--------|-----|------|',
     ]
     for i, r in enumerate(top10, 1):
         sh, mdd = fmt_stats(r['stats'])
@@ -235,13 +245,13 @@ def write_summary(rows: list[dict]) -> None:
         )
 
     # Tier A list
-    tier_a = [r for r in strat_rows if r['tier'] == 'A']
+    tier_a = [r for r in base_rows if r['tier'] == 'A']
     lines += [
         '',
         f'## Tier A 전략 목록 ({len(tier_a)}건)',
         '',
-        '| 전략 | 변형 | TF | CAGR | Sharpe | MDD | Trades | $1,000→ |',
-        '|------|-----|----|------|--------|-----|--------|---------|',
+        '| 전략 | 변형 | TF | CAGR | Sharpe | MDD | Trades | $10,000→ |',
+        '|------|-----|----|------|--------|-----|--------|----------|',
     ]
     for r in sorted(tier_a, key=lambda r: (r['strat'], r['variant'], r['tf'])):
         s = r['stats'] or {}
@@ -253,6 +263,41 @@ def write_summary(rows: list[dict]) -> None:
             f"| {s.get('total_trades', 0)} "
             f"| {fmt_bal(r['final_bal'], r['yearly'])} |"
         )
+
+    # Leveraged Top 10 section (x2/x3)
+    if lev_rows:
+        # Build lookup: (strat, variant_base, tf) → {1: row, 2: row, 3: row}
+        lev_map: dict[tuple, dict] = {}
+        for r in lev_rows:
+            var = r['variant']
+            if var.endswith('_x2'):
+                base_var = var[:-3]; lev = 2
+            elif var.endswith('_x3'):
+                base_var = var[:-3]; lev = 3
+            else:
+                continue
+            key = (r['strat'], base_var, r['tf'])
+            lev_map.setdefault(key, {})[lev] = r
+
+        # Reference top10 order
+        lines += [
+            '',
+            '## Leveraged Top 10 (x2/x3) — 1x 대비 잔고 비교',
+            '',
+            '| 순위 | 전략 | 변형 | TF | x1 $10,000→ | x2 $10,000→ | x3 $10,000→ |',
+            '|------|------|-----|----|------------|------------|------------|',
+        ]
+        for i, r in enumerate(top10, 1):
+            key = (r['strat'], r['variant'], r['tf'])
+            lev2 = lev_map.get(key, {}).get(2)
+            lev3 = lev_map.get(key, {}).get(3)
+            x1 = fmt_bal(r['final_bal'], r['yearly'])
+            x2 = fmt_bal(lev2['final_bal'], lev2['yearly']) if lev2 else 'N/A'
+            x3 = fmt_bal(lev3['final_bal'], lev3['yearly']) if lev3 else 'N/A'
+            lines.append(
+                f"| {i} | {r['strat']} | {r['variant']} | {r['tf']} "
+                f"| {x1} | {x2} | {x3} |"
+            )
 
     out = RESULT_DIR / 'SUMMARY.md'
     out.write_text('\n'.join(lines) + '\n')

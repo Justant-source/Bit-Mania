@@ -76,6 +76,37 @@ def _jobs(tf_filter: str | None = None) -> list[dict]:
     return jobs
 
 
+def _leveraged_jobs() -> list[dict]:
+    """Return x2/x3 jobs for the current top-10 strategies by final_bal."""
+    import sys
+    sys.path.insert(0, str(SCRIPTS))
+    from v4_generate_report import collect, STRATEGIES as RPT_STRATEGIES, VARIANTS as RPT_VARIANTS
+
+    rows = collect()
+    strat_rows = [r for r in rows if r['variant'] not in ('-', ) and r['stats'] is not None
+                  and not r['variant'].endswith('_x2') and not r['variant'].endswith('_x3')]
+    top10 = sorted(strat_rows, key=lambda r: r['final_bal'], reverse=True)[:10]
+
+    # Map strat dir-name → cls name
+    dir_to_cls = {d: cls for cls, d in STRATEGIES}
+
+    jobs = []
+    for r in top10:
+        d = r['strat']
+        var = r['variant']
+        tf = r['tf']
+        cls = dir_to_cls.get(d, d)
+        for lev in (2, 3):
+            out = RESULT_DIR / d / tf / f'{var}_x{lev}'
+            jobs.append({
+                'tf': tf, 'cls': cls, 'dir': d, 'var': var,
+                'leverage': lev,
+                'out': str(out),
+                'label': f'[{tf}] {d}/{var}_x{lev}',
+            })
+    return jobs
+
+
 def _already_done(out: str) -> bool:
     return (Path(out) / 'EXECUTION_SUCCESS.marker').exists()
 
@@ -104,9 +135,9 @@ def run_one(job: dict) -> dict:
         '--strategy', job['cls'],
         '--variant',  job['var'],
         '--balance',  '10000',
-        '--leverage', '1',
+        '--leverage', str(job.get('leverage', 1)),
         '--start',    '2021-04-01',
-        '--end',      '2025-12-31',
+        '--end',      '2026-04-30',
         '--no-upsample',
         '--timeframe', job['tf'],
         '--output',   out,
@@ -206,10 +237,16 @@ def main() -> None:
     p.add_argument('--workers', type=int, default=1, help='Parallel workers (default: 1=serial)')
     p.add_argument('--tf', choices=['1h', '2h', '4h', '1D'], default=None, help='Run single TF only')
     p.add_argument('--dry-run', action='store_true', help='Print jobs without running')
+    p.add_argument('--leveraged-only', action='store_true',
+                   help='Run only x2/x3 variants for current top-10 strategies')
     args = p.parse_args()
 
-    jobs = _jobs(args.tf)
-    print(f'V4 Orchestrator: {len(jobs)} jobs, workers={args.workers}', flush=True)
+    if args.leveraged_only:
+        jobs = _leveraged_jobs()
+        print(f'V4 Leveraged-only: {len(jobs)} jobs (top-10 × {{x2,x3}}), workers={args.workers}', flush=True)
+    else:
+        jobs = _jobs(args.tf)
+        print(f'V4 Orchestrator: {len(jobs)} jobs, workers={args.workers}', flush=True)
     print(f'Output: {RESULT_DIR}', flush=True)
     print(f'Start: {datetime.now(timezone.utc).isoformat()}', flush=True)
     print('', flush=True)

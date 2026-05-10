@@ -14,6 +14,9 @@ from jesse.strategies import Strategy
 import jesse.indicators as ta
 
 from external._helpers import IncrementalChandelier
+import os
+
+LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class TradeIQ220323Strategy(Strategy):
@@ -69,12 +72,12 @@ class TradeIQ220323Strategy(Strategy):
         return cci_cross_down and direction == -1.0
 
     def go_long(self):
-        qty = (self.balance * 0.95) / self.price
+        qty = (self.balance * 0.95) * LEVERAGE / self.price
         self.buy = qty, self.price
         self._last_entry = self.price
 
     def go_short(self):
-        qty = (self.balance * 0.95) / self.price
+        qty = (self.balance * 0.95) * LEVERAGE / self.price
         self.sell = qty, self.price
         self._last_entry = self.price
 

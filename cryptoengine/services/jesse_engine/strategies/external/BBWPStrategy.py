@@ -13,6 +13,9 @@ from jesse.strategies import Strategy
 import jesse.indicators as ta
 
 from external._helpers import IncrementalBBWP
+import os
+
+LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class BBWPStrategy(Strategy):
@@ -49,12 +52,12 @@ class BBWPStrategy(Strategy):
         return bbwp <= self.hp['lower_limit'] and macd.macd <= macd.signal
 
     def go_long(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.buy = qty, self.price
         self._last_entry = self.price
 
     def go_short(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.sell = qty, self.price
         self._last_entry = self.price
 

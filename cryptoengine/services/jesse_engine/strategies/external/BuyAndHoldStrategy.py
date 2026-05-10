@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from jesse.strategies import Strategy
+import os
+
+LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class BuyAndHoldStrategy(Strategy):
@@ -18,7 +21,7 @@ class BuyAndHoldStrategy(Strategy):
         return False
 
     def go_long(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.buy = qty, self.price
         self._entered = True
 

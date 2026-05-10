@@ -16,6 +16,9 @@ from __future__ import annotations
 import numpy as np
 from jesse.strategies import Strategy
 import jesse.indicators as ta
+import os
+
+LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class MomentumMAStrategy(Strategy):
@@ -91,12 +94,12 @@ class MomentumMAStrategy(Strategy):
         return val < val_ma
 
     def go_long(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.buy = qty, self.price
         self._last_entry = self.price
 
     def go_short(self):
-        qty = self.balance * 0.95 / self.price
+        qty = self.balance * 0.95 * LEVERAGE / self.price
         self.sell = qty, self.price
         self._last_entry = self.price
 

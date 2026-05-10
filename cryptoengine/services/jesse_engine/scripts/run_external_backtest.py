@@ -426,6 +426,9 @@ def write_failure_marker(output_dir: Path, reason: str, tb: str = '') -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def run(args):
+    import os as _os
+    _os.environ['STRATEGY_LEVERAGE'] = str(args.leverage)  # must be before _load_strategy
+
     strategy_name = args.strategy
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -558,7 +561,7 @@ def parse_args():
     p.add_argument('--strategy', required=True, help='Strategy class name')
     p.add_argument('--output',   required=True, help='Output directory path')
     p.add_argument('--start',    default='2021-04-01')
-    p.add_argument('--end',      default='2025-12-31')
+    p.add_argument('--end',      default='2026-04-30')
     p.add_argument('--balance',  type=float, default=10_000.0)
     p.add_argument('--fee',      type=float, default=0.00055)
     p.add_argument('--leverage', type=int,   default=1)
