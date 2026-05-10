@@ -36,8 +36,8 @@ STRATEGIES  = ['bbpb', 'bbwp', 'stoch', 'momentum_ma', 'supertrend',
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
                'bidirectional_x3', 'long_only_x3']
-START_MS    = int(datetime(2021, 4, 1, tzinfo=timezone.utc).timestamp() * 1000)
-END_MS      = int(datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+START_MS    = int(datetime(2021, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
 # BnH Sharpe: 1D only (universal benchmark, 2021-04-01 ~ 2025-12-31)
 BNH_SHARPE = {'1h': 0.418, '2h': 0.418, '4h': 0.418, '1D': 0.418}
@@ -478,7 +478,7 @@ def load_btc_1d() -> list[dict]:
     if not frames:
         return []
     df = pd.concat(frames).sort_values('open_time')
-    df = df[(df['open_time'] >= pd.Timestamp('2021-04-01', tz='UTC')) &
+    df = df[(df['open_time'] >= pd.Timestamp('2021-01-01', tz='UTC')) &
             (df['open_time'] <= pd.Timestamp('2026-04-30', tz='UTC'))]
     return [
         {
@@ -495,10 +495,10 @@ def load_btc_1d() -> list[dict]:
 # ─── Derived metrics helpers ─────────────────────────────────────────────────
 
 def _compute_daily_returns(equity_points: list[dict]) -> list[float]:
-    """Trade-based equity → 1855 daily forward-filled pct returns (2021-04-02 … 2026-04-30)."""
+    """Trade-based equity → 1946 daily forward-filled pct returns (2021-01-02 … 2026-04-30)."""
     import datetime as dt
-    start = dt.date(2021, 4, 1)
-    n = 1856  # days inclusive (2021-04-01..2026-04-30)
+    start = dt.date(2021, 1, 1)
+    n = 1947  # days inclusive (2021-01-01..2026-04-30)
 
     # Build (day_idx, value) list from equity points
     updates: list[tuple[int, float]] = []
@@ -758,6 +758,8 @@ const state = {
   tfFilter:      new Set(['1h','2h','4h','1D']),
   variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
   sortMode: 'alpha',                     // 'alpha' | 'return' | 'top10'
+  startMs: Date.UTC(2021, 0, 1),         // 2021-01-01
+  endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
 };
 
 // ── Helpers ────────────────────────────────────────────────
@@ -806,8 +808,111 @@ function varLabelShort(r) {
   return '양방' + lev;
 }
 function fmtBalance(r) {
-  if (r.liquidated) return '<span style="color:#f85149">💀 $0.0k</span>';
-  return fmtDollar(r.stats.finishing);
+  const s = getStats(r);
+  if (s.liquidated) return '<span style="color:#f85149">💀 $0.0k</span>';
+  return fmtDollar(s.finishing);
+}
+
+// ── Date slicing engine ────────────────────────────────────
+const sliceCache = new Map();
+
+function ymOf(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+}
+
+function ymd(ms) {
+  return new Date(ms).toISOString().slice(0,10);
+}
+
+function annualisedSharpe(monthlyRets) {
+  const n = monthlyRets.length;
+  if (n < 2) return 0;
+  const mean = monthlyRets.reduce((a,b) => a+b, 0) / n;
+  const variance = monthlyRets.reduce((a,v) => a + (v-mean)**2, 0) / (n-1);
+  const std = Math.sqrt(variance);
+  return std > 0 ? (mean / std) * Math.sqrt(12) : 0;
+}
+
+function slicedStats(r, startMs, endMs) {
+  const key = `${r.id}|${startMs}|${endMs}`;
+  if (sliceCache.has(key)) return sliceCache.get(key);
+
+  const startBal = 10_000;
+  const trades = r.trades.filter(t => t.t_close >= startMs && t.t_close <= endMs);
+
+  let bal = startBal, peak = startBal, mdd = 0;
+  let liquidated = false, liq_month = null;
+  const monthlyMap = {};
+  for (const t of trades) {
+    bal += t.pnl;
+    if (bal <= startBal * 0.05 && !liquidated) {
+      liquidated = true;
+      liq_month = ymOf(t.t_close);
+      bal = 0;
+    }
+    if (!liquidated) {
+      if (bal > peak) peak = bal;
+      if (peak > 0) { const dd = (bal - peak) / peak * 100; if (dd < mdd) mdd = dd; }
+    }
+    const ym = ymOf(t.t_close);
+    monthlyMap[ym] = (monthlyMap[ym] || 0) + t.pnl;
+  }
+
+  const months = Object.keys(monthlyMap).sort();
+  let runBal = startBal, rets = [];
+  for (const m of months) {
+    if (runBal > 0) rets.push(monthlyMap[m] / runBal);
+    runBal += monthlyMap[m];
+  }
+  const sharpe = annualisedSharpe(rets);
+
+  const finishing = liquidated ? 0 : bal;
+  const years = (endMs - startMs) / (365.25 * 86400_000);
+  const cagr = years > 0 && finishing > 0
+    ? ((finishing / startBal) ** (1 / years) - 1) * 100 : 0;
+
+  const winning = trades.filter(t => t.pnl > 0);
+  const losing  = trades.filter(t => t.pnl <= 0);
+  const grossP  = winning.reduce((s,t) => s + t.pnl, 0);
+  const grossL  = losing.reduce((s,t) => s + t.pnl, 0);
+
+  const stats = {
+    cagr, sharpe, mdd,
+    trades: trades.length,
+    win_rate: trades.length ? winning.length / trades.length * 100 : 0,
+    pf: grossL !== 0 ? grossP / Math.abs(grossL) : (grossP > 0 ? Infinity : 0),
+    starting: startBal,
+    finishing,
+    net_pct: (finishing - startBal) / startBal * 100,
+    sortino: sharpe,
+    calmar: mdd !== 0 ? cagr / Math.abs(mdd) : 0,
+    liquidated, liq_month,
+  };
+  sliceCache.set(key, stats);
+  return stats;
+}
+
+function getStats(r) { return slicedStats(r, state.startMs, state.endMs); }
+
+function slicedEquity(r, startMs, endMs) {
+  const out = [{ t: startMs, v: 10_000 }];
+  let bal = 10_000, liquidated = false;
+  for (const t of r.trades) {
+    if (t.t_close < startMs || t.t_close > endMs) continue;
+    bal += t.pnl;
+    if (bal <= 500 && !liquidated) { liquidated = true; bal = 0; }
+    out.push({ t: t.t_close, v: bal });
+  }
+  out.push({ t: endMs, v: bal });
+  return out;
+}
+
+function updateHeader() {
+  const days = Math.round((state.endMs - state.startMs) / 86400_000);
+  const el = document.querySelector('.subtitle');
+  if (el) el.textContent =
+    `초기 자본 $10,000 · ${ymd(state.startMs)} ~ ${ymd(state.endMs)} · ${days}일 · 9가지 전략 · ${DATA.n_results}개 백테스트`;
 }
 
 const TF_ORDER   = { '1h': 0, '2h': 1, '4h': 2, '1D': 3 };
@@ -857,9 +962,10 @@ function buildSidebar() {
         const item = document.createElement('div');
         item.className = 'strat-item' + (isSelected ? ' selected' : '');
         item.dataset.id = r.id;
-        const balHtml = r.liquidated
+        const _balS = getStats(r);
+        const balHtml = _balS.liquidated
           ? `<span style="color:#f85149;font-size:11px">💀 $0.0k</span>`
-          : `<span style="margin-left:auto;color:#8b949e;font-size:11px">${fmtDollar(r.stats.finishing)}</span>`;
+          : `<span style="margin-left:auto;color:#8b949e;font-size:11px">${fmtDollar(_balS.finishing)}</span>`;
         item.innerHTML =
           `<span class="cb">${isSelected ? '✓' : ''}</span>` +
           `<span>${r.tf} · ${varLabel(r)}</span>` +
@@ -875,8 +981,9 @@ function buildSidebar() {
   } else {
     // Flat list sorted by return (top10 or return mode); liquidated go to bottom
     let sorted = visible.slice().sort((a, b) => {
-      if (a.liquidated !== b.liquidated) return a.liquidated ? 1 : -1;
-      return b.stats.finishing - a.stats.finishing;
+      const sa = getStats(a), sb = getStats(b);
+      if (sa.liquidated !== sb.liquidated) return sa.liquidated ? 1 : -1;
+      return sb.finishing - sa.finishing;
     });
     if (state.sortMode === 'top10') sorted = sorted.slice(0, 10);
 
@@ -886,9 +993,10 @@ function buildSidebar() {
       const item = document.createElement('div');
       item.className = 'flat-item' + (isSelected ? ' selected' : '');
       item.dataset.id = r.id;
-      const balHtml = r.liquidated
+      const _fs = getStats(r);
+      const balHtml = _fs.liquidated
         ? `<span style="flex-shrink:0;color:#f85149;font-size:11px;font-weight:600">💀 $0.0k</span>`
-        : `<span style="flex-shrink:0;color:#3fb950;font-size:11px;font-weight:600">${fmtDollar(r.stats.finishing)}</span>`;
+        : `<span style="flex-shrink:0;color:#3fb950;font-size:11px;font-weight:600">${fmtDollar(_fs.finishing)}</span>`;
       item.innerHTML =
         `<span class="cb">${isSelected ? '✓' : ''}</span>` +
         `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">` +
@@ -961,16 +1069,16 @@ function renderKPIs() {
   el.innerHTML = state.selected.map(id => {
     const r = getResultById(id);
     if (!r) return '';
-    const s = r.stats;
+    const s = getStats(r);
     const meta = DATA.meta[r.strat] || {};
     const vl = r.variant === 'buy_and_hold' ? '' : varLabel(r);
     const name = `${meta.name_ko||r.strat} · ${r.tf} · ${vl}`.replace(/\s*·\s*$/, '').trim();
     const cagrCls = s.cagr >= 0 ? 'kpi-pos' : 'kpi-neg';
     const mddCls  = 'kpi-neg';
-    const liqBanner = r.liquidated
+    const liqBanner = s.liquidated
       ? `<div style="background:#3a1c1c;border:1px solid #f85149;border-radius:4px;padding:6px 8px;margin-bottom:8px;font-size:12px">
            💀 <strong style="color:#f85149">청산 발생</strong>
-           &nbsp;<span style="color:#c9d1d9">— ${r.liq_month}</span>
+           &nbsp;<span style="color:#c9d1d9">— ${s.liq_month}</span>
            <br><span style="color:#8b949e;font-size:11px">이후 잔고 $0 고정</span>
          </div>` : '';
     return `<div class="kpi-card">
@@ -985,7 +1093,7 @@ function renderKPIs() {
         <div><div style="color:#8b949e">거래 수</div><div style="font-weight:600">${s.trades}</div></div>
         <div><div style="color:#8b949e">승률</div><div style="font-weight:600">${s.win_rate.toFixed(1)}%</div></div>
         <div><div style="color:#8b949e">PF</div><div style="font-weight:600">${s.pf.toFixed(2)}</div></div>
-        <div><div style="color:#8b949e">최종잔고</div><div style="font-weight:600">${r.liquidated ? '<span style="color:#f85149">💀 $0</span>' : fmtDollar(s.finishing)}</div></div>
+        <div><div style="color:#8b949e">최종잔고</div><div style="font-weight:600">${s.liquidated ? '<span style="color:#f85149">💀 $0</span>' : fmtDollar(s.finishing)}</div></div>
       </div>
     </div>`;
   }).join('');
@@ -1026,17 +1134,21 @@ function renderEquityChart() {
     if (!r) return null;
     const meta = DATA.meta[r.strat] || {};
     const label = `${meta.name_ko||r.strat}/${varLabelShort(r)}/${r.tf}`;
-    let xs = r.equity.map(p => new Date(p.t));
-    let ys = r.equity.map(p => p.v);
+    const eq = slicedEquity(r, state.startMs, state.endMs);
+    let xs = eq.map(p => new Date(p.t));
+    let ys = eq.map(p => p.v);
     if (isAlpha && bnh_eq) {
-      // Map each equity timestamp to nearest BnH daily index
+      // Map each equity timestamp to nearest BnH daily index; normalise BnH to startMs
       const btcTs = DATA.btc_1d.map(p => p.t);
+      let startBtcIdx = 0;
+      for (let k=0; k<btcTs.length; k++) { if (btcTs[k] >= state.startMs) { startBtcIdx=k; break; } }
+      const bnh_start_v = bnh_eq[Math.min(startBtcIdx, bnh_eq.length-1)];
       ys = ys.map((v, idx) => {
-        const ts = r.equity[idx].t;
+        const ts = eq[idx].t;
         let lo=0, hi=btcTs.length-1;
         while (lo<hi) { const mid=(lo+hi+1)>>1; if (btcTs[mid]<=ts) lo=mid; else hi=mid-1; }
         const bnh_v = bnh_eq[Math.min(lo, bnh_eq.length-1)];
-        return bnh_v > 0 ? v / bnh_v : 1;
+        return (bnh_v > 0 && bnh_start_v > 0) ? v / (bnh_v / bnh_start_v * 10_000) : 1;
       });
     }
     return {
@@ -1191,11 +1303,10 @@ function renderHeatmap() {
     div.innerHTML = '<div class="empty-state">전략을 선택하면 월별 손익 히트맵이 표시됩니다.</div>';
     return;
   }
-  // Build month labels 2021-04 … 2026-04
+  // Build month labels 2021-01 … 2026-04
   const months = [];
   for (let y = 2021; y <= 2026; y++)
     for (let m = 1; m <= 12; m++) {
-      if (y === 2021 && m < 4) continue;
       if (y === 2026 && m > 4) break;
       months.push(`${y}-${String(m).padStart(2,'0')}`);
     }
@@ -1383,10 +1494,10 @@ function renderDescription() {
 
 // ── JS math helpers ──────────────────────────────────────
 const BTC_DATES = DATA.btc_1d.map(p => new Date(p.t));  // parallel to btc_1d
-const N_DAYS = 1855;  // returns_daily length (2021-04-02..2026-04-30)
-// Day-index corresponding to a returns_daily index: i → 2021-04-02 + i days
+const N_DAYS = 1946;  // returns_daily length (2021-01-02..2026-04-30)
+// Day-index corresponding to a returns_daily index: i → 2021-01-02 + i days
 function dayLabel(i) {
-  const d = new Date(Date.UTC(2021, 3, 2) + i * 86400000);
+  const d = new Date(Date.UTC(2021, 0, 2) + i * 86400000);
   return d.toISOString().slice(0,10);
 }
 
@@ -1803,15 +1914,16 @@ function renderMonteCarloChart() {
     return;
   }
   const r = getResultById(state.selected[0]);
-  if (!r || r.trades.length < 5) {
+  const _mcTrades = r ? r.trades.filter(t => t.t_close >= state.startMs && t.t_close <= state.endMs) : [];
+  if (!r || _mcTrades.length < 5) {
     div.innerHTML = '<div class="empty-state">거래 수가 너무 적어 Monte Carlo를 실행할 수 없습니다.</div>';
     return;
   }
   const meta = DATA.meta[r.strat] || {};
   const label = `${meta.name_ko||r.strat}/${r.tf}`;
-  const pnls = r.trades.map(t => t.pnl);
+  const pnls = _mcTrades.map(t => t.pnl);
   const N_ITER = 1000;
-  const start = r.stats.starting;
+  const start = 10_000;
   // Run Monte Carlo
   const paths = [];
   for (let it=0; it<N_ITER; it++) {
@@ -1837,7 +1949,7 @@ function renderMonteCarloChart() {
   // Actual equity (ordered by trade close time)
   const actY = [start];
   let bal = start;
-  for (const t of r.trades) { bal += t.pnl; actY.push(bal); }
+  for (const t of _mcTrades) { bal += t.pnl; actY.push(bal); }
 
   const inBand = actY[actY.length-1] >= p5[p5.length-1] && actY[actY.length-1] <= p95[p95.length-1];
   const bandColor = 'rgba(31,111,235,0.15)';
@@ -1876,32 +1988,34 @@ function renderRiskScatter() {
   if (all.length === 0) return;
 
   const meta = DATA.meta;
-  const maxTrades = Math.max(...all.map(r=>r.stats.trades));
-  const sharpes = all.map(r=>r.stats.sharpe);
+  const allStats = all.map(r => getStats(r));
+  const maxTrades = Math.max(...allStats.map(s=>s.trades));
+  const sharpes = allStats.map(s=>s.sharpe);
   const minS = Math.min(...sharpes), maxS = Math.max(...sharpes);
 
-  const hoverTexts = all.map(r => {
+  const hoverTexts = all.map((r, i) => {
     const m = meta[r.strat]||{};
+    const s = allStats[i];
     return `${m.name_ko||r.strat} / ${r.tf} / ${varLabel(r)}<br>`+
-           `CAGR: ${r.stats.cagr.toFixed(2)}%<br>`+
-           `Sharpe: ${r.stats.sharpe.toFixed(3)}<br>`+
-           `MDD: ${r.stats.mdd.toFixed(1)}%<br>`+
-           `Trades: ${r.stats.trades}`;
+           `CAGR: ${s.cagr.toFixed(2)}%<br>`+
+           `Sharpe: ${s.sharpe.toFixed(3)}<br>`+
+           `MDD: ${s.mdd.toFixed(1)}%<br>`+
+           `Trades: ${s.trades}`;
   });
 
   // Color by Sharpe (red→yellow→green)
   const colorscale = [[0,'#f85149'],[0.5,'#d29922'],[1,'#3fb950']];
 
   const trace = {
-    x: all.map(r => r.stats.mdd),
-    y: all.map(r => r.stats.cagr),
+    x: allStats.map(s => s.mdd),
+    y: allStats.map(s => s.cagr),
     mode: 'markers',
     type: 'scatter',
     text: hoverTexts,
     hovertemplate: '%{text}<extra></extra>',
     customdata: all.map(r => r.id),
     marker: {
-      size: all.map(r => 8 + Math.sqrt(r.stats.trades / Math.max(maxTrades,1)) * 24),
+      size: allStats.map(s => 8 + Math.sqrt(s.trades / Math.max(maxTrades,1)) * 24),
       color: sharpes,
       colorscale,
       cmin: minS, cmax: maxS,
@@ -1915,8 +2029,8 @@ function renderRiskScatter() {
   // Mark selected
   const selIds = new Set(state.selected);
   const selTrace = {
-    x: all.filter(r=>selIds.has(r.id)).map(r=>r.stats.mdd),
-    y: all.filter(r=>selIds.has(r.id)).map(r=>r.stats.cagr),
+    x: all.filter(r=>selIds.has(r.id)).map(r=>getStats(r).mdd),
+    y: all.filter(r=>selIds.has(r.id)).map(r=>getStats(r).cagr),
     mode: 'markers', type: 'scatter', name:'선택됨',
     marker: { size: 16, color:'rgba(0,0,0,0)', line:{color:'#f0f6fc', width:2} },
     hoverinfo: 'skip',
@@ -2004,14 +2118,17 @@ function renderTornadoRadar() {
   }
   const all = getAllResults();
   // 6 metrics: Sharpe, Sortino, |MDD| inverted (=1-mdd/min_mdd), WinRate, PF, Calmar
-  const getMetrics = r => ({
-    sharpe:   r.stats.sharpe,
-    sortino:  r.stats.sortino || 0,
-    mdd_inv:  -r.stats.mdd,  // less negative = better
-    win_rate: r.stats.win_rate,
-    pf:       Math.min(r.stats.pf, 5),  // cap at 5
-    calmar:   Math.max(Math.min(r.stats.calmar||0, 5), -5),
-  });
+  const getMetrics = r => {
+    const s = getStats(r);
+    return {
+      sharpe:   s.sharpe,
+      sortino:  s.sortino || 0,
+      mdd_inv:  -s.mdd,  // less negative = better
+      win_rate: s.win_rate,
+      pf:       Math.min(s.pf, 5),  // cap at 5
+      calmar:   Math.max(Math.min(s.calmar||0, 5), -5),
+    };
+  };
   const keys = ['sharpe','sortino','mdd_inv','win_rate','pf','calmar'];
   const axisLabels = ['Sharpe','Sortino','MDD 역수(낮을수록 좋음→높게)','승률(%)','Profit Factor','Calmar'];
   // Compute per-metric min/max across all results for normalization
@@ -2079,12 +2196,46 @@ function renderAll() {
   renderHeatmap();
   renderValidationViews();
   renderDescription();
+  updateHeader();
 }
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initFilters();
   applyEquityToggles();
+
+  // Date range slicing
+  const dateStartEl = document.getElementById('dateStart');
+  const dateEndEl   = document.getElementById('dateEnd');
+  function onDateChange() {
+    const s = Date.parse(dateStartEl.value + 'T00:00:00Z');
+    const e = Date.parse(dateEndEl.value   + 'T23:59:59Z');
+    if (s >= e) return;
+    state.startMs = s;
+    state.endMs   = e;
+    sliceCache.clear();
+    renderAll();
+  }
+  dateStartEl.addEventListener('change', onDateChange);
+  dateEndEl.addEventListener('change', onDateChange);
+
+  document.querySelectorAll('.tag.preset').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.tag.preset').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      const p = el.dataset.preset;
+      if (p === 'all') {
+        dateStartEl.value = '2021-01-01'; dateEndEl.value = '2026-04-30';
+      } else if (p === '2023') {
+        dateStartEl.value = '2023-01-01'; dateEndEl.value = '2023-12-31';
+      } else if (p === '2024') {
+        dateStartEl.value = '2024-01-01'; dateEndEl.value = '2024-12-31';
+      } else if (p === '2025') {
+        dateStartEl.value = '2025-01-01'; dateEndEl.value = '2025-12-31';
+      }
+      onDateChange();
+    });
+  });
 
   // Sort + roll + window toggle handlers
   document.querySelectorAll('[data-roll-metric]').forEach(btn => {
@@ -2144,7 +2295,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
   <aside class="sidebar">
     <div class="header">
       <div class="h1" style="font-size:14px;font-weight:700;color:#f0f6fc">V4 백테스트 대시보드</div>
-      <div class="subtitle">초기 자본 $10,000 · 2021-04 ~ 2026-04 · 9가지 전략 · {n_results}개 백테스트</div>
+      <div class="subtitle">초기 자본 $10,000 · 2021-01-01 ~ 2026-04-30 · 9가지 전략 · {n_results}개 백테스트</div>
     </div>
 
     <!-- Filters -->
@@ -2171,6 +2322,19 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
         <span class="sort-btn active" data-sort="alpha">전략별</span>
         <span class="sort-btn" data-sort="return">수익률순</span>
         <span class="sort-btn" data-sort="top10">Top 10</span>
+      </div>
+      <div class="filter-label" style="margin-top:8px">기간 선택</div>
+      <div style="padding:0 2px;display:flex;flex-direction:column;gap:4px">
+        <input type="date" id="dateStart" min="2021-01-01" max="2026-04-30" value="2021-01-01"
+          style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
+        <input type="date" id="dateEnd" min="2021-01-01" max="2026-04-30" value="2026-04-30"
+          style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
+      </div>
+      <div class="filter-row" style="margin-top:4px;flex-wrap:wrap;gap:4px">
+        <span class="tag preset active" data-preset="all">전체</span>
+        <span class="tag preset" data-preset="2023">2023년</span>
+        <span class="tag preset" data-preset="2024">2024년</span>
+        <span class="tag preset" data-preset="2025">2025년</span>
       </div>
     </div>
 
@@ -2400,6 +2564,7 @@ def main():
     # Build compact data payload
     data = {
         'generated_at':    datetime.now(timezone.utc).isoformat(),
+        'n_results':       total,
         'btc_1d':          btc_1d,
         'regime_labels':   regime_labels,
         'bnh_returns':     bnh_returns_daily,
