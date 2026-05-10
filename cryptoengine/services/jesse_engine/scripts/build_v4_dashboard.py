@@ -467,10 +467,10 @@ def collect_all_results() -> dict:
 # ─── BTC Price Data ───────────────────────────────────────────────────────────
 
 def load_btc_1d() -> list[dict]:
-    """Load BTC 1D OHLC from parquet files (2020-2025)."""
+    """Load BTC 1D OHLC from parquet files (2020-2026)."""
     frames = []
     base = BTC_KLINES / '1d'
-    for year in range(2020, 2026):
+    for year in range(2020, 2027):
         for month in range(1, 13):
             p = base / str(year) / f'{month:02d}.parquet'
             if p.exists():
@@ -1233,7 +1233,9 @@ function renderTradeChart() {
     div.innerHTML = '<div class="empty-state">이 전략에는 거래 기록이 없습니다.</div>';
     return;
   }
-  const btc = DATA.btc_1d;
+  // Filter BTC candles and trades to selected date range
+  const btcFull = DATA.btc_1d;
+  const btc = btcFull.filter(p => p.t >= state.startMs && p.t <= state.endMs);
   const candleTrace = {
     type: 'candlestick',
     x:     btc.map(p => new Date(p.t)),
@@ -1245,8 +1247,9 @@ function renderTradeChart() {
     showlegend: false,
   };
 
-  const longTrades  = r.trades.filter(t => t.side === 'long');
-  const shortTrades = r.trades.filter(t => t.side === 'short');
+  const slicedTrades = r.trades.filter(t => t.t_open >= state.startMs && t.t_close <= state.endMs);
+  const longTrades  = slicedTrades.filter(t => t.side === 'long');
+  const shortTrades = slicedTrades.filter(t => t.side === 'short');
 
   const mkEntry = (trades, side, color, symbol) => ({
     type: 'scatter', mode: 'markers',
@@ -1268,8 +1271,8 @@ function renderTradeChart() {
     hovertemplate: label + '<br>청산가: $%{y:,.0f}<br>손익: $%{customdata[0]:+,.0f}<br>날짜: %{x|%Y-%m-%d}<extra></extra>',
   });
 
-  const winTrades  = r.trades.filter(t => t.pnl > 0);
-  const lossTrades = r.trades.filter(t => t.pnl <= 0);
+  const winTrades  = slicedTrades.filter(t => t.pnl > 0);
+  const lossTrades = slicedTrades.filter(t => t.pnl <= 0);
 
   const traces = [
     candleTrace,
@@ -1280,7 +1283,7 @@ function renderTradeChart() {
   ];
 
   const meta = DATA.meta[r.strat] || {};
-  const title = `${meta.name_ko||r.strat} / ${r.variant} / ${r.tf} — 거래 ${r.trades.length}건`;
+  const title = `${meta.name_ko||r.strat} / ${r.variant} / ${r.tf} — 거래 ${slicedTrades.length}건`;
   const layout = darkLayout({
     title: { text: title, font: { size: 12, color: TEXT_CLR } },
     xaxis: { type: 'date', gridcolor: GRID_CLR, rangeslider: { visible: false } },
