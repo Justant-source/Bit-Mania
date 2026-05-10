@@ -563,7 +563,7 @@ def parse_args():
     p.add_argument('--start',    default='2021-04-01')
     p.add_argument('--end',      default='2026-04-30')
     p.add_argument('--balance',  type=float, default=10_000.0)
-    p.add_argument('--fee',      type=float, default=0.00055)
+    p.add_argument('--fee',      type=float, default=0.0002)   # Bybit maker (limit order)
     p.add_argument('--leverage', type=int,   default=1)
     p.add_argument('--variant',  choices=['bidirectional', 'long_only', 'buy_and_hold'],
                    default='bidirectional')

@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -404,12 +405,29 @@ def collect_all_results() -> dict:
         if not math.isfinite(calmar):  calmar  = 0.0
         returns_daily = _compute_daily_returns(equity)
         streaks = _compute_streaks(trades)
+        # Leverage from variant suffix (_x2 / _x3)
+        lev_m = re.search(r'_x(\d+)$', variant)
+        leverage = int(lev_m.group(1)) if lev_m else 1
+        # Liquidation detection (balance ≤ 5% of starting)
+        liq_threshold = starting * 0.05
+        liquidated = False
+        liq_month: str | None = None
+        bal = starting
+        for m in monthly:
+            bal += m['pnl']
+            if bal <= liq_threshold and not liquidated:
+                liquidated = True
+                liq_month = m['month']
+                break
         result = {
             'id':       f'{strat_dir}__{variant}__{tf}',
             'strat':    strat_dir,
             'variant':  variant,
             'tf':       tf,
             'tier':     tier,
+            'leverage':    leverage,
+            'liquidated':  liquidated,
+            'liq_month':   liq_month,
             'stats': {
                 'cagr':     round(stats.get('cagr_pct', 0), 4),
                 'sharpe':   round(stats.get('sharpe_ratio', 0), 4),
@@ -738,7 +756,7 @@ const TEXT_CLR  = '#c9d1d9';
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','2h','4h','1D']),
-  variantFilter: new Set(['bidirectional','long_only','buy_and_hold']),
+  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
   sortMode: 'alpha',                     // 'alpha' | 'return' | 'top10'
 };
 
@@ -772,6 +790,26 @@ function fmtDollar(v) {
 function fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
 function fmtSharpe(v) { return isFinite(v) ? v.toFixed(3) : 'N/A'; }
 
+// Global variant label — used everywhere
+function varLabel(r) {
+  const base = r.variant.replace(/_x\d+$/, '');
+  const lev  = r.leverage > 1 ? ' · ' + r.leverage + 'x' : '';
+  if (base === 'buy_and_hold') return '매수보유';
+  if (base === 'long_only')    return '롱전용' + lev;
+  return '양방향' + lev;
+}
+function varLabelShort(r) {
+  const base = r.variant.replace(/_x\d+$/, '');
+  const lev  = r.leverage > 1 ? 'x' + r.leverage : '';
+  if (base === 'buy_and_hold') return 'BnH';
+  if (base === 'long_only')    return '롱' + lev;
+  return '양방' + lev;
+}
+function fmtBalance(r) {
+  if (r.liquidated) return '<span style="color:#f85149">💀 $0.0k</span>';
+  return fmtDollar(r.stats.finishing);
+}
+
 const TF_ORDER   = { '1h': 0, '2h': 1, '4h': 2, '1D': 3 };
 
 // ── Sidebar ─────────────────────────────────────────────────
@@ -784,9 +822,6 @@ function buildSidebar() {
   const listEl = document.getElementById('strat-list');
   listEl.innerHTML = '';
   const visible = filteredResults();
-
-  const varLabel = r => r.variant === 'buy_and_hold' ? '매수보유' :
-                        r.variant === 'long_only' ? '롱전용' : '양방향';
 
   if (state.sortMode === 'alpha') {
     // Grouped by strategy name
@@ -822,10 +857,13 @@ function buildSidebar() {
         const item = document.createElement('div');
         item.className = 'strat-item' + (isSelected ? ' selected' : '');
         item.dataset.id = r.id;
+        const balHtml = r.liquidated
+          ? `<span style="color:#f85149;font-size:11px">💀 $0.0k</span>`
+          : `<span style="margin-left:auto;color:#8b949e;font-size:11px">${fmtDollar(r.stats.finishing)}</span>`;
         item.innerHTML =
           `<span class="cb">${isSelected ? '✓' : ''}</span>` +
           `<span>${r.tf} · ${varLabel(r)}</span>` +
-          `<span style="margin-left:auto;color:#8b949e;font-size:11px">${fmtDollar(r.stats.finishing)}</span>`;
+          balHtml;
         item.addEventListener('click', e => toggleSelect(r.id, e.ctrlKey || e.metaKey || e.shiftKey));
         itemsDiv.appendChild(item);
       }
@@ -835,8 +873,11 @@ function buildSidebar() {
       listEl.appendChild(groupDiv);
     }
   } else {
-    // Flat list sorted by return (top10 or return mode)
-    let sorted = visible.slice().sort((a, b) => b.stats.finishing - a.stats.finishing);
+    // Flat list sorted by return (top10 or return mode); liquidated go to bottom
+    let sorted = visible.slice().sort((a, b) => {
+      if (a.liquidated !== b.liquidated) return a.liquidated ? 1 : -1;
+      return b.stats.finishing - a.stats.finishing;
+    });
     if (state.sortMode === 'top10') sorted = sorted.slice(0, 10);
 
     for (const r of sorted) {
@@ -845,11 +886,14 @@ function buildSidebar() {
       const item = document.createElement('div');
       item.className = 'flat-item' + (isSelected ? ' selected' : '');
       item.dataset.id = r.id;
+      const balHtml = r.liquidated
+        ? `<span style="flex-shrink:0;color:#f85149;font-size:11px;font-weight:600">💀 $0.0k</span>`
+        : `<span style="flex-shrink:0;color:#3fb950;font-size:11px;font-weight:600">${fmtDollar(r.stats.finishing)}</span>`;
       item.innerHTML =
         `<span class="cb">${isSelected ? '✓' : ''}</span>` +
         `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">` +
           `${meta.name_ko||r.strat} · ${r.tf} · ${varLabel(r)}</span>` +
-        `<span style="flex-shrink:0;color:#3fb950;font-size:11px;font-weight:600">${fmtDollar(r.stats.finishing)}</span>`;
+        balHtml;
       item.addEventListener('click', e => toggleSelect(r.id, e.ctrlKey || e.metaKey || e.shiftKey));
       listEl.appendChild(item);
     }
@@ -919,13 +963,19 @@ function renderKPIs() {
     if (!r) return '';
     const s = r.stats;
     const meta = DATA.meta[r.strat] || {};
-    const varLabel = r.variant === 'buy_and_hold' ? '' :
-                     r.variant === 'long_only' ? '롱전용' : '양방향';
-    const name = `${meta.name_ko||r.strat} ${r.tf} ${varLabel}`.trim();
+    const vl = r.variant === 'buy_and_hold' ? '' : varLabel(r);
+    const name = `${meta.name_ko||r.strat} · ${r.tf} · ${vl}`.replace(/\s*·\s*$/, '').trim();
     const cagrCls = s.cagr >= 0 ? 'kpi-pos' : 'kpi-neg';
     const mddCls  = 'kpi-neg';
+    const liqBanner = r.liquidated
+      ? `<div style="background:#3a1c1c;border:1px solid #f85149;border-radius:4px;padding:6px 8px;margin-bottom:8px;font-size:12px">
+           💀 <strong style="color:#f85149">청산 발생</strong>
+           &nbsp;<span style="color:#c9d1d9">— ${r.liq_month}</span>
+           <br><span style="color:#8b949e;font-size:11px">이후 잔고 $0 고정</span>
+         </div>` : '';
     return `<div class="kpi-card">
       <div class="kpi-label">${name}</div>
+      ${liqBanner}
       <div class="kpi-value ${cagrCls}">${fmtPct(s.cagr)}</div>
       <div class="kpi-sub">CAGR</div>
       <hr style="border-color:#21262d;margin:8px 0">
@@ -935,7 +985,7 @@ function renderKPIs() {
         <div><div style="color:#8b949e">거래 수</div><div style="font-weight:600">${s.trades}</div></div>
         <div><div style="color:#8b949e">승률</div><div style="font-weight:600">${s.win_rate.toFixed(1)}%</div></div>
         <div><div style="color:#8b949e">PF</div><div style="font-weight:600">${s.pf.toFixed(2)}</div></div>
-        <div><div style="color:#8b949e">최종잔고</div><div style="font-weight:600">${fmtDollar(s.finishing)}</div></div>
+        <div><div style="color:#8b949e">최종잔고</div><div style="font-weight:600">${r.liquidated ? '<span style="color:#f85149">💀 $0</span>' : fmtDollar(s.finishing)}</div></div>
       </div>
     </div>`;
   }).join('');
@@ -975,7 +1025,7 @@ function renderEquityChart() {
     const r = getResultById(id);
     if (!r) return null;
     const meta = DATA.meta[r.strat] || {};
-    const label = `${meta.name_ko||r.strat}/${r.variant==='long_only'?'롱':r.variant==='buy_and_hold'?'BnH':'양방'}/${r.tf}`;
+    const label = `${meta.name_ko||r.strat}/${varLabelShort(r)}/${r.tf}`;
     let xs = r.equity.map(p => new Date(p.t));
     let ys = r.equity.map(p => p.v);
     if (isAlpha && bnh_eq) {
@@ -1212,7 +1262,7 @@ function showTradeDetail(id, month) {
   const trades = r.trades.filter(t => t.t_close >= startMs && t.t_close < endMs);
 
   const meta = DATA.meta[r.strat] || {};
-  const stratLabel = `${meta.name_ko||r.strat} / ${r.variant==='long_only'?'롱전용':r.variant==='buy_and_hold'?'매수보유':'양방향'} / ${r.tf}`;
+  const stratLabel = `${meta.name_ko||r.strat} / ${varLabel(r)} / ${r.tf}`;
 
   if (trades.length === 0) {
     el.innerHTML = `<div class="trade-detail-wrap"><h5>${stratLabel} — ${month}: 해당 월에 청산된 거래 없음</h5></div>`;
@@ -1675,7 +1725,7 @@ function renderStreaksChart() {
     const r = getResultById(id);
     if (!r) continue;
     const meta = DATA.meta[r.strat] || {};
-    labels.push(`${meta.name_ko||r.strat}/${r.tf}/${r.variant==='long_only'?'롱':'양방'}`);
+    labels.push(`${meta.name_ko||r.strat}/${r.tf}/${varLabelShort(r)}`);
     winAct.push(r.streaks.win_max);
     lossAct.push(r.streaks.loss_max);
     const n = r.stats.trades;
@@ -1830,7 +1880,6 @@ function renderRiskScatter() {
   const sharpes = all.map(r=>r.stats.sharpe);
   const minS = Math.min(...sharpes), maxS = Math.max(...sharpes);
 
-  const varLabel = r => r.variant==='long_only'?'롱전용':'양방향';
   const hoverTexts = all.map(r => {
     const m = meta[r.strat]||{};
     return `${m.name_ko||r.strat} / ${r.tf} / ${varLabel(r)}<br>`+
