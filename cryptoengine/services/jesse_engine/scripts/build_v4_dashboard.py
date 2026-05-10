@@ -821,6 +821,20 @@ function ymOf(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
 }
 
+// Returns the normalisation factor so that the strategy's equity at startMs = $10,000.
+// Trade PnLs in trades.csv are denominated in the *actual* backtest account size, which
+// may be far larger than $10,000 by the time a later slice begins.  Without this factor
+// a single trade that made $15k on a $40k account would appear as a 150% gain on a
+// $10k re-based simulation instead of the correct ~37.5%.
+function _sliceNorm(r, startMs) {
+  let val = r.equity.length > 0 ? r.equity[0].v : 10_000;
+  for (const p of r.equity) {
+    if (p.t <= startMs) val = p.v;
+    else break;
+  }
+  return val > 100 ? 10_000 / val : 1;
+}
+
 function ymd(ms) {
   return new Date(ms).toISOString().slice(0,10);
 }
@@ -839,13 +853,15 @@ function slicedStats(r, startMs, endMs) {
   if (sliceCache.has(key)) return sliceCache.get(key);
 
   const startBal = 10_000;
+  const norm = _sliceNorm(r, startMs);  // scale factor: actual balance → $10k
   const trades = r.trades.filter(t => t.t_close >= startMs && t.t_close <= endMs);
 
   let bal = startBal, peak = startBal, mdd = 0;
   let liquidated = false, liq_month = null;
   const monthlyMap = {};
   for (const t of trades) {
-    bal += t.pnl;
+    const npnl = t.pnl * norm;          // normalised PnL
+    bal += npnl;
     if (bal <= startBal * 0.05 && !liquidated) {
       liquidated = true;
       liq_month = ymOf(t.t_close);
@@ -856,7 +872,7 @@ function slicedStats(r, startMs, endMs) {
       if (peak > 0) { const dd = (bal - peak) / peak * 100; if (dd < mdd) mdd = dd; }
     }
     const ym = ymOf(t.t_close);
-    monthlyMap[ym] = (monthlyMap[ym] || 0) + t.pnl;
+    monthlyMap[ym] = (monthlyMap[ym] || 0) + npnl;
   }
 
   const months = Object.keys(monthlyMap).sort();
@@ -874,8 +890,8 @@ function slicedStats(r, startMs, endMs) {
 
   const winning = trades.filter(t => t.pnl > 0);
   const losing  = trades.filter(t => t.pnl <= 0);
-  const grossP  = winning.reduce((s,t) => s + t.pnl, 0);
-  const grossL  = losing.reduce((s,t) => s + t.pnl, 0);
+  const grossP  = winning.reduce((s,t) => s + t.pnl * norm, 0);
+  const grossL  = losing.reduce((s,t) => s + t.pnl * norm, 0);
 
   const stats = {
     cagr, sharpe, mdd,
@@ -896,11 +912,12 @@ function slicedStats(r, startMs, endMs) {
 function getStats(r) { return slicedStats(r, state.startMs, state.endMs); }
 
 function slicedEquity(r, startMs, endMs) {
+  const norm = _sliceNorm(r, startMs);  // normalise to $10k at startMs
   const out = [{ t: startMs, v: 10_000 }];
   let bal = 10_000, liquidated = false;
   for (const t of r.trades) {
     if (t.t_close < startMs || t.t_close > endMs) continue;
-    bal += t.pnl;
+    bal += t.pnl * norm;
     if (bal <= 500 && !liquidated) { liquidated = true; bal = 0; }
     out.push({ t: t.t_close, v: bal });
   }
@@ -1924,7 +1941,8 @@ function renderMonteCarloChart() {
   }
   const meta = DATA.meta[r.strat] || {};
   const label = `${meta.name_ko||r.strat}/${r.tf}`;
-  const pnls = _mcTrades.map(t => t.pnl);
+  const _mcNorm = _sliceNorm(r, state.startMs);  // normalise PnLs to $10k baseline
+  const pnls = _mcTrades.map(t => t.pnl * _mcNorm);
   const N_ITER = 1000;
   const start = 10_000;
   // Run Monte Carlo
