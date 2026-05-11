@@ -499,7 +499,7 @@ def main() -> None:
     p.add_argument('--strategies', nargs='+', default=list(SWEEP_SPECS.keys()),
                    choices=list(SWEEP_SPECS.keys()), help='Strategies to sweep')
     p.add_argument('--tfs',      nargs='+', default=TIMEFRAMES,
-                   choices=['1h', '2h', '4h', '1D'])
+                   choices=['1h', '4h', '1D'])
     p.add_argument('--variants', nargs='+', default=VARIANTS,
                    choices=['bidirectional', 'long_only'])
     p.add_argument('--workers',  type=int, default=1)

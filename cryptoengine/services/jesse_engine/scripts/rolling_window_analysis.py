@@ -2,7 +2,7 @@
 """
 Rolling Window Analysis — 7-strategies 구간별 누적 수익 평가
 
-7개 전략 × {long_only, bidirectional} × {1h, 2h, 4h, 1D} 조합을
+7개 전략 × {long_only, bidirectional} × {1h, 4h, 1D} 조합을
 3~63개월 rolling window (3개월 분기 시프트)로 슬라이싱하여,
 어떤 구간에서도 양의 순수익을 내지 못한 전략을 식별합니다.
 
@@ -31,7 +31,7 @@ RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '7-strategies'
 OUT_DIR    = RESULT_DIR / 'rolling_window'
 
 # ─── Parameters ───────────────────────────────────────────────────────────────
-TIMEFRAMES  = ['1h', '2h', '4h', '1D']
+TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = [
     'stoch', 'momentum_ma', 'supertrend',
     'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323',

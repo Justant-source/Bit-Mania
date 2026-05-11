@@ -12,7 +12,7 @@ Usage:
 
 Options:
     --workers N  병렬 워커 수 (기본: 1 = 직렬). RAM 4GB+/워커 필요.
-    --tf TF      특정 TF만 실행 (1h|2h|4h|1D). 생략 시 전체.
+    --tf TF      특정 TF만 실행 (1h|4h|1D). 생략 시 전체.
     --dry-run    실행 없이 job 목록만 출력.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from pathlib import Path
 RESULT_DIR = Path('/result/7-strategies')
 SCRIPTS    = Path('/jesse-project/scripts')
 
-TIMEFRAMES = ['1h', '2h', '4h', '1D']
+TIMEFRAMES = ['1h', '4h', '1D']
 
 STRATEGIES = [
     ('StochStrategy',              'stoch'),
@@ -233,7 +233,7 @@ def _print_summary(results: list[dict]) -> None:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument('--workers', type=int, default=1, help='Parallel workers (default: 1=serial)')
-    p.add_argument('--tf', choices=['1h', '2h', '4h', '1D'], default=None, help='Run single TF only')
+    p.add_argument('--tf', choices=['1h', '4h', '1D'], default=None, help='Run single TF only')
     p.add_argument('--dry-run', action='store_true', help='Print jobs without running')
     p.add_argument('--leveraged-only', action='store_true',
                    help='Run only x2/x3 variants for current top-10 strategies')

@@ -30,7 +30,7 @@ BTC_KLINES = CE_ROOT / 'backtest-results' / 'data' / 'binance_vision' / 'klines'
 DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '7-strategies' / 'dashboard.html'
 
 # ─── Backtest parameters ───────────────────────────────────────────────────────
-TIMEFRAMES  = ['1h', '2h', '4h', '1D']
+TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
                'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323']
 VARIANTS    = ['bidirectional', 'long_only',
@@ -40,7 +40,7 @@ START_MS    = int(datetime(2021, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
 # BnH Sharpe: 1D only (universal benchmark, 2021-04-01 ~ 2025-12-31)
-BNH_SHARPE = {'1h': 0.418, '2h': 0.418, '4h': 0.418, '1D': 0.418}
+BNH_SHARPE = {'1h': 0.418, '4h': 0.418, '1D': 0.418}
 
 # ─── Strategy metadata (Korean / English bilingual) ───────────────────────────
 STRATEGY_META: dict[str, dict] = {
@@ -721,7 +721,7 @@ const TEXT_CLR  = '#c9d1d9';
 // ── State ──────────────────────────────────────────────────
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
-  tfFilter:      new Set(['1h','2h','4h','1D']),
+  tfFilter:      new Set(['1h','4h','1D']),
   variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
   sortMode: 'alpha',                     // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2021, 0, 1),         // 2021-01-01
@@ -1049,7 +1049,7 @@ function updateHeader() {
     `초기 자본 $10,000 · ${ymd(state.startMs)} ~ ${ymd(state.endMs)} · ${days}일 · 7가지 전략 · ${DATA.n_results}개 백테스트 · Build ${DATA.build_ts}`;
 }
 
-const TF_ORDER   = { '1h': 0, '2h': 1, '4h': 2, '1D': 3 };
+const TF_ORDER   = { '1h': 0, '4h': 1, '1D': 2 };
 
 // ── Sidebar ─────────────────────────────────────────────────
 const STRAT_DISPLAY_ORDER = [
@@ -2575,7 +2575,6 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
       <div class="filter-label">타임프레임</div>
       <div class="filter-row">
         <span class="tag active" data-filter="tf" data-value="1h">1h</span>
-        <span class="tag active" data-filter="tf" data-value="2h">2h</span>
         <span class="tag active" data-filter="tf" data-value="4h">4h</span>
         <span class="tag active" data-filter="tf" data-value="1D">1D</span>
       </div>

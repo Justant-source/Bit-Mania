@@ -38,7 +38,7 @@ when_to_update: |
 | 데이터 범위 | `2021-01 ~ 2026-04` | 전체 백테스트 기간 |
 | Window sizes | `3~63개월 (3개월 단위, 21가지)` | 슬라이딩 창 크기 |
 | 시프트 단위 | **3개월 (분기 단위)** | 창을 3개월씩 이동 |
-| 대상 | 7 strategies × {long_only, bidirectional} × {1h, 2h, 4h, 1D} | x2/x3 레버리지 제외 |
+| 대상 | 7 strategies × {long_only, bidirectional} × {1h, 4h, 1D} | x2/x3 레버리지 제외 |
 | Starting balance | $10,000 | 각 윈도우 시작 시점에 새로 투입 (가상) |
 | Margin cap | 0.95 | 거래당 잔고의 최대 95%까지 margin 사용 (`--cap`) |
 | Liquidation | 0.05 | 잔고가 starting의 5% 이하로 떨어지면 청산 |
@@ -78,7 +78,7 @@ net_pnl = virtual_equity - $10,000
 ### 전략(strategy) 단위
 | Verdict | 조건 | 의미 |
 |---|---|---|
-| `DELETE` | 8개 조합 모두 `any_positive_window = False` | 어떤 TF/variant에서도 양수 구간 없음 → 삭제 |
+| `DELETE` | 6개 조합 모두 `any_positive_window = False` | 어떤 TF/variant에서도 양수 구간 없음 → 삭제 |
 | `WEAK` | 일부 조합은 never positive, 일부는 OK | 특정 TF/variant 조합만 정리 가능 |
 | `KEEP` | 모든 조합에서 양수 구간 최소 1회 존재 | 유지 |
 
@@ -119,7 +119,7 @@ python3 cryptoengine/services/jesse_engine/scripts/rolling_window_analysis.py --
 ```bash
 python3 cryptoengine/services/jesse_engine/scripts/rolling_window_analysis.py \
     --variants long_only bidirectional \   # 분석 대상 variant (기본: 1x 둘 다)
-    --timeframes 1h 2h 4h 1D \            # 분석 대상 TF (기본: 전체)
+    --timeframes 1h 4h 1D \               # 분석 대상 TF (기본: 전체)
     --window-sizes 3 6 12 24 36 \         # 월 단위 window (기본: 5가지)
     --start 2021-01 --end 2026-04 \       # 기간 (기본: 전체 백테스트 범위)
     --cap 0.95 \                          # 거래당 잔고 사용 최대 비율 (기본: 0.95)
@@ -143,7 +143,7 @@ python3 cryptoengine/services/jesse_engine/scripts/rolling_window_analysis.py \
 | 파일 | 내용 |
 |---|---|
 | `windows_detail.csv` | 모든 (조합 × 윈도우) 평가 결과 — 핵심 원본 데이터 |
-| `combo_summary.csv` | 56 조합별 요약 (fail 비율, worst/best 구간, 전체기간 PnL) |
+| `combo_summary.csv` | 42 조합별 요약 (fail 비율, worst/best 구간, 전체기간 PnL) |
 | `strategy_verdict.csv` | 7 전략 단위 판정 (DELETE / WEAK / KEEP) |
 | `strategy_verdict.md` | 사람이 읽는 리포트 (Tier 1~3 테이블 + 판정) |
 | `heatmap_*.png` | 구간별 PnL 히트맵 (x축=시작월, y축=window크기, 색=수익) |

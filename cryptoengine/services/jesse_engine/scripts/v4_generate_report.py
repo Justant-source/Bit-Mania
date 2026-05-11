@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 RESULT_DIR = Path('/result/7-strategies')
-TIMEFRAMES = ['1h', '2h', '4h', '1D']
+TIMEFRAMES = ['1h', '4h', '1D']
 YEARS      = [2021, 2022, 2023, 2024, 2025, 2026]
 START_BAL  = 10_000.0
 

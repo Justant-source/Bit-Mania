@@ -48,7 +48,7 @@ PASS_TRADES      =  30
 PASS_WINRATE_PCT =  35.0  # %
 PASS_PF          =  1.2
 
-TF_MINUTES = {"1h": 60, "2h": 120, "4h": 240, "1D": 1440}
+TF_MINUTES = {"1h": 60, "4h": 240, "1D": 1440}
 
 
 # ── Candle loader (reuse logic from run_backtest.py) ──────────────────────────
@@ -120,7 +120,7 @@ def _upsample_to_1m(arr: np.ndarray) -> np.ndarray:
 
 def _expand_tf_to_1m(arr: np.ndarray, tf_minutes: int) -> np.ndarray:
     """Expand TF bars to tf_minutes identical 1m bars each.
-    Required for non-1h routes (2h/4h/1D): Jesse's research.backtest() expects 1m-resolution
+    Required for non-1h routes (4h/1D): Jesse's research.backtest() expects 1m-resolution
     candles as input and aggregates them to the route timeframe. Passing already-resampled
     bars directly results in 60x under-evaluation (Jesse groups them as if they were 1m).
     """
@@ -136,10 +136,10 @@ def _expand_tf_to_1m(arr: np.ndarray, tf_minutes: int) -> np.ndarray:
 
 
 def _resample_1h(arr_1h: np.ndarray, tf: str) -> np.ndarray:
-    """Resample 1h candles [ts_ms, open, close, high, low, vol] to 2h / 4h / 1D.
-    Aligns to UTC boundaries: 2h→even-hours, 4h→0/4/8…, 1D→midnight.
+    """Resample 1h candles [ts_ms, open, close, high, low, vol] to 4h / 1D.
+    Aligns to UTC boundaries: 4h→0/4/8…, 1D→midnight.
     """
-    hours_map = {"2h": 2, "4h": 4, "1D": 24}
+    hours_map = {"4h": 4, "1D": 24}
     n_hours = hours_map[tf]
     ms_per_hour = 3_600_000
     align_ms = n_hours * ms_per_hour
@@ -204,7 +204,7 @@ def _extract_metrics(raw: dict, start: str, end: str, no_upsample: bool = False,
     # Sharpe correction:
     # - 1h no-upsample: Jesse groups 60 1h bars into one evaluation, treating them as 1m.
     #   Jesse annualizes with sqrt(525600) assuming 1m bars → divide by sqrt(60) to correct.
-    # - 2h/4h/1D (new expand-to-1m + native route): Jesse uses the actual route TF for
+    # - 4h/1D (new expand-to-1m + native route): Jesse uses the actual route TF for
     #   annualization → no correction needed.
     # - Standard 1h (1m-expanded): correct by construction.
     tf_min = TF_MINUTES.get(timeframe, 60)
@@ -569,7 +569,7 @@ def parse_args():
                    default='bidirectional')
     p.add_argument('--no-upsample', action='store_true',
                    help='V3: use 1h candles directly, skip 60x upsample (faster)')
-    p.add_argument('--timeframe', choices=['1h', '2h', '4h', '1D'], default='1h',
+    p.add_argument('--timeframe', choices=['1h', '4h', '1D'], default='1h',
                    help='V4: target timeframe (non-1h implies --no-upsample)')
     return p.parse_args()
 
