@@ -30,10 +30,15 @@ from pathlib import Path
 
 OLD_FEE_RATE = 0.00055   # Bybit taker
 NEW_FEE_RATE = 0.0002    # Bybit maker (limit order)
-FEE_RATIO    = NEW_FEE_RATE / OLD_FEE_RATE   # ≈ 0.3636
+FEE_RATIO    = NEW_FEE_RATE / OLD_FEE_RATE   # ≈ 0.3636 (legacy — no longer used)
+
+# Idempotent mode: compute fee directly from formula instead of multiplying.
+# Fee = (entry + exit) × qty × NEW_FEE_RATE  (charged on both legs).
+# PnL is then recomputed from price diff − fee. Running this script
+# any number of times converges to the same correct values.
 
 DEFAULT_RESULT_DIR = Path(
-    '/home/justant/Data/Bit-Mania/cryptoengine/backtest-results/data/9-strategies'
+    '/home/justant/Data/Bit-Mania/cryptoengine/backtest-results/data/7-strategies'
 )
 
 
@@ -104,18 +109,25 @@ def adjust_result_dir(path: Path, dry_run: bool = False) -> dict | None:
     raw   = stats.get('raw_metrics', {})
     starting = float(raw.get('starting_balance', 10_000.0))
 
-    # ── 1. Adjust per-trade fee / pnl ───────────────────────────────────────
+    # ── 1. Set fee from formula (idempotent), recompute pnl ────────────────
     trades: list[dict] = []
     with open(trades_p, newline='') as fh:
         for row in csv.DictReader(fh):
+            entry  = float(row['entry_price'])
+            exit_  = float(row['exit_price'])
+            qty    = float(row['qty'])
+            side   = row['side']
             old_fee = float(row['fee'])
             old_pnl = float(row['pnl'])
-            new_fee = old_fee * FEE_RATIO
-            new_pnl = old_pnl + (old_fee - new_fee)
+            new_fee = (entry + exit_) * qty * NEW_FEE_RATE
+            if side == 'long':
+                new_pnl = (exit_ - entry) * qty - new_fee
+            else:
+                new_pnl = (entry - exit_) * qty - new_fee
             trades.append({
                 'opened_at':   row['opened_at'],
                 'closed_at':   row['closed_at'],
-                'side':        row['side'],
+                'side':        side,
                 'entry_price': row['entry_price'],
                 'exit_price':  row['exit_price'],
                 'qty':         row['qty'],

@@ -4,7 +4,7 @@ category: test
 related_code:
   - cryptoengine/services/jesse_engine/scripts/
   - cryptoengine/services/jesse_engine/scripts/README.md
-last_updated: 2026-05-01
+last_updated: 2026-05-11
 when_to_update: |
   - 새 백테스트 스크립트 추가 시
   - 기존 스크립트 파라미터 변경 시
@@ -97,6 +97,7 @@ flowchart TD
 | `run_fa_backtest.py` | FA 순수 시뮬레이션 (자체 엔진) | 날짜범위, 파라미터 | JSON 리포트 | 월 1회 |
 | `walk_forward.py` | Walk-Forward 분석 | 전략명, WF 파라미터 | JSON + Markdown WF 리포트 | 월 1회 |
 | `generate_v5_report.py` | V5 최종 리포트 생성 | 전략명 | Markdown (.md) | 월 1회 |
+| `rolling_window_analysis.py` | **롤링 윈도우 테스트** — 3~63개월(3개월 단위, 21가지) 구간별 수익 평가, DELETE/WEAK/KEEP 판정 | 7-strategies 백테스트 디렉터리 | `rolling_window/strategy_verdict.md`, `windows_detail.csv`, `heatmap_*.png` | 백테스트 재실행 후 |
 | `regime_split_analysis.py` | 시장 레짐별 성능 분석 | 전략명, 레짐 정의 | JSON + Markdown | 월 1회 |
 | `sanity_check.py` | V5 백테스트 검증 도구 | JSON 결과파일 | 경고 및 PASS/FAIL | 각 BT 후 |
 | `test_funding_pnl.py` | 펀딩비 P&L 단위 테스트 | 없음 | 3가지 테스트 결과 | 분기 1회 |
@@ -129,6 +130,7 @@ flowchart TD
     
     START -->|데이터 신선도 관리| D1["데이터 수집<br>scripts/data/"]
     START -->|단순 성과 확인| D2["단일 백테스트<br>run_backtest.py"]
+    START -->|구간별 전략 생존성 검증| D8["롤링 윈도우 테스트<br>rolling_window_analysis.py"]
     START -->|시간대별 성능 분석| D3["Walk-Forward<br>walk_forward.py"]
     START -->|시장환경별 성능| D4["레짐 분석<br>regime_split_analysis.py"]
     START -->|전체 자동 검증| D5["통합 파이프라인<br>run_full_validation.sh"]

@@ -25,13 +25,13 @@ import pandas as pd
 SCRIPT_DIR = Path(__file__).parent
 JESSE_ROOT = SCRIPT_DIR.parent            # cryptoengine/services/jesse_engine/
 CE_ROOT    = JESSE_ROOT.parent.parent     # cryptoengine/
-RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '9-strategies'
+RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '7-strategies'
 BTC_KLINES = CE_ROOT / 'backtest-results' / 'data' / 'binance_vision' / 'klines' / 'BTCUSDT'
-DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '9-strategies' / 'dashboard.html'
+DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '7-strategies' / 'dashboard.html'
 
 # ─── Backtest parameters ───────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '2h', '4h', '1D']
-STRATEGIES  = ['bbpb', 'bbwp', 'stoch', 'momentum_ma', 'supertrend',
+STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
                'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323']
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
@@ -44,66 +44,6 @@ BNH_SHARPE = {'1h': 0.418, '2h': 0.418, '4h': 0.418, '1D': 0.418}
 
 # ─── Strategy metadata (Korean / English bilingual) ───────────────────────────
 STRATEGY_META: dict[str, dict] = {
-    'bbpb': {
-        'name_ko': 'BB %B', 'name_en': 'Bollinger Band %B',
-        'summary_ko': '볼린저 밴드 하단 돌파(%B≤0→>0) + MACD 방향으로 진입, ATR×3 손절',
-        'summary_en': 'Enter on BB %B breakout from lower band plus MACD direction confirmation, ATR×3 stop',
-        'entry_long_ko': [
-            'BB %B ≤ 0에서 > 0으로 상향 돌파 (하단 밴드 진입)',
-            'MACD 라인 ≥ MACD 시그널 (상승 모멘텀)',
-        ],
-        'entry_long_en': [
-            '%B crosses up from ≤0 to >0 (price enters lower Bollinger Band)',
-            'MACD line ≥ Signal line (bullish momentum)',
-        ],
-        'entry_short_ko': [
-            'BB %B ≥ 1에서 < 1로 하향 돌파 (상단 밴드 이탈)',
-            'MACD 라인 ≤ MACD 시그널 (하락 모멘텀)',
-        ],
-        'entry_short_en': [
-            '%B crosses down from ≥1 to <1 (price exits upper band)',
-            'MACD line ≤ Signal line (bearish momentum)',
-        ],
-        'exit_ko': [
-            '%B가 반대 경계에 도달하거나 MACD 방향 반전 시 청산',
-            'ATR(14) × 3.0 손절',
-        ],
-        'exit_en': [
-            'Exit when %B reaches opposite boundary or MACD reverses',
-            'Stop-loss: ATR(14) × 3.0 from entry',
-        ],
-        'indicators': ['Bollinger Bands (20, 2.0)', 'MACD (12, 26, 9)', 'ATR (14)'],
-    },
-    'bbwp': {
-        'name_ko': 'BB 밴드폭 백분위', 'name_en': 'BB Width Percentile',
-        'summary_ko': '밴드 폭이 역사적으로 최하위 10% (매우 좁음)일 때 MACD 방향으로 진입',
-        'summary_en': 'Enter when band width is historically narrow (≤10th pct) with MACD direction',
-        'entry_long_ko': [
-            'BBWP ≤ 10% (252봉 기준 최하위 10%)',
-            'MACD 라인 ≥ MACD 시그널',
-        ],
-        'entry_long_en': [
-            'BBWP ≤ 10% (bottom decile of 252-bar lookback)',
-            'MACD line ≥ Signal line',
-        ],
-        'entry_short_ko': [
-            'BBWP ≤ 10%',
-            'MACD 라인 ≤ MACD 시그널',
-        ],
-        'entry_short_en': [
-            'BBWP ≤ 10%',
-            'MACD line ≤ Signal line',
-        ],
-        'exit_ko': [
-            'BBWP ≥ 90% 도달 후 하향 돌파 시 청산 (밴드 확장 완료)',
-            'ATR(14) × 3.0 손절',
-        ],
-        'exit_en': [
-            'Exit when BBWP crosses back below 90% after reaching top decile',
-            'Stop-loss: ATR(14) × 3.0 from entry',
-        ],
-        'indicators': ['BB Width Percentile (bb_len=13, lookback=252)', 'MACD (12, 26, 9)', 'ATR (14)'],
-    },
     'stoch': {
         'name_ko': '스토캐스틱', 'name_en': 'Stochastic',
         'summary_ko': '스토캐스틱 과매도/과매수 + EMA 방향 + 헤이킨 아시 봉 확인으로 진입',
@@ -378,8 +318,24 @@ def build_equity_series(trades: list[dict], starting: float, finishing: float) -
     return equity
 
 
-def collect_all_results() -> dict:
-    """Returns dict keyed by strategy_dir, each with list of result objects."""
+def build_bnh_equity_from_btc(starting: float, btc_daily: list[dict]) -> list[dict]:
+    """Densify BnH equity from BTC daily closes so that any slice can be re-baselined.
+    equity[t] = qty × BTC[t].close, qty = starting / first_close.
+    Falls back to a 2-point series if BTC data is missing."""
+    if not btc_daily or len(btc_daily) < 2:
+        return [{'t': START_MS, 'v': round(starting, 2)},
+                {'t': END_MS,   'v': round(starting, 2)}]
+    start_px = btc_daily[0]['c']
+    if start_px <= 0:
+        return [{'t': START_MS, 'v': round(starting, 2)},
+                {'t': END_MS,   'v': round(starting, 2)}]
+    qty = starting / start_px
+    return [{'t': p['t'], 'v': round(qty * p['c'], 2)} for p in btc_daily]
+
+
+def collect_all_results(btc_daily: list[dict] | None = None) -> dict:
+    """Returns dict keyed by strategy_dir, each with list of result objects.
+    btc_daily is used to build a dense BnH equity curve."""
     groups: dict[str, list[dict]] = {}
 
     def _process(tf: str, strat_dir: str, variant: str, folder: Path):
@@ -397,7 +353,10 @@ def collect_all_results() -> dict:
             if not math.isfinite(v):
                 stats[k] = 0.0
         tier = compute_tier(stats, tf, variant)
-        equity = build_equity_series(trades, starting, finishing)
+        if strat_dir == 'buy_and_hold' and btc_daily:
+            equity = build_bnh_equity_from_btc(starting, btc_daily)
+        else:
+            equity = build_equity_series(trades, starting, finishing)
         raw = stats.get('raw_metrics', {})
         sortino = raw.get('sortino_ratio', 0)
         calmar  = raw.get('calmar_ratio', 0)
@@ -706,18 +665,25 @@ a { color: #58a6ff; }
 .trade-detail-wrap th { color: #8b949e; padding: 5px 10px; text-align: left; border-bottom: 1px solid #30363d; white-space: nowrap; }
 .trade-detail-wrap td { padding: 5px 10px; border-bottom: 1px solid #1a1f2e; color: #c9d1d9; white-space: nowrap; }
 .trade-detail-wrap tr:hover td { background: #21262d; }
+.trade-detail-wrap tr.focused-row td { background: #1f6feb33; outline: 1px solid #58a6ff; }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .app { flex-direction: column; height: auto; }
+  html, body { overflow-x: hidden; }
+  .app { flex-direction: column; height: auto; overflow: visible; }
   .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #30363d;
-              max-height: 280px; }
-  .main { padding: 10px; }
+              max-height: none; overflow: visible; flex-shrink: 0; }
+  .strat-list { max-height: 240px; overflow-y: auto; }
+  .main { padding: 10px; flex: none; overflow: visible; min-width: 0; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-card { padding: 8px; }
+  .chart-wrap { overflow-x: auto; }
 }
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .desc-bilingual { grid-template-columns: 1fr; }
+  .filter-row { gap: 4px; }
+  .tag, .sort-btn { font-size: 10px; padding: 2px 6px; }
 }
 /* Section headers */
 .section-hdr { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
@@ -821,18 +787,28 @@ function ymOf(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
 }
 
-// Returns the normalisation factor so that the strategy's equity at startMs = $10,000.
-// Trade PnLs in trades.csv are denominated in the *actual* backtest account size, which
-// may be far larger than $10,000 by the time a later slice begins.  Without this factor
-// a single trade that made $15k on a $40k account would appear as a 150% gain on a
-// $10k re-based simulation instead of the correct ~37.5%.
-function _sliceNorm(r, startMs) {
-  let val = r.equity.length > 0 ? r.equity[0].v : 10_000;
-  for (const p of r.equity) {
-    if (p.t <= startMs) val = p.v;
-    else break;
+// Binary-search r.equity for the value at time `ms` (largest t ≤ ms).
+// For sparse equity series (e.g. BnH with only START/END points) this returns the
+// most recent known balance; for dense series (BnH built from BTC daily) it
+// effectively interpolates with last-observation-carried-forward.
+function equityAt(r, ms) {
+  if (!r.equity || r.equity.length === 0) return 10_000;
+  if (ms <= r.equity[0].t)                  return r.equity[0].v;
+  const last = r.equity[r.equity.length - 1];
+  if (ms >= last.t)                          return last.v;
+  let lo = 0, hi = r.equity.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if (r.equity[mid].t <= ms) lo = mid;
+    else                       hi = mid - 1;
   }
-  return val > 100 ? 10_000 / val : 1;
+  return r.equity[lo].v;
+}
+
+// Normalisation factor so equity at startMs maps to $10,000 in the slice view.
+function _sliceNorm(r, startMs) {
+  const v = equityAt(r, startMs);
+  return v > 100 ? 10_000 / v : 1;
 }
 
 function ymd(ms) {
@@ -848,61 +824,216 @@ function annualisedSharpe(monthlyRets) {
   return std > 0 ? (mean / std) * Math.sqrt(12) : 0;
 }
 
+// Balance-bounded simulation parameters ────────────────────────────────────
+const MARGIN_CAP_RATIO = 0.95;   // 거래당 사용 가능한 잔고 최대 비율
+const LIQ_LEVEL_RATIO  = 0.05;   // 잔고가 starting의 5% 이하로 떨어지면 청산
+
+// Virtual balance simulation: trades in [startMs, endMs] are replayed against
+// a fresh $10,000 virtual equity. Each trade uses min(rawMargin/rawEqOpen, cap)
+// of the current virtual equity as margin and preserves the raw ROI%.
+// This mirrors what a viewer would see if they had "invested $10,000 at the
+// slice start" — independent of any prior backtest gains or losses.
+const _balanceSimCache = new Map();
+function balanceSim(r, startMs, endMs, cap) {
+  if (cap === undefined) cap = MARGIN_CAP_RATIO;
+  const key = `${r.id}|${startMs}|${endMs}|${cap}`;
+  if (_balanceSimCache.has(key)) return _balanceSimCache.get(key);
+
+  const startBal = 10_000;
+  const liqFloor = startBal * LIQ_LEVEL_RATIO;
+  const lev      = r.leverage || 1;
+
+  const rawTrades = (r.trades || [])
+    .filter(t => t.t_open >= startMs && t.t_close <= endMs)
+    .slice()
+    .sort((a, b) => a.t_open - b.t_open);
+
+  let vEq        = startBal;
+  let peak       = startBal, mdd = 0;
+  let liquidated = false, liqMonth = null;
+  const points    = [{ t: startMs, v: vEq }];
+  const simTrades = [];
+
+  for (const t of rawTrades) {
+    const rawNotional = t.qty * t.entry;
+    const rawMargin   = lev > 0 ? rawNotional / lev : rawNotional;
+    const rawEqOpen   = equityAt(r, t.t_open);
+    if (rawEqOpen <= 0 || rawMargin <= 0) continue;
+
+    const sizeRatio = rawMargin / rawEqOpen;
+    const capped    = Math.min(sizeRatio, cap);
+    const rawROI    = t.pnl / rawMargin;       // fractional ROI
+
+    const vMargin   = vEq * capped;
+    const vNotional = vMargin * (lev > 0 ? lev : 1);
+    const vPnl      = vMargin * rawROI;
+
+    vEq += vPnl;
+    if (!liquidated && vEq > peak) peak = vEq;
+    if (!liquidated && peak > 0) {
+      const dd = (vEq - peak) / peak * 100;
+      if (dd < mdd) mdd = dd;
+    }
+    simTrades.push({
+      orig: t,
+      vMargin, vNotional, vPnl,
+      capRatio: capped,
+      roiPct:   rawROI * 100,
+    });
+    points.push({ t: t.t_close, v: vEq });
+
+    if (!liquidated && vEq <= liqFloor) {
+      liquidated = true;
+      liqMonth   = ymOf(t.t_close);
+      vEq = 0;
+      points[points.length - 1].v = 0;
+    }
+  }
+  points.push({ t: endMs, v: vEq });
+
+  const res = {
+    points, finishing: vEq, mdd, peak,
+    liquidated, liqMonth,
+    trades:           simTrades,
+    rawSliceTrades:   rawTrades,
+  };
+  _balanceSimCache.set(key, res);
+  return res;
+}
+
+// Raw-equity LOCF slice — used as a fallback when balanceSim has zero trades
+// (e.g. Buy-and-Hold's single trade spanning the entire slice).
+function _rawEquityNormSlice(r, startMs, endMs) {
+  const E_start = equityAt(r, startMs);
+  if (E_start <= 100) {
+    return [{ t: startMs, v: 10_000 }, { t: endMs, v: 0 }];
+  }
+  const norm = 10_000 / E_start;
+  const out  = [{ t: startMs, v: 10_000 }];
+  let liquidated = false;
+  for (const p of r.equity) {
+    if (p.t <= startMs || p.t >= endMs) continue;
+    const v = p.v * norm;
+    if (!liquidated && v <= 500) {
+      out.push({ t: p.t, v: 0 });
+      liquidated = true;
+      continue;
+    }
+    if (liquidated) continue;
+    out.push({ t: p.t, v });
+  }
+  if (liquidated) {
+    out.push({ t: endMs, v: 0 });
+  } else {
+    out.push({ t: endMs, v: equityAt(r, endMs) * norm });
+  }
+  return out;
+}
+
+// Equity series for the chart — balance simulation when trades exist,
+// otherwise fall back to raw equity norm (BnH and trade-sparse slices).
+function slicedEquity(r, startMs, endMs) {
+  const sim = balanceSim(r, startMs, endMs);
+  if (sim.trades.length === 0) return _rawEquityNormSlice(r, startMs, endMs);
+  return sim.points;
+}
+
 function slicedStats(r, startMs, endMs) {
   const key = `${r.id}|${startMs}|${endMs}`;
   if (sliceCache.has(key)) return sliceCache.get(key);
 
   const startBal = 10_000;
-  const norm = _sliceNorm(r, startMs);  // scale factor: actual balance → $10k
-  const trades = r.trades.filter(t => t.t_close >= startMs && t.t_close <= endMs);
+  const sim      = balanceSim(r, startMs, endMs);
 
-  let bal = startBal, peak = startBal, mdd = 0;
-  let liquidated = false, liq_month = null;
-  const monthlyMap = {};
-  for (const t of trades) {
-    const npnl = t.pnl * norm;          // normalised PnL
-    bal += npnl;
-    if (bal <= startBal * 0.05 && !liquidated) {
-      liquidated = true;
-      liq_month = ymOf(t.t_close);
-      bal = 0;
+  // For trade-bearing slices use the simulation; otherwise fall back to
+  // raw equity norm (e.g., Buy-and-Hold spans the slice with a single trade).
+  let finishing, mdd, liquidated, liq_month, eq, useSim;
+  if (sim.trades.length > 0) {
+    useSim     = true;
+    eq         = sim.points;
+    finishing  = sim.finishing;
+    mdd        = sim.mdd;
+    liquidated = sim.liquidated;
+    liq_month  = sim.liqMonth;
+  } else {
+    useSim     = false;
+    eq         = _rawEquityNormSlice(r, startMs, endMs);
+    finishing  = eq[eq.length - 1].v;
+    let peak   = startBal; mdd = 0;
+    liquidated = false; liq_month = null;
+    for (const p of eq) {
+      if (!liquidated && p.v <= startBal * 0.05) {
+        liquidated = true;
+        liq_month  = ymOf(p.t);
+      }
+      if (!liquidated) {
+        if (p.v > peak) peak = p.v;
+        if (peak > 0) {
+          const dd = (p.v - peak) / peak * 100;
+          if (dd < mdd) mdd = dd;
+        }
+      }
     }
-    if (!liquidated) {
-      if (bal > peak) peak = bal;
-      if (peak > 0) { const dd = (bal - peak) / peak * 100; if (dd < mdd) mdd = dd; }
-    }
-    const ym = ymOf(t.t_close);
-    monthlyMap[ym] = (monthlyMap[ym] || 0) + npnl;
+    if (liquidated) finishing = 0;
   }
 
-  const months = Object.keys(monthlyMap).sort();
-  let runBal = startBal, rets = [];
-  for (const m of months) {
-    if (runBal > 0) rets.push(monthlyMap[m] / runBal);
-    runBal += monthlyMap[m];
+  // CAGR from slice duration
+  const years = (endMs - startMs) / (365.25 * 86400_000);
+  const cagr  = years > 0 && finishing > 0
+    ? ((finishing / startBal) ** (1 / years) - 1) * 100 : 0;
+
+  // Monthly returns from equity points → annualised Sharpe (×√12)
+  const monthBoundaries = [startMs];
+  {
+    const d0 = new Date(startMs);
+    let y = d0.getUTCFullYear();
+    let m = d0.getUTCMonth() + 1;
+    while (true) {
+      const next = Date.UTC(y, m, 1);
+      if (next >= endMs) break;
+      monthBoundaries.push(next);
+      m++;
+      if (m > 11) { m = 0; y++; }
+    }
+    monthBoundaries.push(endMs);
+  }
+  const equityValueAt = (t) => {
+    let cur = startBal;
+    for (const p of eq) { if (p.t <= t) cur = p.v; else break; }
+    return cur;
+  };
+  const rets = [];
+  for (let i = 1; i < monthBoundaries.length; i++) {
+    const a = equityValueAt(monthBoundaries[i-1]);
+    const b = equityValueAt(monthBoundaries[i]);
+    if (a > 0) rets.push((b - a) / a);
   }
   const sharpe = annualisedSharpe(rets);
 
-  const finishing = liquidated ? 0 : bal;
-  const years = (endMs - startMs) / (365.25 * 86400_000);
-  const cagr = years > 0 && finishing > 0
-    ? ((finishing / startBal) ** (1 / years) - 1) * 100 : 0;
-
-  const winning = trades.filter(t => t.pnl > 0);
-  const losing  = trades.filter(t => t.pnl <= 0);
-  const grossP  = winning.reduce((s,t) => s + t.pnl * norm, 0);
-  const grossL  = losing.reduce((s,t) => s + t.pnl * norm, 0);
+  // Trade-based stats: use the same simulated PnL the trade table renders.
+  let tradeCount, winRate, pf;
+  if (useSim) {
+    const winning = sim.trades.filter(t => t.vPnl > 0);
+    const losing  = sim.trades.filter(t => t.vPnl <= 0);
+    const grossP  = winning.reduce((s, t) => s + t.vPnl, 0);
+    const grossL  = losing.reduce((s, t)  => s + t.vPnl, 0);
+    tradeCount = sim.trades.length;
+    winRate    = tradeCount ? winning.length / tradeCount * 100 : 0;
+    pf         = grossL !== 0 ? grossP / Math.abs(grossL) : (grossP > 0 ? Infinity : 0);
+  } else {
+    tradeCount = 0; winRate = 0; pf = 0;
+  }
 
   const stats = {
     cagr, sharpe, mdd,
-    trades: trades.length,
-    win_rate: trades.length ? winning.length / trades.length * 100 : 0,
-    pf: grossL !== 0 ? grossP / Math.abs(grossL) : (grossP > 0 ? Infinity : 0),
-    starting: startBal,
+    trades:    tradeCount,
+    win_rate:  winRate,
+    pf,
+    starting:  startBal,
     finishing,
-    net_pct: (finishing - startBal) / startBal * 100,
-    sortino: sharpe,
-    calmar: mdd !== 0 ? cagr / Math.abs(mdd) : 0,
+    net_pct:   (finishing - startBal) / startBal * 100,
+    sortino:   sharpe,
+    calmar:    mdd !== 0 ? cagr / Math.abs(mdd) : 0,
     liquidated, liq_month,
   };
   sliceCache.set(key, stats);
@@ -911,25 +1042,11 @@ function slicedStats(r, startMs, endMs) {
 
 function getStats(r) { return slicedStats(r, state.startMs, state.endMs); }
 
-function slicedEquity(r, startMs, endMs) {
-  const norm = _sliceNorm(r, startMs);  // normalise to $10k at startMs
-  const out = [{ t: startMs, v: 10_000 }];
-  let bal = 10_000, liquidated = false;
-  for (const t of r.trades) {
-    if (t.t_close < startMs || t.t_close > endMs) continue;
-    bal += t.pnl * norm;
-    if (bal <= 500 && !liquidated) { liquidated = true; bal = 0; }
-    out.push({ t: t.t_close, v: bal });
-  }
-  out.push({ t: endMs, v: bal });
-  return out;
-}
-
 function updateHeader() {
   const days = Math.round((state.endMs - state.startMs) / 86400_000);
   const el = document.querySelector('.subtitle');
   if (el) el.textContent =
-    `초기 자본 $10,000 · ${ymd(state.startMs)} ~ ${ymd(state.endMs)} · ${days}일 · 9가지 전략 · ${DATA.n_results}개 백테스트`;
+    `초기 자본 $10,000 · ${ymd(state.startMs)} ~ ${ymd(state.endMs)} · ${days}일 · 7가지 전략 · ${DATA.n_results}개 백테스트 · Build ${DATA.build_ts}`;
 }
 
 const TF_ORDER   = { '1h': 0, '2h': 1, '4h': 2, '1D': 3 };
@@ -937,7 +1054,7 @@ const TF_ORDER   = { '1h': 0, '2h': 1, '4h': 2, '1D': 3 };
 // ── Sidebar ─────────────────────────────────────────────────
 const STRAT_DISPLAY_ORDER = [
   'supertrend','tradeiq_220320','trendtype','supertrend_trendtype',
-  'tradeiq_220323','stoch','momentum_ma','bbwp','bbpb','buy_and_hold',
+  'tradeiq_220323','stoch','momentum_ma','buy_and_hold',
 ];
 
 function buildSidebar() {
@@ -1264,43 +1381,46 @@ function renderTradeChart() {
     showlegend: false,
   };
 
-  const slicedTrades = r.trades.filter(t => t.t_open >= state.startMs && t.t_close <= state.endMs);
-  const longTrades  = slicedTrades.filter(t => t.side === 'long');
-  const shortTrades = slicedTrades.filter(t => t.side === 'short');
+  // Preserve original r.trades index alongside each trade for click-to-row mapping
+  const slicedPairs = r.trades
+    .map((t, i) => [t, i])
+    .filter(([t]) => t.t_open >= state.startMs && t.t_close <= state.endMs);
+  const longPairs  = slicedPairs.filter(([t]) => t.side === 'long');
+  const shortPairs = slicedPairs.filter(([t]) => t.side === 'short');
+  const winPairs   = slicedPairs.filter(([t]) => t.pnl > 0);
+  const lossPairs  = slicedPairs.filter(([t]) => t.pnl <= 0);
 
-  const mkEntry = (trades, side, color, symbol) => ({
+  const mkEntry = (pairs, side, color, symbol) => ({
     type: 'scatter', mode: 'markers',
-    x: trades.map(t => new Date(t.t_open)),
-    y: trades.map(t => t.entry),
+    x: pairs.map(([t]) => new Date(t.t_open)),
+    y: pairs.map(([t]) => t.entry),
+    customdata: pairs.map(([_, i]) => [i]),
     name: side === 'long' ? '롱 진입' : '숏 진입',
     marker: { size: 9, color, symbol, line: { color: 'white', width: 1 } },
     hovertemplate: (side === 'long' ? '롱 진입' : '숏 진입') +
       '<br>진입가: $%{y:,.0f}<br>날짜: %{x|%Y-%m-%d}<extra></extra>',
   });
 
-  const mkExit = (trades, label, color) => ({
+  const mkExit = (pairs, label, color) => ({
     type: 'scatter', mode: 'markers',
-    x: trades.map(t => new Date(t.t_close)),
-    y: trades.map(t => t.exit),
+    x: pairs.map(([t]) => new Date(t.t_close)),
+    y: pairs.map(([t]) => t.exit),
+    customdata: pairs.map(([t, i]) => [i, t.pnl, t.exit]),
     name: label,
-    customdata: trades.map(t => [t.pnl, t.exit]),
     marker: { size: 8, color, symbol: 'square', line: { color: 'white', width: 1 } },
-    hovertemplate: label + '<br>청산가: $%{y:,.0f}<br>손익: $%{customdata[0]:+,.0f}<br>날짜: %{x|%Y-%m-%d}<extra></extra>',
+    hovertemplate: label + '<br>종료가: $%{y:,.0f}<br>손익: $%{customdata[1]:+,.0f}<br>날짜: %{x|%Y-%m-%d}<extra></extra>',
   });
-
-  const winTrades  = slicedTrades.filter(t => t.pnl > 0);
-  const lossTrades = slicedTrades.filter(t => t.pnl <= 0);
 
   const traces = [
     candleTrace,
-    mkEntry(longTrades,  'long',  '#2ea043', 'triangle-up'),
-    mkEntry(shortTrades, 'short', '#cf222e', 'triangle-down'),
-    mkExit(winTrades,  '수익 청산 ■', '#3fb950'),
-    mkExit(lossTrades, '손실 청산 ■', '#f85149'),
+    mkEntry(longPairs,  'long',  '#2ea043', 'triangle-up'),
+    mkEntry(shortPairs, 'short', '#cf222e', 'triangle-down'),
+    mkExit(winPairs,  '수익 청산 ■', '#3fb950'),
+    mkExit(lossPairs, '손실 청산 ■', '#f85149'),
   ];
 
   const meta = DATA.meta[r.strat] || {};
-  const title = `${meta.name_ko||r.strat} / ${r.variant} / ${r.tf} — 거래 ${slicedTrades.length}건`;
+  const title = `${meta.name_ko||r.strat} / ${r.variant} / ${r.tf} — 거래 ${slicedPairs.length}건`;
   const layout = darkLayout({
     title: { text: title, font: { size: 12, color: TEXT_CLR } },
     xaxis: { type: 'date', gridcolor: GRID_CLR, rangeslider: { visible: false } },
@@ -1313,6 +1433,133 @@ function renderTradeChart() {
 
   Plotly.purge(div);
   Plotly.newPlot(div, traces, layout, { responsive: true, displayModeBar: false });
+
+  // Click handler: highlight matching row in trade history table
+  div.removeAllListeners && div.removeAllListeners('plotly_click');
+  div.on('plotly_click', (ev) => {
+    const pt = ev?.points?.[0];
+    if (!pt || pt.curveNumber === 0) return;   // curveNumber 0 = candlestick
+    const tradeIdx = pt.customdata?.[0];
+    if (typeof tradeIdx === 'number') renderTradeTable(tradeIdx);
+  });
+}
+
+// ── Trade History Table ───────────────────────────────────────
+function renderTradeTable(focusIdx = null) {
+  const el = document.getElementById('trade-history-table');
+  if (!el) return;
+
+  if (state.selected.length === 0) {
+    el.innerHTML = '<div class="trade-detail-wrap"><h5 style="color:#8b949e">전략을 선택하면 거래 내역이 표시됩니다.</h5></div>';
+    return;
+  }
+  if (state.selected.length > 1) {
+    el.innerHTML = '<div class="trade-detail-wrap"><h5 style="color:#8b949e">단일 전략 선택 시 거래 내역이 표시됩니다. (현재 ' + state.selected.length + '개 선택)</h5></div>';
+    return;
+  }
+
+  const r = getResultById(state.selected[0]);
+  if (!r) { el.innerHTML = ''; return; }
+
+  // Use the balance-bounded simulation as the single source of truth.
+  // Each entry in sim.trades has the original trade in .orig plus simulated
+  // vMargin / vNotional / vPnl / capRatio / roiPct.
+  const sim    = balanceSim(r, state.startMs, state.endMs);
+  const trades = sim.trades;
+
+  if (trades.length === 0) {
+    const note = r.strat === 'buy_and_hold'
+      ? '<br><small>BnH 는 전체 기간을 보유하므로 슬라이스 내 거래가 없습니다 — 손익은 BTC 가격 변화로 KPI 카드에 반영됩니다.</small>'
+      : '';
+    el.innerHTML = `<div class="trade-detail-wrap"><h5 style="color:#8b949e">선택 기간에 진입+청산이 모두 발생한 거래가 없습니다.${note}</h5></div>`;
+    return;
+  }
+
+  function fmtMs(ms) {
+    const d = new Date(ms);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  }
+  function fmtDur(ms) {
+    const totalMin = Math.round(ms / 60_000);
+    const days = Math.floor(totalMin / 1440);
+    const hrs  = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (days >= 1) return `${days}d ${hrs}h`;
+    if (hrs >= 1)  return `${hrs}h ${mins}m`;
+    return `${mins}m`;
+  }
+
+  const lev = r.leverage;
+  const levLabel = lev > 1 ? lev + 'x' : '1x';
+
+  let totalPnl = 0, totalDur = 0, wins = 0;
+  const rows = trades.map((st, rowN) => {
+    const t       = st.orig;
+    const origIdx = r.trades.indexOf(t);
+    const isFocus = focusIdx !== null && origIdx === focusIdx;
+
+    const cls    = st.vPnl > 0 ? 'kpi-pos' : 'kpi-neg';
+    const sideKo = t.side === 'long' ? '🟢 롱' : '🔴 숏';
+    const dur    = t.t_close - t.t_open;
+
+    totalPnl += st.vPnl;
+    totalDur += dur;
+    if (st.vPnl > 0) wins++;
+
+    const focusCls  = isFocus ? ' class="focused-row"' : '';
+    const focusAttr = ` data-trade-idx="${origIdx}"`;
+    return `<tr${focusCls}${focusAttr}>
+      <td style="color:#8b949e;text-align:right">${rowN + 1}</td>
+      <td>${sideKo}</td>
+      <td style="text-align:center">${levLabel}</td>
+      <td>${fmtMs(t.t_open)} UTC</td>
+      <td style="text-align:right">$${t.entry.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:right;line-height:1.3">
+        <div>$${st.vMargin.toLocaleString('en-US',{maximumFractionDigits:0})} → $${st.vNotional.toLocaleString('en-US',{maximumFractionDigits:0})}</div>
+        <div style="color:#8b949e;font-size:0.85em">margin × ${lev}x · ${(st.capRatio*100).toFixed(0)}% of bal</div>
+      </td>
+      <td>${fmtMs(t.t_close)} UTC</td>
+      <td style="text-align:right">$${t.exit.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:right;color:#8b949e">${fmtDur(dur)}</td>
+      <td style="text-align:right" class="${cls}">$${st.vPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
+      <td style="text-align:right" class="${cls}">${st.roiPct.toFixed(1)}%</td>
+    </tr>`;
+  });
+
+  const totalCls   = totalPnl > 0 ? 'kpi-pos' : 'kpi-neg';
+  const avgDurMs   = trades.length > 0 ? totalDur / trades.length : 0;
+  const losses     = trades.length - wins;
+  const meta       = DATA.meta[r.strat] || {};
+  const stratLabel = `${meta.name_ko||r.strat} / ${varLabel(r)} / ${r.tf}`;
+
+  el.innerHTML = `<div class="trade-detail-wrap">
+    <h5>${stratLabel} — 거래 내역 ${trades.length}건 · 승 ${wins} / 패 ${losses} · 누적 손익 <span class="${totalCls}">$${totalPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</span> · 평균 보유 ${fmtDur(avgDurMs)}</h5>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="text-align:right">#</th>
+          <th>방향</th>
+          <th style="text-align:center">레버리지</th>
+          <th>진입일 (UTC)</th>
+          <th style="text-align:right">진입가</th>
+          <th style="text-align:right">포지션 (증거금/명목)</th>
+          <th>종료일 (UTC)</th>
+          <th style="text-align:right">종료가</th>
+          <th style="text-align:right">보유</th>
+          <th style="text-align:right">손익 ($)</th>
+          <th style="text-align:right">손익 (%)</th>
+        </tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+  // Scroll focused row into view
+  if (focusIdx !== null) {
+    const focusedRow = el.querySelector('tr.focused-row');
+    if (focusedRow) focusedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 // ── Monthly Heatmap ───────────────────────────────────────────
@@ -1429,7 +1676,7 @@ function showTradeDetail(id, month) {
       <table>
         <thead><tr>
           <th>방향</th><th>진입 시각 (UTC)</th><th style="text-align:right">진입가</th>
-          <th>청산 시각 (UTC)</th><th style="text-align:right">청산가</th>
+          <th>종료 시각 (UTC)</th><th style="text-align:right">종료가</th>
           <th style="text-align:right">손익 ($)</th><th style="text-align:right">수수료</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -2214,6 +2461,7 @@ function renderAll() {
   renderKPIs();
   renderEquityChart();
   renderTradeChart();
+  renderTradeTable();    // focusIdx=null — clears highlight on strategy/slice change
   renderHeatmap();
   renderValidationViews();
   renderDescription();
@@ -2235,10 +2483,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.startMs = s;
     state.endMs   = e;
     sliceCache.clear();
+    _balanceSimCache.clear();
     renderAll();
   }
-  dateStartEl.addEventListener('change', onDateChange);
-  dateEndEl.addEventListener('change', onDateChange);
+  document.getElementById('dateApply').addEventListener('click', onDateChange);
 
   document.querySelectorAll('.tag.preset').forEach(el => {
     el.addEventListener('click', () => {
@@ -2297,13 +2545,16 @@ document.addEventListener('DOMContentLoaded', () => {
 """
 
 
-def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
+def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
     gen_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>V4 백테스트 대시보드 — BTC 전략 분석</title>
 <style>
 {CSS}
@@ -2316,7 +2567,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
   <aside class="sidebar">
     <div class="header">
       <div class="h1" style="font-size:14px;font-weight:700;color:#f0f6fc">V4 백테스트 대시보드</div>
-      <div class="subtitle">초기 자본 $10,000 · 2021-01-01 ~ 2026-04-30 · 9가지 전략 · {n_results}개 백테스트</div>
+      <div class="subtitle">초기 자본 $10,000 · 2021-01-01 ~ 2026-04-30 · 7가지 전략 · {n_results}개 백테스트</div>
     </div>
 
     <!-- Filters -->
@@ -2350,6 +2601,10 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
         <input type="date" id="dateEnd" min="2021-01-01" max="2026-04-30" value="2026-04-30"
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
+        <button id="dateApply" type="button"
+          style="background:#1f6feb;color:#fff;border:none;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px">
+          적용
+        </button>
       </div>
       <div class="filter-row" style="margin-top:4px;flex-wrap:wrap;gap:4px">
         <span class="tag preset active" data-preset="all">전체</span>
@@ -2398,6 +2653,18 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
       <div class="chart-wrap" id="chart-equity">
         <div class="empty-state">전략을 선택하면 수익 곡선이 표시됩니다.</div>
       </div>
+    </div>
+
+    <!-- A1b: Trade Markers + Trade History Table -->
+    <div class="chart-card" id="card-trades">
+      <div class="chart-title">
+        거래 시점 마커
+        <small>▲ 진입 · ■ 청산(초록=수익, 빨강=손실) · 마커 클릭 시 해당 거래 행 강조 · 단일 전략 선택 시 활성화</small>
+      </div>
+      <div class="chart-wrap" id="chart-trades">
+        <div class="empty-state">전략을 선택하면 거래 마커 차트가 표시됩니다.</div>
+      </div>
+      <div id="trade-history-table"></div>
     </div>
 
     <!-- A2: Underwater -->
@@ -2465,18 +2732,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 73) -> str:
     <!-- ── Section C: 시장 맥락 ─────────────────── -->
     <div class="section-hdr"><div class="section-hdr-line"></div><div class="section-hdr-text">시장 맥락</div><div class="section-hdr-line"></div></div>
 
-    <!-- C1: Trade Markers -->
-    <div class="chart-card" id="card-trades">
-      <div class="chart-title">
-        거래 시점 마커
-        <small>▲ 진입 · ■ 청산(초록=수익, 빨강=손실) · 단일 전략 선택 시 활성화</small>
-      </div>
-      <div class="chart-wrap" id="chart-trades">
-        <div class="empty-state">전략을 선택하면 거래 마커 차트가 표시됩니다.</div>
-      </div>
-    </div>
-
-    <!-- C2: Monthly Heatmap -->
+    <!-- C1: Monthly Heatmap -->
     <div class="chart-card">
       <div class="chart-title">월별 손익 히트맵 <small>초록=수익 · 빨강=손실 · 셀 클릭 시 거래 내역</small></div>
       <div class="chart-wrap" id="chart-heatmap">
@@ -2564,14 +2820,14 @@ def main():
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    print('Collecting backtest results…')
-    groups = collect_all_results()
-    total = sum(len(v) for v in groups.values())
-    print(f'  {total} results from {len(groups)} strategies')
-
     print('Loading BTC 1D prices…')
     btc_1d = load_btc_1d()
     print(f'  {len(btc_1d)} daily candles')
+
+    print('Collecting backtest results…')
+    groups = collect_all_results(btc_daily=btc_1d)
+    total = sum(len(v) for v in groups.values())
+    print(f'  {total} results from {len(groups)} strategies')
 
     print('Computing regime labels and BnH returns…')
     regime_labels = _classify_btc_regimes(btc_1d)
@@ -2585,6 +2841,7 @@ def main():
     # Build compact data payload
     data = {
         'generated_at':    datetime.now(timezone.utc).isoformat(),
+        'build_ts':        datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
         'n_results':       total,
         'btc_1d':          btc_1d,
         'regime_labels':   regime_labels,

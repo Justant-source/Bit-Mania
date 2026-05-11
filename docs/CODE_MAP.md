@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-02
+last_updated: 2026-05-11
 ---
 
 # Code → Docs 역인덱스
@@ -23,6 +23,9 @@ last_updated: 2026-05-02
 | `services/jesse_engine/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 | `services/jesse_engine/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 | `services/jesse_engine/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `services/jesse_engine/scripts/rolling_window_analysis.py` | [test/rolling_window_test.md](test/rolling_window_test.md) |
+| `services/jesse_engine/scripts/README.md` | [test/backtest-skillset.md](test/backtest-skillset.md) |
+| `services/jesse_engine/scripts/build_v4_dashboard.py` | [test/rolling_window_test.md](test/rolling_window_test.md) |
 
 ## 실행 / 주문
 

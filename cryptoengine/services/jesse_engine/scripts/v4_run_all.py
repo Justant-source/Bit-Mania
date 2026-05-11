@@ -25,14 +25,12 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-RESULT_DIR = Path('/result/9-strategies')
+RESULT_DIR = Path('/result/7-strategies')
 SCRIPTS    = Path('/jesse-project/scripts')
 
 TIMEFRAMES = ['1h', '2h', '4h', '1D']
 
 STRATEGIES = [
-    ('BBPBStrategy',               'bbpb'),
-    ('BBWPStrategy',               'bbwp'),
     ('StochStrategy',              'stoch'),
     ('MomentumMAStrategy',         'momentum_ma'),
     ('SupertrendStrategy',         'supertrend'),
