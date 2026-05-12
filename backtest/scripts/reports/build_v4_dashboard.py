@@ -280,7 +280,7 @@ def compute_optimal_params() -> dict[str, dict]:
         (RESULTS_ROOT / 'param_sweep' / 'v2', 'v2'),
         (RESULTS_ROOT / 'param_sweep' / 'v3', 'v3'),
     ]
-    # best[(strat, tf)] = {score, variant, params, version, combo, p1_cagr, p2_cagr, p3_cagr, p4_cagr, p1_mdd}
+    # best[(strat, tf)] = {score, variant, params, version, combo, p0_cagr, p1_cagr, p2_cagr, p3_cagr, p4_cagr, p0_mdd, p1_mdd}
     best: dict[tuple, dict] = {}
 
     for base, version in sweep_bases:
@@ -309,10 +309,12 @@ def compute_optimal_params() -> dict[str, dict]:
                 'params':  {k: hp[k] for k in sweep_keys if k in hp},
                 'version': version,
                 'combo':   int(parts[-2].split('_')[1]),
+                'p0_cagr': round(periods.get('p0', {}).get('cagr', 0), 1),
                 'p1_cagr': round(periods.get('p1', {}).get('cagr', 0), 1),
                 'p2_cagr': round(periods.get('p2', {}).get('cagr', 0), 1),
                 'p3_cagr': round(periods.get('p3', {}).get('cagr', 0), 1),
                 'p4_cagr': round(periods.get('p4', {}).get('cagr', 0), 1),
+                'p0_mdd':  round(periods.get('p0', {}).get('mdd', 0), 1),
                 'p1_mdd':  round(periods.get('p1', {}).get('mdd', 0), 1),
                 'p2_mdd':  round(periods.get('p2', {}).get('mdd', 0), 1),
             }
@@ -1878,8 +1880,9 @@ function renderDescription() {
             ? `<span style="color:#3fb950;font-size:10px">롱전용</span>`
             : `<span style="color:#f78166;font-size:10px">양방향</span>`;
           const verBadge = `<span style="color:#8b949e;font-size:10px">${e.version}</span>`;
-          const cagrStr = `P1 ${e.p1_cagr>0?'+':''}${e.p1_cagr}% / P4 ${e.p4_cagr>0?'+':''}${e.p4_cagr}%`;
-          const mddStr  = `MDD ${e.p1_mdd}%`;
+          const p0Str   = e.p0_cagr !== undefined ? `P0 ${e.p0_cagr>0?'+':''}${e.p0_cagr}% / ` : '';
+          const cagrStr = `${p0Str}P1 ${e.p1_cagr>0?'+':''}${e.p1_cagr}% / P4 ${e.p4_cagr>0?'+':''}${e.p4_cagr}%`;
+          const mddStr  = `MDD P0 ${e.p0_mdd??'n/a'}% / P1 ${e.p1_mdd}%`;
           return `<tr>
             <td style="padding:5px 8px;font-weight:700;color:#58a6ff;font-size:12px">${tf}</td>
             <td style="padding:5px 8px;font-size:11px;color:#c9d1d9">${pvals}</td>
@@ -1897,7 +1900,7 @@ function renderDescription() {
               <th style="padding:5px 8px;color:#8b949e;text-align:left">최적 파라미터</th>
               <th style="padding:5px 8px;color:#8b949e;text-align:left">Variant</th>
               <th style="padding:5px 8px;color:#8b949e;text-align:left">Score</th>
-              <th style="padding:5px 8px;color:#8b949e;text-align:left">성과 요약 (P1/P4)</th>
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">성과 요약 (P0/P1/P4)</th>
             </tr></thead>
             <tbody>${tfRows}</tbody>
           </table>
