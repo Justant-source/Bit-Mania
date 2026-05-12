@@ -1928,7 +1928,7 @@ function renderDescription() {
 
 // ── JS math helpers ──────────────────────────────────────
 const BTC_DATES = DATA.btc_1d.map(p => new Date(p.t));  // parallel to btc_1d
-const N_DAYS = {_N_DAYS - 1};  // returns_daily length (2017-08-19..2026-04-30)
+const N_DAYS = __N_DAYS__;  // returns_daily length (2017-08-19..2026-04-30)
 // Day-index corresponding to a returns_daily index: i → 2017-08-19 + i days
 function dayLabel(i) {
   const d = new Date(Date.UTC(2017, 7, 19) + i * 86400000);
@@ -2721,6 +2721,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
     gen_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    js_content = DASHBOARD_JS.replace('__N_DAYS__', str(_N_DAYS - 1))
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -2977,7 +2978,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
 window.V4_DATA = {data_json};
 </script>
 <script>
-{DASHBOARD_JS}
+{js_content}
 </script>
 </body>
 </html>"""
