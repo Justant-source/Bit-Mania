@@ -1,160 +1,111 @@
 # 7-Strategies 백테스트 결과
 
-**기간**: 2021-01-01 ~ 2026-04-30  
-**초기자본**: $10,000 | **레버리지**: 1× | **심볼**: BTC-USDT  
-**타임프레임**: 1h / 2h / 4h / 1D  
-**변형**: long_only / bidirectional  
-**총 테스트 수**: 56건 (7 전략 × 4 TF × 2 변형)
+**기간**: 2021-01-01 ~ 2026-04-30
+**초기자본**: $10,000 | **레버리지**: 1× | **심볼**: BTC-USDT
 
-## Tier 기준
+> 자동 생성 — `sync_7strategies_docs.py` (동기화: 2026-05-12 22:08:20)
+> 수집된 결과: 67건
 
-| Tier | 조건 |
-|------|------|
-| **A** | Sharpe ≥ BnH×0.7 AND CAGR ≥ 5% AND MDD ≥ -30% AND 거래수 ≥ 30 |
-| **B** | Sharpe ≥ 0.3 AND CAGR ≥ 0% AND MDD ≥ -40% |
-| **C** | B 미달 |
+## Champion 조합 (TF별 최고 성과)
 
-BnH 벤치마크 Sharpe (참고값): 1h≈0.83 / 2h≈0.93 / 4h≈0.91 / 1D≈0.92
+| 전략 | TF | 변형 | CAGR(%) | MDD(%) | Sharpe | PF | 거래수 |
+|---|---|---|---|---|---|---|---|
+| supertrend | 1D | long_only_x2 | +59.33 | -39.59 | 1.287 | 1.601 | 41 |
+| tradeiq_psar_ha | 1D | long_only_x3 | +51.39 | -58.00 | 0.900 | 1.212 | 87 |
+| supertrend_trendtype | 1D | long_only_x2 | +44.15 | -45.96 | 1.484 | 1.491 | 33 |
+| trendtype | 1D | long_only_x2 | +44.13 | -38.50 | 1.284 | 1.537 | 61 |
+| trendtype | 1h | long_only_x2 | +42.43 | -67.10 | 1.486 | 2.018 | 28 |
+| supertrend_trendtype | 4h | long_only | +39.50 | -29.28 | 1.284 | 1.452 | 188 |
+| stoch | 1D | bidirectional | +38.65 | -69.75 | 0.870 | 1.958 | 35 |
+| supertrend | 4h | long_only | +37.99 | -26.25 | 1.163 | 1.341 | 248 |
+| tradeiq_psar_ha | 1h | long_only_x2 | +31.98 | -25.87 | 1.365 | 1.924 | 26 |
+| buy_and_hold | 1D | buy_and_hold | +24.21 | -76.08 | 0.692 | 0.000 | 1 |
+| tradeiq_cci_ce | 4h | bidirectional | +21.94 | -31.84 | 0.867 | 1.388 | 121 |
+| stoch | 4h | long_only | +17.50 | -63.25 | 0.572 | 1.093 | 228 |
+| trendtype | 4h | long_only | +15.59 | -33.81 | 0.676 | 1.175 | 441 |
+| supertrend_trendtype | 1h | long_only | +13.36 | -29.58 | 0.595 | 1.084 | 729 |
+| tradeiq_psar_ha | 4h | long_only | +12.94 | -29.96 | 0.586 | 1.147 | 377 |
+| momentum_ma | 1D | long_only | +9.99 | -74.25 | 0.441 | 1.165 | 65 |
+| tradeiq_cci_ce | 1h | bidirectional | +7.82 | -24.67 | 0.466 | 1.135 | 257 |
+| supertrend | 1h | long_only | +6.72 | -30.00 | 0.366 | 1.037 | 991 |
+| momentum_ma | 1h | bidirectional_x2 | +5.45 | -68.18 | 0.571 | 1.025 | 54 |
+| tradeiq_cci_ce | 1D | long_only | +2.66 | -15.84 | 0.279 | 1.506 | 5 |
+| momentum_ma | 4h | long_only | -1.31 | -77.03 | 0.235 | 0.994 | 326 |
+| stoch | 1h | bidirectional_x3 | -37.89 | -99.98 | 1.658 | 0.623 | 23 |
 
-## 전략별 최고 성과 (best combination per strategy)
+## 전체 결과 (67 건)
 
-| 전략 | 최고 조합 | 최종잔고 | CAGR | Sharpe | MDD | Tier |
-|------|----------|---------|------|--------|-----|------|
-| [Momentum MA](./momentum_ma/README.md) | 1h / 롱 온리 | $98,861 | +46.51% | 0.812 | -68.45% | **C** |
-| [Stochastic](./stoch/README.md) | 1h / 롱 온리 | $95,666 | +45.71% | 0.810 | -68.63% | **C** |
-| [Supertrend + TrendType](./supertrend_trendtype/README.md) | 1h / 롱 온리 | $95,530 | +45.68% | 0.835 | -29.95% | **B** |
-| [Supertrend](./supertrend/README.md) | 1h / 롱 온리 | $91,724 | +44.69% | 0.823 | -25.49% | **A** |
-| [TradeIQ PSAR-HA](./tradeiq_psar_ha/README.md) | 1h / 롱 온리 | $72,921 | +39.26% | 0.843 | -18.28% | **A** |
-| [TrendType](./trendtype/README.md) | 1h / 양방향 | $66,793 | +37.24% | 0.829 | -30.95% | **B** |
-| [TradeIQ CCI-CE](./tradeiq_cci_ce/README.md) | 4h / 양방향 | $22,338 | +14.34% | 0.657 | -33.44% | **B** |
+| 전략 | TF | 변형 | CAGR(%) | MDD(%) | Sharpe | PF | 거래수 |
+|---|---|---|---|---|---|---|---|
+| supertrend | 4h | long_only_x3 | +84.32 | -52.56 | 0.920 | 1.127 | 245 |
+| supertrend | 1D | long_only_x3 | +77.66 | -54.92 | 1.237 | 1.392 | 41 |
+| supertrend_trendtype | 4h | long_only_x3 | +65.54 | -64.02 | 0.949 | 1.113 | 192 |
+| supertrend | 4h | long_only_x2 | +64.54 | -37.44 | 0.950 | 1.198 | 245 |
+| trendtype | 1D | bidirectional_x3 | +63.58 | -68.80 | 0.986 | 1.142 | 131 |
+| supertrend | 1D | long_only_x2 | +59.33 | -39.59 | 1.287 | 1.601 | 41 |
+| trendtype | 1D | bidirectional_x2 | +56.96 | -47.31 | 1.018 | 1.260 | 131 |
+| trendtype | 1D | long_only_x3 | +56.78 | -53.08 | 1.235 | 1.343 | 61 |
+| supertrend_trendtype | 1D | long_only_x3 | +56.70 | -61.57 | 1.442 | 1.291 | 33 |
+| tradeiq_psar_ha | 1D | long_only_x3 | +51.39 | -58.00 | 0.900 | 1.212 | 87 |
+| supertrend_trendtype | 4h | long_only_x2 | +50.47 | -47.72 | 0.958 | 1.185 | 192 |
+| supertrend_trendtype | 1D | long_only_x2 | +44.15 | -45.96 | 1.484 | 1.491 | 33 |
+| trendtype | 1D | long_only_x2 | +44.13 | -38.50 | 1.284 | 1.537 | 61 |
+| tradeiq_psar_ha | 1h | long_only_x3 | +43.63 | -37.23 | 1.358 | 1.665 | 26 |
+| trendtype | 1h | bidirectional_x2 | +43.20 | -73.89 | 1.116 | 1.636 | 55 |
+| trendtype | 1h | long_only_x2 | +42.43 | -67.10 | 1.486 | 2.018 | 28 |
+| tradeiq_psar_ha | 1D | long_only_x2 | +42.26 | -39.62 | 0.898 | 1.324 | 87 |
+| supertrend_trendtype | 4h | long_only | +39.50 | -29.28 | 1.284 | 1.452 | 188 |
+| stoch | 1D | bidirectional | +38.65 | -69.75 | 0.870 | 1.958 | 35 |
+| supertrend | 4h | long_only | +37.99 | -26.25 | 1.163 | 1.341 | 248 |
+| tradeiq_psar_ha | 1h | long_only_x2 | +31.98 | -25.87 | 1.365 | 1.924 | 26 |
+| supertrend_trendtype | 1D | long_only | +27.51 | -29.55 | 0.972 | 1.929 | 33 |
+| supertrend | 1D | long_only | +24.82 | -37.30 | 0.828 | 1.555 | 53 |
+| trendtype | 1D | bidirectional | +24.82 | -33.22 | 0.784 | 1.287 | 161 |
+| buy_and_hold | 1D | buy_and_hold | +24.21 | -76.08 | 0.692 | 0.000 | 1 |
+| supertrend | 4h | bidirectional | +23.51 | -40.81 | 0.686 | 1.090 | 511 |
+| tradeiq_psar_ha | 1D | long_only | +22.43 | -26.09 | 0.864 | 1.551 | 86 |
+| tradeiq_cci_ce | 4h | bidirectional | +21.94 | -31.84 | 0.867 | 1.388 | 121 |
+| trendtype | 1D | long_only | +21.54 | -27.54 | 0.919 | 1.645 | 85 |
+| supertrend_trendtype | 4h | bidirectional | +20.57 | -39.26 | 0.651 | 1.087 | 394 |
+| stoch | 1D | long_only | +19.75 | -70.30 | 0.611 | 1.314 | 35 |
+| trendtype | 1h | long_only | +17.66 | -27.74 | 0.752 | 1.129 | 1380 |
+| stoch | 4h | long_only | +17.50 | -63.25 | 0.572 | 1.093 | 228 |
+| trendtype | 4h | long_only | +15.59 | -33.81 | 0.676 | 1.175 | 441 |
+| trendtype | 1h | long_only_x3 | +14.98 | -96.47 | 1.447 | 1.138 | 28 |
+| supertrend_trendtype | 1h | long_only | +13.36 | -29.58 | 0.595 | 1.084 | 729 |
+| tradeiq_psar_ha | 1D | bidirectional | +13.33 | -45.01 | 0.516 | 1.204 | 133 |
+| supertrend | 1D | bidirectional | +13.06 | -51.22 | 0.499 | 1.201 | 85 |
+| tradeiq_psar_ha | 4h | long_only | +12.94 | -29.96 | 0.586 | 1.147 | 377 |
+| supertrend_trendtype | 1D | bidirectional | +11.25 | -44.06 | 0.467 | 1.211 | 59 |
+| momentum_ma | 1D | long_only | +9.99 | -74.25 | 0.441 | 1.165 | 65 |
+| trendtype | 1h | bidirectional_x3 | +7.91 | -97.87 | 1.109 | 1.050 | 55 |
+| tradeiq_cci_ce | 1h | bidirectional | +7.82 | -24.67 | 0.466 | 1.135 | 257 |
+| supertrend | 1h | long_only | +6.72 | -30.00 | 0.366 | 1.037 | 991 |
+| tradeiq_cci_ce | 1h | long_only | +6.60 | -26.09 | 0.452 | 1.125 | 187 |
+| momentum_ma | 1h | bidirectional_x2 | +5.45 | -68.18 | 0.571 | 1.025 | 54 |
+| tradeiq_cci_ce | 4h | long_only | +4.29 | -33.90 | 0.298 | 1.111 | 80 |
+| momentum_ma | 1h | long_only | +4.20 | -66.11 | 0.348 | 1.010 | 1071 |
+| trendtype | 1h | bidirectional | +4.13 | -60.23 | 0.312 | 1.008 | 3026 |
+| tradeiq_cci_ce | 1D | long_only | +2.66 | -15.84 | 0.279 | 1.506 | 5 |
+| stoch | 1h | bidirectional | +1.83 | -70.68 | 0.313 | 1.005 | 881 |
+| tradeiq_cci_ce | 1D | bidirectional | +1.22 | -31.20 | 0.161 | 1.079 | 12 |
+| stoch | 1h | bidirectional_x2 | +0.57 | -98.90 | 1.484 | 1.013 | 22 |
+| tradeiq_psar_ha | 4h | bidirectional | -0.61 | -47.89 | 0.179 | 0.997 | 779 |
+| stoch | 1h | long_only | -0.67 | -67.75 | 0.258 | 0.998 | 827 |
+| tradeiq_psar_ha | 1h | long_only | -1.22 | -47.97 | 0.096 | 0.993 | 1664 |
+| momentum_ma | 4h | long_only | -1.31 | -77.03 | 0.235 | 0.994 | 326 |
+| trendtype | 4h | bidirectional | -1.99 | -72.95 | 0.154 | 0.993 | 807 |
+| supertrend | 1h | bidirectional | -3.60 | -55.35 | 0.158 | 0.992 | 2000 |
+| momentum_ma | 1D | bidirectional | -5.77 | -80.15 | 0.158 | 0.954 | 114 |
+| supertrend_trendtype | 1h | bidirectional | -6.14 | -57.28 | 0.062 | 0.982 | 1534 |
+| stoch | 4h | bidirectional | -14.03 | -67.92 | 0.014 | 0.917 | 246 |
+| momentum_ma | 4h | bidirectional | -15.04 | -74.36 | -0.029 | 0.905 | 915 |
+| tradeiq_psar_ha | 1h | bidirectional | -19.90 | -75.94 | -0.343 | 0.942 | 3246 |
+| momentum_ma | 1h | bidirectional | -24.40 | -87.34 | -0.222 | 0.954 | 3703 |
+| stoch | 1h | bidirectional_x3 | -37.89 | -99.98 | 1.658 | 0.623 | 23 |
+| momentum_ma | 1h | bidirectional_x3 | -39.62 | -97.88 | 0.443 | 0.830 | 55 |
 
-## Tier A 전략 목록
+## 참고
 
-| 전략 | TF | 변형 | 최종잔고 | CAGR | Sharpe | MDD | 거래수 |
-|------|----|------|---------|------|--------|-----|--------|
-| Supertrend | 1h | 롱 온리 | $91,724 | +44.69% | 0.823 | -25.49% | 37 |
-| Supertrend | 1D | 롱 온리 | $88,723 | +43.89% | 1.318 | -24.22% | 48 |
-| TradeIQ PSAR-HA | 1h | 롱 온리 | $72,921 | +39.26% | 0.843 | -18.28% | 59 |
-| TradeIQ PSAR-HA | 1D | 롱 온리 | $61,327 | +35.30% | 1.239 | -27.76% | 98 |
-| TrendType | 1D | 롱 온리 | $56,993 | +33.66% | 1.319 | -23.53% | 64 |
-| TrendType | 1h | 롱 온리 | $45,098 | +28.54% | 0.727 | -22.62% | 44 |
-
-## 전체 결과 (56건)
-
-| 전략 | TF | 변형 | 최종잔고 | CAGR | Sharpe | MDD | 거래수 | 승률 | PF | Tier |
-|------|----|------|---------|------|--------|-----|--------|------|-----|------|
-| Momentum MA | 1h | 롱 온리 | $98,861 | +46.51% | 0.812 | -68.45% | 51 | +50.98% | 1.724 | **C** |
-| Stochastic | 1h | 롱 온리 | $95,666 | +45.71% | 0.810 | -68.63% | 32 | +65.62% | 1.764 | **C** |
-| Supertrend + TrendType | 1h | 롱 온리 | $95,530 | +45.68% | 0.835 | -29.95% | 27 | +51.85% | 2.394 | **B** |
-| Supertrend | 1h | 롱 온리 | $91,724 | +44.69% | 0.823 | -25.49% | 37 | +48.65% | 2.288 | **A** |
-| Supertrend | 1D | 롱 온리 | $88,723 | +43.89% | 1.318 | -24.22% | 48 | +50.00% | 2.057 | **A** |
-| Supertrend | 4h | 롱 온리 | $83,209 | +42.36% | 1.232 | -30.54% | 289 | +44.98% | 1.347 | **B** |
-| Stochastic | 4h | 롱 온리 | $76,910 | +40.51% | 0.913 | -70.49% | 383 | +56.66% | 1.142 | **C** |
-| TradeIQ PSAR-HA | 1h | 롱 온리 | $72,921 | +39.26% | 0.843 | -18.28% | 59 | +42.37% | 1.726 | **A** |
-| Stochastic | 2h | 롱 온리 | $71,977 | +38.96% | 0.888 | -67.91% | 721 | +55.34% | 1.087 | **C** |
-| TrendType | 1h | 양방향 | $66,793 | +37.24% | 0.829 | -30.95% | 81 | +59.26% | 1.612 | **B** |
-| Supertrend + TrendType | 1D | 롱 온리 | $66,729 | +37.22% | 1.250 | -33.35% | 38 | +50.00% | 2.043 | **B** |
-| TrendType | 1D | 양방향 | $64,553 | +36.46% | 1.085 | -37.08% | 130 | +49.23% | 1.428 | **B** |
-| Supertrend + TrendType | 1h | 양방향 | $61,850 | +35.49% | 0.694 | -41.50% | 42 | +42.86% | 1.534 | **C** |
-| TradeIQ PSAR-HA | 1D | 롱 온리 | $61,327 | +35.30% | 1.239 | -27.76% | 98 | +39.80% | 1.555 | **A** |
-| Stochastic | 1D | 롱 온리 | $60,646 | +35.05% | 0.907 | -74.89% | 65 | +61.54% | 1.387 | **C** |
-| TrendType | 1D | 롱 온리 | $56,993 | +33.66% | 1.319 | -23.53% | 64 | +54.69% | 2.155 | **A** |
-| Supertrend + TrendType | 4h | 롱 온리 | $50,082 | +30.81% | 1.051 | -32.24% | 224 | +46.43% | 1.328 | **B** |
-| Supertrend | 1h | 양방향 | $45,658 | +28.81% | 0.614 | -56.04% | 57 | +40.35% | 1.390 | **C** |
-| TrendType | 1h | 롱 온리 | $45,098 | +28.54% | 0.727 | -22.62% | 44 | +56.82% | 2.193 | **A** |
-| TradeIQ PSAR-HA | 1h | 양방향 | $44,138 | +28.08% | 0.658 | -33.10% | 82 | +36.59% | 1.331 | **B** |
-| Supertrend | 1D | 양방향 | $44,119 | +28.07% | 0.817 | -50.46% | 76 | +43.42% | 1.354 | **C** |
-| Supertrend | 4h | 양방향 | $38,367 | +25.13% | 0.714 | -47.04% | 529 | +39.89% | 1.084 | **C** |
-| Momentum MA | 4h | 롱 온리 | $37,211 | +24.49% | 0.683 | -78.05% | 494 | +50.61% | 1.084 | **C** |
-| Stochastic | 1h | 양방향 | $35,553 | +23.55% | 0.587 | -62.04% | 33 | +66.67% | 1.540 | **C** |
-| Supertrend + TrendType | 4h | 양방향 | $34,950 | +23.20% | 0.707 | -49.69% | 410 | +41.71% | 1.081 | **C** |
-| Stochastic | 4h | 양방향 | $33,298 | +22.21% | 0.641 | -55.78% | 430 | +52.33% | 1.056 | **C** |
-| Supertrend | 2h | 롱 온리 | $32,086 | +21.45% | 0.744 | -42.96% | 589 | +41.60% | 1.096 | **C** |
-| Supertrend + TrendType | 1D | 양방향 | $31,033 | +20.78% | 0.703 | -44.42% | 57 | +43.86% | 1.333 | **C** |
-| Momentum MA | 1D | 롱 온리 | $30,018 | +20.11% | 0.658 | -74.71% | 82 | +50.00% | 1.206 | **C** |
-| TradeIQ PSAR-HA | 1D | 양방향 | $29,832 | +19.99% | 0.698 | -48.43% | 146 | +34.25% | 1.195 | **C** |
-| Momentum MA | 1h | 양방향 | $25,460 | +16.86% | 0.493 | -69.81% | 103 | +43.69% | 1.075 | **C** |
-| Stochastic | 1D | 양방향 | $25,030 | +16.53% | 0.583 | -68.33% | 72 | +54.17% | 1.115 | **C** |
-| TradeIQ PSAR-HA | 4h | 롱 온리 | $24,513 | +16.12% | 0.651 | -34.02% | 490 | +35.71% | 1.118 | **B** |
-| TrendType | 4h | 롱 온리 | $23,612 | +15.40% | 0.667 | -37.79% | 482 | +43.36% | 1.152 | **B** |
-| TradeIQ CCI-CE | 4h | 양방향 | $22,338 | +14.34% | 0.657 | -33.44% | 121 | +56.20% | 1.280 | **B** |
-| TradeIQ CCI-CE | 4h | 롱 온리 | $21,174 | +13.32% | 0.772 | -35.51% | 68 | +60.29% | 1.443 | **B** |
-| Momentum MA | 2h | 롱 온리 | $19,749 | +12.01% | 0.481 | -79.71% | 928 | +49.14% | 1.025 | **C** |
-| Supertrend + TrendType | 2h | 롱 온리 | $18,584 | +10.88% | 0.494 | -41.75% | 448 | +41.96% | 1.075 | **C** |
-| TrendType | 2h | 롱 온리 | $18,043 | +10.34% | 0.494 | -34.38% | 925 | +41.08% | 1.074 | **B** |
-| TradeIQ CCI-CE | 1h | 롱 온리 | $17,045 | +9.30% | 0.484 | -30.75% | 8 | +75.00% | 2.659 | **B** |
-| TradeIQ CCI-CE | 1h | 양방향 | $14,755 | +6.70% | 0.366 | -49.35% | 10 | +70.00% | 1.677 | **C** |
-| TradeIQ PSAR-HA | 2h | 롱 온리 | $13,562 | +5.21% | 0.316 | -35.85% | 1018 | +31.93% | 1.028 | **B** |
-| TradeIQ CCI-CE | 2h | 양방향 | $12,256 | +3.45% | 0.261 | -62.96% | 239 | +49.37% | 1.029 | **C** |
-| TrendType | 4h | 양방향 | $10,346 | +0.57% | 0.221 | -70.17% | 955 | +39.16% | 1.002 | **C** |
-| TradeIQ CCI-CE | 2h | 롱 온리 | $9,194 | -1.39% | 0.051 | -56.24% | 157 | +49.04% | 0.979 | **C** |
-| Supertrend | 2h | 양방향 | $8,092 | -3.47% | 0.167 | -66.25% | 1096 | +37.68% | 0.992 | **C** |
-| TradeIQ PSAR-HA | 4h | 양방향 | $7,639 | -4.39% | 0.106 | -66.54% | 897 | +32.78% | 0.985 | **C** |
-| Supertrend + TrendType | 2h | 양방향 | $5,747 | -8.82% | 0.009 | -65.77% | 841 | +38.88% | 0.970 | **C** |
-| Momentum MA | 4h | 양방향 | $3,107 | -17.70% | -0.058 | -91.89% | 943 | +39.34% | 0.906 | **C** |
-| TrendType | 2h | 양방향 | $2,457 | -20.86% | -0.342 | -85.48% | 1920 | +38.18% | 0.935 | **C** |
-| Momentum MA | 1D | 양방향 | $2,434 | -20.99% | -0.202 | -88.81% | 146 | +35.62% | 0.780 | **C** |
-| TradeIQ CCI-CE | 1D | 롱 온리 | $4,476 | -12.54% | -0.597 | -61.73% | 10 | +30.00% | 0.267 | **C** |
-| TradeIQ CCI-CE | 1D | 양방향 | $3,977 | -14.25% | -0.501 | -68.45% | 19 | +36.84% | 0.512 | **C** |
-| Stochastic | 2h | 양방향 | $3,808 | -14.87% | 0.017 | -88.91% | 866 | +49.77% | 0.969 | **C** |
-| TradeIQ PSAR-HA | 2h | 양방향 | $3,329 | -16.75% | -0.234 | -78.34% | 1833 | +30.22% | 0.954 | **C** |
-| Momentum MA | 2h | 양방향 | $444 | -40.51% | -0.622 | -96.62% | 1847 | +38.17% | 0.874 | **C** |
-
-## 전략 설명
-
-### [Momentum MA](./momentum_ma/README.md)
-
-이동평균선 모멘텀 전략. 단기/장기 MA 교차와 모멘텀 지표를 조합한 추세 추종.
-
-### [Stochastic](./stoch/README.md)
-
-Stochastic Oscillator 기반 전략. 과매수/과매도 구간에서의 반전 또는 추세 방향 진입.
-
-### [Supertrend + TrendType](./supertrend_trendtype/README.md)
-
-Supertrend와 TrendType을 결합한 복합 추세 전략. 두 지표가 동시에 신호를 줄 때만 진입하여 허위 신호 감소.
-
-### [Supertrend](./supertrend/README.md)
-
-ATR 기반 슈퍼트렌드 지표를 이용한 추세 추종 전략. 가격이 슈퍼트렌드 선 위/아래로 교차할 때 포지션 진입/청산.
-
-### [TradeIQ PSAR-HA](./tradeiq_psar_ha/README.md)
-
-TradeIQ의 2022-03-20 전략. EMA + RSI 복합 신호를 이용한 추세 추종.
-
-### [TrendType](./trendtype/README.md)
-
-DEMA/TEMA 기반 트렌드 유형 분류 전략. 추세 유형(강한 상승/약한 상승/횡보 등)을 분류하여 포지션 관리.
-
-### [TradeIQ CCI-CE](./tradeiq_cci_ce/README.md)
-
-TradeIQ의 2022-03-23 전략. PSAR-HA 대비 더 선택적인 진입 조건으로 거래 빈도가 낮고 정밀도 높음.
-
-## 파일 구조
-
-```
-7-strategies/
-├── README.md               ← 이 파일 (종합 요약)
-├── summary.csv             ← 56건 전체 지표 (CSV)
-├── supertrend/
-│   ├── README.md           ← 전략별 상세 결과
-│   ├── 1h/ 2h/ 4h/ 1D/
-│   │   ├── long_only/
-│   │   │   ├── stats.json
-│   │   │   ├── trades.csv
-│   │   │   ├── monthly_returns.csv
-│   │   │   ├── equity_curve.png
-│   │   │   ├── decision.md
-│   │   │   └── strategy.py
-│   │   └── bidirectional/
-│   └── ...
-├── tradeiq_psar_ha/ tradeiq_cci_ce/ trendtype/
-├── supertrend_trendtype/ stoch/ momentum_ma/
-└── rolling_window/
-```
-
-## 분석 참고
-
-- 전체 대시보드: `backtest/dashboards/dashboard.html`
-- BnH 벤치마크 결과: `7-strategies/{TF}/buy_and_hold/`
-- Tier B+에서도 MDD -30% 이상 조합만 실거래 고려 권장
+- 본 표는 `backtest/results/7-strategies/{strat}/{tf}/{variant}/stats.json` 기준으로 자동 생성됨
+- 수정 시: `python3 backtest/scripts/reports/sync_7strategies_docs.py` 실행
