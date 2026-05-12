@@ -11,8 +11,16 @@
     "smooth": 1,
     "atr_mult": 3.0
   },
-  "score": 25.5955,
+  "score": 30.5925,
   "periods": {
+    "p0": {
+      "cagr": 50.5801,
+      "sharpe": 1.3227,
+      "mdd": -16.5379,
+      "trades": 578,
+      "win_rate": 46.3668,
+      "pf": 1.2945
+    },
     "p1": {
       "cagr": 19.5716,
       "sharpe": 0.8262,
@@ -45,5 +53,6 @@
       "win_rate": 41.5584,
       "pf": 1.217
     }
-  }
+  },
+  "score_version": "p0-p4"
 }

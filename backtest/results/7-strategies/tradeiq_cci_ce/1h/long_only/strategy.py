@@ -1,5 +1,5 @@
 """
-TradeIQ 220323 Strategy (CCI + Chandelier Exit) — Jesse 2.x port
+TradeIQ CCI-CE Strategy (CCI + Chandelier Exit) — Jesse 2.x port
 Original: Pine Script tradeiq-220323-strategy (trading-bot/strategies/tradeiq-220323-strategy/)
 
 Hybrid: CCI mean-reversion entry + Chandelier trailing stop direction filter.

@@ -11,9 +11,17 @@
     "ce_mult": 2.0,
     "atr_mult": 3.0
   },
-  "score": 6.8818,
+  "score": 6.0705,
   "sweep_version": "v3",
   "periods": {
+    "p0": {
+      "cagr": 2.8255,
+      "sharpe": 0.2361,
+      "mdd": -29.0,
+      "trades": 30,
+      "win_rate": 53.3333,
+      "pf": 1.0912
+    },
     "p1": {
       "cagr": 7.9006,
       "sharpe": 0.46,
@@ -46,5 +54,6 @@
       "win_rate": 56.5217,
       "pf": 1.2145
     }
-  }
+  },
+  "score_version": "p0-p4"
 }

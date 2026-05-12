@@ -15,8 +15,16 @@
     "direction_ema_len": 200,
     "atr_mult": 3.0
   },
-  "score": 10.938,
+  "score": 18.531,
   "periods": {
+    "p0": {
+      "cagr": 48.9032,
+      "sharpe": 1.3068,
+      "mdd": -19.5707,
+      "trades": 286,
+      "win_rate": 40.9091,
+      "pf": 1.3119
+    },
     "p1": {
       "cagr": 8.1624,
       "sharpe": 0.4294,
@@ -49,5 +57,6 @@
       "win_rate": 38.9549,
       "pf": 1.1096
     }
-  }
+  },
+  "score_version": "p0-p4"
 }

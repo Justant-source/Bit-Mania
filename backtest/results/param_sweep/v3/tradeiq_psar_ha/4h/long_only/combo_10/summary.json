@@ -1,0 +1,59 @@
+{
+  "strategy": "tradeiq_psar_ha",
+  "tf": "4h",
+  "variant": "long_only",
+  "combo_idx": 10,
+  "hp": {
+    "psar_start": 0.02,
+    "psar_inc": 0.02,
+    "psar_max": 0.2,
+    "direction_ema_len": 200,
+    "rsi_len": 20,
+    "atr_mult": 4.0
+  },
+  "score": 18.5052,
+  "score_version": "p0-p4",
+  "sweep_version": "v3",
+  "periods": {
+    "p0": {
+      "cagr": 46.9169,
+      "sharpe": 1.367,
+      "mdd": -24.0646,
+      "trades": 144,
+      "win_rate": 35.4167,
+      "pf": 1.4145
+    },
+    "p1": {
+      "cagr": 8.6389,
+      "sharpe": 0.4592,
+      "mdd": -32.0963,
+      "trades": 332,
+      "win_rate": 35.8434,
+      "pf": 1.1185
+    },
+    "p2": {
+      "cagr": 12.2915,
+      "sharpe": 0.5835,
+      "mdd": -32.0963,
+      "trades": 251,
+      "win_rate": 35.8566,
+      "pf": 1.1482
+    },
+    "p3": {
+      "cagr": 9.7614,
+      "sharpe": 0.4849,
+      "mdd": -32.0963,
+      "trades": 312,
+      "win_rate": 35.8974,
+      "pf": 1.1249
+    },
+    "p4": {
+      "cagr": 14.9173,
+      "sharpe": 0.6359,
+      "mdd": -32.0963,
+      "trades": 231,
+      "win_rate": 35.9307,
+      "pf": 1.1592
+    }
+  }
+}

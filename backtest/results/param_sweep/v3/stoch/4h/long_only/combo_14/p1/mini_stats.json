@@ -1,8 +1,8 @@
 {
-  "annual_return_pct": -7.0912,
-  "sharpe_ratio": 0.0697,
-  "max_drawdown_pct": -72.9233,
-  "total_trades": 133,
-  "win_rate_pct": 50.3759,
-  "profit_factor": 0.9228
+  "cagr": -7.0912,
+  "sharpe": 0.0697,
+  "mdd": -72.9233,
+  "trades": 133,
+  "win_rate": 50.3759,
+  "pf": 0.9228
 }
