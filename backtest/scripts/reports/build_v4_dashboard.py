@@ -765,9 +765,9 @@ a { color: #58a6ff; }
 .trade-detail-wrap { margin-top: 14px; border-top: 1px solid #30363d; padding-top: 12px; }
 .trade-detail-wrap h5 { font-size: 12px; font-weight: 600; color: #c9d1d9; margin-bottom: 8px; }
 .trade-detail-wrap .tbl-wrap { overflow-x: auto; }
-.trade-detail-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 560px; }
-.trade-detail-wrap th { color: #8b949e; padding: 5px 10px; text-align: left; border-bottom: 1px solid #30363d; white-space: nowrap; }
-.trade-detail-wrap td { padding: 5px 10px; border-bottom: 1px solid #1a1f2e; color: #c9d1d9; white-space: nowrap; }
+.trade-detail-wrap table { width: auto; border-collapse: collapse; font-size: 12px; }
+.trade-detail-wrap th { color: #8b949e; padding: 4px 8px; text-align: left; border-bottom: 1px solid #30363d; white-space: nowrap; }
+.trade-detail-wrap td { padding: 4px 8px; border-bottom: 1px solid #1a1f2e; color: #c9d1d9; white-space: nowrap; }
 .trade-detail-wrap tr:hover td { background: #21262d; }
 .trade-detail-wrap tr.focused-row td { background: #1f6feb33; outline: 1px solid #58a6ff; }
 
