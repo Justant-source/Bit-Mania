@@ -26,8 +26,8 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 | supertrend | ✅ KEEP | 22.8% | long_only/4h (10.4%) | bidirectional/1h (50.6%) |
 | supertrend_trendtype | ✅ KEEP | 24.0% | long_only/4h (9.1%) | bidirectional/1h (54.5%) |
 | trendtype | ✅ KEEP | 23.2% | long_only/1D (11.7%) | bidirectional/1h (41.1%) |
-| tradeiq_220320 | ✅ KEEP | 44.7% | long_only/1D (19.1%) | bidirectional/1h (93.1%) |
-| tradeiq_220323 | ✅ KEEP | 32.3% | bidirectional/4h (10.4%) | bidirectional/1D (88.3%) |
+| tradeiq_psar_ha | ✅ KEEP | 44.7% | long_only/1D (19.1%) | bidirectional/1h (93.1%) |
+| tradeiq_cci_ce | ✅ KEEP | 32.3% | bidirectional/4h (10.4%) | bidirectional/1D (88.3%) |
 | stoch | ✅ KEEP* | 28.9% | bidirectional/1h (19.5%) | bidirectional/1D (38.5%) |
 | momentum_ma | ✅ KEEP* | 37.1% | long_only/1h (19.9%) | bidirectional/1D (63.6%) |
 
@@ -44,26 +44,26 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 |------|------|----|---------|-------|-----------|---------|---------|
 | 🥇1 | supertrend_trendtype | 4h | long_only | **9.1%** | +$36,478 | -$1,871 | +$44,265 |
 | 🥈2 | supertrend | 4h | long_only | **10.4%** | +$46,152 | -$1,683 | +$53,430 |
-| 🥉3 | tradeiq_220323 | 4h | bidirectional | **10.4%** | +$10,714 | -$1,579 | +$15,026 |
+| 🥉3 | tradeiq_cci_ce | 4h | bidirectional | **10.4%** | +$10,714 | -$1,579 | +$15,026 |
 | 4 | trendtype | 1D | long_only | 11.7% | +$20,000 | -$1,616 | +$25,780 |
 | 5 | trendtype | 1D | bidirectional | 12.1% | +$21,259 | -$1,940 | +$24,897 |
 | 6 | trendtype | 1h | long_only | 13.0% | +$13,771 | -$1,444 | +$14,671 |
 | 7 | supertrend | 4h | bidirectional | 13.9% | +$17,343 | -$3,532 | +$30,171 |
-| 8 | tradeiq_220323 | 1h | bidirectional | 14.3% | +$4,931 | -$1,611 | +$8,003 |
+| 8 | tradeiq_cci_ce | 1h | bidirectional | 14.3% | +$4,931 | -$1,611 | +$8,003 |
 | 9 | supertrend_trendtype | 1h | long_only | 14.7% | +$10,703 | -$2,440 | +$16,469 |
 | 10 | supertrend_trendtype | 1D | long_only | 15.6% | +$26,269 | -$2,188 | +$36,426 |
 | 11 | supertrend | 1D | long_only | 16.0% | +$36,646 | -$1,397 | +$40,319 |
-| 12 | tradeiq_220323 | 4h | long_only | 17.8% | +$7,642 | -$2,629 | +$10,991 |
+| 12 | tradeiq_cci_ce | 4h | long_only | 17.8% | +$7,642 | -$2,629 | +$10,991 |
 | 13 | supertrend | 1h | long_only | 18.6% | +$6,985 | -$2,306 | +$12,540 |
-| 14 | tradeiq_220320 | 1D | long_only | 19.1% | +$30,452 | -$1,889 | +$30,993 |
+| 14 | tradeiq_psar_ha | 1D | long_only | 19.1% | +$30,452 | -$1,889 | +$30,993 |
 | — | stoch | 1h | bidirectional | 19.5% | +$36,250 | -$5,169 | +$85,740 |
 | 15 | momentum_ma | 1h | long_only | 19.9% | +$14,359 | -$3,615 | +$36,920 |
-| 16 | tradeiq_220320 | 4h | long_only | 20.8% | +$7,965 | -$2,594 | +$10,907 |
+| 16 | tradeiq_psar_ha | 4h | long_only | 20.8% | +$7,965 | -$2,594 | +$10,907 |
 | 17 | trendtype | 4h | long_only | 20.8% | +$11,896 | -$2,973 | +$21,421 |
 | — | ... | | | | | | |
-| ⚠️ | tradeiq_220323 | 1D | long_only | 39.8% | **-$1,175** | -$3,169 | +$4,037 |
-| ❌ | tradeiq_220323 | 1D | bidirectional | 88.3% | **-$5,670** | -$6,375 | +$2,925 |
-| ❌ | tradeiq_220320 | 1h | bidirectional | **93.1%** | **-$7,129** | -$7,363 | +$2,775 |
+| ⚠️ | tradeiq_cci_ce | 1D | long_only | 39.8% | **-$1,175** | -$3,169 | +$4,037 |
+| ❌ | tradeiq_cci_ce | 1D | bidirectional | 88.3% | **-$5,670** | -$6,375 | +$2,925 |
+| ❌ | tradeiq_psar_ha | 1h | bidirectional | **93.1%** | **-$7,129** | -$7,363 | +$2,775 |
 
 ---
 
@@ -101,7 +101,7 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 
 → **최대 손실이 -$1,616으로 7개 전략 중 최소**. 방어적 특성 확인.
 
-#### tradeiq_220320 / 1D / long_only (fail 19.1%, PnL +$30,452)
+#### tradeiq_psar_ha / 1D / long_only (fail 19.1%, PnL +$30,452)
 
 | 손실 구간 | window | 손실 | 해석 |
 |---------|--------|------|------|
@@ -111,7 +111,7 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 
 → **2024년 구간에서 반복 손실** — 2024년 조정 패턴에 취약.
 
-#### tradeiq_220323 / 4h / bidirectional (fail 10.4%, PnL +$10,714)
+#### tradeiq_cci_ce / 4h / bidirectional (fail 10.4%, PnL +$10,714)
 
 | 손실 구간 | window | 손실 | 해석 |
 |---------|--------|------|------|
@@ -127,13 +127,13 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 
 | 조합 | Fail% | 전체기간 PnL | 결론 |
 |------|-------|-----------|------|
-| tradeiq_220320/1h/bidirectional | **93.1%** | -$7,129 | 즉시 배제 |
-| tradeiq_220323/1D/bidirectional | 88.3% | -$5,670 | 즉시 배제 |
+| tradeiq_psar_ha/1h/bidirectional | **93.1%** | -$7,129 | 즉시 배제 |
+| tradeiq_cci_ce/1D/bidirectional | 88.3% | -$5,670 | 즉시 배제 |
 | momentum_ma/1D/bidirectional | 63.6% | -$4,436 | 배제 |
 | supertrend_trendtype/1h/bidirectional | 54.5% | -$2,699 | 배제 |
 | supertrend/1h/bidirectional | 50.6% | -$957 | 배제 |
-| tradeiq_220320/4h/bidirectional | 55.8% | -$616 | 배제 |
-| tradeiq_220323/1D/long_only | 39.8% | **-$1,175** | trades≤10으로 신뢰도 낮음, 배제 |
+| tradeiq_psar_ha/4h/bidirectional | 55.8% | -$616 | 배제 |
+| tradeiq_cci_ce/1D/long_only | 39.8% | **-$1,175** | trades≤10으로 신뢰도 낮음, 배제 |
 
 ---
 
@@ -146,9 +146,9 @@ when_to_update: v2 champion run 후 데이터 재실행 시
 | supertrend | 4h | long_only | +38.39 | 10.4% | ✅✅ **최우선** | 양쪽 모두 1위권 |
 | supertrend_trendtype | 4h | long_only | +31.78 | 9.1% | ✅✅ **최우선** | 롤링 전체 1위 |
 | supertrend | 1D | long_only | +30.48 | 16.0% | ✅ 우수 | 거래수 43회로 적음 |
-| tradeiq_220320 | 1D | long_only | +22.12 | 19.1% | ✅ 우수 | 2024년 구간 취약 |
+| tradeiq_psar_ha | 1D | long_only | +22.12 | 19.1% | ✅ 우수 | 2024년 구간 취약 |
 | trendtype | 1D | long_only | +29.33 | 11.7% | ✅ 우수 | MDD 최저, 방어적 |
-| tradeiq_220323 | 4h | bidirectional | +17.27 | 10.4% | ⚠️ 조건부 | score 낮음, 최근 부진 |
+| tradeiq_cci_ce | 4h | bidirectional | +17.27 | 10.4% | ⚠️ 조건부 | score 낮음, 최근 부진 |
 | stoch | any | any | ALL -999 | 19~38% | ❌ 불가 | MDD -60%, 실전 투입 불가 |
 | momentum_ma | any | any | ALL -999 | 20~64% | ❌ 불가 | MDD -54%, 실전 투입 불가 |
 

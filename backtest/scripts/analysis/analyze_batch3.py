@@ -126,9 +126,9 @@ def main():
             "dir": "supertrend_trendtype",
             "full_name": "SupertrendTrendTypeStrategy",
         },
-        "TradeIQ220323": {
-            "dir": "tradeiq_220323",
-            "full_name": "TradeIQ220323Strategy",
+        "TradeIQCciCe": {
+            "dir": "tradeiq_cci_ce",
+            "full_name": "TradeIQCciCeStrategy",
         },
     }
 

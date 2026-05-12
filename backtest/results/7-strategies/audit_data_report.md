@@ -43,18 +43,18 @@
 - `label`=stoch/1h/bidirectional_x2, `trades`=22
 - `label`=stoch/1h/bidirectional_x3, `trades`=23
 - `label`=momentum_ma/1h/long_only, `trades`=28
-- `label`=tradeiq_220320/1h/long_only_x2, `trades`=26
-- `label`=tradeiq_220320/1h/long_only_x3, `trades`=26
+- `label`=tradeiq_psar_ha/1h/long_only_x2, `trades`=26
+- `label`=tradeiq_psar_ha/1h/long_only_x3, `trades`=26
 - `label`=trendtype/1h/long_only_x2, `trades`=28
 - `label`=trendtype/1h/long_only_x3, `trades`=28
 - `label`=buy_and_hold/1D/buy_and_hold, `trades`=1
-- `label`=tradeiq_220323/1D/bidirectional, `trades`=25
-- `label`=tradeiq_220323/1D/long_only, `trades`=11
+- `label`=tradeiq_cci_ce/1D/bidirectional, `trades`=25
+- `label`=tradeiq_cci_ce/1D/long_only, `trades`=11
 
 ## ⚠️ 1C_marker_reconstructed — 4 warnings
 
 - `label`=momentum_ma/1h/bidirectional_x2
 - `label`=momentum_ma/1h/bidirectional_x3
-- `label`=tradeiq_220320/1h/long_only_x2
-- `label`=tradeiq_220320/1h/long_only_x3
+- `label`=tradeiq_psar_ha/1h/long_only_x2
+- `label`=tradeiq_psar_ha/1h/long_only_x3
 

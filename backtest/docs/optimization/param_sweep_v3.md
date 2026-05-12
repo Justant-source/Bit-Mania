@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/services/jesse_engine/scripts/param_sweep_v3.py
 last_updated: 2026-05-12
 status: PARTIAL_COMPLETE
-when_to_update: 나머지 5개 전략(supertrend_trendtype, trendtype, tradeiq_220320, stoch, momentum_ma) 전체 24-combo 실행 시
+when_to_update: 나머지 5개 전략(supertrend_trendtype, trendtype, tradeiq_psar_ha, stoch, momentum_ma) 전체 24-combo 실행 시
 ---
 
 # param_sweep_v3 — Champion 인근 세밀 격자 + stoch/momentum_ma 재탐색
@@ -42,14 +42,14 @@ v2에서 전 조합 FAIL한 stoch/momentum_ma의 근본 원인을 수정·재탐
 | 전략 | 계획 combos | 실행 combos | 유효 combos | 상태 |
 |------|------------|------------|------------|------|
 | supertrend | 96 | 96 | 48 (4h 24 + 1D 24) | ✅ 전체 완료 |
-| tradeiq_220323 | 96 | 13 (4h/bidir) | 6 | ⚠️ 부분 완료 |
+| tradeiq_cci_ce | 96 | 13 (4h/bidir) | 6 | ⚠️ 부분 완료 |
 | supertrend_trendtype | 96 | 13 (4h/bidir) | 0 | ⚠️ 부분 완료 |
 | trendtype | 96 | 13 (4h/bidir) | 0 | ⚠️ 부분 완료 |
-| tradeiq_220320 | 96 | 13 (4h/bidir) | 0 | ⚠️ 부분 완료 |
+| tradeiq_psar_ha | 96 | 13 (4h/bidir) | 0 | ⚠️ 부분 완료 |
 | stoch | 96 | 50 (4h×2var 24+2 + 1D×2var) | 0 | ⚠️ 부분 완료 |
 | momentum_ma | 96 | 12 | 0 | ⚠️ 부분 완료 |
 
-> 스윕 중단 이유: 충분한 신규 champion 발견(supertrend 4h/1D, tradeiq_220323 4h/bidir)으로  
+> 스윕 중단 이유: 충분한 신규 champion 발견(supertrend 4h/1D, tradeiq_cci_ce 4h/bidir)으로  
 > 나머지 전략은 v2 champion을 유지. 필요시 개별 전략 재실행 가능.
 
 ---
@@ -60,7 +60,7 @@ v2에서 전 조합 FAIL한 stoch/momentum_ma의 근본 원인을 수정·재탐
 |------|----|---------|-------|------------|-------|---------|---------|-------|
 | supertrend | 4h | long_only | v3 c3 | factor=2.5, period=12 | **+38.92** | +26.3% | +55.6% | +0.53↑ |
 | supertrend | 1D | long_only | v3 c19 | factor=2.8, period=7 | **+31.71** | +23.9% | +42.3% | +1.23↑ |
-| tradeiq_220323 | 4h | bidir | v3 c2 | cci_period=18, ce_mult=3.0 | **+29.38** | +19.6% | +48.2% | +12.11↑ |
+| tradeiq_cci_ce | 4h | bidir | v3 c2 | cci_period=18, ce_mult=3.0 | **+29.38** | +19.6% | +48.2% | +12.11↑ |
 
 ### 개선 없는 전략 (v2 champion 유지)
 
@@ -68,7 +68,7 @@ v2에서 전 조합 FAIL한 stoch/momentum_ma의 근본 원인을 수정·재탐
 |------|----|------------|---------|------|
 | supertrend_trendtype | 4h | factor=2.0, atr_len=10, +31.78 | 부분 탐색, 유효 없음 | v2 유지 |
 | trendtype | 4h/1D | atr_len=10, di_len=10, +29.33/+23.74 | 부분 탐색, 유효 없음 | v2 유지 |
-| tradeiq_220320 | 1D | rsi_len=18, atr_mult=3.0, +22.12 | 부분 탐색, 유효 없음 | v2 유지 |
+| tradeiq_psar_ha | 1D | rsi_len=18, atr_mult=3.0, +22.12 | 부분 탐색, 유효 없음 | v2 유지 |
 | stoch | — | FAIL | direction_ema=True에서도 전 조합 FAIL | 여전히 투입 불가 |
 | momentum_ma | — | FAIL | val_ma_len 다양화에도 FAIL | 여전히 투입 불가 |
 
@@ -90,10 +90,10 @@ Champion run: v2+v3 summary 통합 후 (strat, tf, variant)별 최고 score comb
 | supertrend_trendtype | 1h | long_only | factor=5.0, atr_len=14 | +13.61 | v2 c11 |
 | trendtype | 4h | long_only | atr_len=10, di_len=10 | +29.33 | v2 c6 |
 | trendtype | 1D | long_only | atr_len=10, di_len=10 | +23.74 | v2 c6 |
-| tradeiq_220320 | 1D | long_only | rsi_len=18, atr_mult=3.0 | +22.12 | v2 c3 |
-| tradeiq_220320 | 4h | long_only | rsi_len=21, atr_mult=4.0 | +11.67 | v2 c9 |
-| tradeiq_220323 | 4h | bidir | cci_period=18, ce_mult=3.0 | +29.38 | v3 c2 |
-| tradeiq_220323 | 1h | bidir | cci_period=26, ce_mult=3.0 | +7.91 | v2 c3 |
+| tradeiq_psar_ha | 1D | long_only | rsi_len=18, atr_mult=3.0 | +22.12 | v2 c3 |
+| tradeiq_psar_ha | 4h | long_only | rsi_len=21, atr_mult=4.0 | +11.67 | v2 c9 |
+| tradeiq_cci_ce | 4h | bidir | cci_period=18, ce_mult=3.0 | +29.38 | v3 c2 |
+| tradeiq_cci_ce | 1h | bidir | cci_period=26, ce_mult=3.0 | +7.91 | v2 c3 |
 
 > stoch/momentum_ma: 전 조합 FAIL — 대시보드 optimal_params에 미포함
 
@@ -130,7 +130,7 @@ Champion run: v2+v3 summary 통합 후 (strat, tf, variant)별 최고 score comb
 | 23 | 1.8 | 7 | 매우 낮은 factor |
 | 24 | 1.8 | 10 | 매우 낮은 factor |
 
-### 2. TradeIQ220323Strategy (cci_period × ce_mult) — 부분 실행
+### 2. TradeIQCciCeStrategy (cci_period × ce_mult) — 부분 실행
 
 | # | cci_period | ce_mult | 비고 | 실행 여부 |
 |---|------------|---------|------|----------|
@@ -153,7 +153,7 @@ Champion run: v2+v3 summary 통합 후 (strat, tf, variant)별 최고 score comb
 
 ### 3~7. 나머지 전략 — 미실행 (v2 champion 유지)
 
-supertrend_trendtype, trendtype, tradeiq_220320: 13 combo씩 부분 실행했으나 유효 조합 없음  
+supertrend_trendtype, trendtype, tradeiq_psar_ha: 13 combo씩 부분 실행했으나 유효 조합 없음  
 stoch, momentum_ma: 부분 실행, 여전히 전 조합 FAIL
 
 ---
@@ -169,11 +169,11 @@ docker compose --profile backtest run --rm jesse_engine \
 # 나머지 전략 (필요시)
 docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v3.py \
-  --strategies supertrend_trendtype trendtype tradeiq_220320 --workers 2
+  --strategies supertrend_trendtype trendtype tradeiq_psar_ha --workers 2
 
 docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v3.py \
-  --strategies tradeiq_220323 stoch momentum_ma --workers 2
+  --strategies tradeiq_cci_ce stoch momentum_ma --workers 2
 
 # v2+v3 통합 Champion run + 대시보드 재빌드
 docker compose --profile backtest run --rm jesse_engine \

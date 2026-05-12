@@ -23,7 +23,7 @@ when_to_update: v3 이후 추가 스윕 실행 시
 | v2 결과 → MD 파일 업데이트 | ✅ 완료 | `7b040c2` |
 | Champion run + 대시보드 재빌드 | ✅ 완료 | `7b040c2` |
 | param_sweep_v3.py 스크립트 작성 | ✅ 완료 | (본 커밋) |
-| **v3 스윕 실행 (supertrend 96 + tradeiq_220323 13 combo)** | ✅ 완료 | (본 커밋) |
+| **v3 스윕 실행 (supertrend 96 + tradeiq_cci_ce 13 combo)** | ✅ 완료 | (본 커밋) |
 | v2+v3 Champion run + 대시보드 재빌드 | ✅ 완료 | (본 커밋) |
 
 ---
@@ -70,10 +70,10 @@ backtest-results/data/param_sweep_v2/param_sweep_v2_report.md
 | 전략 | 최적 파라미터 | TF | CAGR | Sharpe | MDD |
 |------|-------------|-----|------|--------|-----|
 | supertrend | st_factor=**2.0**, st_period=7 | 4h | +36.29% | 1.121 | -27.63% |
-| tradeiq_220320 | rsi_len=**18**, atr_mult=3.0 | 1D | +29.94% | 1.080 | -27.34% |
+| tradeiq_psar_ha | rsi_len=**18**, atr_mult=3.0 | 1D | +29.94% | 1.080 | -27.34% |
 | trendtype | atr_len=14, di_len=**18** | 1D | +25.83% | 1.040 | -24.83% |
 | supertrend_trendtype | st_factor=**2.0**, atr_len=**10** | 4h | +33.44% | 1.121 | -29.05% |
-| tradeiq_220323 | baseline 유지 | — | — | — | — |
+| tradeiq_cci_ce | baseline 유지 | — | — | — | — |
 | stoch | **전체 FAIL** (MDD -54~-89%) | — | — | — | — |
 | momentum_ma | **전체 FAIL** (MDD -54~-89%) | — | — | — | — |
 
@@ -108,20 +108,20 @@ docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v2.py \
   --strategies supertrend --workers 1
 
-# Terminal 4 — tradeiq_220320
+# Terminal 4 — tradeiq_psar_ha
 docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v2.py \
-  --strategies tradeiq_220320 --workers 1
+  --strategies tradeiq_psar_ha --workers 1
 
 # Terminal 5 — trendtype
 docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v2.py \
   --strategies trendtype --workers 1
 
-# Terminal 6 — supertrend_trendtype + tradeiq_220323 (2 strategies)
+# Terminal 6 — supertrend_trendtype + tradeiq_cci_ce (2 strategies)
 docker compose --profile backtest run --rm jesse_engine \
   python /jesse-project/scripts/param_sweep_v2.py \
-  --strategies supertrend_trendtype tradeiq_220323 --workers 2
+  --strategies supertrend_trendtype tradeiq_cci_ce --workers 2
 ```
 
 예상 소요 시간: **5~6시간** (8코어 기준, 각 backtest ~40초)
@@ -152,10 +152,10 @@ python3 cryptoengine/services/jesse_engine/scripts/build_v4_dashboard.py
 | stoch | stoch_k_period | atr_mult | 10/14/18×3.0, 14×2.0/4.0, 10×2.0 | 18×2.0/4.0, 10×4.0, 7/21×{3,2,4}, 14×1.5 |
 | momentum_ma | lin_len | atr_mult | 14/20/30×3.0, 20×2.0/4.0, 14×2.0 | 30×2.0/4.0, 14×4.0, 10/40×{3,2,4}, 25×2.5 |
 | supertrend | st_factor | st_period | 2/3/4×7, 3×5/10, 2×5 | 4×5/10, 2×10, 1.5/5×{7,5,10}, 2.5×7 |
-| tradeiq_220320 | rsi_len | atr_mult | 10/14/18×3.0, 14×2.0/4.0, 10×2.0 | 18×2.0/4.0, 10×4.0, 7/21×{3,2,4}, 14×1.5 |
+| tradeiq_psar_ha | rsi_len | atr_mult | 10/14/18×3.0, 14×2.0/4.0, 10×2.0 | 18×2.0/4.0, 10×4.0, 7/21×{3,2,4}, 14×1.5 |
 | trendtype | atr_len | di_len | 10/14/18×14, 14×10/18, 10×10 | 10×18, 18×10, 18×18, 7/21×14, 14×7/21, 7×7, 21×21, 10×7 |
 | supertrend_trendtype | st_factor | atr_len | 2/3/4×14, 3×10/18, 2×10 | 4×10/18, 2×18, 1.5/5×{14,10,18}, 2.5×12 |
-| tradeiq_220323 | cci_period | ce_mult | 14/20/26×3.0, 20×2.5/3.5, 14×2.5 | 26×2.5/3.5, 14×3.5, 10/30×{3,2.5,3.5}, 20×2.0 |
+| tradeiq_cci_ce | cci_period | ce_mult | 14/20/26×3.0, 20×2.5/3.5, 14×2.5 | 26×2.5/3.5, 14×3.5, 10/30×{3,2.5,3.5}, 20×2.0 |
 
 ---
 
@@ -194,9 +194,9 @@ python3 cryptoengine/services/jesse_engine/scripts/build_v4_dashboard.py
 | supertrend_trendtype | 1h | long_only | c11 | factor=5.0, atr_len=14 | +13.61 | +6.3% | -33.2% |
 | trendtype | 4h | long_only | c6 | atr_len=10, di_len=10 | +29.33 | +21.0% | -22.2% |
 | trendtype | 1D | long_only | c6 | atr_len=10, di_len=10 | +23.74 | +18.2% | -19.5% |
-| tradeiq_220320 | 1D | long_only | c3 | rsi_len=18, atr_mult=3.0 | +22.12 | +20.7% | -24.9% |
-| tradeiq_220320 | 4h | long_only | c9 | rsi_len=21, atr_mult=3.0 | +11.67 | +9.3% | -31.3% |
-| tradeiq_220323 | 4h | bidir | c3 | cci_period=26, ce_mult=3.0 | +17.27 | +10.0% | -28.1% |
+| tradeiq_psar_ha | 1D | long_only | c3 | rsi_len=18, atr_mult=3.0 | +22.12 | +20.7% | -24.9% |
+| tradeiq_psar_ha | 4h | long_only | c9 | rsi_len=21, atr_mult=3.0 | +11.67 | +9.3% | -31.3% |
+| tradeiq_cci_ce | 4h | bidir | c3 | cci_period=26, ce_mult=3.0 | +17.27 | +10.0% | -28.1% |
 | stoch | — | — | — | 전 조합 FAIL (MDD > -35%) | -999 | — | — |
 | momentum_ma | — | — | — | 전 조합 FAIL (MDD > -35%) | -999 | — | — |
 

@@ -14,7 +14,7 @@
 | 전략 | TF | variant | combo | CAGR | Sharpe | MDD | Trades | verdict |
 |------|----|---------|----|------|--------|-----|--------|---------|
 | `supertrend_trendtype` | 4h | long_only | #6 (st_factor=2.0, atr_len=10) | +33.44% | 1.121 | -29.05% | 200 | PASS |
-| `tradeiq_220323` | 4h | bidirectional | #2 (cci_period=20, ce_mult=3.0) | +14.65% | 0.665 | -32.19% | 108 | FAIL |
+| `tradeiq_cci_ce` | 4h | bidirectional | #2 (cci_period=20, ce_mult=3.0) | +14.65% | 0.665 | -32.19% | 108 | FAIL |
 
 ---
 
@@ -67,7 +67,7 @@
 | #5 | 3.0 | 18 | +25.86% | 0.927 | -33.04% | 35 | FAIL |
 | #6 | 2.0 | 10 | +25.00% | 0.901 | -33.05% | 35 | FAIL |
 
-### `tradeiq_220323` (TradeIQ220323Strategy)
+### `tradeiq_cci_ce` (TradeIQCciCeStrategy)
 **최적화 파라미터**: `cci_period` × `ce_mult`
 
 #### 4h / bidirectional
@@ -124,6 +124,6 @@
 | `supertrend_trendtype` | 4h | long_only | #6 (st_factor=2.0, atr_len=10) | +6.15% | +0.143 | +2.52% |
 | `supertrend_trendtype` | 1D | bidirectional | #1 (st_factor=2.0, atr_len=14) | -0.10% | -0.002 | +0.00% |
 | `supertrend_trendtype` | 1D | long_only | #5 (st_factor=3.0, atr_len=18) | +1.30% | +0.036 | +0.01% |
-| `tradeiq_220323` | 4h | long_only | #6 (cci_period=14, ce_mult=2.5) | +1.76% | +0.029 | +2.52% |
-| `tradeiq_220323` | 1D | bidirectional | #1 (cci_period=14, ce_mult=3.0) | -1.28% | +0.021 | -2.63% |
-| `tradeiq_220323` | 1D | long_only | #1 (cci_period=14, ce_mult=3.0) | +1.05% | +0.133 | -0.08% |
+| `tradeiq_cci_ce` | 4h | long_only | #6 (cci_period=14, ce_mult=2.5) | +1.76% | +0.029 | +2.52% |
+| `tradeiq_cci_ce` | 1D | bidirectional | #1 (cci_period=14, ce_mult=3.0) | -1.28% | +0.021 | -2.63% |
+| `tradeiq_cci_ce` | 1D | long_only | #1 (cci_period=14, ce_mult=3.0) | +1.05% | +0.133 | -0.08% |

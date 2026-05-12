@@ -18,14 +18,14 @@
 | v3/batch_2/momentum_ma/long_only | ✓ | ✓ | ✓ | 2340B | 07:27:20 |
 | v3/batch_2/supertrend/bidirectional | ✓ | ✓ | ✓ | 2358B | 07:27:29 |
 | v3/batch_2/supertrend/long_only | ✓ | ✓ | ✓ | 2356B | 07:27:37 |
-| v3/batch_2/tradeiq_220320/bidirectional | ✓ | ✓ | ✓ | 2411B | 07:27:46 |
-| v3/batch_2/tradeiq_220320/long_only | ✓ | ✓ | ✓ | 2346B | 07:27:55 |
+| v3/batch_2/tradeiq_psar_ha/bidirectional | ✓ | ✓ | ✓ | 2411B | 07:27:46 |
+| v3/batch_2/tradeiq_psar_ha/long_only | ✓ | ✓ | ✓ | 2346B | 07:27:55 |
 | v3/batch_3/trendtype/bidirectional | ✓ | ✓ | ✓ | 2414B | 07:27:35 |
 | v3/batch_3/trendtype/long_only | ✓ | ✓ | ✓ | 2358B | 07:27:42 |
 | v3/batch_3/supertrend_trendtype/bidirectional | ✓ | ✓ | ✓ | 2414B | 07:27:52 |
 | v3/batch_3/supertrend_trendtype/long_only | ✓ | ✓ | ✓ | 2355B | 07:28:00 |
-| v3/batch_3/tradeiq_220323/bidirectional | ✓ | ✓ | ✓ | 2331B | 07:28:09 |
-| v3/batch_3/tradeiq_220323/long_only | ✓ | ✓ | ✓ | 2323B | 07:28:17 |
+| v3/batch_3/tradeiq_cci_ce/bidirectional | ✓ | ✓ | ✓ | 2331B | 07:28:09 |
+| v3/batch_3/tradeiq_cci_ce/long_only | ✓ | ✓ | ✓ | 2323B | 07:28:17 |
 
 ## 점검 통계
 - 총 산출물 경로: 19 (예상: 19 = 18 variants + 1 BnH)

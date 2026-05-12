@@ -1,0 +1,29 @@
+{
+  "strategy": "tradeiq_cci_ce",
+  "tf": "1D",
+  "variant": "bidirectional",
+  "combo_idx": 3,
+  "annual_return_pct": -4.0767,
+  "sharpe_ratio": -0.1528,
+  "max_drawdown_pct": -52.1088,
+  "total_trades": 12,
+  "win_rate_pct": 33.3333,
+  "profit_factor": 0.7895,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": false,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": false,
+    "WinRate \u2265 35%": false,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "cci_period": 26,
+    "cci_lower": -100.0,
+    "cci_upper": 100.0,
+    "ce_period": 22,
+    "ce_mult": 3.0,
+    "atr_mult": 3.0
+  }
+}

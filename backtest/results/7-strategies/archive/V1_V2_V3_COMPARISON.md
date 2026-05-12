@@ -1,4 +1,4 @@
-# TradeIQ220323 V2 vs V3 비교
+# TradeIQ CCI-CE V2 vs V3 비교
 
 | 버전 | CAGR | Sharpe | MDD | WR | Trades | PF |
 |-----|------|--------|-----|-----|--------|-----|

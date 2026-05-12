@@ -1,0 +1,50 @@
+{
+  "strategy": "tradeiq_cci_ce",
+  "tf": "4h",
+  "variant": "bidirectional",
+  "combo_idx": 11,
+  "hp": {
+    "cci_period": 20,
+    "cci_lower": -100.0,
+    "cci_upper": 100.0,
+    "ce_period": 22,
+    "ce_mult": 4.5,
+    "atr_mult": 3.0
+  },
+  "score": 14.5083,
+  "sweep_version": "v3",
+  "periods": {
+    "p1": {
+      "cagr": 20.112,
+      "sharpe": 0.7738,
+      "mdd": -32.3801,
+      "trades": 134,
+      "win_rate": 58.9552,
+      "pf": 1.2558
+    },
+    "p2": {
+      "cagr": 7.3163,
+      "sharpe": 0.4253,
+      "mdd": -32.3801,
+      "trades": 89,
+      "win_rate": 56.1798,
+      "pf": 1.1273
+    },
+    "p3": {
+      "cagr": 22.4611,
+      "sharpe": 0.8179,
+      "mdd": -30.4102,
+      "trades": 118,
+      "win_rate": 60.1695,
+      "pf": 1.2845
+    },
+    "p4": {
+      "cagr": 8.1439,
+      "sharpe": 0.4506,
+      "mdd": -30.4102,
+      "trades": 73,
+      "win_rate": 57.5342,
+      "pf": 1.1416
+    }
+  }
+}

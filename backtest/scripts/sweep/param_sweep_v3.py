@@ -144,8 +144,8 @@ SWEEP_SPECS_V3: dict[str, dict] = {
             (2.2,  8), (2.2, 12), (1.5, 12), (2.0,  6),   # 21-24: more combinations
         ],
     },
-    'tradeiq_220320': {
-        'cls': 'TradeIQ220320Strategy',
+    'tradeiq_psar_ha': {
+        'cls': 'TradeIQPsarHaStrategy',
         'base_hp': {
             'psar_start': 0.02, 'psar_inc': 0.02, 'psar_max': 0.2,
             'direction_ema_len': 200, 'rsi_len': 14, 'atr_mult': 3.0,
@@ -162,8 +162,8 @@ SWEEP_SPECS_V3: dict[str, dict] = {
             (10, 4.5), (18, 6.0), (14, 6.0), (21, 6.0),   # 21-24: extreme wide stops
         ],
     },
-    'tradeiq_220323': {
-        'cls': 'TradeIQ220323Strategy',
+    'tradeiq_cci_ce': {
+        'cls': 'TradeIQCciCeStrategy',
         'base_hp': {
             'cci_period': 20, 'cci_lower': -100.0, 'cci_upper': 100.0,
             'ce_period': 22, 'ce_mult': 3.0, 'atr_mult': 3.0,

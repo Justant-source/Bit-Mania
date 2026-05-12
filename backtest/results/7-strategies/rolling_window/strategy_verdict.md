@@ -12,10 +12,10 @@
 | `stoch` | ✅ KEEP | 6 | 6 | 0 | 28.9% | bidirectional/1D | bidirectional/1h |
 | `momentum_ma` | ✅ KEEP | 6 | 6 | 0 | 37.1% | bidirectional/1D | long_only/1h |
 | `supertrend` | ✅ KEEP | 6 | 6 | 0 | 22.8% | bidirectional/1h | long_only/4h |
-| `tradeiq_220320` | ✅ KEEP | 6 | 6 | 0 | 44.7% | bidirectional/1h | long_only/1D |
+| `tradeiq_psar_ha` | ✅ KEEP | 6 | 6 | 0 | 44.7% | bidirectional/1h | long_only/1D |
 | `trendtype` | ✅ KEEP | 6 | 6 | 0 | 23.2% | bidirectional/1h | long_only/1D |
 | `supertrend_trendtype` | ✅ KEEP | 6 | 6 | 0 | 24.0% | bidirectional/1h | long_only/4h |
-| `tradeiq_220323` | ✅ KEEP | 6 | 6 | 0 | 32.3% | bidirectional/1D | bidirectional/4h |
+| `tradeiq_cci_ce` | ✅ KEEP | 6 | 6 | 0 | 32.3% | bidirectional/1D | bidirectional/4h |
 
 ## Tier 2 — (variant, TF) 조합별 "양수 구간 존재" 매트릭스
 
@@ -27,8 +27,8 @@
 | `stoch` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `supertrend` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `supertrend_trendtype` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `tradeiq_220320` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `tradeiq_220323` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `tradeiq_psar_ha` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `tradeiq_cci_ce` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `trendtype` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## Tier 3 — Fail 발생 조합 상세
@@ -59,18 +59,18 @@
 | `supertrend_trendtype` | long_only | 1D | 15.6% | 9.5% | 2025-01(12m) | $-2,188 | $36,426 | $26,269 |
 | `supertrend_trendtype` | long_only | 1h | 14.7% | 14.3% | 2025-01(12m) | $-2,440 | $16,469 | $10,703 |
 | `supertrend_trendtype` | long_only | 4h | 9.1% | 8.7% | 2025-01(3m) | $-1,871 | $44,265 | $36,478 |
-| `tradeiq_220320` | bidirectional | 1h | 93.1% | 92.2% | 2021-10(54m) | $-7,363 | $2,775 | $-7,129 |
-| `tradeiq_220320` | bidirectional | 4h | 55.8% | 55.0% | 2022-07(42m) | $-4,210 | $6,858 | $-616 |
-| `tradeiq_220320` | long_only | 1h | 50.2% | 49.4% | 2021-10(12m) | $-4,426 | $7,434 | $-997 |
-| `tradeiq_220320` | bidirectional | 1D | 29.4% | 27.7% | 2021-04(30m) | $-3,897 | $9,130 | $9,267 |
-| `tradeiq_220320` | long_only | 4h | 20.8% | 18.2% | 2022-04(18m) | $-2,594 | $10,907 | $7,965 |
-| `tradeiq_220320` | long_only | 1D | 19.1% | 12.1% | 2024-04(6m) | $-1,889 | $30,993 | $30,452 |
-| `tradeiq_220323` | bidirectional | 1D | 88.3% | 84.4% | 2021-01(54m) | $-6,375 | $2,925 | $-5,670 |
-| `tradeiq_220323` | long_only | 1D | 39.8% | 19.5% | 2021-01(6m) | $-3,169 | $4,037 | $-1,175 |
-| `tradeiq_220323` | long_only | 1h | 23.4% | 21.6% | 2025-01(15m) | $-2,028 | $7,226 | $4,054 |
-| `tradeiq_220323` | long_only | 4h | 17.8% | 16.5% | 2022-01(9m) | $-2,629 | $10,991 | $7,642 |
-| `tradeiq_220323` | bidirectional | 1h | 14.3% | 12.6% | 2022-01(3m) | $-1,611 | $8,003 | $4,931 |
-| `tradeiq_220323` | bidirectional | 4h | 10.4% | 9.5% | 2025-07(6m) | $-1,579 | $15,026 | $10,714 |
+| `tradeiq_psar_ha` | bidirectional | 1h | 93.1% | 92.2% | 2021-10(54m) | $-7,363 | $2,775 | $-7,129 |
+| `tradeiq_psar_ha` | bidirectional | 4h | 55.8% | 55.0% | 2022-07(42m) | $-4,210 | $6,858 | $-616 |
+| `tradeiq_psar_ha` | long_only | 1h | 50.2% | 49.4% | 2021-10(12m) | $-4,426 | $7,434 | $-997 |
+| `tradeiq_psar_ha` | bidirectional | 1D | 29.4% | 27.7% | 2021-04(30m) | $-3,897 | $9,130 | $9,267 |
+| `tradeiq_psar_ha` | long_only | 4h | 20.8% | 18.2% | 2022-04(18m) | $-2,594 | $10,907 | $7,965 |
+| `tradeiq_psar_ha` | long_only | 1D | 19.1% | 12.1% | 2024-04(6m) | $-1,889 | $30,993 | $30,452 |
+| `tradeiq_cci_ce` | bidirectional | 1D | 88.3% | 84.4% | 2021-01(54m) | $-6,375 | $2,925 | $-5,670 |
+| `tradeiq_cci_ce` | long_only | 1D | 39.8% | 19.5% | 2021-01(6m) | $-3,169 | $4,037 | $-1,175 |
+| `tradeiq_cci_ce` | long_only | 1h | 23.4% | 21.6% | 2025-01(15m) | $-2,028 | $7,226 | $4,054 |
+| `tradeiq_cci_ce` | long_only | 4h | 17.8% | 16.5% | 2022-01(9m) | $-2,629 | $10,991 | $7,642 |
+| `tradeiq_cci_ce` | bidirectional | 1h | 14.3% | 12.6% | 2022-01(3m) | $-1,611 | $8,003 | $4,931 |
+| `tradeiq_cci_ce` | bidirectional | 4h | 10.4% | 9.5% | 2025-07(6m) | $-1,579 | $15,026 | $10,714 |
 | `trendtype` | bidirectional | 1h | 41.1% | 41.1% | 2024-10(12m) | $-6,030 | $19,521 | $1,349 |
 | `trendtype` | bidirectional | 4h | 40.7% | 39.4% | 2023-07(33m) | $-6,012 | $15,602 | $-42 |
 | `trendtype` | long_only | 4h | 20.8% | 19.5% | 2025-01(15m) | $-2,973 | $21,421 | $11,896 |

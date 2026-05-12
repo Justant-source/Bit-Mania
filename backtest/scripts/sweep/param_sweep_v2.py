@@ -129,8 +129,8 @@ SWEEP_SPECS: dict[str, dict] = {
             (2.5, 7),
         ],
     },
-    'tradeiq_220320': {
-        'cls': 'TradeIQ220320Strategy',
+    'tradeiq_psar_ha': {
+        'cls': 'TradeIQPsarHaStrategy',
         'base_hp': {
             'psar_start': 0.02, 'psar_inc': 0.02, 'psar_max': 0.2,
             'direction_ema_len': 200, 'rsi_len': 14, 'atr_mult': 3.0,
@@ -183,8 +183,8 @@ SWEEP_SPECS: dict[str, dict] = {
             (2.5, 12),
         ],
     },
-    'tradeiq_220323': {
-        'cls': 'TradeIQ220323Strategy',
+    'tradeiq_cci_ce': {
+        'cls': 'TradeIQCciCeStrategy',
         'base_hp': {
             'cci_period': 20, 'cci_lower': -100.0, 'cci_upper': 100.0,
             'ce_period': 22, 'ce_mult': 3.0, 'atr_mult': 3.0,

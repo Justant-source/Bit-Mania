@@ -15,8 +15,8 @@ last_updated: 2026-05-12
 | `backtest/strategies/external/MomentumMAStrategy.py` | `docs/runs/momentum_ma.md` |
 | `backtest/strategies/external/StochStrategy.py` | `docs/runs/stoch.md` |
 | `backtest/strategies/external/SupertrendTrendTypeStrategy.py` | `docs/runs/supertrend_trendtype.md` |
-| `backtest/strategies/external/TradeIQ220320Strategy.py` | `docs/runs/tradeiq_220320.md` |
-| `backtest/strategies/external/TradeIQ220323Strategy.py` | `docs/runs/tradeiq_220323.md` |
+| `backtest/strategies/external/TradeIQPsarHaStrategy.py` | `docs/runs/tradeiq_psar_ha.md` |
+| `backtest/strategies/external/TradeIQCciCeStrategy.py` | `docs/runs/tradeiq_cci_ce.md` |
 | `backtest/strategies/external/TrendTypeStrategy.py` | `docs/runs/trendtype.md` |
 
 ## 스크립트

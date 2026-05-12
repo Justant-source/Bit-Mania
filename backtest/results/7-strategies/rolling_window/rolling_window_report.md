@@ -33,10 +33,10 @@
 | 1 | `trendtype` | 🟢 KEEP | 24.2% ████ | |
 | 2 | `supertrend` | 🟢 KEEP | 24.4% ████ | |
 | 3 | `supertrend_trendtype` | 🟢 KEEP | 27.2% █████ | |
-| 4 | `tradeiq_220320` | 🟢 KEEP | 30.8% ██████ | |
+| 4 | `tradeiq_psar_ha` | 🟢 KEEP | 30.8% ██████ | |
 | 5 | `stoch` | 🟢 KEEP | 35.4% ███████ | |
 | 6 | `momentum_ma` | 🟢 KEEP | 43.0% ████████ | |
-| 7 | `tradeiq_220323` | 🟢 KEEP | 58.7% ███████████ | |
+| 7 | `tradeiq_cci_ce` | 🟢 KEEP | 58.7% ███████████ | |
 
 ---
 
@@ -87,7 +87,7 @@
 | bidirectional | 4h | 32.0% | ✅ | $+9,153 | 2023-04~N/A | $-3,772 |
 | bidirectional | 1D | 26.4% | ✅ | $+7,423 | 2025-01~N/A | $-2,852 |
 
-### 🟢 `tradeiq_220320` (TradeIQ220320Strategy)
+### 🟢 `tradeiq_psar_ha` (TradeIQPsarHaStrategy)
 
 **판정**: KEEP  |  **평균 fail_strict**: 30.8%  |  **전체기간 평균 PnL**: $+0
 
@@ -132,7 +132,7 @@
 | bidirectional | 4h | 25.5% | ✅ | $-881 | 2021-01~N/A | $-7,220 |
 | bidirectional | 1D | 63.6% | ✅ | $-4,436 | 2021-01~N/A | $-6,083 |
 
-### 🟢 `tradeiq_220323` (TradeIQ220323Strategy)
+### 🟢 `tradeiq_cci_ce` (TradeIQCciCeStrategy)
 
 **판정**: KEEP  |  **평균 fail_strict**: 58.7%  |  **전체기간 평균 PnL**: $+0
 
@@ -158,10 +158,10 @@
 | `trendtype` | 51% | 30% | 19% | 12% | 15% | 12% |
 | `supertrend` | 58% | 33% | 19% | 8% | 2% | 0% |
 | `supertrend_trendtype` | 60% | 36% | 21% | 9% | 4% | 12% |
-| `tradeiq_220320` | 55% | 33% | 26% | 11% | 17% | 25% |
+| `tradeiq_psar_ha` | 55% | 33% | 26% | 11% | 17% | 25% |
 | `stoch` | 55% | 44% | 36% | 21% | 15% | 12% |
 | `momentum_ma` | 58% | 47% | 41% | 36% | 31% | 62% |
-| `tradeiq_220323` | 70% | 56% | 56% | 55% | 56% | 62% |
+| `tradeiq_cci_ce` | 70% | 56% | 56% | 55% | 56% | 62% |
 
 ---
 
@@ -174,10 +174,10 @@
 | `trendtype` | $+2,633 | $+2,504 | $+3,801 | $+881 | $-1,747 |
 | `supertrend` | $+2,430 | $+836 | $+4,404 | $+2,051 | $-863 |
 | `supertrend_trendtype` | $+2,836 | $+1,139 | $+3,937 | $+867 | $-1,616 |
-| `tradeiq_220320` | $+1,488 | $-156 | $+2,906 | $+1,415 | $-551 |
+| `tradeiq_psar_ha` | $+1,488 | $-156 | $+2,906 | $+1,415 | $-551 |
 | `stoch` | $-315 | $+867 | $+7,150 | $+2,476 | $-993 |
 | `momentum_ma` | $-2,211 | $+750 | $+4,626 | $+2,748 | $-1,477 |
-| `tradeiq_220323` | $+825 | $-254 | $-184 | $-160 | $+688 |
+| `tradeiq_cci_ce` | $+825 | $-254 | $-184 | $-160 | $+688 |
 
 ---
 
@@ -222,10 +222,10 @@
 | `trendtype` | 168 | 86 | 51.2% |
 | `supertrend` | 168 | 97 | 57.7% |
 | `supertrend_trendtype` | 168 | 100 | 59.5% |
-| `tradeiq_220320` | 168 | 92 | 54.8% |
+| `tradeiq_psar_ha` | 168 | 92 | 54.8% |
 | `stoch` | 168 | 92 | 54.8% |
 | `momentum_ma` | 168 | 97 | 57.7% |
-| `tradeiq_220323` | 168 | 118 | 70.2% |
+| `tradeiq_cci_ce` | 168 | 118 | 70.2% |
 
 ---
 
@@ -243,20 +243,20 @@
 | `supertrend_trendtype` | long_only | 4h | $+26,155 |  |
 | `trendtype` | long_only | 1h | $+23,766 |  |
 | `supertrend_trendtype` | long_only | 1D | $+22,196 |  |
-| `tradeiq_220320` | long_only | 1D | $+22,066 |  |
+| `tradeiq_psar_ha` | long_only | 1D | $+22,066 |  |
 | `trendtype` | long_only | 1D | $+21,749 |  |
 | `supertrend` | bidirectional | 1D | $+15,708 |  |
 | `momentum_ma` | long_only | 1h | $+14,359 |  |
 | `supertrend` | long_only | 2h | $+14,150 |  |
 | `stoch` | long_only | 4h | $+12,774 |  |
-| `tradeiq_220320` | long_only | 1h | $+12,649 |  |
+| `tradeiq_psar_ha` | long_only | 1h | $+12,649 |  |
 | `trendtype` | long_only | 4h | $+11,874 |  |
-| `tradeiq_220320` | bidirectional | 1h | $+11,269 |  |
-| `tradeiq_220323` | bidirectional | 4h | $+11,245 |  |
+| `tradeiq_psar_ha` | bidirectional | 1h | $+11,269 |  |
+| `tradeiq_cci_ce` | bidirectional | 4h | $+11,245 |  |
 | `stoch` | long_only | 2h | $+11,126 |  |
 | `supertrend` | bidirectional | 4h | $+11,024 |  |
 | `trendtype` | long_only | 2h | $+10,324 |  |
-| `tradeiq_220320` | long_only | 4h | $+9,705 |  |
+| `tradeiq_psar_ha` | long_only | 4h | $+9,705 |  |
 | `supertrend_trendtype` | bidirectional | 4h | $+9,601 |  |
 | `stoch` | long_only | 1D | $+9,360 |  |
 | `supertrend_trendtype` | long_only | 1h | $+8,511 |  |
@@ -266,28 +266,28 @@
 | `supertrend_trendtype` | bidirectional | 1D | $+7,423 |  |
 | `stoch` | bidirectional | 1D | $+7,249 |  |
 | `supertrend` | bidirectional | 1h | $+7,175 |  |
-| `tradeiq_220320` | long_only | 2h | $+6,709 |  |
+| `tradeiq_psar_ha` | long_only | 2h | $+6,709 |  |
 | `supertrend` | long_only | 1h | $+6,702 |  |
-| `tradeiq_220323` | long_only | 4h | $+6,210 |  |
-| `tradeiq_220320` | bidirectional | 1D | $+5,688 |  |
+| `tradeiq_cci_ce` | long_only | 4h | $+6,210 |  |
+| `tradeiq_psar_ha` | bidirectional | 1D | $+5,688 |  |
 | `stoch` | bidirectional | 4h | $+3,674 |  |
 | `supertrend` | bidirectional | 2h | $+3,145 |  |
-| `tradeiq_220323` | bidirectional | 1h | $+2,257 |  |
+| `tradeiq_cci_ce` | bidirectional | 1h | $+2,257 |  |
 | `momentum_ma` | long_only | 4h | $+1,992 |  |
 | `momentum_ma` | long_only | 1D | $+1,139 |  |
 | `trendtype` | bidirectional | 4h | $+555 |  |
-| `tradeiq_220323` | bidirectional | 2h | $-647 |  |
+| `tradeiq_cci_ce` | bidirectional | 2h | $-647 |  |
 | `momentum_ma` | bidirectional | 4h | $-953 |  |
 | `momentum_ma` | long_only | 2h | $-961 |  |
-| `tradeiq_220320` | bidirectional | 2h | $-1,139 |  |
+| `tradeiq_psar_ha` | bidirectional | 2h | $-1,139 |  |
 | `momentum_ma` | bidirectional | 1h | $-1,388 |  |
-| `tradeiq_220320` | bidirectional | 4h | $-1,612 |  |
-| `tradeiq_220323` | long_only | 1h | $-1,734 |  |
-| `tradeiq_220323` | long_only | 2h | $-2,297 |  |
+| `tradeiq_psar_ha` | bidirectional | 4h | $-1,612 |  |
+| `tradeiq_cci_ce` | long_only | 1h | $-1,734 |  |
+| `tradeiq_cci_ce` | long_only | 2h | $-2,297 |  |
 | `supertrend_trendtype` | bidirectional | 2h | $-2,743 |  |
 | `momentum_ma` | bidirectional | 1D | $-4,476 |  |
-| `tradeiq_220323` | long_only | 1D | $-4,955 |  |
-| `tradeiq_220323` | bidirectional | 1D | $-5,301 |  |
+| `tradeiq_cci_ce` | long_only | 1D | $-4,955 |  |
+| `tradeiq_cci_ce` | bidirectional | 1D | $-5,301 |  |
 | `trendtype` | bidirectional | 2h | $-6,250 |  |
 | `stoch` | bidirectional | 2h | $-7,540 |  |
 | `momentum_ma` | bidirectional | 2h | $-8,339 |  |
@@ -306,8 +306,8 @@
 
 ### 주요 관찰
 
-- **최고 안정성**: `tradeiq_220323` — fail_strict 평균 58.7%
+- **최고 안정성**: `tradeiq_cci_ce` — fail_strict 평균 58.7%
 - **최저 안정성**: `trendtype` — fail_strict 평균 24.2%
 - 모든 전략이 KEEP 판정: 각 전략의 특정 TF/variant 조합에서 양수 구간이 존재
-- `tradeiq_220323`이 fail 비율 58.7%로 가장 불안정 — 상세 운용 주의 필요
+- `tradeiq_cci_ce`이 fail 비율 58.7%로 가장 불안정 — 상세 운용 주의 필요
 - `trendtype`, `supertrend`, `supertrend_trendtype`이 안정성 상위권

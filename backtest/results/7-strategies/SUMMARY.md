@@ -27,7 +27,7 @@
 | 3 | trendtype | bidirectional | 1D | $143,824 | 1.021 | -39.4% | B |
 | 4 | supertrend | long_only | 1D | $133,754 | 1.143 | -30.4% | B |
 | 5 | supertrend | bidirectional | 4h | $126,104 | 0.930 | -46.6% | C |
-| 6 | tradeiq_220320 | long_only | 4h | $116,967 | 1.235 | -31.5% | B |
+| 6 | tradeiq_psar_ha | long_only | 4h | $116,967 | 1.235 | -31.5% | B |
 | 7 | supertrend_trendtype | long_only | 4h | $105,444 | 1.103 | -31.7% | B |
 | 8 | supertrend_trendtype | long_only | 1D | $96,118 | 1.131 | -33.0% | B |
 | 9 | trendtype | long_only | 1D | $72,611 | 1.099 | -27.1% | A |
@@ -48,7 +48,7 @@
 | 3 | trendtype | bidirectional | 1D | $143,824 | $110,292 | $137,448 |
 | 4 | supertrend | long_only | 1D | $133,754 | $119,457 | $213,366 |
 | 5 | supertrend | bidirectional | 4h | $126,104 | N/A | N/A |
-| 6 | tradeiq_220320 | long_only | 4h | $116,967 | N/A | N/A |
+| 6 | tradeiq_psar_ha | long_only | 4h | $116,967 | N/A | N/A |
 | 7 | supertrend_trendtype | long_only | 4h | $105,444 | $88,092 | $146,436 |
 | 8 | supertrend_trendtype | long_only | 1D | $96,118 | $70,100 | $109,353 |
 | 9 | trendtype | long_only | 1D | $72,611 | $70,057 | $109,616 |

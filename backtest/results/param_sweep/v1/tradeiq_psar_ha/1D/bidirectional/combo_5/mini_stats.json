@@ -1,0 +1,29 @@
+{
+  "strategy": "tradeiq_psar_ha",
+  "tf": "1D",
+  "variant": "bidirectional",
+  "combo_idx": 5,
+  "annual_return_pct": 9.6709,
+  "sharpe_ratio": 0.4319,
+  "max_drawdown_pct": -47.3947,
+  "total_trades": 131,
+  "win_rate_pct": 30.5344,
+  "profit_factor": 1.1257,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": false,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "psar_start": 0.02,
+    "psar_inc": 0.02,
+    "psar_max": 0.2,
+    "direction_ema_len": 200,
+    "rsi_len": 14,
+    "atr_mult": 4.0
+  }
+}

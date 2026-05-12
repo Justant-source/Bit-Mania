@@ -32,7 +32,7 @@ DEFAULT_OUT = RESULT_DIR / 'dashboard.html'
 # ─── Backtest parameters ───────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
-               'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323']
+               'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce']
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
                'bidirectional_x3', 'long_only_x3']
@@ -185,8 +185,8 @@ STRATEGY_META: dict[str, dict] = {
         'exit_en': ['Exit on EMA(7)/EMA(20) crossover', 'Stop-loss: ATR(14) × 3.0'],
         'indicators': ['Supertrend (7, 3.0)', 'TrendType (ATR14/MA20, ADX14)', 'EMA (7, 20, 200)', 'ATR (14)'],
     },
-    'tradeiq_220320': {
-        'name_ko': 'TradeIQ 220320', 'name_en': 'TradeIQ 220320',
+    'tradeiq_psar_ha': {
+        'name_ko': 'TradeIQ PSAR-HA', 'name_en': 'TradeIQ PSAR-HA',
         'summary_ko': 'PSAR + EMA(200) + RSI(14) + 헤이킨 아시 4가지 모두 일치 시 진입',
         'summary_en': 'Enter only when all 4 agree: Parabolic SAR + EMA(200) + RSI(14) + Heikin Ashi',
         'entry_long_ko': [
@@ -223,8 +223,8 @@ STRATEGY_META: dict[str, dict] = {
         ],
         'indicators': ['Parabolic SAR (0.02, 0.2)', 'EMA (200)', 'RSI (14)', 'Heikin Ashi', 'ATR (14)'],
     },
-    'tradeiq_220323': {
-        'name_ko': 'TradeIQ 220323', 'name_en': 'TradeIQ 220323',
+    'tradeiq_cci_ce': {
+        'name_ko': 'TradeIQ CCI-CE', 'name_en': 'TradeIQ CCI-CE',
         'summary_ko': 'CCI 과매도/과매수 영역 이탈 + Chandelier Exit 방향 확인으로 진입',
         'summary_en': 'CCI oversold/overbought breakout with Chandelier Exit direction confirmation',
         'entry_long_ko': [
@@ -270,8 +270,8 @@ def compute_optimal_params() -> dict[str, dict]:
         'supertrend':           ['st_factor', 'st_period'],
         'supertrend_trendtype': ['st_factor', 'atr_len'],
         'trendtype':            ['atr_len', 'di_len'],
-        'tradeiq_220320':       ['rsi_len', 'atr_mult'],
-        'tradeiq_220323':       ['cci_period', 'ce_mult'],
+        'tradeiq_psar_ha':       ['rsi_len', 'atr_mult'],
+        'tradeiq_cci_ce':       ['cci_period', 'ce_mult'],
         'stoch':                ['stoch_k_period', 'atr_mult'],
         'momentum_ma':          ['lin_len', 'atr_mult', 'val_ma_len'],
     }
@@ -1177,8 +1177,8 @@ const TF_ORDER   = { '1h': 0, '4h': 1, '1D': 2 };
 
 // ── Sidebar ─────────────────────────────────────────────────
 const STRAT_DISPLAY_ORDER = [
-  'supertrend','tradeiq_220320','trendtype','supertrend_trendtype',
-  'tradeiq_220323','stoch','momentum_ma','buy_and_hold',
+  'supertrend','tradeiq_psar_ha','trendtype','supertrend_trendtype',
+  'tradeiq_cci_ce','stoch','momentum_ma','buy_and_hold',
 ];
 
 function buildSidebar() {
