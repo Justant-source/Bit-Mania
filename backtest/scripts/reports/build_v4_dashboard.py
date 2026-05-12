@@ -1539,8 +1539,8 @@ function renderTradeChart() {
     candleTrace,
     mkEntry(longPairs,  'long',  '#2ea043', 'triangle-up'),
     mkEntry(shortPairs, 'short', '#cf222e', 'triangle-down'),
-    mkExit(winPairs,  '수익 청산 ■', '#3fb950'),
-    mkExit(lossPairs, '손실 청산 ■', '#f85149'),
+    mkExit(winPairs,  '수익 종료 ■', '#3fb950'),
+    mkExit(lossPairs, '손실 종료 ■', '#f85149'),
   ];
 
   const meta = DATA.meta[r.strat] || {};
@@ -2669,12 +2669,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const p = el.dataset.preset;
       if (p === 'all') {
         dateStartEl.value = '2017-08-18'; dateEndEl.value = '2026-04-30';
-      } else if (p === '2023') {
-        dateStartEl.value = '2023-01-01'; dateEndEl.value = '2023-12-31';
-      } else if (p === '2024') {
-        dateStartEl.value = '2024-01-01'; dateEndEl.value = '2024-12-31';
-      } else if (p === '2025') {
-        dateStartEl.value = '2025-01-01'; dateEndEl.value = '2025-12-31';
+      } else if (/^\d{4}$/.test(p)) {
+        const y = p;
+        dateStartEl.value = y === '2017' ? '2017-08-18' : `${y}-01-01`;
+        dateEndEl.value   = y === '2026' ? '2026-04-30' : `${y}-12-31`;
       }
       onDateChange();
     });
@@ -2782,9 +2780,14 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
       </div>
       <div class="filter-row" style="margin-top:4px;flex-wrap:wrap;gap:4px">
         <span class="tag preset active" data-preset="all">전체</span>
-        <span class="tag preset" data-preset="2023">2023년</span>
-        <span class="tag preset" data-preset="2024">2024년</span>
-        <span class="tag preset" data-preset="2025">2025년</span>
+        <span class="tag preset" data-preset="2018">2018</span>
+        <span class="tag preset" data-preset="2019">2019</span>
+        <span class="tag preset" data-preset="2020">2020</span>
+        <span class="tag preset" data-preset="2021">2021</span>
+        <span class="tag preset" data-preset="2022">2022</span>
+        <span class="tag preset" data-preset="2023">2023</span>
+        <span class="tag preset" data-preset="2024">2024</span>
+        <span class="tag preset" data-preset="2025">2025</span>
       </div>
     </div>
 
@@ -2833,7 +2836,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
     <div class="chart-card" id="card-trades">
       <div class="chart-title">
         거래 시점 마커
-        <small>▲ 진입 · ■ 청산(초록=수익, 빨강=손실) · 마커 클릭 시 해당 거래 행 강조 · 단일 전략 선택 시 활성화</small>
+        <small>▲ 진입 · ■ 종료(초록=수익, 빨강=손실) · 마커 클릭 시 해당 거래 행 강조 · 단일 전략 선택 시 활성화</small>
       </div>
       <div class="chart-wrap" id="chart-trades">
         <div class="empty-state">전략을 선택하면 거래 마커 차트가 표시됩니다.</div>
