@@ -83,13 +83,16 @@ def apply_costs(row: dict, fund_df: pd.DataFrame) -> dict:
     # Entry + Exit = 2 sides → +0.070% per round-trip
     fee_delta_per_side = (0.055 - 0.020) / 100.0
 
-    # long_only: 펀딩 차감 (자금 조달 비용),
-    # short_only: 펀딩 수령 (자금 대여 수익),
+    # long_only: 펀딩 비용 (롱 포지션이 펀딩 지급 → CAGR 감소)
+    # short_only: 펀딩 수령 (숏 포지션이 펀딩 수령 → CAGR 증가)
     # bidirectional: 반반 (net ~0)
+    # fund_cost = tpy × n_fund × avg_fund × sign × 100
+    # sign=+1 → fund_cost 양수 → adj_cagr 감소 (long 비용)
+    # sign=-1 → fund_cost 음수 → adj_cagr 증가 (short 수익)
     if variant == 'long_only':
-        funding_sign = -1.0
-    elif variant == 'short_only':
         funding_sign = +1.0
+    elif variant == 'short_only':
+        funding_sign = -1.0
     else:  # bidirectional, both_ways
         funding_sign = 0.0
 
