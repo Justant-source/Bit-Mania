@@ -1,0 +1,135 @@
+# 백테스트 전용 스택
+# 실행: cd backtest/docker && docker compose --profile backtest up -d
+# 또는: cd backtest/docker && docker compose --profile backtest run --rm backtester python /app/scripts/runners/run_external_backtest.py
+
+name: cryptoengine-backtest
+
+x-backtest-common: &backtest-common
+  networks:
+    - backtest-net
+    - cryptoengine_default   # 운영 postgres와 선택적 통신용
+
+services:
+  # ── 백테스트 전용 PostgreSQL ────────────────────────────────────
+  backtest-postgres:
+    image: postgres:16-alpine
+    container_name: cryptoengine-backtest-postgres
+    profiles:
+      - backtest
+    environment:
+      POSTGRES_DB: jesse_db
+      POSTGRES_USER: jesse
+      POSTGRES_PASSWORD: ***REMOVED***
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_backtest:/var/lib/postgresql/data
+    networks:
+      - backtest-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jesse -d jesse_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # ── 백테스트 실행기 ────────────────────────────────────────────
+  backtester:
+    build:
+      context: ../..            # 프로젝트 루트 (cryptoengine 상위)
+      dockerfile: backtest/docker/Dockerfile
+    container_name: cryptoengine-backtester
+    profiles:
+      - backtest
+    depends_on:
+      backtest-postgres:
+        condition: service_healthy
+    environment:
+      PYTHONPATH: /app
+      # 백테스트 전용 DB (backtest-postgres)
+      JESSE_DB_HOST: backtest-postgres
+      JESSE_DB_PORT: 5432
+      JESSE_DB_NAME: jesse_db
+      JESSE_DB_USER: jesse
+      JESSE_DB_PASSWORD: ***REMOVED***
+      # 경로 설정
+      BACKTEST_DATA_ROOT: /app/data
+      DATA_DIR: /app/data
+      FG_DATA_PATH: /app/data/fear_greed/fear_greed_index.parquet
+      MACRO_CALENDAR_PATH: /app/data/macro_events/fomc_cpi_calendar.csv
+      # API (read-only 백테스트용)
+      FRED_API_KEY: ${FRED_API_KEY:-}
+    volumes:
+      - ../data:/app/data:ro          # OHLCV 원본 (read-only)
+      - ../results:/app/results       # 백테스트 결과 출력
+      - ../runtime:/app/runtime       # Jesse 런타임 캐시
+      - ../configs:/app/configs:ro    # Jesse 설정
+      - ../strategies:/app/strategies # Jesse 전략 코드
+      - ../scripts:/app/scripts       # 실행 스크립트
+    <<: *backtest-common
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+  # ── Walk-Forward 월간 스케줄러 ────────────────────────────────
+  wf-scheduler:
+    build:
+      context: ../..
+      dockerfile: backtest/docker/Dockerfile
+    container_name: cryptoengine-wf-scheduler
+    restart: always
+    depends_on:
+      backtest-postgres:
+        condition: service_healthy
+    environment:
+      PYTHONPATH: /app
+      JESSE_DB_HOST: backtest-postgres
+      JESSE_DB_PORT: 5432
+      JESSE_DB_NAME: jesse_db
+      JESSE_DB_USER: jesse
+      JESSE_DB_PASSWORD: ***REMOVED***
+      BACKTEST_DATA_ROOT: /app/data
+      DATA_DIR: /app/data
+      MONTHLY_WF_CRON: ${MONTHLY_WF_CRON:-0 17 1 * *}
+      WF_ON_STARTUP: ${WF_ON_STARTUP:-false}
+      WF_SYMBOL: ${WF_SYMBOL:-BTCUSDT}
+      WF_CAPITAL: ${WF_CAPITAL:-10000.0}
+      WF_LOOKBACK_DAYS: ${WF_LOOKBACK_DAYS:-180}
+      WF_TRAIN_DAYS: ${WF_TRAIN_DAYS:-120}
+      WF_TEST_DAYS: ${WF_TEST_DAYS:-60}
+      WF_MC_RUNS: ${WF_MC_RUNS:-200}
+      WF_FA_RATIO: ${WF_FA_RATIO:-0.80}
+      WF_LEVERAGE: ${WF_LEVERAGE:-5.0}
+      WF_REINVEST: ${WF_REINVEST:-0.30}
+      WF_MIN_FUNDING: ${WF_MIN_FUNDING:-0.0001}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+    volumes:
+      - ../data:/app/data:ro
+      - ../results:/app/results
+      - ../runtime:/app/runtime
+      - ../scripts:/app/scripts
+      - ../strategies:/app/strategies
+    entrypoint: ["sh", "/app/docker/wf_entrypoint.sh"]
+    <<: *backtest-common
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+networks:
+  backtest-net:
+    name: cryptoengine-backtest-net
+  cryptoengine_default:
+    external: true
+    name: cryptoengine_default
+
+volumes:
+  pg_backtest:
+    name: cryptoengine-pg-backtest
