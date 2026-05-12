@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/services/strategies/funding-arb/
   - cryptoengine/config/strategies/funding-arb.yaml
   - cryptoengine/config/orchestrator.yaml
-  - cryptoengine/services/jesse_engine/strategies/
+  - backtest/strategies/
 last_updated: 2026-05-02
 when_to_update: |
   - funding-arb.yaml 파라미터 변경 시

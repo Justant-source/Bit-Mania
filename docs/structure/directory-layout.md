@@ -65,7 +65,7 @@ graph TD
             ORC["strategy-orchestrator/"]
             TG["telegram-bot/"]
             DASH["dashboard/"]
-            JE["jesse_engine/\nbacktest"]
+            JE["(backtester: backtest/\ndocker/)"]
         end
     end
 
@@ -229,19 +229,8 @@ Bit-Mania/
         │   ├── capital_allocator.py    # 레짐 기반 자본 배분
         │   └── requirements.txt
         │
-        ├── jesse_engine/               # Jesse 프레임워크 백테스트
-        │   ├── Dockerfile
-        │   ├── config.py               # Jesse 설정
-        │   │
-        │   ├── strategies/             # Jesse 전략 구현
-        │   │   ├── sanity_check.py     # BtcBuyAndHold (검증용)
-        │   │   ├── intraday_seasonality.py  # 일중 시즈널리티
-        │   │   ├── macro_event.py      # FOMC/CPI 이벤트
-        │   │   └── contrarian_sentiment.py # Fear & Greed
-        │   │
-        │   ├── scripts/                # 백테스트 스크립트
-        │   │   ├── README.md           # 스크립트 설명 (스킬셋)
-        │   │   ├── run_full_validation.sh  # 전체 검증 (WF + MC + Sanity)
+        │   # jesse_engine/ → backtest/ 트리로 이전됨
+        │   # backtest/docker/Dockerfile, backtest/strategies/, backtest/scripts/ 참조
         │   │   ├── download_binance_vision.py # OHLCV 데이터 다운로드
         │   │   ├── fetch_coinalyze_funding.py # 펀딩비 데이터 다운로드
         │   │   └── ...
@@ -303,7 +292,8 @@ Bit-Mania/
 8. strategy-orchestrator — 자본 배분
 9. telegram-bot — 알림
 10. dashboard — 웹 대시보드
-11-19. 기타 서비스 (jesse_engine, log-retention, wf-scheduler 등)
+11-18. 기타 서비스 (log-retention, wf-scheduler 등)
+(backtester는 backtest/docker/docker-compose.yml로 분리)
 
 **빌드 컨텍스트**: 프로젝트 루트 (`.`)
 - Dockerfile 내 COPY는 반드시 `cryptoengine/` 기준
@@ -454,12 +444,12 @@ docker compose up -d --no-deps market-data execution-engine funding-arb strategy
 ### 백테스트
 ```bash
 # Jesse 백테스트 실행
-docker compose --profile backtest run --rm jesse_engine \
-  python scripts/run_full_validation.sh IntradaySeasonality
+docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester \
+  python scripts/shell/run_full_validation.sh IntradaySeasonality
 
 # 이미지 재빌드 후 실행
-docker compose --profile backtest build --no-cache jesse_engine && \
-docker compose --profile backtest run --rm jesse_engine \
+docker compose -f backtest/docker/docker-compose.yml --profile backtest build --no-cache backtester && \
+docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester \
   python scripts/<script>.py
 ```
 

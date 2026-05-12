@@ -155,6 +155,6 @@ TradeIQ의 2022-03-23 전략. 220320 대비 더 선택적인 진입 조건으로
 
 ## 분석 참고
 
-- 전체 대시보드: `backtest-results/data/7-strategies/dashboard.html`
+- 전체 대시보드: `backtest/dashboards/dashboard.html`
 - BnH 벤치마크 결과: `7-strategies/{TF}/buy_and_hold/`
 - Tier B+에서도 MDD -30% 이상 조합만 실거래 고려 권장

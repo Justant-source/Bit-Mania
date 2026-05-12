@@ -203,22 +203,23 @@ numpy>=1.24.0
 - **pandas**: 데이터프레임 기반 분석 (가격, 펀딩비 처리)
 - **numpy**: 수치 계산 (ATR, SMA 등 기술적 지표)
 
-### jesse_engine (백테스트)
+### backtester (백테스트)
 ```
 jesse>=0.39.0
 ```
 - **용도**: Jesse 프레임워크 (주식/선물 백테스트)
+- **인프라**: `backtest/docker/docker-compose.yml` (별도 `backtest-postgres`, port 5433)
 - **특징**:
   - 완전한 백테스트 환경
   - Walk-Forward 분석
   - Monte Carlo 시뮬레이션
-  - HTML 리포트 생성
+  - Parquet 결과 저장 (`backtest/results/`)
 - **설치**:
   ```bash
   pip install jesse
   jesse install-pkg jesse-exchange-bybit
   ```
-- **사용**: `docker compose --profile backtest run --rm jesse_engine python scripts/<script>.py`
+- **사용**: `docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester python scripts/<script>.py`
 
 ---
 

@@ -183,18 +183,18 @@ graph TD
 
 ### 5. Backtesting & Walk-Forward Analysis
 
-#### jesse_engine
+#### backtester
 - **역할**: Jesse 프레임워크 기반 백테스트, Walk-Forward 분석
 - **언어**: Python 3.12
-- **이미지**: 프로파일 기반 (`backtest` 프로파일)
+- **이미지**: 프로파일 기반 (`backtest` 프로파일), `backtest/docker/Dockerfile`
 - **주요 스크립트**:
-  - scripts/run_full_validation.sh — 전체 검증 (WF + MC + Sanity)
+  - scripts/shell/run_full_validation.sh — 전체 검증 (WF + MC + Sanity)
   - strategies/sanity_check.py — BTC Buy-and-Hold 검증용
   - strategies/intraday_seasonality.py — 일중 시즈널리티
   - strategies/macro_event.py — FOMC/CPI 이벤트 트레이딩
   - strategies/contrarian_sentiment.py — Fear & Greed 기반
-- **출력**: /results/ (HTML 리포트, JSON 백테스트 결과)
-- **실행**: `docker compose --profile backtest run --rm jesse_engine python scripts/<script>.py`
+- **출력**: backtest/results/ (Parquet 결과), backtest/dashboards/ (HTML 대시보드)
+- **실행**: `docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester python scripts/<script>.py`
 
 #### wf-scheduler
 - **역할**: 월간 Walk-Forward 분석 자동 실행
@@ -325,7 +325,7 @@ flowchart LR
 | **dashboard** | 0.5 | 256M | 64M | 웹 대시보드 |
 | **llm-advisor** | 1.0 | 512M | 128M | Claude API 호출 |
 | **wf-scheduler** | 1.0 | 512M | 128M | 월간 Walk-Forward |
-| **jesse_engine** | 2.0 | 1G | N/A | 백테스트 (고집약) |
+| **backtester** | 2.0 | 1G | N/A | 백테스트 (고집약) |
 | **pg-backup** | 0.5 | 128M | N/A | DB 백업 |
 | **log-retention** | 0.2 | 64M | N/A | 로그 정리 |
 | **node-exporter** | 0.1 | 64M | N/A | 시스템 메트릭 |
@@ -337,7 +337,7 @@ flowchart LR
 - **Reservations**: 보장된 최소 리소스 (스케줄링 기준)
 - **Database/Cache 우선**: postgres (1.0 CPU), redis (0.5 CPU), grafana (0.5 CPU)
 - **전략 서비스**: 각 0.5 CPU, 256M (동시 실행 가능)
-- **Heavy Batch**: jesse_engine (2.0 CPU, 1G) — `--profile backtest`로 선택적 실행
+- **Heavy Batch**: backtester (2.0 CPU, 1G) — `--profile backtest`로 선택적 실행
 
 ---
 
@@ -351,7 +351,7 @@ PostgreSQL (5432)
   ├─ strategy-orchestrator (daily_reports, strategy_states)
   ├─ telegram-bot (service_logs 읽기)
   ├─ dashboard (모든 테이블 읽기)
-  ├─ jesse_engine (OHLCV 임포트)
+  ├─ backtester (OHLCV 임포트, backtest-postgres 별도)
   └─ wf-scheduler (WF 결과 저장)
 
 Redis (6379)
@@ -398,7 +398,7 @@ dashboard (postgres, redis 옵션)
 grafana (독립, 데이터소스만)
 
 # 5단계: 배치/스케줄 (필요 시만)
-jesse_engine (--profile backtest)
+backtester (--profile backtest, backtest/docker/docker-compose.yml)
 wf-scheduler (postgres 필수)
 llm-advisor (postgres, redis, API)
 
@@ -533,7 +533,8 @@ sequenceDiagram
 
 ### Phase 4 (테스트넷, 현재)
 - **활성**: postgres, redis, grafana, market-data, execution-engine, funding-arb, 
-  strategy-orchestrator, telegram-bot, dashboard, jesse_engine, log-retention, wf-scheduler
+  strategy-orchestrator, telegram-bot, dashboard, log-retention, wf-scheduler
+  (backtester: backtest/docker/docker-compose.yml --profile backtest 별도 실행)
 - **비활성**: -
 - **테스트넷**: BYBIT_TESTNET=true
 

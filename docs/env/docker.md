@@ -158,7 +158,7 @@ graph TD
     end
 
     subgraph batch["5단계: 배치 (필요 시만)"]
-        JE["jesse_engine<br>--profile backtest"]
+        JE["backtester<br>backtest/docker/ --profile backtest"]
         WF["wf-scheduler<br>월 1일 02:00"]
         LLM["llm-advisor<br>Claude 분석"]
     end
@@ -402,12 +402,12 @@ docker compose logs --tail=10 funding-arb | grep -i "복구\|recovered"
 ### Backtest 프로필
 ```bash
 # Jesse 백테스트만 실행
-docker compose --profile backtest run --rm jesse_engine \
-  python scripts/run_full_validation.sh IntradaySeasonality
+docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester \
+  python scripts/shell/run_full_validation.sh IntradaySeasonality
 
 # 이미지 재빌드 후 실행
-docker compose --profile backtest build --no-cache jesse_engine && \
-docker compose --profile backtest run --rm jesse_engine \
+docker compose -f backtest/docker/docker-compose.yml --profile backtest build --no-cache backtester && \
+docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester \
   python scripts/<script>.py
 ```
 

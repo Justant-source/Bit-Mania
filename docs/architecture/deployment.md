@@ -371,7 +371,7 @@ graph TB
 | `./config/grafana/dashboards` | `/etc/grafana/provisioning/dashboards` | grafana | `ro` |
 | `./config/grafana/alerting` | `/etc/grafana/provisioning/alerting` | grafana | `ro` |
 | `./config/prometheus/prometheus.yml` | `/etc/prometheus/prometheus.yml` | prometheus | `ro` |
-| `./backtest-results` | `/app/results` | backtester | `rw` |
+| `../backtest/results` | `/app/results` | backtester | `rw` |
 | `/proc` | `/host/proc` | node-exporter | `ro` |
 | `/sys` | `/host/sys` | node-exporter | `ro` |
 | `/tmp/claude-code` | `/tmp/claude-code` | llm-advisor | `rw` |

@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-12
+last_updated: 2026-05-13
 ---
 
 # Code → Docs 역인덱스
@@ -16,13 +16,13 @@ last_updated: 2026-05-12
 | `services/strategies/adaptive-dca/**` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
 | `config/strategies/funding-arb.yaml` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
 | `config/strategies/adaptive-dca.yaml` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
-| `services/jesse_engine/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/jesse_engine/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/strategies/dynamic_threshold_fa.py` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) |
-| `services/jesse_engine/configs/multi_symbol_fa.yaml` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `backtest/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `backtest/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `backtest/strategies/dynamic_threshold_fa.py` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) |
+| `backtest/configs/multi_symbol_fa.yaml` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `backtest/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `backtest/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
+| `backtest/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 
 ## 실행 / 주문
 

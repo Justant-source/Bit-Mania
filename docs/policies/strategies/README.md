@@ -358,7 +358,7 @@ weights:
 ### 1. 기존 스크립트 확인 (필수)
 
 ```bash
-ls -la cryptoengine/services/jesse_engine/scripts/
+ls -la backtest/scripts/
 ```
 
 동일/유사 스크립트 존재 여부 확인 후 재사용 검토.
@@ -366,13 +366,13 @@ ls -la cryptoengine/services/jesse_engine/scripts/
 ### 2. 새 스크립트 작성
 
 ```bash
-# 경로: cryptoengine/services/jesse_engine/scripts/
-# 예: test_fa80_lev5_r30.py
+# 경로: backtest/scripts/{runners,sweep,analysis,reports,audit,data}/
+# 예: backtest/scripts/runners/test_fa80_lev5_r30.py
 ```
 
 ### 3. README 업데이트
 
-`cryptoengine/services/jesse_engine/scripts/README.md` (미생성)에 다음 시점에 반드시 업데이트:
+`backtest/docs/CODE_MAP.md`에 다음 시점에 반드시 업데이트:
 
 - **스크립트 추가** → 테이블에 행 추가
 - **파라미터 변경** → 해당 행 업데이트
@@ -382,11 +382,11 @@ ls -la cryptoengine/services/jesse_engine/scripts/
 
 ```bash
 # 이미지 재빌드 (새 파일 포함)
-docker compose --profile backtest build --no-cache jesse_engine
+docker compose -f backtest/docker/docker-compose.yml --profile backtest build --no-cache backtester
 
 # Jesse 백테스트 실행
-docker compose --profile backtest run --rm jesse_engine \
-  python scripts/test_fa80_lev5_r30.py
+docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester \
+  python scripts/runners/test_fa80_lev5_r30.py
 ```
 
 ---

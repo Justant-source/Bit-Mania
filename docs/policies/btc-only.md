@@ -284,7 +284,7 @@ DEFAULT_CONFIG = {
 
 ---
 
-### 4. 백테스트 데이터 (jesse_engine/)
+### 4. 백테스트 데이터 (backtest/scripts/data/)
 
 **download_binance_vision.py** (Binance historical data):
 ```python
@@ -341,7 +341,7 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
   config/strategies/*.yaml \
   config/exchanges/*.yaml \
   services/market-data/*.py \
-  services/jesse_engine/scripts/data/*.py
+  backtest/scripts/data/*.py
 
 # 검출 시 빌드 실패 (CI/CD)
 ```
