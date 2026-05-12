@@ -33,7 +33,7 @@ last_updated: 2026-05-12
 
 ### 백테스트 실행
 - 현재 활성 엔진: Jesse (6년 검증 데이터)
-- 스킬셋 규칙: [test/backtest-skillset.md](test/backtest-skillset.md) 필수 확인
+- 스킬셋 규칙: [backtest/docs/methodology/backtest-skillset.md](../backtest/docs/methodology/backtest-skillset.md) 필수 확인
 - 실행: `docker compose --profile backtest run --rm jesse_engine python scripts/<script>.py`
 
 ### 모니터링
@@ -84,7 +84,7 @@ last_updated: 2026-05-12
 | [policies/operations/](policies/operations/) | 운영 매뉴얼 — Runbook, 모니터링, 배포 | runbook.md, monitoring.md, mainnet-switch.md |
 | [policies/strategies/](policies/strategies/) | 전략 사양 — Funding Arb, Adaptive DCA | funding-arb.md, adaptive-dca.md |
 | [structure/](structure/) | 코드 레이아웃 — 19개 서비스, 디렉토리 트리 | — |
-| [test/](test/) | 백테스트 & 검증 — Jesse, 스킬셋, Phase 4 체크 | backtest-skillset.md, phase4-checklist.md |
+| [../backtest/docs/](../backtest/docs/) | 백테스트 & 검증 — Jesse, 스킬셋, Phase 4 체크 | methodology/backtest-skillset.md, phase4-checklist.md |
 
 ---
 
@@ -150,20 +150,32 @@ docs/
 │   ├── services.md — 19개 서비스 상세
 │   └── directory-tree.md — 전체 프로젝트 구조
 │
-└── test/
-    ├── README.md — 테스트 가이드 개요
-    ├── backtest-skillset.md — 스킬셋 관리 규칙 (필수)
-    ├── param_sweep_v2.md — v2 파라미터 스윕 (2,688 backtests, 완료)
-    ├── param_sweep_v2_results.md — v2 실행 리포트
-    ├── param_sweep_v3.md — v3 세밀 격자 스윕 (supertrend 96 combo, 완료)
-    ├── rolling_window_test.md — 롤링 윈도우 방법론
-    ├── rolling_window_results_v2.md — v2 champion 기준 롤링 결과
-    ├── jesse-engine.md — Jesse 프레임워크 설정
-    ├── jesse-strategies.md — Jesse 전략 목록
-    ├── jesse-vs-self-engine.md — 성과 비교
-    ├── live-postmortem-template.md — 거래 분석 템플릿
-    ├── phase4-checklist.md — Phase 4 완료 기준
-    └── strategies/backtest/ — 7개 전략별 v2+v3 전체 파라미터 기록
+└── backtest/docs/
+    ├── README.md — 백테스트 문서 홈
+    ├── CODE_MAP.md — 백테스트 코드 역인덱스
+    │
+    ├── methodology/
+    │   ├── backtest-skillset.md — 스킬셋 관리 규칙 (필수)
+    │   ├── jesse-engine.md — Jesse 프레임워크 설정
+    │   ├── jesse-strategies.md — Jesse 전략 목록
+    │   ├── jesse-vs-self-engine.md — 성과 비교
+    │   └── live-postmortem-template.md — 거래 분석 템플릿
+    │
+    ├── strategies/
+    │   ├── 001_funding_arb.md ~ 015_contrarian_sentiment.md — 15개 전략 사양
+    │   └── README.md
+    │
+    ├── runs/
+    │   └── *.md — 7개 전략별 실험 ledger (supertrend, momentum_ma, stoch 등)
+    │
+    ├── optimization/
+    │   ├── param_sweep_v2.md — v2 파라미터 스윕 (2,688 backtests, 완료)
+    │   ├── param_sweep_v2_results.md — v2 실행 리포트
+    │   ├── param_sweep_v3.md — v3 세밀 격자 스윕 (supertrend 96 combo, 완료)
+    │   ├── rolling_window_test.md — 롤링 윈도우 방법론
+    │   └── rolling_window_results_v2.md — v2 champion 기준 롤링 결과
+    │
+    └── phase4-checklist.md — Phase 4 완료 기준
 ```
 
 ---

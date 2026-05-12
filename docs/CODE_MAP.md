@@ -12,22 +12,17 @@ last_updated: 2026-05-12
 | 코드 | 문서 |
 |------|------|
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
-| `services/strategies/funding-arb/**` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/strategies/adaptive-dca/**` | [test/strategies/003_adaptive_dca.md](test/strategies/003_adaptive_dca.md) |
-| `config/strategies/funding-arb.yaml` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
-| `config/strategies/adaptive-dca.yaml` | [test/strategies/003_adaptive_dca.md](test/strategies/003_adaptive_dca.md) |
+| `services/strategies/funding-arb/**` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/adaptive-dca/**` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
+| `config/strategies/funding-arb.yaml` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
+| `config/strategies/adaptive-dca.yaml` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
 | `services/jesse_engine/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
 | `services/jesse_engine/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/strategies/dynamic_threshold_fa.py` | [test/strategies/001_funding_arb.md](test/strategies/001_funding_arb.md) |
+| `services/jesse_engine/strategies/dynamic_threshold_fa.py` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) |
 | `services/jesse_engine/configs/multi_symbol_fa.yaml` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 | `services/jesse_engine/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 | `services/jesse_engine/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 | `services/jesse_engine/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `services/jesse_engine/scripts/rolling_window_analysis.py` | [test/rolling_window_test.md](test/rolling_window_test.md) |
-| `services/jesse_engine/scripts/README.md` | [test/backtest-skillset.md](test/backtest-skillset.md) |
-| `services/jesse_engine/scripts/build_v4_dashboard.py` | [test/rolling_window_test.md](test/rolling_window_test.md) · [test/strategies/backtest/*.md](test/strategies/backtest/) |
-| `services/jesse_engine/scripts/param_sweep_v2.py` | [test/param_sweep_v2.md](test/param_sweep_v2.md) · [test/strategies/backtest/*.md](test/strategies/backtest/) |
-| `services/jesse_engine/scripts/param_sweep_v3.py` | [test/param_sweep_v3.md](test/param_sweep_v3.md) · [test/strategies/backtest/*.md](test/strategies/backtest/) |
 
 ## 실행 / 주문
 
@@ -66,3 +61,8 @@ last_updated: 2026-05-12
 | `shared/exchange/**` | [structure/README.md](structure/README.md) |
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) · [structure/README.md](structure/README.md) |
 | `shared/models/**` | [structure/README.md](structure/README.md) |
+
+## 백테스트 코드
+
+백테스트 관련 코드 ↔ 문서 매핑은 별도 관리:
+→ [backtest/docs/CODE_MAP.md](../backtest/docs/CODE_MAP.md)
