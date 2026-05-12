@@ -22,10 +22,10 @@ STRATEGIES = [
     ('StochStrategy',               'stoch'),
     ('MomentumMAStrategy',          'momentum_ma'),
     ('SupertrendStrategy',          'supertrend'),
-    ('TradeIQ220320Strategy',       'tradeiq_220320'),
+    ('TradeIQPsarHaStrategy',       'tradeiq_psar_ha'),
     ('TrendTypeStrategy',           'trendtype'),
     ('SupertrendTrendTypeStrategy', 'supertrend_trendtype'),
-    ('TradeIQ220323Strategy',       'tradeiq_220323'),
+    ('TradeIQCciCeStrategy',       'tradeiq_cci_ce'),
 ]
 VARIANTS = ['bidirectional', 'long_only',
             'bidirectional_x2', 'long_only_x2',

@@ -17,10 +17,10 @@ ALL_STRATEGIES = [
     (1, 'stoch',              'Stoch',               'Mean Reversion'),
     (2, 'momentum_ma',        'MomentumMA',          'Trend Following'),
     (2, 'supertrend',         'Supertrend',          'Trend Following'),
-    (2, 'tradeiq_220320',     'TradeIQ220320',        'Trend Following'),
+    (2, 'tradeiq_psar_ha',     'TradeIQ PSAR-HA',        'Trend Following'),
     (3, 'trendtype',          'TrendType',           'Hybrid/Regime'),
     (3, 'supertrend_trendtype','SupertrendTrendType', 'Hybrid/Regime'),
-    (3, 'tradeiq_220323',     'TradeIQ220323',        'Hybrid/Regime'),
+    (3, 'tradeiq_cci_ce',     'TradeIQ CCI-CE',        'Hybrid/Regime'),
 ]
 
 

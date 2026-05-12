@@ -34,7 +34,7 @@ OUT_DIR    = RESULT_DIR / 'rolling_window'
 TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = [
     'stoch', 'momentum_ma', 'supertrend',
-    'tradeiq_220320', 'trendtype', 'supertrend_trendtype', 'tradeiq_220323',
+    'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce',
 ]
 VARIANTS_1X = ['bidirectional', 'long_only']
 WINDOW_SIZES_DEFAULT = list(range(3, 64, 3))  # [3,6,9,...,63] — 21가지
