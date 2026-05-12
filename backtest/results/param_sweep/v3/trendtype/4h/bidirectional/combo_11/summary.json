@@ -1,0 +1,50 @@
+{
+  "strategy": "trendtype",
+  "tf": "4h",
+  "variant": "bidirectional",
+  "combo_idx": 11,
+  "hp": {
+    "atr_len": 8,
+    "atr_ma_len": 20,
+    "di_len": 12,
+    "adx_len": 12,
+    "smooth": 1,
+    "atr_mult": 3.0
+  },
+  "score": -999.0,
+  "sweep_version": "v3",
+  "periods": {
+    "p1": {
+      "cagr": -6.4605,
+      "sharpe": 0.0122,
+      "mdd": -60.8901,
+      "trades": 845,
+      "win_rate": 40.7101,
+      "pf": 0.969
+    },
+    "p2": {
+      "cagr": -9.3966,
+      "sharpe": -0.1126,
+      "mdd": -60.8901,
+      "trades": 594,
+      "win_rate": 40.404,
+      "pf": 0.9531
+    },
+    "p3": {
+      "cagr": -3.8565,
+      "sharpe": 0.087,
+      "mdd": -54.6837,
+      "trades": 748,
+      "win_rate": 41.1765,
+      "pf": 0.981
+    },
+    "p4": {
+      "cagr": -5.973,
+      "sharpe": -0.0057,
+      "mdd": -54.6837,
+      "trades": 497,
+      "win_rate": 41.0463,
+      "pf": 0.97
+    }
+  }
+}

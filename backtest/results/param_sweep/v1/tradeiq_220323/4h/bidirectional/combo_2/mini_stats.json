@@ -1,0 +1,29 @@
+{
+  "strategy": "tradeiq_220323",
+  "tf": "4h",
+  "variant": "bidirectional",
+  "combo_idx": 2,
+  "annual_return_pct": 14.6542,
+  "sharpe_ratio": 0.6655,
+  "max_drawdown_pct": -32.1888,
+  "total_trades": 108,
+  "win_rate_pct": 56.4815,
+  "profit_factor": 1.2871,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": true,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": true,
+    "ProfitFactor \u2265 1.2": true
+  },
+  "hp": {
+    "cci_period": 20,
+    "cci_lower": -100.0,
+    "cci_upper": 100.0,
+    "ce_period": 22,
+    "ce_mult": 3.0,
+    "atr_mult": 3.0
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "strategy": "trendtype",
+  "tf": "4h",
+  "variant": "long_only",
+  "combo_idx": 4,
+  "annual_return_pct": 9.031,
+  "sharpe_ratio": 0.4583,
+  "max_drawdown_pct": -41.4501,
+  "total_trades": 482,
+  "win_rate_pct": 44.3983,
+  "profit_factor": 1.0966,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": true,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "atr_len": 14,
+    "atr_ma_len": 20,
+    "di_len": 10,
+    "adx_len": 10,
+    "smooth": 1,
+    "atr_mult": 3.0
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "strategy": "tradeiq_220320",
+  "tf": "4h",
+  "variant": "long_only",
+  "combo_idx": 5,
+  "annual_return_pct": 13.9096,
+  "sharpe_ratio": 0.622,
+  "max_drawdown_pct": -31.4022,
+  "total_trades": 380,
+  "win_rate_pct": 34.7368,
+  "profit_factor": 1.1474,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": true,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": false,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "psar_start": 0.02,
+    "psar_inc": 0.02,
+    "psar_max": 0.2,
+    "direction_ema_len": 200,
+    "rsi_len": 14,
+    "atr_mult": 4.0
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "strategy": "momentum_ma",
+  "tf": "1D",
+  "variant": "long_only",
+  "combo_idx": 6,
+  "hp": {
+    "lin_len": 14,
+    "val_ma_len": 100,
+    "atr_mult": 2.0
+  },
+  "score": -999.0,
+  "periods": {
+    "p1": {
+      "cagr": -5.0859,
+      "sharpe": 0.1118,
+      "mdd": -78.8711,
+      "trades": 131,
+      "win_rate": 48.0916,
+      "pf": 0.9253
+    },
+    "p2": {
+      "cagr": 27.5713,
+      "sharpe": 0.8615,
+      "mdd": -38.5563,
+      "trades": 88,
+      "win_rate": 50.0,
+      "pf": 1.2813
+    },
+    "p3": {
+      "cagr": -1.8171,
+      "sharpe": 0.1946,
+      "mdd": -78.8711,
+      "trades": 122,
+      "win_rate": 48.3607,
+      "pf": 0.9722
+    },
+    "p4": {
+      "cagr": 43.0374,
+      "sharpe": 1.1473,
+      "mdd": -38.5563,
+      "trades": 79,
+      "win_rate": 50.6329,
+      "pf": 1.4606
+    }
+  }
+}

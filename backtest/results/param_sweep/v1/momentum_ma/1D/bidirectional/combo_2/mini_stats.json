@@ -1,0 +1,26 @@
+{
+  "strategy": "momentum_ma",
+  "tf": "1D",
+  "variant": "bidirectional",
+  "combo_idx": 2,
+  "annual_return_pct": -10.4249,
+  "sharpe_ratio": 0.077,
+  "max_drawdown_pct": -74.8624,
+  "total_trades": 119,
+  "win_rate_pct": 42.0168,
+  "profit_factor": 0.8761,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": false,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": true,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "lin_len": 20,
+    "val_ma_len": 100,
+    "atr_mult": 3.0
+  }
+}
