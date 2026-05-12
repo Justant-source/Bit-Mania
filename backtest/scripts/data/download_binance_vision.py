@@ -150,7 +150,13 @@ def _download_symbol_interval(symbol: str, interval: str, dates: list[str], sour
                     logger.warning(f"No CSV in {url}")
                     continue
                 with zf.open(csv_files[0]) as f:
-                    df = pd.read_csv(f, names=BINANCE_COLUMNS, dtype={'open_time': 'int64'})
+                    df = pd.read_csv(f, names=BINANCE_COLUMNS)
+                    # newer Binance Vision CSVs include a header row — drop it
+                    df['open_time'] = pd.to_numeric(df['open_time'], errors='coerce')
+                    df = df.dropna(subset=['open_time'])
+                    df['open_time'] = df['open_time'].astype('int64')
+                    for col in ['open', 'high', 'low', 'close', 'volume']:
+                        df[col] = pd.to_numeric(df[col], errors='coerce')
                     df['timestamp'] = pd.to_datetime(df['open_time'], unit='ms', utc=True)
                     df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
                     df['source'] = actual_source

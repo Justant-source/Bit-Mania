@@ -7,11 +7,11 @@ Binance USDT-M futures BTCUSDT started 2019-09-08, so spot data is used for the
 full year to provide consistent warmup candles for all timeframes (1D needs ~220
 days back from 2020-01-01 = ~2019-05-25).
 
-Output: cryptoengine/backtest-results/data/binance_vision/klines/BTCUSDT/1h/2019/MM.parquet
+Output: backtest/data/ohlcv/BTCUSDT/1h/2019/MM.parquet
 Schema: matches 2020+ files (open_time datetime[ms,UTC], open/high/low/close/volume float64, ...)
 
 Usage:
-    python cryptoengine/services/jesse_engine/scripts/data/backfill_2019_klines.py
+    python backtest/scripts/data/backfill_2019_klines.py
 """
 from __future__ import annotations
 
@@ -33,8 +33,13 @@ MAX_RETRIES = 3
 RETRY_DELAY = 3
 
 SCRIPT_DIR = Path(__file__).parent
-CE_ROOT = SCRIPT_DIR.parent.parent.parent.parent  # up to cryptoengine/
-OUT_BASE = CE_ROOT / "backtest-results" / "data" / "binance_vision" / "klines" / SYMBOL / INTERVAL / str(YEAR)
+try:
+    sys.path.insert(0, str(SCRIPT_DIR.parent))
+    from _paths import OHLCV_ROOT
+    OUT_BASE = OHLCV_ROOT / SYMBOL / INTERVAL / str(YEAR)
+except ImportError:
+    BT_ROOT = SCRIPT_DIR.parent.parent
+    OUT_BASE = BT_ROOT / "data" / "ohlcv" / SYMBOL / INTERVAL / str(YEAR)
 
 BINANCE_COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume",

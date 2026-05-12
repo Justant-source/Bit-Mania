@@ -268,8 +268,8 @@ def compute_optimal_params() -> dict[str, dict]:
     }
 
     sweep_bases = [
-        (CE_ROOT / 'backtest-results' / 'data' / 'param_sweep_v2', 'v2'),
-        (CE_ROOT / 'backtest-results' / 'data' / 'param_sweep_v3', 'v3'),
+        (RESULTS_ROOT / 'param_sweep' / 'v2', 'v2'),
+        (RESULTS_ROOT / 'param_sweep' / 'v3', 'v3'),
     ]
     # best[(strat, tf)] = {score, variant, params, version, combo, p1_cagr, p2_cagr, p3_cagr, p4_cagr, p1_mdd}
     best: dict[tuple, dict] = {}

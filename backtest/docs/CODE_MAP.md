@@ -33,11 +33,12 @@ last_updated: 2026-05-12
 | `backtest/scripts/data/download_binance_vision.py` | `docs/methodology/backtest-skillset.md` |
 | `backtest/scripts/data/jesse_import.py` | `docs/methodology/jesse-engine.md` |
 
-## Jesse 엔진 (services/jesse_engine/)
+## Jesse 엔진 인프라 (backtest/docker/)
 
 | 코드 경로 | 관련 문서 |
 |---|---|
-| `services/jesse_engine/strategies/` | `docs/methodology/jesse-strategies.md` |
-| `services/jesse_engine/scripts/run_full_validation.sh` | `docs/methodology/jesse-engine.md` |
-| `services/jesse_engine/scripts/walk_forward.py` | `docs/methodology/jesse-engine.md` |
+| `backtest/strategies/` | `docs/methodology/jesse-strategies.md` |
+| `backtest/scripts/shell/run_full_validation.sh` | `docs/methodology/jesse-engine.md` |
+| `backtest/scripts/analysis/walk_forward.py` | `docs/methodology/jesse-engine.md` |
+| `backtest/docker/docker-compose.yml` | `docs/methodology/jesse-engine.md` |
 

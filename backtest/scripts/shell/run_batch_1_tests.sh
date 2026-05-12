@@ -3,20 +3,20 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CE_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"  # up to cryptoengine/
-cd "$CE_DIR"
+BT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"  # up to backtest/
+cd "$BT_DIR"
 
 echo "=== Batch 1 V2 Backtest Execution ==="
-echo "Output directory: backtest-results/data/batch_1/"
+echo "Output directory: results/batch_1/"
 
 # Test configurations
 TESTS=(
-  "BBPBStrategy:bidirectional:backtest-results/data/batch_1/bbpb/bidirectional"
-  "BBPBStrategy:long_only:backtest-results/data/batch_1/bbpb/long_only"
-  "BBWPStrategy:bidirectional:backtest-results/data/batch_1/bbwp/bidirectional"
-  "BBWPStrategy:long_only:backtest-results/data/batch_1/bbwp/long_only"
-  "StochStrategy:bidirectional:backtest-results/data/batch_1/stoch/bidirectional"
-  "StochStrategy:long_only:backtest-results/data/batch_1/stoch/long_only"
+  "BBPBStrategy:bidirectional:results/batch_1/bbpb/bidirectional"
+  "BBPBStrategy:long_only:results/batch_1/bbpb/long_only"
+  "BBWPStrategy:bidirectional:results/batch_1/bbwp/bidirectional"
+  "BBWPStrategy:long_only:results/batch_1/bbwp/long_only"
+  "StochStrategy:bidirectional:results/batch_1/stoch/bidirectional"
+  "StochStrategy:long_only:results/batch_1/stoch/long_only"
 )
 
 for test_config in "${TESTS[@]}"; do
@@ -28,8 +28,8 @@ for test_config in "${TESTS[@]}"; do
   echo "Output: $output_dir"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  docker compose -f services/jesse_engine/docker-compose.yml run --rm jesse \
-    python /jesse-project/scripts/run_external_backtest.py \
+  docker compose -f docker/docker-compose.yml --profile backtest run --rm backtester \
+    python /app/scripts/runners/run_external_backtest.py \
       --strategy "$strategy" --variant "$variant" \
       --balance 10000 --leverage 1 \
       --start 2021-04-01 --end 2025-12-31 \

@@ -34,7 +34,7 @@ last_updated: 2026-05-12
 ### 백테스트 실행
 - 현재 활성 엔진: Jesse (6년 검증 데이터)
 - 스킬셋 규칙: [backtest/docs/methodology/backtest-skillset.md](../backtest/docs/methodology/backtest-skillset.md) 필수 확인
-- 실행: `docker compose --profile backtest run --rm jesse_engine python scripts/<script>.py`
+- 실행: `docker compose --profile backtest run --rm backtester python /app/scripts/<script>.py`
 
 ### 모니터링
 - Grafana 대시보드: http://localhost:3002 (admin / ***REMOVED***)

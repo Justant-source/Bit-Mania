@@ -8,8 +8,8 @@ related_code:
   - cryptoengine/config/exchanges/binance.yaml
   - cryptoengine/services/market-data/collector.py
   - cryptoengine/services/market-data/feature_engine.py
-  - cryptoengine/services/jesse_engine/scripts/data/download_binance_vision.py
-  - cryptoengine/services/jesse_engine/scripts/data/fetch_coinalyze_funding.py
+  - backtest/scripts/data/download_binance_vision.py
+  - backtest/scripts/data/fetch_coinalyze_funding.py
 last_updated: 2026-05-01
 when_to_update: |
   - 심볼 추가/변경 결정 시 (ADR 신규 작성 필수)
