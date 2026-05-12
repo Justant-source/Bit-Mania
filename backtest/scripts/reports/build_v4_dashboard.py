@@ -1582,7 +1582,8 @@ function renderTradeTable(focusIdx = null) {
   function fmtMs(ms) {
     const d = new Date(ms);
     const p = n => String(n).padStart(2, '0');
-    return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+    const yy = String(d.getUTCFullYear()).slice(2);
+    return `${yy}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
   }
   function fmtDur(ms) {
     const totalMin = Math.round(ms / 60_000);
@@ -1617,13 +1618,13 @@ function renderTradeTable(focusIdx = null) {
       <td style="color:#8b949e;text-align:right">${rowN + 1}</td>
       <td>${sideKo}</td>
       <td style="text-align:center">${levLabel}</td>
-      <td>${fmtMs(t.t_open)} UTC</td>
+      <td>${fmtMs(t.t_open)}</td>
       <td style="text-align:right">$${t.entry.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="text-align:right;line-height:1.3">
         <div>$${st.vMargin.toLocaleString('en-US',{maximumFractionDigits:0})} → $${st.vNotional.toLocaleString('en-US',{maximumFractionDigits:0})}</div>
         <div style="color:#8b949e;font-size:0.85em">margin × ${lev}x · ${(st.capRatio*100).toFixed(0)}% of bal</div>
       </td>
-      <td>${fmtMs(t.t_close)} UTC</td>
+      <td>${fmtMs(t.t_close)}</td>
       <td style="text-align:right">$${t.exit.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="text-align:right;color:#8b949e">${fmtDur(dur)}</td>
       <td style="text-align:right" class="${cls}">$${st.vPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
@@ -1645,10 +1646,10 @@ function renderTradeTable(focusIdx = null) {
           <th style="text-align:right">#</th>
           <th>방향</th>
           <th style="text-align:center">레버리지</th>
-          <th>진입일 (UTC)</th>
+          <th>진입일</th>
           <th style="text-align:right">진입가</th>
           <th style="text-align:right">포지션 (증거금/명목)</th>
-          <th>종료일 (UTC)</th>
+          <th>종료일</th>
           <th style="text-align:right">종료가</th>
           <th style="text-align:right">보유</th>
           <th style="text-align:right">손익 ($)</th>
@@ -1755,7 +1756,8 @@ function showTradeDetail(id, month) {
   function fmtMs(ms) {
     const d = new Date(ms);
     const pad = n => String(n).padStart(2,'0');
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    const yy = String(d.getUTCFullYear()).slice(2);
+    return `${yy}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   }
 
   const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
@@ -1764,9 +1766,9 @@ function showTradeDetail(id, month) {
     const sideKo = t.side === 'long' ? '롱' : '숏';
     return `<tr>
       <td>${sideKo}</td>
-      <td>${fmtMs(t.t_open)} UTC</td>
+      <td>${fmtMs(t.t_open)}</td>
       <td style="text-align:right">$${t.entry.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>${fmtMs(t.t_close)} UTC</td>
+      <td>${fmtMs(t.t_close)}</td>
       <td style="text-align:right">$${t.exit.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="text-align:right" class="${cls}">$${t.pnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
       <td style="text-align:right;color:#8b949e">$${t.fee.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -1779,8 +1781,8 @@ function showTradeDetail(id, month) {
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>방향</th><th>진입 시각 (UTC)</th><th style="text-align:right">진입가</th>
-          <th>종료 시각 (UTC)</th><th style="text-align:right">종료가</th>
+          <th>방향</th><th>진입 시각</th><th style="text-align:right">진입가</th>
+          <th>종료 시각</th><th style="text-align:right">종료가</th>
           <th style="text-align:right">손익 ($)</th><th style="text-align:right">수수료</th>
         </tr></thead>
         <tbody>${rows}</tbody>
