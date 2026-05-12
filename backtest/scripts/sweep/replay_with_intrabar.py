@@ -128,6 +128,7 @@ def run_one_job(job: Dict[str, Any]) -> Dict[str, Any]:
 
     strategy_cls = get_strategy_class_name(strat)
 
+    hp_json = json.dumps(job.get('hp', {}))
     cmd = [
         'python3', '-u', RUNNER,
         '--strategy', strategy_cls,
@@ -136,6 +137,7 @@ def run_one_job(job: Dict[str, Any]) -> Dict[str, Any]:
         '--start', p_start,
         '--end', p_end,
         '--output', str(out_dir),
+        '--hp-json', hp_json,
     ]
 
     env = {**os.environ, 'PYTHONPATH': PYTHONPATH}

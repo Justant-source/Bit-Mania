@@ -718,6 +718,7 @@ def run(args):
         config=config, routes=routes, data_routes=[],
         candles=candles_dict, warmup_candles=warmup_dict,
         generate_json=True, generate_csv=True, generate_equity_curve=True,
+        hyperparameters=getattr(args, 'hp_dict', None) or {},
     )
 
     # 5. Extract metrics
@@ -763,7 +764,12 @@ def parse_args():
                    help='Target timeframe')
     p.add_argument('--no-real-1m', action='store_true',
                    help='For 1h: disable real 1m loading and use 1h expansion instead')
-    return p.parse_args()
+    p.add_argument('--hp-json', default='{}',
+                   help='Hyperparameters as JSON string, e.g. \'{"st_factor":3.0}\'')
+    args = p.parse_args()
+    import json as _json
+    args.hp_dict = _json.loads(args.hp_json) if args.hp_json else {}
+    return args
 
 
 if __name__ == '__main__':
