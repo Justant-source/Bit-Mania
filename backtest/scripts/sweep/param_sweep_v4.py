@@ -66,7 +66,7 @@ STRATEGY      = 'supertrend'
 TIMEFRAME     = '4h'
 VARIANT       = 'long_only'
 
-FULL_START    = '2018-04-01'
+FULL_START    = '2017-09-01'  # needs 60d warmup before P0 (2018-04-01)
 FULL_END      = '2026-04-30'
 
 PERIODS = {
