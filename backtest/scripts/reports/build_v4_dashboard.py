@@ -1091,13 +1091,16 @@ function slicedStats(r, startMs, endMs) {
   {
     const d0 = new Date(startMs);
     let y = d0.getUTCFullYear();
-    let m = d0.getUTCMonth() + 1;
-    while (true) {
-      const next = Date.UTC(y, m, 1);
-      if (next >= endMs) break;
-      monthBoundaries.push(next);
-      m++;
-      if (m > 11) { m = 0; y++; }
+    let m = d0.getUTCMonth();
+    if (isFinite(y) && isFinite(m)) {
+      let safety = 0;
+      while (safety++ < 2000) {
+        const next = Date.UTC(y, m, 1);
+        if (!isFinite(next) || next >= endMs) break;
+        monthBoundaries.push(next);
+        m++;
+        if (m > 11) { m = 0; y++; }
+      }
     }
     monthBoundaries.push(endMs);
   }
@@ -2624,9 +2627,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const dateStartEl = document.getElementById('dateStart');
   const dateEndEl   = document.getElementById('dateEnd');
   function onDateChange() {
-    const s = Date.parse(dateStartEl.value + 'T00:00:00Z');
-    const e = Date.parse(dateEndEl.value   + 'T23:59:59Z');
+    let s = Date.parse(dateStartEl.value + 'T00:00:00Z');
+    let e = Date.parse(dateEndEl.value   + 'T23:59:59Z');
+    const D0 = DATA.data_start_ms, D1 = DATA.data_end_ms;
+    if (!isFinite(s)) s = D0;
+    if (!isFinite(e)) e = D1;
+    s = Math.max(D0, Math.min(s, D1));
+    e = Math.max(D0, Math.min(e, D1));
     if (s >= e) return;
+    dateStartEl.value = new Date(s).toISOString().slice(0, 10);
+    dateEndEl.value   = new Date(e).toISOString().slice(0, 10);
     state.startMs = s;
     state.endMs   = e;
     sliceCache.clear();
@@ -2992,6 +3002,8 @@ def main():
     data = {
         'generated_at':    datetime.now(timezone.utc).isoformat(),
         'build_ts':        datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
+        'data_start_ms':   START_MS,
+        'data_end_ms':     END_MS,
         'n_results':       total,
         'btc_1d':          btc_1d,
         'regime_labels':   regime_labels,
