@@ -26,7 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 RESULT_DIR = Path('/result/7-strategies')
-SCRIPTS    = Path('/jesse-project/scripts')
+SCRIPTS    = Path(__file__).parent          # /app/scripts/runners/
+REPORTS    = SCRIPTS.parent / 'reports'    # /app/scripts/reports/
 
 TIMEFRAMES = ['1h', '4h', '1D']
 
@@ -77,7 +78,7 @@ def _jobs(tf_filter: str | None = None) -> list[dict]:
 def _leveraged_jobs() -> list[dict]:
     """Return x2/x3 jobs for the current top-10 strategies by final_bal."""
     import sys
-    sys.path.insert(0, str(SCRIPTS))
+    sys.path.insert(0, str(REPORTS))
     from v4_generate_report import collect, STRATEGIES as RPT_STRATEGIES, VARIANTS as RPT_VARIANTS
 
     rows = collect()
@@ -136,7 +137,6 @@ def run_one(job: dict) -> dict:
         '--leverage', str(job.get('leverage', 1)),
         '--start',    '2017-08-18',
         '--end',      '2026-04-30',
-        '--no-upsample',
         '--timeframe', job['tf'],
         '--output',   out,
     ]
@@ -149,7 +149,8 @@ def run_one(job: dict) -> dict:
         elapsed = time.monotonic() - t0
         status = 'OK' if result.returncode == 0 else 'FAIL'
         if status == 'FAIL' and not _already_done(out):
-            _write_failure_marker(out, f'exit={result.returncode}')
+            err_snippet = (result.stderr or result.stdout or '')[-2000:]
+            _write_failure_marker(out, f'exit={result.returncode}\n{err_snippet}')
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - t0
         status = 'TIMEOUT'
@@ -270,12 +271,12 @@ def main() -> None:
     print('\nGenerating V4 reports...', flush=True)
     try:
         subprocess.run(
-            ['python', str(SCRIPTS / 'v4_generate_report.py')],
+            ['python', str(REPORTS / 'v4_generate_report.py')],
             timeout=300, check=True
         )
     except Exception as e:
         print(f'  [warn] Report generation failed: {e}')
-        print('  Run manually: python /jesse-project/scripts/v4_generate_report.py')
+        print(f'  Run manually: python {REPORTS / "v4_generate_report.py"}')
 
 
 if __name__ == '__main__':

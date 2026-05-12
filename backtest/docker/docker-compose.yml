@@ -57,15 +57,15 @@ services:
       JESSE_DB_USER: jesse
       JESSE_DB_PASSWORD: ***REMOVED***
       # 경로 설정
-      BACKTEST_DATA_ROOT: /app/data
-      DATA_DIR: /app/data
-      FG_DATA_PATH: /app/data/fear_greed/fear_greed_index.parquet
-      MACRO_CALENDAR_PATH: /app/data/macro_events/fomc_cpi_calendar.csv
+      BACKTEST_DATA_ROOT: /data
+      DATA_DIR: /data
+      FG_DATA_PATH: /data/fear_greed/fear_greed_index.parquet
+      MACRO_CALENDAR_PATH: /data/macro_events/fomc_cpi_calendar.csv
       # API (read-only 백테스트용)
       FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
-      - ../data:/app/data:ro          # OHLCV 원본 (read-only)
-      - ../results:/app/results       # 백테스트 결과 출력
+      - ../data:/data:ro              # OHLCV 원본 (read-only)
+      - ../results:/result            # 백테스트 결과 출력
       - ../runtime:/app/runtime       # Jesse 런타임 캐시
       - ../configs:/app/configs:ro    # Jesse 설정
       - ../strategies:/app/strategies # Jesse 전략 코드
@@ -74,8 +74,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
-          memory: 1G
+          cpus: "6.0"
+          memory: 8G
 
   # ── Walk-Forward 월간 스케줄러 ────────────────────────────────
   wf-scheduler:
@@ -94,8 +94,8 @@ services:
       JESSE_DB_NAME: jesse_db
       JESSE_DB_USER: jesse
       JESSE_DB_PASSWORD: ***REMOVED***
-      BACKTEST_DATA_ROOT: /app/data
-      DATA_DIR: /app/data
+      BACKTEST_DATA_ROOT: /data
+      DATA_DIR: /data
       MONTHLY_WF_CRON: ${MONTHLY_WF_CRON:-0 17 1 * *}
       WF_ON_STARTUP: ${WF_ON_STARTUP:-false}
       WF_SYMBOL: ${WF_SYMBOL:-BTCUSDT}
@@ -110,8 +110,8 @@ services:
       WF_MIN_FUNDING: ${WF_MIN_FUNDING:-0.0001}
       FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
-      - ../data:/app/data:ro
-      - ../results:/app/results
+      - ../data:/data:ro
+      - ../results:/result
       - ../runtime:/app/runtime
       - ../scripts:/app/scripts
       - ../strategies:/app/strategies

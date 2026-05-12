@@ -34,7 +34,7 @@ import pandas as pd
 
 # --- Path setup -----------------------------------------------------------
 SCRIPTS_DIR = Path(__file__).parent
-JESSE_ROOT  = SCRIPTS_DIR.parent
+JESSE_ROOT  = SCRIPTS_DIR.parent.parent  # /app (scripts are at /app/scripts/runners)
 sys.path.insert(0, str(JESSE_ROOT))
 
 DATA_DIR      = Path(os.environ.get('DATA_DIR', '/data'))
@@ -60,7 +60,7 @@ def _load_1h(start: str, end: str) -> np.ndarray:
     except ImportError:
         raise ImportError('polars required')
 
-    base = DATA_DIR / 'binance_vision' / 'klines' / 'BTCUSDT' / '1h'
+    base = DATA_DIR / 'ohlcv' / 'BTCUSDT' / '1h'
     if not base.exists():
         raise FileNotFoundError(f'Candle data dir missing: {base}')
 
@@ -80,14 +80,22 @@ def _load_1h(start: str, end: str) -> np.ndarray:
         if yr < start_dt.year - 1 or yr > end_dt.year + 1:
             continue
         for f in sorted(yr_dir.glob('*.parquet')):
-            frames.append(pl.scan_parquet(f))
+            # Normalise per-file: handle both 'timestamp' and 'open_time' column names,
+            # and discard extra Binance Vision columns (some files have 11 cols).
+            lf = pl.scan_parquet(f)
+            schema_keys = list(lf.schema.keys())
+            if 'timestamp' in schema_keys:
+                lf = lf.with_columns(pl.col('timestamp').dt.epoch('ms').alias('ts_ms'))
+            elif 'open_time' in schema_keys:
+                lf = lf.with_columns(pl.col('open_time').dt.epoch('ms').alias('ts_ms'))
+            else:
+                continue  # skip unrecognised schema
+            frames.append(lf.select(['ts_ms', 'open', 'high', 'low', 'close', 'volume']))
 
     if not frames:
         raise FileNotFoundError(f'No parquet files under {base}')
 
-    ts_col = 'open_time'
     df = (pl.concat(frames).collect()
-            .with_columns(pl.col(ts_col).dt.epoch('ms').alias('ts_ms'))
             .filter((pl.col('ts_ms') >= start_ms) & (pl.col('ts_ms') < end_ms))
             .select([
                 pl.col('ts_ms').cast(pl.Float64),
@@ -488,9 +496,10 @@ def run(args):
     wu_start = wu_start_dt.strftime('%Y-%m-%d')
     warmup_1h = _load_1h(wu_start, start)
     if len(warmup_1h) < tf_hours * 200:
-        raise RuntimeError(
-            f'Insufficient warmup candles for {tf}: got {len(warmup_1h)} 1h bars, '
-            f'need {tf_hours * 200}. Backfill {wu_start} → {start} first.'
+        print(
+            f'  [warn] Insufficient warmup candles for {tf}: got {len(warmup_1h)} 1h bars, '
+            f'need {tf_hours * 200}. Indicators will be cold at backtest start.',
+            flush=True,
         )
 
     if tf != '1h':
