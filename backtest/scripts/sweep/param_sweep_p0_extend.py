@@ -72,8 +72,8 @@ LEVERAGE   = 1
 FULL_START = '2017-08-18'
 FULL_END   = '2026-04-30'
 
-V2_DIR = Path('/result/param_sweep_v2')
-V3_DIR = Path('/result/param_sweep_v3')
+V2_DIR = Path('/result/param_sweep/v2')
+V3_DIR = Path('/result/param_sweep/v3')
 
 PERIODS_FULL: dict[str, tuple[str, str]] = {
     'p0': ('2018-04-01', '2020-06-30'),   # NEW: sideways/bear (2018 crypto winter + recovery)
