@@ -1,7 +1,7 @@
 ---
 title: CryptoEngine 문서 홈
 category: root
-last_updated: 2026-05-01
+last_updated: 2026-05-12
 ---
 
 # CryptoEngine 문서
@@ -153,11 +153,17 @@ docs/
 └── test/
     ├── README.md — 테스트 가이드 개요
     ├── backtest-skillset.md — 스킬셋 관리 규칙 (필수)
+    ├── param_sweep_v2.md — v2 파라미터 스윕 (2,688 backtests, 완료)
+    ├── param_sweep_v2_results.md — v2 실행 리포트
+    ├── param_sweep_v3.md — v3 세밀 격자 스윕 (supertrend 96 combo, 완료)
+    ├── rolling_window_test.md — 롤링 윈도우 방법론
+    ├── rolling_window_results_v2.md — v2 champion 기준 롤링 결과
     ├── jesse-engine.md — Jesse 프레임워크 설정
     ├── jesse-strategies.md — Jesse 전략 목록
     ├── jesse-vs-self-engine.md — 성과 비교
     ├── live-postmortem-template.md — 거래 분석 템플릿
-    └── phase4-checklist.md — Phase 4 완료 기준
+    ├── phase4-checklist.md — Phase 4 완료 기준
+    └── strategies/backtest/ — 7개 전략별 v2+v3 전체 파라미터 기록
 ```
 
 ---
@@ -172,3 +178,7 @@ docs/
 | 메인넷 전환 | ✅ 최신 | 2026-05-01 |
 | 용어집 | 📝 확장 필요 | 2026-05-01 |
 | Phase 4 체크리스트 | ✅ 활성 | 2026-04-12 |
+| param_sweep v2 | ✅ 완료 | 2026-05-12 |
+| param_sweep v3 | ⚠️ 부분 완료 | 2026-05-12 |
+| 7개 전략 백테스트 MD | ✅ v2+v3 반영 | 2026-05-12 |
+| V4 대시보드 | ✅ v2+v3 champion | 2026-05-12 |

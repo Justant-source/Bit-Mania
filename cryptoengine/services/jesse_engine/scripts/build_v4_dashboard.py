@@ -252,6 +252,71 @@ STRATEGY_META: dict[str, dict] = {
 }
 
 
+# ─── Optimal params (v2+v3 combined best per strategy/TF/variant) ─────────────
+
+def compute_optimal_params() -> dict[str, dict]:
+    """Load all param_sweep v2+v3 summary files and return best params per strat/TF."""
+    # Only the parameters actually swept per strategy — avoids leaking fixed HP into the table
+    _SWEEP_KEYS: dict[str, list[str]] = {
+        'supertrend':           ['st_factor', 'st_period'],
+        'supertrend_trendtype': ['st_factor', 'atr_len'],
+        'trendtype':            ['atr_len', 'di_len'],
+        'tradeiq_220320':       ['rsi_len', 'atr_mult'],
+        'tradeiq_220323':       ['cci_period', 'ce_mult'],
+        'stoch':                ['stoch_k_period', 'atr_mult'],
+        'momentum_ma':          ['lin_len', 'atr_mult', 'val_ma_len'],
+    }
+
+    sweep_bases = [
+        (CE_ROOT / 'backtest-results' / 'data' / 'param_sweep_v2', 'v2'),
+        (CE_ROOT / 'backtest-results' / 'data' / 'param_sweep_v3', 'v3'),
+    ]
+    # best[(strat, tf)] = {score, variant, params, version, combo, p1_cagr, p2_cagr, p3_cagr, p4_cagr, p1_mdd}
+    best: dict[tuple, dict] = {}
+
+    for base, version in sweep_bases:
+        if not base.exists():
+            continue
+        for summary_path in sorted(base.glob('*/*/*/combo_*/summary.json')):
+            parts = summary_path.parts
+            # … / param_sweep_v? / strat / tf / variant / combo_N / summary.json
+            strat   = parts[-5]
+            tf      = parts[-4]
+            variant = parts[-3]
+            try:
+                d = json.loads(summary_path.read_text())
+            except Exception:
+                continue
+            score = float(d.get('score', -999))
+            if score <= -999:
+                continue
+            key = (strat, tf)
+            periods = d.get('periods', {})
+            hp = d.get('hp', {})
+            sweep_keys = _SWEEP_KEYS.get(strat, list(hp.keys()))
+            entry = {
+                'score':   round(score, 2),
+                'variant': variant,
+                'params':  {k: hp[k] for k in sweep_keys if k in hp},
+                'version': version,
+                'combo':   int(parts[-2].split('_')[1]),
+                'p1_cagr': round(periods.get('p1', {}).get('cagr', 0), 1),
+                'p2_cagr': round(periods.get('p2', {}).get('cagr', 0), 1),
+                'p3_cagr': round(periods.get('p3', {}).get('cagr', 0), 1),
+                'p4_cagr': round(periods.get('p4', {}).get('cagr', 0), 1),
+                'p1_mdd':  round(periods.get('p1', {}).get('mdd', 0), 1),
+                'p2_mdd':  round(periods.get('p2', {}).get('mdd', 0), 1),
+            }
+            if key not in best or score > best[key]['score']:
+                best[key] = entry
+
+    # Reshape: result[strat][tf] = entry
+    result: dict[str, dict] = {}
+    for (strat, tf), entry in best.items():
+        result.setdefault(strat, {})[tf] = entry
+    return result
+
+
 # ─── Tier computation ─────────────────────────────────────────────────────────
 
 def compute_tier(stats: dict, tf: str, variant: str) -> str:
@@ -1740,6 +1805,47 @@ function renderDescription() {
           <b>양방향 (bidirectional)</b>: 롱·숏 모두 진입. 하락장에서도 수익 추구.
         </div>
       </div>
+      ${(()=>{
+        const op = m.optimal_params || {};
+        const tfs = ['1h','4h','1D'].filter(tf => op[tf]);
+        if (tfs.length === 0) return '';
+        const tfRows = tfs.map(tf => {
+          const e = op[tf];
+          const pkeys = Object.keys(e.params);
+          const pvals = pkeys.map(k => `<b>${k}</b>=${e.params[k]}`).join(', ');
+          const varBadge = e.variant === 'long_only'
+            ? `<span style="color:#3fb950;font-size:10px">롱전용</span>`
+            : `<span style="color:#f78166;font-size:10px">양방향</span>`;
+          const verBadge = `<span style="color:#8b949e;font-size:10px">${e.version}</span>`;
+          const cagrStr = `P1 ${e.p1_cagr>0?'+':''}${e.p1_cagr}% / P4 ${e.p4_cagr>0?'+':''}${e.p4_cagr}%`;
+          const mddStr  = `MDD ${e.p1_mdd}%`;
+          return `<tr>
+            <td style="padding:5px 8px;font-weight:700;color:#58a6ff;font-size:12px">${tf}</td>
+            <td style="padding:5px 8px;font-size:11px;color:#c9d1d9">${pvals}</td>
+            <td style="padding:5px 8px;font-size:10px;color:#8b949e">${varBadge} ${verBadge}</td>
+            <td style="padding:5px 8px;font-size:10px;color:#3fb950">score ${e.score>0?'+':''}${e.score}</td>
+            <td style="padding:5px 8px;font-size:10px;color:#8b949e">${cagrStr} | ${mddStr}</td>
+          </tr>`;
+        }).join('');
+        return `<div class="desc-section">
+          <h4>TF별 최적 파라미터 (v2+v3 스윕 결과)</h4>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="border-bottom:1px solid #30363d">
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">TF</th>
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">최적 파라미터</th>
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">Variant</th>
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">Score</th>
+              <th style="padding:5px 8px;color:#8b949e;text-align:left">성과 요약 (P1/P4)</th>
+            </tr></thead>
+            <tbody>${tfRows}</tbody>
+          </table>
+          </div>
+          <div style="font-size:10px;color:#8b949e;margin-top:6px">
+            Score = 4기간(P1~P4) CAGR 평균 (MDD≥-35% 조건 충족 시). P4 = 2022-12~2025-09 (Bull run)
+          </div>
+        </div>`;
+      })()}
     </div>`;
   }).join('');
 
@@ -2837,6 +2943,10 @@ def main():
         for i in range(1, len(closes))
     ]
 
+    # Compute TF-specific optimal params from sweep results
+    optimal_params = compute_optimal_params()
+    print(f'  Optimal params loaded: {sum(len(v) for v in optimal_params.values())} TF entries across {len(optimal_params)} strategies')
+
     # Build compact data payload
     data = {
         'generated_at':    datetime.now(timezone.utc).isoformat(),
@@ -2858,6 +2968,7 @@ def main():
             'exit_ko':      m.get('exit_ko', []),
             'exit_en':      m.get('exit_en', []),
             'indicators':   m.get('indicators', []),
+            'optimal_params': optimal_params.get(k, {}),
         } for k, m in STRATEGY_META.items()},
     }
     data_json = json.dumps(data, ensure_ascii=False, separators=(',', ':'))

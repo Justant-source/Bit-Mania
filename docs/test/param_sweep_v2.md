@@ -4,24 +4,27 @@ category: test
 related_code:
   - cryptoengine/services/jesse_engine/scripts/param_sweep_v2.py
   - cryptoengine/services/jesse_engine/scripts/param_sweep.py
-last_updated: 2026-05-11
-status: SCRIPT_READY / SWEEP_PENDING
-when_to_update: 스윕 실행 완료 후 status + 결과 섹션 업데이트
+last_updated: 2026-05-12
+status: COMPLETED
+when_to_update: v3 이후 추가 스윕 실행 시
 ---
 
 # param_sweep_v2 — TF별 최적 파라미터 발굴
 
-## 세션 완료 현황 (2026-05-11)
+## 세션 완료 현황 (2026-05-11~12)
 
 | 작업 | 상태 | 커밋 |
 |------|------|------|
 | param_sweep.py (4h/1D, 6 combos, 168 backtests) | ✅ 완료 | `432a88b` |
 | 2h 타임프레임 전체 제거 (코드 + docs) | ✅ 완료 | `dc34438` |
 | 7개 전략 MD 파일 생성 (v1 결과 기록) | ✅ 완료 | `432a88b` |
-| param_sweep_v2.py 스크립트 작성 | ✅ 완료 | (미커밋) |
-| **v2 스윕 실행 (2,688 backtests)** | ⏳ 미실행 | — |
-| v2 결과 → MD 파일 업데이트 | ⏳ 스윕 후 | — |
-| Champion run + 대시보드 재빌드 | ⏳ 스윕 후 | — |
+| param_sweep_v2.py 스크립트 작성 | ✅ 완료 | `fa636ed` |
+| **v2 스윕 실행 (2,688 backtests)** | ✅ 완료 | `7b040c2` |
+| v2 결과 → MD 파일 업데이트 | ✅ 완료 | `7b040c2` |
+| Champion run + 대시보드 재빌드 | ✅ 완료 | `7b040c2` |
+| param_sweep_v3.py 스크립트 작성 | ✅ 완료 | (본 커밋) |
+| **v3 스윕 실행 (supertrend 96 + tradeiq_220323 13 combo)** | ✅ 완료 | (본 커밋) |
+| v2+v3 Champion run + 대시보드 재빌드 | ✅ 완료 | (본 커밋) |
 
 ---
 
@@ -177,8 +180,36 @@ python3 cryptoengine/services/jesse_engine/scripts/build_v4_dashboard.py
    git commit -m "feat(7-strategies): v2 param sweep — TF별 최적 파라미터 발굴"
 ```
 
+## v2 스윕 최종 결과 요약 (2026-05-11 실행)
+
+### TF별 Champion (유효 조합만 — score > -999)
+
+| 전략 | TF | Variant | Combo | 주요 파라미터 | Score | P1 CAGR | P1 MDD |
+|------|----|---------|-------|------------|-------|---------|--------|
+| supertrend | 4h | long_only | c16 | factor=2.5, period=7 | +38.39 | +27.3% | -27.4% |
+| supertrend | 1D | long_only | c11 | factor=5.0, period=7 | +30.48 | +24.4% | -21.8% |
+| supertrend | 1h | long_only | c11 | factor=5.0, period=7 | +10.66 | +4.6% | -33.1% |
+| supertrend_trendtype | 4h | long_only | c6 | factor=2.0, atr_len=10 | +31.78 | +23.3% | -28.7% |
+| supertrend_trendtype | 1D | long_only | c10 | factor=2.5, atr_len=14 | +27.64 | +19.8% | -26.2% |
+| supertrend_trendtype | 1h | long_only | c11 | factor=5.0, atr_len=14 | +13.61 | +6.3% | -33.2% |
+| trendtype | 4h | long_only | c6 | atr_len=10, di_len=10 | +29.33 | +21.0% | -22.2% |
+| trendtype | 1D | long_only | c6 | atr_len=10, di_len=10 | +23.74 | +18.2% | -19.5% |
+| tradeiq_220320 | 1D | long_only | c3 | rsi_len=18, atr_mult=3.0 | +22.12 | +20.7% | -24.9% |
+| tradeiq_220320 | 4h | long_only | c9 | rsi_len=21, atr_mult=3.0 | +11.67 | +9.3% | -31.3% |
+| tradeiq_220323 | 4h | bidir | c3 | cci_period=26, ce_mult=3.0 | +17.27 | +10.0% | -28.1% |
+| stoch | — | — | — | 전 조합 FAIL (MDD > -35%) | -999 | — | — |
+| momentum_ma | — | — | — | 전 조합 FAIL (MDD > -35%) | -999 | — | — |
+
+> stoch: `use_direction_ema=False` 고정이 원인 → v3에서 `True`로 재탐색  
+> momentum_ma: `val_ma_len=100` 고정이 원인 → v3에서 3rd param으로 추가 탐색
+
+상세 내용: [strategies/backtest/](strategies/backtest/) 각 전략 MD 참조
+
+---
+
 ## 관련 문서
 
+- [param_sweep_v3.md](param_sweep_v3.md) — v3 추가 탐색 (champion 인근 세밀 격자 + stoch/momentum_ma 재탐색)
 - [rolling_window_test.md](rolling_window_test.md) — 전략 생존 검증 방법론
 - [strategies/backtest/](strategies/backtest/) — 전략별 파라미터 레퍼런스
 - `cryptoengine/services/jesse_engine/scripts/param_sweep_v2.py` — 스윕 스크립트
