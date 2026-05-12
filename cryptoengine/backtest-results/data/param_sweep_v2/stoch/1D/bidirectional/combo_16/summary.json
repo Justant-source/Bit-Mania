@@ -1,0 +1,52 @@
+{
+  "strategy": "stoch",
+  "tf": "1D",
+  "variant": "bidirectional",
+  "combo_idx": 16,
+  "hp": {
+    "fast_n": 7,
+    "slow_n": 20,
+    "direction_ema_len": 200,
+    "stoch_k_period": 14,
+    "stoch_smooth": 3,
+    "ob_level": 80.0,
+    "os_level": 20.0,
+    "atr_mult": 1.5,
+    "use_direction_ema": false
+  },
+  "score": -999.0,
+  "periods": {
+    "p1": {
+      "cagr": -12.3241,
+      "sharpe": 0.0213,
+      "mdd": -72.971,
+      "trades": 184,
+      "win_rate": 50.5435,
+      "pf": 0.9312
+    },
+    "p2": {
+      "cagr": -13.2908,
+      "sharpe": -0.0981,
+      "mdd": -71.48,
+      "trades": 134,
+      "win_rate": 50.0,
+      "pf": 0.9214
+    },
+    "p3": {
+      "cagr": -13.5737,
+      "sharpe": 0.0048,
+      "mdd": -72.0033,
+      "trades": 164,
+      "win_rate": 50.0,
+      "pf": 0.9281
+    },
+    "p4": {
+      "cagr": -15.4387,
+      "sharpe": -0.1531,
+      "mdd": -70.4589,
+      "trades": 114,
+      "win_rate": 49.1228,
+      "pf": 0.9147
+    }
+  }
+}

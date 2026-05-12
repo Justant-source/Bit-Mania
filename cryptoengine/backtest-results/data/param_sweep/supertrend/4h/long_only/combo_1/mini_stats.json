@@ -1,0 +1,29 @@
+{
+  "strategy": "supertrend",
+  "tf": "4h",
+  "variant": "long_only",
+  "combo_idx": 1,
+  "annual_return_pct": 36.2851,
+  "sharpe_ratio": 1.1212,
+  "max_drawdown_pct": -27.6325,
+  "total_trades": 262,
+  "win_rate_pct": 42.7481,
+  "profit_factor": 1.3158,
+  "verdict": "PASS",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": true,
+    "MDD \u2265 -30%": true,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": true,
+    "ProfitFactor \u2265 1.2": true
+  },
+  "hp": {
+    "st_factor": 2.0,
+    "st_period": 7,
+    "fast_ema_len": 7,
+    "slow_ema_len": 20,
+    "direction_ema_len": 200,
+    "atr_mult": 3.0
+  }
+}

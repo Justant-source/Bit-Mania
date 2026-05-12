@@ -1,0 +1,3 @@
+status: SUCCESS_RECONSTRUCTED
+reason: data complete (stats.json + trades.csv) but original marker missing
+reconstructed_at: 2026-05-10T10:32:27Z

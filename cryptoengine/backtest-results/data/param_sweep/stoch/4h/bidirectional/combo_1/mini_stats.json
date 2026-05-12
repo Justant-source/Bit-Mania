@@ -1,0 +1,32 @@
+{
+  "strategy": "stoch",
+  "tf": "4h",
+  "variant": "bidirectional",
+  "combo_idx": 1,
+  "annual_return_pct": 7.2115,
+  "sharpe_ratio": 0.4035,
+  "max_drawdown_pct": -62.4384,
+  "total_trades": 383,
+  "win_rate_pct": 51.1749,
+  "profit_factor": 1.0207,
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": true,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": false,
+    "Trades \u2265 30": true,
+    "WinRate \u2265 35%": true,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "hp": {
+    "fast_n": 7,
+    "slow_n": 20,
+    "direction_ema_len": 200,
+    "stoch_k_period": 10,
+    "stoch_smooth": 3,
+    "ob_level": 80.0,
+    "os_level": 20.0,
+    "atr_mult": 3.0,
+    "use_direction_ema": false
+  }
+}

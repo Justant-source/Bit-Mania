@@ -13,12 +13,12 @@ node_modules/
 # Claude Code runtime
 .claude/scheduled_tasks.lock
 
-# Backtest input data (large binary, re-downloadable)
-cryptoengine/backtest-results/data/
+# backtest raw data & runtime cache (large files, re-downloadable)
+backtest/data/
+backtest/runtime/
 
-# Jesse backtest runtime artifacts (UUID raw results)
-cryptoengine/services/jesse_engine/storage/json/
-cryptoengine/services/jesse_engine/storage/csv/
+# dashboard HTML (generated artifact)
+backtest/results/**/dashboard.html
 
 # LLM Advisor data source runtime files
 cryptoengine/services/llm-advisor/alerts/*.md

@@ -1,0 +1,3 @@
+"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
+"7012cecd-62e0-46fa-b2bb-59fc503e74f6","MomentumMAStrategy","BTC-USDT","Bybit Perpetual","long","61682.0","113244.8","0.015401575824389611","1.48178160565481","950.0","792.6665923121819","83.4385886644402","34560000.0","1719518460000.0","1754078460000.0"
+"757e5e16-5cb7-48fd-b5d7-c7441df67e0e","MomentumMAStrategy","BTC-USDT","Bybit Perpetual","long","113244.8","88455.3","0.015038511814198732","1.6682981352262862","1703.0332626965726","-374.46548675330575","-21.988148731773997","13046400.0","1754078460000.0","1767124860000.0"

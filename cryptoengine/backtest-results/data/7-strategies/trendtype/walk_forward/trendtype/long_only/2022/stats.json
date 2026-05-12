@@ -1,0 +1,33 @@
+{
+  "annual_return_pct": 0.0,
+  "cagr_pct": 0.0,
+  "sharpe_ratio": 0.0,
+  "max_drawdown_pct": 0.0,
+  "total_trades": 0,
+  "win_rate_pct": 0.0,
+  "profit_factor": 0.0,
+  "gross_profit": 0.0,
+  "gross_loss": 0.0,
+  "net_profit_pct": 0.0,
+  "no_upsample": true,
+  "start": "2022-01-01",
+  "end": "2022-12-31",
+  "raw_metrics": {
+    "total": 0,
+    "win_rate": 0,
+    "net_profit_percentage": 0
+  },
+  "strategy": "TrendTypeStrategy",
+  "verdict": "FAIL",
+  "checks": {
+    "CAGR \u2265 5%": false,
+    "Sharpe \u2265 0.5": false,
+    "MDD \u2265 -30%": true,
+    "Trades \u2265 30": false,
+    "WinRate \u2265 35%": false,
+    "ProfitFactor \u2265 1.2": false
+  },
+  "starting_balance": 10000.0,
+  "leverage": 1,
+  "variant": "long_only"
+}
