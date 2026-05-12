@@ -3,8 +3,12 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import RESULTS_ROOT
 
 def load_stats(filepath):
     """Load stats.json safely"""
@@ -103,7 +107,7 @@ Long Only: Sharpe {lo_sharpe:.4f} vs BnH threshold {bnh_sharpe * 0.7:.4f}
         f.write(content)
 
 def main():
-    base_dir = Path(__file__).parent.parent.parent.parent.parent / 'backtest-results' / 'data' / 'batch_3'
+    base_dir = RESULTS_ROOT / 'batch_3'
 
     # Load BnH stats
     bnh_stats = load_stats(base_dir / "buy_and_hold" / "stats.json")

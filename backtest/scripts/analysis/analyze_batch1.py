@@ -4,10 +4,13 @@ Analyze Batch 1 backtest results and generate decision.md files
 """
 import json
 import os
+import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).parent
-BATCH1_DIR = SCRIPT_DIR.parent.parent.parent.parent / 'backtest-results' / 'data' / 'batch_1'
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import RESULTS_ROOT
+
+BATCH1_DIR = RESULTS_ROOT / 'batch_1'
 
 # BnH benchmark
 BNH_STATS_PATH = str(BATCH1_DIR / 'buy_and_hold' / 'stats.json')

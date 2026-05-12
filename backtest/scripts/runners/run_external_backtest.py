@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 # --- Path setup -----------------------------------------------------------
 SCRIPTS_DIR = Path(__file__).parent
@@ -264,23 +265,46 @@ def _write_stats(out_dir: Path, strategy: str, metrics: dict, verdict: str, chec
     data = {**metrics, 'strategy': strategy, 'verdict': verdict,
             'checks': {k: bool(v) for k, v in checks.items()},
             'starting_balance': balance, 'leverage': leverage, 'variant': variant}
+    # Write JSON
     with open(out_dir / 'stats.json', 'w') as f:
         json.dump(data, f, indent=2)
+    # Write Parquet for easier analytics
+    try:
+        pd.DataFrame([data]).to_parquet(out_dir / 'stats.parquet', index=False)
+    except Exception as e:
+        print(f'  [warn] stats.parquet write failed: {e}')
 
 
 def _write_trades(out_dir: Path, trades: list):
+    # Prepare data for both CSV and Parquet
+    trades_data = []
+    for t in trades:
+        trades_data.append({
+            'opened_at': t.get('opened_at'),
+            'closed_at': t.get('closed_at'),
+            'side': t.get('type'),
+            'entry_price': t.get('entry_price'),
+            'exit_price': t.get('exit_price'),
+            'qty': t.get('qty'),
+            'pnl': t.get('PNL', t.get('pnl', t.get('net_profit', 0))),
+            'fee': t.get('fee'),
+        })
+
+    # Write CSV
     with open(out_dir / 'trades.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['opened_at', 'closed_at', 'side', 'entry_price',
                          'exit_price', 'qty', 'pnl', 'fee'])
-        for t in trades:
-            writer.writerow([
-                t.get('opened_at'), t.get('closed_at'), t.get('type'),
-                t.get('entry_price'), t.get('exit_price'),
-                t.get('qty'),
-                t.get('PNL', t.get('pnl', t.get('net_profit', 0))),
-                t.get('fee'),
-            ])
+        for row in trades_data:
+            writer.writerow([row[k] for k in ['opened_at', 'closed_at', 'side',
+                                              'entry_price', 'exit_price', 'qty', 'pnl', 'fee']])
+
+    # Write Parquet for easier analytics
+    try:
+        df = pd.DataFrame(trades_data)
+        df.to_parquet(out_dir / 'trades.parquet', index=False)
+    except Exception as e:
+        print(f'  [warn] trades.parquet write failed: {e}')
 
 
 def _write_equity_curve(out_dir: Path, strategy: str, equity_curve):
@@ -316,7 +340,7 @@ def _write_equity_curve(out_dir: Path, strategy: str, equity_curve):
 
 
 def _write_monthly_returns(out_dir: Path, trades: list, start: str, end: str):
-    """Compute monthly P&L from trades and write CSV."""
+    """Compute monthly P&L from trades and write CSV + Parquet."""
     monthly: dict[str, float] = {}
     for t in trades:
         closed_ms = t.get('closed_at')
@@ -330,11 +354,19 @@ def _write_monthly_returns(out_dir: Path, trades: list, start: str, end: str):
         except Exception:
             continue
 
+    # Write CSV
     with open(out_dir / 'monthly_returns.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['month', 'pnl_usdt'])
         for k in sorted(monthly):
             writer.writerow([k, round(monthly[k], 2)])
+
+    # Write Parquet for easier analytics
+    try:
+        df = pd.DataFrame([{'month': k, 'pnl_usdt': monthly[k]} for k in sorted(monthly)])
+        df.to_parquet(out_dir / 'monthly_returns.parquet', index=False)
+    except Exception as e:
+        print(f'  [warn] monthly_returns.parquet write failed: {e}')
 
 
 def _write_decision(out_dir: Path, strategy: str, metrics: dict, verdict: str, checks: dict):

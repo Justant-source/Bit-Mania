@@ -33,11 +33,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).parent
-JESSE_ROOT = SCRIPT_DIR.parent
-CE_ROOT    = JESSE_ROOT.parent.parent
-RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '7-strategies'
-BTC_KLINES = CE_ROOT / 'backtest-results' / 'data' / 'binance_vision' / 'klines' / 'BTCUSDT'
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import DATA_ROOT, RESULTS_ROOT
+
+RESULT_DIR = RESULTS_ROOT / '7-strategies'
+BTC_KLINES = DATA_ROOT / 'binance_vision' / 'klines' / 'BTCUSDT'
 
 DEFAULT_HTML = RESULT_DIR / 'dashboard.html'
 

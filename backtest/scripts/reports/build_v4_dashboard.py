@@ -22,12 +22,12 @@ from pathlib import Path
 import pandas as pd
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = Path(__file__).parent
-JESSE_ROOT = SCRIPT_DIR.parent            # cryptoengine/services/jesse_engine/
-CE_ROOT    = JESSE_ROOT.parent.parent     # cryptoengine/
-RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '7-strategies'
-BTC_KLINES = CE_ROOT / 'backtest-results' / 'data' / 'binance_vision' / 'klines' / 'BTCUSDT'
-DEFAULT_OUT = CE_ROOT / 'backtest-results' / 'data' / '7-strategies' / 'dashboard.html'
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import DATA_ROOT, RESULTS_ROOT, DASHBOARDS_ROOT
+
+RESULT_DIR = RESULTS_ROOT / '7-strategies'
+BTC_KLINES = DATA_ROOT / 'binance_vision' / 'klines' / 'BTCUSDT'
+DEFAULT_OUT = RESULT_DIR / 'dashboard.html'
 
 # ─── Backtest parameters ───────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '4h', '1D']
@@ -337,6 +337,30 @@ def compute_tier(stats: dict, tf: str, variant: str) -> str:
 # ─── Data collection ─────────────────────────────────────────────────────────
 
 def _load_csv_trades(path: Path) -> list[dict]:
+    # Try Parquet first, then CSV
+    parquet_path = path.with_suffix('.parquet')
+    if parquet_path.exists():
+        try:
+            df = pd.read_parquet(parquet_path)
+            trades = []
+            for _, row in df.iterrows():
+                try:
+                    trades.append({
+                        't_open':  int(float(row['opened_at'])),
+                        't_close': int(float(row['closed_at'])),
+                        'side':    row['side'],
+                        'entry':   float(row['entry_price']),
+                        'exit':    float(row['exit_price']),
+                        'qty':     float(row['qty']),
+                        'pnl':     float(row['pnl']),
+                        'fee':     float(row['fee']),
+                    })
+                except (KeyError, ValueError, TypeError):
+                    pass
+            return sorted(trades, key=lambda t: t['t_close'])
+        except Exception:
+            pass  # Fall through to CSV
+
     if not path.exists():
         return []
     trades = []
@@ -359,6 +383,21 @@ def _load_csv_trades(path: Path) -> list[dict]:
 
 
 def _load_csv_monthly(path: Path) -> list[dict]:
+    # Try Parquet first, then CSV
+    parquet_path = path.with_suffix('.parquet')
+    if parquet_path.exists():
+        try:
+            df = pd.read_parquet(parquet_path)
+            rows = []
+            for _, row in df.iterrows():
+                try:
+                    rows.append({'month': row['month'], 'pnl': float(row['pnl_usdt'])})
+                except (KeyError, ValueError, TypeError):
+                    pass
+            return rows
+        except Exception:
+            pass  # Fall through to CSV
+
     if not path.exists():
         return []
     rows = []

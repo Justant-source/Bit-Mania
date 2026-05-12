@@ -24,10 +24,10 @@ import pandas as pd
 warnings.filterwarnings('ignore', message='Converting to PeriodArray')
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = Path(__file__).parent
-JESSE_ROOT = SCRIPT_DIR.parent
-CE_ROOT    = JESSE_ROOT.parent.parent
-RESULT_DIR = CE_ROOT / 'backtest-results' / 'data' / '7-strategies'
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import RESULTS_ROOT
+
+RESULT_DIR = RESULTS_ROOT / '7-strategies'
 OUT_DIR    = RESULT_DIR / 'rolling_window'
 
 # ─── Parameters ───────────────────────────────────────────────────────────────

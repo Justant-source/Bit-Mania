@@ -28,6 +28,9 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _paths import RESULTS_ROOT
+
 OLD_FEE_RATE = 0.00055   # Bybit taker
 NEW_FEE_RATE = 0.0002    # Bybit maker (limit order)
 FEE_RATIO    = NEW_FEE_RATE / OLD_FEE_RATE   # ≈ 0.3636 (legacy — no longer used)
@@ -37,9 +40,7 @@ FEE_RATIO    = NEW_FEE_RATE / OLD_FEE_RATE   # ≈ 0.3636 (legacy — no longer 
 # PnL is then recomputed from price diff − fee. Running this script
 # any number of times converges to the same correct values.
 
-DEFAULT_RESULT_DIR = Path(
-    '/home/justant/Data/Bit-Mania/cryptoengine/backtest-results/data/7-strategies'
-)
+DEFAULT_RESULT_DIR = RESULTS_ROOT / '7-strategies'
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
