@@ -79,8 +79,10 @@ make emergency                              # 비상 청산
 **Redis Pub/Sub 채널**: `docs/architecture/data-flow.md`
 **PostgreSQL 테이블**: `docs/structure/README.md`
 **환경 변수**: `docs/runbook.md`
-**백테스트 스킬셋**: `services/jesse_engine/scripts/README.md`
-**백테스트 헬퍼 가이드**: `cryptoengine/tests/backtest/README.md` (스크립트는 `services/jesse_engine/scripts/` 단일 관리)
+**백테스트 진입점**: `backtest/README.md` (전략 R&D 통합 트리)
+**백테스트 스킬셋**: `backtest/docs/methodology/backtest-skillset.md`
+**백테스트 스크립트**: `backtest/scripts/` (카테고리별 분류: runners/sweep/analysis/reports/audit/data)
+**백테스트 인프라**: `backtest/docker/docker-compose.yml` (별도 backtest-postgres, port 5433)
 
 ## 코드 작업 시 필수 규칙
 
