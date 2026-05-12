@@ -18,7 +18,7 @@ SYMBOL = 'BTCUSDT'
 # 스크립트 위치: backtest/scripts/data/fetch_bybit_funding_history.py
 # 목표 위치: backtest/data/funding/BTCUSDT_8h.parquet
 SCRIPT_DIR = Path(__file__).resolve().parent  # .../backtest/scripts/data
-OUT_PATH = SCRIPT_DIR.parents[2] / 'data' / 'funding' / f'{SYMBOL}_8h.parquet'
+OUT_PATH = SCRIPT_DIR.parents[1] / 'data' / 'funding' / f'{SYMBOL}_8h.parquet'
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # 목표 기간

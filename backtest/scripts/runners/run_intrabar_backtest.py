@@ -613,35 +613,52 @@ def run(args):
             no_upsample = False
 
     elif tf != '1h':
-        # For non-1h TFs, load 1h and resample to target TF, then expand to 1m
-        candles_1h = _load_1h(start, end)
+        # For non-1h TFs, use real 1m OHLC directly (intrabar wick evaluation)
+        try:
+            candles_1m = _load_1m(start, end)
+            print(f'  Using real 1m candles for {tf} wick-based stop evaluation')
 
-        start_dt = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
-        warmup_days = max(60, tf_hours * 220 // 24 + 1)
-        wu_start_dt = start_dt - timedelta(days=warmup_days)
-        wu_start = wu_start_dt.strftime('%Y-%m-%d')
-        warmup_1h = _load_1h(wu_start, start)
-        if len(warmup_1h) < tf_hours * 200:
-            print(
-                f'  [warn] Insufficient warmup candles for {tf}: got {len(warmup_1h)} 1h bars, '
-                f'need {tf_hours * 200}. Indicators will be cold at backtest start.',
-                flush=True,
-            )
+            from datetime import timedelta
+            start_dt = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+            tf_minutes = TF_MINUTES[tf]
+            warmup_days = max(60, tf_minutes * 220 // 1440 + 1)
+            wu_start_dt = start_dt - timedelta(days=warmup_days)
+            wu_start = wu_start_dt.strftime('%Y-%m-%d')
+            try:
+                warmup_1m = _load_1m(wu_start, start)
+            except Exception:
+                # fallback to 1h-based warmup if 1m data not available for warmup period
+                warmup_1h = _load_1h(wu_start, start)
+                warmup_1m = _upsample_to_1m(warmup_1h)
 
-        tf_minutes = TF_MINUTES[tf]
-        candles_tf = _resample_1h(candles_1h, tf)
-        warmup_tf  = _resample_1h(warmup_1h, tf)
-        if len(warmup_tf) == 0:
-            borrow = min(200, max(1, len(candles_tf) // 4))
-            warmup_tf  = candles_tf[:borrow]
-            candles_tf = candles_tf[borrow:]
-            print(f'  [warn] No prior warmup data; borrowed {borrow} {tf} bars from main candles as warmup.')
-        candles_1m = _expand_tf_to_1m(candles_tf, tf_minutes)
-        warmup_1m  = _expand_tf_to_1m(warmup_tf, tf_minutes)
-        no_upsample = True
-        route_tf = tf
-        print(f'  Main: {len(candles_1h):,} 1h → {len(candles_tf):,} {tf} → {len(candles_1m):,} 1m')
-        print(f'  Warmup: {len(warmup_tf):,} {tf} → {len(warmup_1m):,} 1m')
+            no_upsample = True
+            route_tf = tf
+            print(f'  Main: {len(candles_1m):,} real 1m')
+            print(f'  Warmup: {len(warmup_1m):,} 1m')
+        except Exception as e:
+            # Fallback: original expand-to-1m approach
+            print(f'  [warn] Failed to load real 1m for {tf}: {e}. Falling back to 1h expansion.')
+            from datetime import timedelta
+            candles_1h = _load_1h(start, end)
+            start_dt = datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+            tf_hours = TF_MINUTES.get(tf, 60) // 60
+            warmup_days = max(60, tf_hours * 220 // 24 + 1)
+            wu_start_dt = start_dt - timedelta(days=warmup_days)
+            wu_start = wu_start_dt.strftime('%Y-%m-%d')
+            warmup_1h = _load_1h(wu_start, start)
+            tf_minutes = TF_MINUTES[tf]
+            candles_tf = _resample_1h(candles_1h, tf)
+            warmup_tf  = _resample_1h(warmup_1h, tf)
+            if len(warmup_tf) == 0:
+                borrow = min(200, max(1, len(candles_tf) // 4))
+                warmup_tf  = candles_tf[:borrow]
+                candles_tf = candles_tf[borrow:]
+            candles_1m = _expand_tf_to_1m(candles_tf, tf_minutes)
+            warmup_1m  = _expand_tf_to_1m(warmup_tf, tf_minutes)
+            no_upsample = True
+            route_tf = tf
+            print(f'  Main: {len(candles_1h):,} 1h → {len(candles_1m):,} 1m (fallback)')
+            print(f'  Warmup: {len(warmup_1m):,} 1m (fallback)')
 
     else:
         # 1h without real 1m (fallback/legacy)

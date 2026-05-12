@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 import calendar
 
-OUT_DIR = Path(__file__).parents[3] / 'data' / 'ohlcv' / 'BTCUSDT' / '1m'
+OUT_DIR = Path(__file__).parents[2] / 'data' / 'ohlcv' / 'BTCUSDT' / '1m'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 BASE_URL = 'https://api.binance.com/api/v3/klines'
