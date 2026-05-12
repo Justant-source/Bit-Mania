@@ -2636,6 +2636,45 @@ function renderAll() {
   renderValidationViews();
   renderDescription();
   updateHeader();
+  _checkNoDataBanner();
+}
+
+// ── No-data warning banner ────────────────────────────────────
+const _TRADES_START_MS = (() => {
+  let min = Infinity;
+  for (const g of Object.values(DATA.groups)) {
+    for (const r of g) {
+      for (const t of (r.trades || [])) {
+        if (t.t_open < min) min = t.t_open;
+      }
+    }
+  }
+  return isFinite(min) ? min : DATA.data_end_ms;
+})();
+const _TRADES_END_MS = (() => {
+  let max = -Infinity;
+  for (const g of Object.values(DATA.groups)) {
+    for (const r of g) {
+      for (const t of (r.trades || [])) {
+        if (t.t_close > max) max = t.t_close;
+      }
+    }
+  }
+  return isFinite(max) ? max : DATA.data_end_ms;
+})();
+const _TRADES_START_YEAR = new Date(_TRADES_START_MS).getUTCFullYear();
+
+function _checkNoDataBanner() {
+  const banner = document.getElementById('no-data-banner');
+  if (!banner) return;
+  const noOverlap = state.endMs < _TRADES_START_MS || state.startMs > _TRADES_END_MS;
+  if (noOverlap) {
+    const selYear = new Date(state.startMs).getUTCFullYear();
+    banner.textContent = `⚠ ${selYear}년에는 백테스트 거래 기록이 없습니다. 이 대시보드의 백테스트는 ${_TRADES_START_YEAR}년부터 시작됩니다.`;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────
@@ -2664,6 +2703,21 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   }
   document.getElementById('dateApply').addEventListener('click', onDateChange);
+
+  // Grey-out year presets with no trade data
+  document.querySelectorAll('.tag.preset[data-preset]').forEach(el => {
+    const p = el.dataset.preset;
+    if (/^\d{4}$/.test(p)) {
+      const yr = parseInt(p);
+      const yrEndMs   = Date.UTC(yr, 11, 31, 23, 59, 59);
+      const yrStartMs = Date.UTC(yr, 0, 1);
+      if (yrEndMs < _TRADES_START_MS || yrStartMs > _TRADES_END_MS) {
+        el.style.opacity = '0.35';
+        el.style.cursor  = 'default';
+        el.title = `${p}년에는 백테스트 데이터가 없습니다 (데이터: ${_TRADES_START_YEAR}년~)`;
+      }
+    }
+  });
 
   document.querySelectorAll('.tag.preset').forEach(el => {
     el.addEventListener('click', () => {
@@ -2807,6 +2861,9 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
 
   <!-- Main -->
   <main class="main">
+
+    <!-- No-data warning banner -->
+    <div id="no-data-banner" style="display:none;background:#2d1f00;border:1px solid #d29922;border-radius:8px;padding:12px 16px;font-size:13px;color:#d29922;font-weight:500;"></div>
 
     <!-- KPI Cards -->
     <div>
