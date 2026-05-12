@@ -1,6 +1,6 @@
 ---
 strategy: SupertrendStrategy
-verdict: PASS
+verdict: FAIL
 created: 2026-05-12
 ---
 
@@ -10,19 +10,19 @@ created: 2026-05-12
 
 | 항목 | 결과 | 기준 | 통과 |
 |------|------|------|------|
-| CAGR | 28.09% | ≥ +5% | ✓ |
-| Sharpe | 0.947 | ≥ 0.5 | ✓ |
-| MDD | -23.96% | ≥ -30% | ✓ |
-| Trades | 40 | ≥ 30 | ✓ |
-| Win Rate | 45.0% | ≥ 35% | ✓ |
-| Profit Factor | 2.056 | ≥ 1.2 | ✓ |
+| CAGR | 37.26% | ≥ +5% | ✓ |
+| Sharpe | 1.143 | ≥ 0.5 | ✓ |
+| MDD | -30.36% | ≥ -30% | ✗ |
+| Trades | 68 | ≥ 30 | ✓ |
+| Win Rate | 50.0% | ≥ 35% | ✓ |
+| Profit Factor | 2.069 | ≥ 1.2 | ✓ |
 
-## 종합 판정: **PASS**
+## 종합 판정: **FAIL**
 
 ## 관찰 사항
-- 백테스트 기간: 2021-01-01 ~ 2026-04-30 (6년)
+- 백테스트 기간: 2017-08-18 ~ 2026-04-30 (6년)
 - 기준: post-ETF 압축장 표준 (backtest-skillset.md)
 
 ## CryptoEngine 적용 권고
-- [ ] walk-forward 검증 후 paper trading 검토
-- [ ] fa80_lev5_r30 기존 전략과 상관관계 분석 필요
+- [ ] archived 처리 (폐기 round 1)
+- [ ] 실패 항목: MDD ≥ -30%
