@@ -16,7 +16,8 @@ node_modules/
 # backtest raw data & runtime cache (large files, re-downloadable)
 backtest/data/
 backtest/runtime/
-data/  # project-root level data dir (wrong path, should be backtest/data/)
+# project-root data/ dir (wrong path artifacts, should be backtest/data/)
+/data/
 
 # dashboard HTML (generated artifact)
 backtest/results/**/dashboard.html
