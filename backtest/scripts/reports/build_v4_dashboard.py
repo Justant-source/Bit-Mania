@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from _paths import DATA_ROOT, RESULTS_ROOT, DASHBOARDS_ROOT
 
 RESULT_DIR = RESULTS_ROOT / '7-strategies'
-BTC_KLINES = DATA_ROOT / 'binance_vision' / 'klines' / 'BTCUSDT'
+BTC_KLINES = DATA_ROOT / 'ohlcv' / 'BTCUSDT'
 DEFAULT_OUT = RESULT_DIR / 'dashboard.html'
 
 # ─── Backtest parameters ───────────────────────────────────────────────────────
@@ -36,11 +36,20 @@ STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
                'bidirectional_x3', 'long_only_x3']
-START_MS    = int(datetime(2021, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+START_MS    = int(datetime(2017, 8, 18, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+_N_DAYS     = int((END_MS - START_MS) / 86_400_000) + 1  # days inclusive
 
-# BnH Sharpe: 1D only (universal benchmark, 2021-04-01 ~ 2025-12-31)
-BNH_SHARPE = {'1h': 0.418, '4h': 0.418, '1D': 0.418}
+
+def _load_bnh_sharpe() -> dict:
+    """Read BnH Sharpe from the 1D buy_and_hold results (dynamically)."""
+    p = RESULT_DIR / 'buy_and_hold' / '1D' / 'buy_and_hold' / 'stats.json'
+    try:
+        s = json.loads(p.read_text())
+        v = float(s.get('sharpe_ratio', 0) or 0)
+    except Exception:
+        v = 0.418  # fallback if results not yet available
+    return {'1h': v, '4h': v, '1D': v}
 
 # ─── Strategy metadata (Korean / English bilingual) ───────────────────────────
 STRATEGY_META: dict[str, dict] = {
@@ -326,7 +335,7 @@ def compute_tier(stats: dict, tf: str, variant: str) -> str:
     sharpe = stats.get('sharpe_ratio', -999)
     mdd    = stats.get('max_drawdown_pct', -999)
     trades = stats.get('total_trades', 0)
-    bnh_s  = BNH_SHARPE.get(tf, 0.9)
+    bnh_s  = _load_bnh_sharpe().get(tf, 0.9)
     if sharpe >= bnh_s * 0.7 and cagr >= 5 and mdd >= -30 and trades >= 30:
         return 'A'
     if sharpe >= 0.3 and cagr >= 0 and mdd >= -40:
@@ -530,18 +539,26 @@ def collect_all_results(btc_daily: list[dict] | None = None) -> dict:
 # ─── BTC Price Data ───────────────────────────────────────────────────────────
 
 def load_btc_1d() -> list[dict]:
-    """Load BTC 1D OHLC from parquet files (2020-2026)."""
+    """Load BTC 1D OHLC from parquet files (2017-2026)."""
     frames = []
     base = BTC_KLINES / '1d'
-    for year in range(2020, 2027):
+    for year in range(2017, 2027):
         for month in range(1, 13):
             p = base / str(year) / f'{month:02d}.parquet'
-            if p.exists():
-                frames.append(pd.read_parquet(p, columns=['open_time','open','high','low','close']))
+            if not p.exists():
+                continue
+            df_chunk = pd.read_parquet(p)
+            # Normalise column name: 'timestamp' → 'open_time'
+            if 'timestamp' in df_chunk.columns and 'open_time' not in df_chunk.columns:
+                df_chunk = df_chunk.rename(columns={'timestamp': 'open_time'})
+            frames.append(df_chunk[['open_time', 'open', 'high', 'low', 'close']])
     if not frames:
         return []
     df = pd.concat(frames).sort_values('open_time')
-    df = df[(df['open_time'] >= pd.Timestamp('2021-01-01', tz='UTC')) &
+    # Ensure tz-aware for comparison
+    if df['open_time'].dt.tz is None:
+        df['open_time'] = df['open_time'].dt.tz_localize('UTC')
+    df = df[(df['open_time'] >= pd.Timestamp('2017-08-18', tz='UTC')) &
             (df['open_time'] <= pd.Timestamp('2026-04-30', tz='UTC'))]
     return [
         {
@@ -558,10 +575,10 @@ def load_btc_1d() -> list[dict]:
 # ─── Derived metrics helpers ─────────────────────────────────────────────────
 
 def _compute_daily_returns(equity_points: list[dict]) -> list[float]:
-    """Trade-based equity → 1946 daily forward-filled pct returns (2021-01-02 … 2026-04-30)."""
+    """Trade-based equity → N daily forward-filled pct returns (START_MS+1d … END_MS)."""
     import datetime as dt
-    start = dt.date(2021, 1, 1)
-    n = 1947  # days inclusive (2021-01-01..2026-04-30)
+    start = dt.date(2017, 8, 18)
+    n = _N_DAYS
 
     # Build (day_idx, value) list from equity points
     updates: list[tuple[int, float]] = []
@@ -828,7 +845,7 @@ const state = {
   tfFilter:      new Set(['1h','4h','1D']),
   variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
   sortMode: 'alpha',                     // 'alpha' | 'return' | 'top10'
-  startMs: Date.UTC(2021, 0, 1),         // 2021-01-01
+  startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
   endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
 };
 
@@ -1911,10 +1928,10 @@ function renderDescription() {
 
 // ── JS math helpers ──────────────────────────────────────
 const BTC_DATES = DATA.btc_1d.map(p => new Date(p.t));  // parallel to btc_1d
-const N_DAYS = 1946;  // returns_daily length (2021-01-02..2026-04-30)
-// Day-index corresponding to a returns_daily index: i → 2021-01-02 + i days
+const N_DAYS = {_N_DAYS - 1};  // returns_daily length (2017-08-19..2026-04-30)
+// Day-index corresponding to a returns_daily index: i → 2017-08-19 + i days
 function dayLabel(i) {
-  const d = new Date(Date.UTC(2021, 0, 2) + i * 86400000);
+  const d = new Date(Date.UTC(2017, 7, 19) + i * 86400000);
   return d.toISOString().slice(0,10);
 }
 
@@ -2651,7 +2668,7 @@ document.addEventListener('DOMContentLoaded', () => {
       el.classList.add('active');
       const p = el.dataset.preset;
       if (p === 'all') {
-        dateStartEl.value = '2021-01-01'; dateEndEl.value = '2026-04-30';
+        dateStartEl.value = '2017-08-18'; dateEndEl.value = '2026-04-30';
       } else if (p === '2023') {
         dateStartEl.value = '2023-01-01'; dateEndEl.value = '2023-12-31';
       } else if (p === '2024') {
@@ -2724,7 +2741,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
   <aside class="sidebar">
     <div class="header">
       <div class="h1" style="font-size:14px;font-weight:700;color:#f0f6fc">V4 백테스트 대시보드</div>
-      <div class="subtitle">초기 자본 $10,000 · 2021-01-01 ~ 2026-04-30 · 7가지 전략 · {n_results}개 백테스트</div>
+      <div class="subtitle">초기 자본 $10,000 · 2017-08-18 ~ 2026-04-30 · 7가지 전략 · {n_results}개 백테스트</div>
     </div>
 
     <!-- Filters -->
@@ -2753,9 +2770,9 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
       </div>
       <div class="filter-label" style="margin-top:8px">기간 선택</div>
       <div style="padding:0 2px;display:flex;flex-direction:column;gap:4px">
-        <input type="date" id="dateStart" min="2021-01-01" max="2026-04-30" value="2021-01-01"
+        <input type="date" id="dateStart" min="2017-08-18" max="2026-04-30" value="2017-08-18"
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
-        <input type="date" id="dateEnd" min="2021-01-01" max="2026-04-30" value="2026-04-30"
+        <input type="date" id="dateEnd" min="2017-08-18" max="2026-04-30" value="2026-04-30"
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
         <button id="dateApply" type="button"
           style="background:#1f6feb;color:#fff;border:none;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px">

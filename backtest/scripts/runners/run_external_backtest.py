@@ -511,6 +511,13 @@ def run(args):
         tf_minutes = TF_MINUTES[tf]
         candles_tf = _resample_1h(candles_1h, tf)
         warmup_tf  = _resample_1h(warmup_1h, tf)
+        # If no historical warmup exists (e.g. data starts at 2017-08-17),
+        # borrow the first min(200, len/4) bars from the main window as warmup.
+        if len(warmup_tf) == 0:
+            borrow = min(200, max(1, len(candles_tf) // 4))
+            warmup_tf  = candles_tf[:borrow]
+            candles_tf = candles_tf[borrow:]
+            print(f'  [warn] No prior warmup data; borrowed {borrow} {tf} bars from main candles as warmup.')
         candles_1m = _expand_tf_to_1m(candles_tf, tf_minutes)
         warmup_1m  = _expand_tf_to_1m(warmup_tf, tf_minutes)
         no_upsample = True
@@ -619,15 +626,18 @@ if __name__ == '__main__':
     args = parse_args()
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
+    _success = False
     try:
         verdict, metrics = run(args)
         stats_path = out_dir / 'stats.json'
         if stats_path.exists():
             write_success_marker(out_dir, stats_path)
+            _success = True
         else:
             write_failure_marker(out_dir, 'stats.json not found after run()')
-            sys.exit(1)
-        sys.exit(0)
-    except Exception as e:
-        write_failure_marker(out_dir, str(e), traceback.format_exc())
-        sys.exit(1)
+    except BaseException as e:
+        if isinstance(e, SystemExit) and e.code == 0:
+            _success = True  # clean exit from within run()
+        else:
+            write_failure_marker(out_dir, str(e), traceback.format_exc())
+    sys.exit(0 if _success else 1)
