@@ -30,6 +30,10 @@ PRE21_BACKFILL_DIR  = RESULTS_ROOT / 'pre2021_backfill'
 BTC_KLINES          = DATA_ROOT / 'ohlcv' / 'BTCUSDT'
 DEFAULT_OUT         = RESULT_DIR / 'dashboard.html'
 
+ADJUSTED_PRE21_JSON = RESULTS_ROOT / 'adjusted_costs_pre2021' / 'all_adjusted_results_pre21.json'
+ADJUSTED_POST21_JSON = RESULTS_ROOT / 'adjusted_costs_7strategies' / 'all_adjusted_results_7s.json'
+FUNDING_8H_PARQUET   = DATA_ROOT / 'funding' / 'BTCUSDT_8h.parquet'
+
 # ─── Backtest parameters ───────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
@@ -449,7 +453,63 @@ def build_bnh_equity_from_btc(starting: float, btc_daily: list[dict]) -> list[di
     return [{'t': p['t'], 'v': round(qty * p['c'], 2)} for p in btc_daily]
 
 
-def collect_all_results(btc_daily: list[dict] | None = None) -> dict:
+def load_costs_lookup() -> dict:
+    """Load pre-2021 and post-2021 adjusted cost data.
+    Returns {(strat, tf, variant): {period_key: {fee, fund, coverage, adj_cagr, orig_cagr}}}
+    """
+    lookup: dict[tuple, dict] = {}
+
+    def _ingest(path: Path):
+        if not path.exists():
+            print(f'[costs] WARNING: {path} not found — running without cost adjustment', file=sys.stderr)
+            return
+        try:
+            data = json.loads(path.read_text())
+        except Exception as e:
+            print(f'[costs] WARNING: failed to parse {path}: {e}', file=sys.stderr)
+            return
+        for entry in data:
+            key = (entry.get('strat', ''), entry.get('tf', ''), entry.get('variant', ''))
+            if not all(key):
+                continue
+            periods = lookup.setdefault(key, {})
+            for period_name, pdata in entry.get('periods', {}).items():
+                periods[period_name] = {
+                    'fee':      round(float(pdata.get('fee_cost_annual_pct', 0)), 4),
+                    'fund':     round(float(pdata.get('funding_cost_annual_pct', 0)), 4),
+                    'coverage': pdata.get('funding_coverage', 'fee_only'),
+                    'adj_cagr': round(float(pdata.get('adj_cagr', 0)), 4),
+                    'orig_cagr': round(float(pdata.get('original_cagr', 0)), 4),
+                    'trades':   int(pdata.get('trades', 0)),
+                    'avg_fund_rate': round(float(pdata.get('avg_funding_rate', 0)), 8),
+                }
+
+    _ingest(ADJUSTED_PRE21_JSON)
+    _ingest(ADJUSTED_POST21_JSON)
+    n = sum(len(v) for v in lookup.values())
+    print(f'[costs] Loaded {len(lookup)} combos × periods = {n} entries', file=sys.stderr)
+    return lookup
+
+
+def load_8h_funding_series() -> dict:
+    """Load 8h funding event series from parquet for per-event dashboard lookup.
+    Returns {'ts': [int, ...], 'rates': [float, ...], 'fallback': float}.
+    Zero-rate rows kept as-is; JS substitutes with fallback at runtime.
+    """
+    if not FUNDING_8H_PARQUET.exists():
+        print(f'[funding] WARNING: {FUNDING_8H_PARQUET} not found — JS will use 0 for all funding', file=sys.stderr)
+        return {'ts': [], 'rates': [], 'fallback': 0.0}
+    df = pd.read_parquet(FUNDING_8H_PARQUET).sort_values('timestamp')
+    ts = df['timestamp'].astype('int64').tolist()
+    rates = [round(float(r), 10) for r in df['funding_rate']]
+    nonzero = [r for r in rates if r != 0]
+    fallback = round(sum(nonzero) / len(nonzero), 10) if nonzero else 0.0
+    print(f'[funding] {len(ts)} 8h events embedded, fallback={fallback:.8f}', file=sys.stderr)
+    return {'ts': ts, 'rates': rates, 'fallback': fallback}
+
+
+def collect_all_results(btc_daily: list[dict] | None = None,
+                         costs_lookup: dict | None = None) -> dict:
     """Returns dict keyed by strategy_dir, each with list of result objects.
     btc_daily is used to build a dense BnH equity curve."""
     groups: dict[str, list[dict]] = {}
@@ -531,6 +591,7 @@ def collect_all_results(btc_daily: list[dict] | None = None) -> dict:
             'monthly':       monthly,
             'returns_daily': returns_daily,
             'streaks':       streaks,
+            'costs':         (costs_lookup or {}).get((strat_dir, tf, variant), {}),
         }
         groups.setdefault(strat_dir, []).append(result)
 
@@ -857,10 +918,64 @@ const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','4h','1D']),
   variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
-  sortMode: 'alpha',                     // 'alpha' | 'return' | 'top10'
+  sortMode: 'return',                    // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
   endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
 };
+
+// ── Cost period mapping (date range → period key in r.costs) ──────────────
+// Maps "YYYY-MM-DD|YYYY-MM-DD" → period key that exists in the adjusted JSON
+const COST_PERIOD_MAP = {
+  '2017-08-18|2020-12-31': 'pre21_full',
+  '2017-12-17|2018-12-15': 'pre21_bear',
+  '2018-12-16|2019-04-01': 'pre21_range',
+  '2019-04-02|2020-02-29': 'pre21_recovery',
+  '2020-03-01|2020-04-30': 'pre21_covid',
+  '2020-05-01|2020-12-31': 'pre21_bull',
+  '2021-01-01|2021-12-31': '2021',
+  '2022-01-01|2022-12-31': '2022',
+  '2023-01-01|2023-12-31': '2023',
+  '2024-01-01|2024-12-31': '2024',
+  '2025-01-01|2026-04-30': '2025',
+  '2025-01-01|2025-12-31': '2025',   // year-preset ends Dec 31
+  '2021-01-01|2026-04-30': 'post21_full',
+};
+
+function msToDateStr(ms) {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth()+1).padStart(2,'0');
+  const dy = String(d.getUTCDate()).padStart(2,'0');
+  return `${y}-${m}-${dy}`;
+}
+
+function currentCostKey() {
+  const s = msToDateStr(state.startMs);
+  const e = msToDateStr(state.endMs);
+  return COST_PERIOD_MAP[`${s}|${e}`] || null;
+}
+
+// Per-event 8h funding sum for a trade's hold window [openMs, closeMs).
+// Looks up the pre-loaded DATA.funding_ts / DATA.funding_rates arrays via binary search.
+// Zero-rate rows (pre-launch fallback) are substituted with DATA.funding_fallback.
+// Returns Σ rate — caller multiplies by notional × fundSign.
+function fundingRateSumInWindow(openMs, closeMs) {
+  const TS    = DATA.funding_ts;
+  const RATES = DATA.funding_rates;
+  const FB    = DATA.funding_fallback;
+  if (!TS || !TS.length) return 0;
+  // Binary search: first index >= openMs
+  let lo = 0, hi = TS.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (TS[mid] < openMs) lo = mid + 1; else hi = mid;
+  }
+  let sum = 0;
+  for (let i = lo; i < TS.length && TS[i] < closeMs; i++) {
+    sum += (RATES[i] === 0 ? FB : RATES[i]);
+  }
+  return sum;
+}
 
 // ── Helpers ────────────────────────────────────────────────
 function getAllResults() {
@@ -970,6 +1085,8 @@ function annualisedSharpe(monthlyRets) {
 // Balance-bounded simulation parameters ────────────────────────────────────
 const MARGIN_CAP_RATIO = 0.95;   // 거래당 사용 가능한 잔고 최대 비율
 const LIQ_LEVEL_RATIO  = 0.05;   // 잔고가 starting의 5% 이하로 떨어지면 청산
+const TAKER_FEE_PER_SIDE = 0.00055;   // 0.055% Bybit linear-perp taker fee
+const FUNDING_8H_MS      = 8 * 3600 * 1000;
 
 // Base-variant lookup: x2/x3 backtests often got wiped out early in the historical
 // run, leaving only a handful of trades. The strategy SIGNAL LOGIC is identical
@@ -1009,6 +1126,10 @@ function balanceSim(r, startMs, endMs, cap) {
   const liqFloor = startBal * LIQ_LEVEL_RATIO;
   const lev      = r.leverage || 1;
 
+  const baseVariant = r.variant.replace(/_x\d+$/, '');
+  const fundSign = baseVariant === 'long_only' ? 1
+                 : baseVariant === 'short_only' ? -1 : 0;
+
   const baseR = _baseResultFor(r);
   const rawTrades = (baseR.trades || [])
     .filter(t => t.t_open >= startMs && t.t_close <= endMs)
@@ -1034,7 +1155,13 @@ function balanceSim(r, startMs, endMs, cap) {
     // In leveraged futures, max loss per trade = margin (liquidation).
     if (vPnl < -vMargin) vPnl = -vMargin;
 
-    vEq += vPnl;
+    // Per-trade fee & funding (deducted from equity so they compound)
+    const vFee     = vNotional * TAKER_FEE_PER_SIDE * 2;
+    const sumRate  = fundSign !== 0 ? fundingRateSumInWindow(t.t_open, t.t_close) : 0;
+    const vFunding = sumRate * vNotional * fundSign;
+    const vNetPnl  = vPnl - vFee - vFunding;
+
+    vEq += vNetPnl;
     if (!liquidated && vEq > peak) peak = vEq;
     if (!liquidated && peak > 0) {
       const dd = (vEq - peak) / peak * 100;
@@ -1042,9 +1169,9 @@ function balanceSim(r, startMs, endMs, cap) {
     }
     simTrades.push({
       orig: t,
-      vMargin, vNotional, vPnl,
+      vMargin, vNotional, vPnl, vFee, vFunding, vNetPnl,
       capRatio: cap,
-      roiPct:   lev * priceMove * 100,
+      roiPct:   (vNetPnl / vMargin) * 100,
     });
     points.push({ t: t.t_close, v: vEq });
 
@@ -1176,16 +1303,57 @@ function slicedStats(r, startMs, endMs) {
   // Trade-based stats: use the same simulated PnL the trade table renders.
   let tradeCount, winRate, pf;
   if (useSim) {
-    const winning = sim.trades.filter(t => t.vPnl > 0);
-    const losing  = sim.trades.filter(t => t.vPnl <= 0);
-    const grossP  = winning.reduce((s, t) => s + t.vPnl, 0);
-    const grossL  = losing.reduce((s, t)  => s + t.vPnl, 0);
+    const winning = sim.trades.filter(t => t.vNetPnl > 0);
+    const losing  = sim.trades.filter(t => t.vNetPnl <= 0);
+    const grossP  = winning.reduce((s, t) => s + t.vNetPnl, 0);
+    const grossL  = losing.reduce((s, t)  => s + t.vNetPnl, 0);
     tradeCount = sim.trades.length;
     winRate    = tradeCount ? winning.length / tradeCount * 100 : 0;
     pf         = grossL !== 0 ? grossP / Math.abs(grossL) : (grossP > 0 ? Infinity : 0);
   } else {
     tradeCount = 0; winRate = 0; pf = 0;
   }
+
+  // ── Cost adjustment ──────────────────────────────────────────────────────────
+  // Fee cost is always computable from trade count + known FEE_DELTA constant.
+  // Funding cost is added from precomputed data when a matching period exists.
+  // adj_cagr is always set (never null) so the cost banner is always visible.
+  const FEE_DELTA_PER_SIDE = 0.00035;  // maker→taker delta (0.055% - 0.020%)
+  const lev = r.leverage || 1;
+
+  // Buy-and-hold has no trading costs
+  const isBnH = r.variant === 'buy_and_hold';
+  let fee_cost_dyn = 0, fund_cost = 0, fundCoverage = null;
+
+  if (!isBnH && !liquidated && tradeCount > 0 && years > 0) {
+    const tradesPerYear = tradeCount / years;
+    fee_cost_dyn = parseFloat((tradesPerYear * FEE_DELTA_PER_SIDE * 2 * 100 * lev).toFixed(3));
+  }
+
+  // Funding cost from precomputed period data (when an exact preset is active)
+  const costKey  = currentCostKey();
+  const costData = (costKey && r.costs && r.costs[costKey]) ? r.costs[costKey] : null;
+  if (costData) {
+    // Use precomputed fee from JSON (more accurate — based on full period trade count)
+    // and add funding cost
+    fund_cost    = costData.fund || 0;
+    fundCoverage = costData.coverage || null;
+    // Prefer precomputed fee when available (same formula, avoids floating-point drift)
+    fee_cost_dyn = costData.fee || fee_cost_dyn;
+  }
+
+  const total_cost = fee_cost_dyn + fund_cost;
+  // adj_cagr: raw CAGR minus annual costs; null only for buy-and-hold or 0-trade slices
+  const adj_cagr = (!isBnH && tradeCount > 0 && !liquidated)
+    ? parseFloat((cagr - total_cost).toFixed(2))
+    : null;
+
+  // Effective costData: always synthesise even without precomputed period data
+  const effective_cost_data = (!isBnH && tradeCount > 0) ? {
+    fee:      fee_cost_dyn,
+    fund:     fund_cost,
+    coverage: fundCoverage || (costKey ? 'fee_only' : 'dynamic'),
+  } : null;
 
   const stats = {
     cagr, sharpe, mdd,
@@ -1198,6 +1366,8 @@ function slicedStats(r, startMs, endMs) {
     sortino:   sharpe,
     calmar:    mdd !== 0 ? cagr / Math.abs(mdd) : 0,
     liquidated, liq_month,
+    adj_cagr,
+    cost_data: effective_cost_data,
   };
   sliceCache.set(key, stats);
   return stats;
@@ -1240,7 +1410,7 @@ function slicedMonthly(r, startMs, endMs) {
   const byMonth = new Map();
   for (const st of sim.trades) {
     const ym = ymOf(st.orig.t_close);
-    byMonth.set(ym, (byMonth.get(ym) || 0) + st.vPnl);
+    byMonth.set(ym, (byMonth.get(ym) || 0) + st.vNetPnl);
   }
   return Array.from(byMonth, ([month, pnl]) => ({ month, pnl }));
 }
@@ -1252,8 +1422,8 @@ function slicedStreaks(r, startMs, endMs) {
   const trades = sim.trades.slice().sort((a, b) => a.orig.t_close - b.orig.t_close);
   let winMax = 0, lossMax = 0, curW = 0, curL = 0;
   for (const t of trades) {
-    if (t.vPnl > 0)      { curW++; curL = 0; if (curW > winMax)  winMax  = curW; }
-    else if (t.vPnl < 0) { curL++; curW = 0; if (curL > lossMax) lossMax = curL; }
+    if (t.vNetPnl > 0)      { curW++; curL = 0; if (curW > winMax)  winMax  = curW; }
+    else if (t.vNetPnl < 0) { curL++; curW = 0; if (curL > lossMax) lossMax = curL; }
   }
   return { win_max: winMax, loss_max: lossMax };
 }
@@ -1330,9 +1500,15 @@ function buildSidebar() {
     }
   } else {
     // Flat list sorted by return (top10 or return mode); liquidated go to bottom
+    // When cost data available, rank by adj_cagr instead of raw finishing balance
+    const hasAdj = currentCostKey() !== null;
     let sorted = visible.slice().sort((a, b) => {
       const sa = getStats(a), sb = getStats(b);
       if (sa.liquidated !== sb.liquidated) return sa.liquidated ? 1 : -1;
+      if (hasAdj) {
+        const ac = sa.adj_cagr ?? sa.cagr, bc = sb.adj_cagr ?? sb.cagr;
+        return bc - ac;
+      }
       return sb.finishing - sa.finishing;
     });
     if (state.sortMode === 'top10') sorted = sorted.slice(0, 10);
@@ -1423,7 +1599,9 @@ function renderKPIs() {
     const meta = DATA.meta[r.strat] || {};
     const vl = r.variant === 'buy_and_hold' ? '' : varLabel(r);
     const name = `${meta.name_ko||r.strat} · ${r.tf} · ${vl}`.replace(/\s*·\s*$/, '').trim();
-    const cagrCls = s.cagr >= 0 ? 'kpi-pos' : 'kpi-neg';
+    const hasAdj  = s.adj_cagr !== null && s.adj_cagr !== undefined;
+    const dispCagr = hasAdj ? s.adj_cagr : s.cagr;
+    const cagrCls = dispCagr >= 0 ? 'kpi-pos' : 'kpi-neg';
     const mddCls  = 'kpi-neg';
     const multStr = s.liquidated ? '💀 0x' : fmtMultiplier(s.starting, s.finishing);
     const liqBanner = s.liquidated
@@ -1432,18 +1610,42 @@ function renderKPIs() {
            &nbsp;<span style="color:#c9d1d9">— ${s.liq_month}</span>
            <br><span style="color:#8b949e;font-size:11px">이후 잔고 $0 고정</span>
          </div>` : '';
+    // Cost breakdown banner (shown when adj data is available)
+    let costBanner = '';
+    if (hasAdj && s.cost_data) {
+      const cd = s.cost_data;
+      const feeTxt  = cd.fee  ? `수수료 -${cd.fee.toFixed(2)}%/yr` : '';
+      const fundTxt = cd.fund ? `펀딩 -${cd.fund.toFixed(2)}%/yr`  : '';
+      const costParts = [feeTxt, fundTxt].filter(Boolean).join(' · ');
+      const isDynamic = cd.coverage === 'dynamic';
+      const covColor  = cd.coverage === 'bybit_live' ? '#3fb950'
+                      : cd.coverage === 'fee_only'   ? '#8b949e'
+                      : isDynamic                    ? '#6e7681'
+                      : '#e3b341';
+      const covLabel  = cd.coverage === 'bybit_live' ? '실 펀딩 데이터'
+                      : cd.coverage === 'fee_only'   ? '수수료만 (펀딩 없음)'
+                      : isDynamic                    ? '수수료만 (기간 미매핑)'
+                      : '부분 펀딩 데이터';
+      costBanner = `<div style="background:#1c2d19;border:1px solid #238636;border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:11px;color:#8b949e">
+        비용 조정: <span style="color:#e06c75">${costParts || '적용 없음'}</span>
+        &nbsp;<span style="color:${covColor};font-size:10px">[${covLabel}]</span>
+        <br><span style="color:#484f58;font-size:10px">원본 CAGR: ${fmtPct(s.cagr)}/yr → 조정: ${fmtPct(dispCagr)}/yr</span>
+      </div>`;
+    }
+    const cagrLabel = hasAdj ? '조정 CAGR/yr' : 'CAGR/yr';
     return `<div class="kpi-card">
       <div class="kpi-label">${name}</div>
       ${liqBanner}
+      ${costBanner}
       <div class="kpi-value ${cagrCls}">${multStr}</div>
-      <div class="kpi-sub">총수익배수 · CAGR ${fmtPct(s.cagr)}/yr</div>
+      <div class="kpi-sub">총수익배수 · ${hasAdj ? '조정 ' : ''}CAGR ${fmtPct(dispCagr)}/yr</div>
       <hr style="border-color:#21262d;margin:8px 0">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
         <div><div style="color:#8b949e">Sharpe</div><div style="font-weight:600">${fmtSharpe(s.sharpe)}</div></div>
         <div><div style="color:#8b949e">MDD</div><div class="${mddCls}" style="font-weight:600">${fmtPct(s.mdd)}</div></div>
         <div><div style="color:#8b949e">거래 수</div><div style="font-weight:600">${s.trades}</div></div>
         <div><div style="color:#8b949e">승률</div><div style="font-weight:600">${s.win_rate.toFixed(1)}%</div></div>
-        <div><div style="color:#8b949e">CAGR/yr</div><div style="font-weight:600" class="${cagrCls}">${fmtPct(s.cagr)}</div></div>
+        <div><div style="color:#8b949e">${cagrLabel}</div><div style="font-weight:600" class="${cagrCls}">${fmtPct(dispCagr)}</div></div>
         <div><div style="color:#8b949e">최종잔고</div><div style="font-weight:600">${s.liquidated ? '<span style="color:#f85149">💀 $0</span>' : fmtDollar(s.finishing)}</div></div>
       </div>
     </div>`;
@@ -1602,7 +1804,7 @@ function renderTradeChart() {
   // Use base variant trades (same signals as x1) and align with sim.trades
   // (which has leveraged vPnl) by t_open. Index is into sim.trades for row mapping.
   const _tcSim = balanceSim(r, state.startMs, state.endMs);
-  const slicedPairs = _tcSim.trades.map((st, i) => [st.orig, i, st.vPnl]);
+  const slicedPairs = _tcSim.trades.map((st, i) => [st.orig, i, st.vNetPnl]);
   const longPairs  = slicedPairs.filter(([t]) => t.side === 'long');
   const shortPairs = slicedPairs.filter(([t]) => t.side === 'short');
   const winPairs   = slicedPairs.filter(([_, __, vPnl]) => vPnl > 0);
@@ -1712,19 +1914,42 @@ function renderTradeTable(focusIdx = null) {
   const lev = r.leverage;
   const levLabel = lev > 1 ? lev + 'x' : '1x';
 
-  let totalPnl = 0, totalDur = 0, wins = 0;
+  // ── Per-trade fee & funding ─────────────────────────────────────────────────
+  // Values are computed inside balanceSim() so equity reflects the cost drag.
+  // Here we just read the stored vFee / vFunding / vNetPnl for display.
+  const baseVariant = r.variant.replace(/_x\d+$/, '');
+  const fundSign = baseVariant === 'long_only' ? 1 : baseVariant === 'short_only' ? -1 : 0;
+
+  let totalPnl = 0, totalDur = 0, totalFee = 0, totalFunding = 0, wins = 0;
   const rows = trades.map((st, rowN) => {
     const t       = st.orig;
-    const origIdx = rowN;  // index into sim.trades (matches click index from trade chart)
+    const origIdx = rowN;
     const isFocus = focusIdx !== null && origIdx === focusIdx;
 
-    const cls    = st.vPnl > 0 ? 'kpi-pos' : 'kpi-neg';
+    const dispPnl = st.vNetPnl;
+    const cls    = dispPnl > 0 ? 'kpi-pos' : 'kpi-neg';
     const sideKo = t.side === 'long' ? '🟢 롱' : '🔴 숏';
     const dur    = t.t_close - t.t_open;
 
-    totalPnl += st.vPnl;
+    const tradeFee     = st.vFee;
+    const tradeFunding = st.vFunding;
+    // hasFundingData: true if any 8h event exists in the trade's hold window
+    const hasFundingData = fundSign !== 0 && DATA.funding_ts && DATA.funding_ts.length > 0;
+
+    totalPnl += dispPnl;
     totalDur += dur;
-    if (st.vPnl > 0) wins++;
+    totalFee += tradeFee;
+    totalFunding += tradeFunding;
+    if (dispPnl > 0) wins++;
+
+    const feeCls = 'kpi-neg';
+    const fundCls = tradeFunding > 0 ? 'kpi-neg' : tradeFunding < 0 ? 'kpi-pos' : '';
+    const feeStr  = tradeFee !== 0
+      ? `<span class="${feeCls}">$${(-tradeFee).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</span>`
+      : `<span style="color:#484f58">-</span>`;
+    const fundStr = tradeFunding !== 0
+      ? `<span class="${fundCls}">$${(-tradeFunding).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</span>`
+      : `<span style="color:#484f58">${hasFundingData ? '0' : '-'}</span>`;
 
     const focusCls  = isFocus ? ' class="focused-row"' : '';
     const focusAttr = ` data-trade-idx="${origIdx}"`;
@@ -1741,19 +1966,25 @@ function renderTradeTable(focusIdx = null) {
       <td>${fmtMs(t.t_close)}</td>
       <td style="text-align:right">$${t.exit.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="text-align:right;color:#8b949e">${fmtDur(dur)}</td>
-      <td style="text-align:right" class="${cls}">$${st.vPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
+      <td style="text-align:right">${feeStr}</td>
+      <td style="text-align:right">${fundStr}</td>
+      <td style="text-align:right" class="${cls}">$${dispPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
       <td style="text-align:right" class="${cls}">${st.roiPct.toFixed(1)}%</td>
     </tr>`;
   });
 
-  const totalCls   = totalPnl > 0 ? 'kpi-pos' : 'kpi-neg';
-  const avgDurMs   = trades.length > 0 ? totalDur / trades.length : 0;
-  const losses     = trades.length - wins;
-  const meta       = DATA.meta[r.strat] || {};
-  const stratLabel = `${meta.name_ko||r.strat} / ${varLabel(r)} / ${r.tf}`;
+  const totalCls     = totalPnl > 0 ? 'kpi-pos' : 'kpi-neg';
+  const totalFeeCls  = 'kpi-neg';
+  const totalFundCls = totalFunding > 0 ? 'kpi-neg' : totalFunding < 0 ? 'kpi-pos' : '';
+  const avgDurMs     = trades.length > 0 ? totalDur / trades.length : 0;
+  const losses       = trades.length - wins;
+  const meta         = DATA.meta[r.strat] || {};
+  const stratLabel   = `${meta.name_ko||r.strat} / ${varLabel(r)} / ${r.tf}`;
+  const fundNote     = (fundSign !== 0 && (!DATA.funding_ts || !DATA.funding_ts.length))
+    ? `<span style="color:#484f58;font-size:10px"> · 펀딩비: 데이터 없음</span>` : '';
 
   el.innerHTML = `<div class="trade-detail-wrap">
-    <h5>${stratLabel} — 거래 내역 ${trades.length}건 · 승 ${wins} / 패 ${losses} · 누적 손익 <span class="${totalCls}">$${totalPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</span> · 평균 보유 ${fmtDur(avgDurMs)}</h5>
+    <h5>${stratLabel} — 거래 내역 ${trades.length}건 · 승 ${wins} / 패 ${losses} · 누적 손익 <span class="${totalCls}">$${totalPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</span> · 평균 보유 ${fmtDur(avgDurMs)}${fundNote}</h5>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
@@ -1766,6 +1997,8 @@ function renderTradeTable(focusIdx = null) {
           <th>종료일</th>
           <th style="text-align:right">종료가</th>
           <th style="text-align:right">보유</th>
+          <th style="text-align:right">수수료</th>
+          <th style="text-align:right">펀딩비</th>
           <th style="text-align:right">손익 ($)</th>
           <th style="text-align:right">손익 (%)</th>
         </tr></thead>
@@ -1881,10 +2114,10 @@ function showTradeDetail(id, month) {
     return `${yy}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   }
 
-  const totalPnl = trades.reduce((s, st) => s + st.vPnl, 0);
+  const totalPnl = trades.reduce((s, st) => s + st.vNetPnl, 0);
   const rows = trades.map(st => {
     const t = st.orig;
-    const cls = st.vPnl > 0 ? 'kpi-pos' : 'kpi-neg';
+    const cls = st.vNetPnl > 0 ? 'kpi-pos' : 'kpi-neg';
     const sideKo = t.side === 'long' ? '롱' : '숏';
     return `<tr>
       <td>${sideKo}</td>
@@ -1892,8 +2125,8 @@ function showTradeDetail(id, month) {
       <td style="text-align:right">$${t.entry.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td>${fmtMs(t.t_close)}</td>
       <td style="text-align:right">$${t.exit.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td style="text-align:right" class="${cls}">$${st.vPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
-      <td style="text-align:right;color:#8b949e">$${(t.fee || 0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:right" class="${cls}">$${st.vNetPnl.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})}</td>
+      <td style="text-align:right;color:#8b949e">$${st.vFee.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
     </tr>`;
   }).join('');
 
@@ -2260,7 +2493,7 @@ function renderPnlHistogram() {
     if (sim.trades.length === 0) continue;
     const meta = DATA.meta[r.strat] || {};
     const label = `${meta.name_ko||r.strat}/${r.tf}`;
-    const pnls = sim.trades.map(t => t.vPnl);
+    const pnls = sim.trades.map(t => t.vNetPnl);
     const mu = pnls.reduce((a,b)=>a+b,0) / pnls.length;
     const sigma = Math.sqrt(pnls.reduce((a,b)=>a+(b-mu)**2,0)/pnls.length);
     const sk = skewness(pnls);
@@ -2443,7 +2676,7 @@ function renderRegimeBreakdown() {
     for (const reg of REGIME_ORDER) pnlByRegime[reg] = 0;
     for (const st of _regSim.trades) {
       const reg = getRegimeForMs(st.orig.t_open);
-      pnlByRegime[reg] = (pnlByRegime[reg] || 0) + st.vPnl;
+      pnlByRegime[reg] = (pnlByRegime[reg] || 0) + st.vNetPnl;
     }
     traces.push({
       x: REGIME_ORDER.map(k => REGIME_LABELS[k]),
@@ -2480,7 +2713,7 @@ function renderMonteCarloChart() {
   }
   const meta = DATA.meta[r.strat] || {};
   const label = `${meta.name_ko||r.strat}/${r.tf}`;
-  const pnls = _mcSim.trades.map(t => t.vPnl);
+  const pnls = _mcSim.trades.map(t => t.vNetPnl);
   const N_ITER = 1000;
   const start = 10_000;
   // Run Monte Carlo
@@ -2553,9 +2786,11 @@ function renderRiskScatter() {
   const hoverTexts = all.map((r, i) => {
     const m = meta[r.strat]||{};
     const s = allStats[i];
+    const adjTxt = s.adj_cagr !== null && s.adj_cagr !== undefined
+      ? `<br>조정 CAGR: ${s.adj_cagr.toFixed(2)}%/yr` : '';
     return `${m.name_ko||r.strat} / ${r.tf} / ${varLabel(r)}<br>`+
            `총수익: ${fmtMultiplier(s.starting, s.finishing)}<br>`+
-           `CAGR: ${s.cagr.toFixed(2)}%/yr<br>`+
+           `CAGR: ${s.cagr.toFixed(2)}%/yr${adjTxt}<br>`+
            `Sharpe: ${s.sharpe.toFixed(3)}<br>`+
            `MDD: ${s.mdd.toFixed(1)}%<br>`+
            `Trades: ${s.trades}`;
@@ -2563,10 +2798,12 @@ function renderRiskScatter() {
 
   // Color by Sharpe (red→yellow→green)
   const colorscale = [[0,'#f85149'],[0.5,'#d29922'],[1,'#3fb950']];
+  // Use adj_cagr for scatter Y-axis when available (falls back to raw cagr)
+  const yCagr = allStats.map(s => s.adj_cagr !== null && s.adj_cagr !== undefined ? s.adj_cagr : s.cagr);
 
   const trace = {
     x: allStats.map(s => s.mdd),
-    y: allStats.map(s => s.cagr),
+    y: yCagr,
     mode: 'markers',
     type: 'scatter',
     text: hoverTexts,
@@ -2588,7 +2825,7 @@ function renderRiskScatter() {
   const selIds = new Set(state.selected);
   const selTrace = {
     x: all.filter(r=>selIds.has(r.id)).map(r=>getStats(r).mdd),
-    y: all.filter(r=>selIds.has(r.id)).map(r=>getStats(r).cagr),
+    y: all.filter(r=>selIds.has(r.id)).map(r=>{ const s=getStats(r); return s.adj_cagr??s.cagr; }),
     mode: 'markers', type: 'scatter', name:'선택됨',
     marker: { size: 16, color:'rgba(0,0,0,0)', line:{color:'#f0f6fc', width:2} },
     hoverinfo: 'skip',
@@ -2597,7 +2834,7 @@ function renderRiskScatter() {
   const layout = darkLayout({
     height: 380, margin: { l:70,r:90,t:30,b:60 },
     xaxis: { title:'MDD (%)', ticksuffix:'%', gridcolor:GRID_CLR, color:TEXT_CLR, autorange:'reversed' },
-    yaxis: { title:'CAGR (%)', ticksuffix:'%', gridcolor:GRID_CLR, color:TEXT_CLR },
+    yaxis: { title: currentCostKey() ? '조정 CAGR (%)' : 'CAGR (%)', ticksuffix:'%', gridcolor:GRID_CLR, color:TEXT_CLR },
     showlegend: false,
     shapes: [
       { type:'line', x0:0,x1:0,y0:-200,y1:200, line:{color:'#388bfd',width:1,dash:'dot'} },
@@ -2953,8 +3190,8 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
       </div>
       <div class="filter-label" style="margin-top:6px">정렬 / 보기</div>
       <div class="filter-row">
-        <span class="sort-btn active" data-sort="alpha">전략별</span>
-        <span class="sort-btn" data-sort="return">수익률순</span>
+        <span class="sort-btn" data-sort="alpha">전략별</span>
+        <span class="sort-btn active" data-sort="return">수익률순</span>
         <span class="sort-btn" data-sort="top10">Top 10</span>
       </div>
       <div class="filter-label" style="margin-top:8px">기간 선택</div>
@@ -3202,8 +3439,14 @@ def main():
     btc_1d = load_btc_1d()
     print(f'  {len(btc_1d)} daily candles')
 
+    print('Loading adjusted cost data…')
+    costs_lookup = load_costs_lookup()
+
+    print('Loading 8h funding series…')
+    funding_series = load_8h_funding_series()
+
     print('Collecting backtest results…')
-    groups = collect_all_results(btc_daily=btc_1d)
+    groups = collect_all_results(btc_daily=btc_1d, costs_lookup=costs_lookup)
     total = sum(len(v) for v in groups.values())
     print(f'  {total} results from {len(groups)} strategies')
 
@@ -3231,6 +3474,9 @@ def main():
         'regime_labels':   regime_labels,
         'bnh_returns':     bnh_returns_daily,
         'groups':          groups,
+        'funding_ts':      funding_series['ts'],
+        'funding_rates':   funding_series['rates'],
+        'funding_fallback': funding_series['fallback'],
         'meta':         {k: {
             'name_ko':      m['name_ko'],
             'name_en':      m['name_en'],

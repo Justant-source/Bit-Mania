@@ -33,6 +33,7 @@ Output:
 import json
 import re
 import statistics
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from collections import defaultdict
@@ -53,10 +54,11 @@ else:
 BACKFILL_DIR = _RESULT_ROOT / 'pre2021_backfill'
 OUT_BASE     = _RESULT_ROOT / 'adjusted_costs_pre2021'
 
-BYBIT_FUNDING     = _DATA_ROOT / 'funding' / 'BTCUSDT_8h.parquet'
+BYBIT_FUNDING      = _DATA_ROOT / 'funding' / 'BTCUSDT_8h.parquet'
 BINANCE_VISION_DIR = _DATA_ROOT / 'funding' / 'binance_vision' / 'BTCUSDT'
-BINANCE_API_2019  = _DATA_ROOT / 'funding' / 'binance_api' / 'BTCUSDT_2019.parquet'
-BINANCE_API_FAIL  = _DATA_ROOT / 'funding' / 'binance_api' / 'FETCH_FAILED.marker'
+BINANCE_API_2019   = _DATA_ROOT / 'funding' / 'binance_api' / 'BTCUSDT_2019.parquet'
+BINANCE_API_FAIL   = _DATA_ROOT / 'funding' / 'binance_api' / 'FETCH_FAILED.marker'
+MONTHLY_FUNDING_CSV = _DATA_ROOT / 'funding' / 'BTCUSDT_monthly_estimates.csv'
 
 # Period definitions (all before 2021-01-01)
 PRE21_PERIODS = {
@@ -86,6 +88,31 @@ TF_HOLD_HOURS = {
 
 # Cost model
 FEE_DELTA_PER_SIDE = (0.055 - 0.020) / 100.0  # 0.00035
+
+
+# ─── Monthly funding estimates ────────────────────────────────────────────────
+def load_monthly_funding(csv_path: Path) -> tuple[dict, float]:
+    """Returns ({(year, month): avg_rate_8h}, fallback_mean of observed months)."""
+    df = pd.read_csv(csv_path)
+    observed = df[df['source'] == 'observed']
+    fallback = float(observed['avg_rate_8h'].mean())
+    table = {(int(r.year), int(r.month)): float(r.avg_rate_8h) for r in df.itertuples()}
+    return table, fallback
+
+
+def period_avg_monthly_rate(table: dict, fallback: float, start_str: str, end_str: str) -> float:
+    """Average of monthly estimates over all months in [start_str, end_str] (YYYY-MM-DD)."""
+    start = datetime.strptime(start_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    end = datetime.strptime(end_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    rates = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        rates.append(table.get((y, m), fallback))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return float(np.mean(rates)) if rates else fallback
 
 
 # ─── Funding data loading ──────────────────────────────────────────────────────
@@ -326,7 +353,7 @@ def apply_costs_to_period(metrics: dict, tf: str, variant: str, period_years: fl
         'pf': pf,
         'fee_cost_annual_pct': round(fee_cost_pct_annual, 3),
         'funding_cost_annual_pct': round(fund_cost_pct_annual, 3),
-        'avg_funding_rate': round(avg_funding_rate * 100, 5),
+        'avg_funding_rate': round(avg_funding_rate, 8),
     }
 
 
@@ -336,9 +363,15 @@ def main():
     print('Pre-2021 Backtest Cost Adjustment')
     print('=' * 80)
 
-    # 1. Load funding sources
+    # 1. Load funding sources (for coverage classification) + monthly estimates
     print('\n[1] Loading funding sources...')
     bybit_df, vision_df, api2019_df = load_funding_sources()
+
+    if not MONTHLY_FUNDING_CSV.exists():
+        print(f'ERROR: {MONTHLY_FUNDING_CSV} not found', file=sys.stderr)
+        raise FileNotFoundError(f'Run build_monthly_funding_estimates.py first')
+    monthly_table, fallback_rate = load_monthly_funding(MONTHLY_FUNDING_CSV)
+    print(f'  Monthly estimates: {len(monthly_table)} months, fallback={fallback_rate:.8f}')
 
     # Build combined funding dataframe (priority: bybit > vision > api2019)
     combined_df = pd.DataFrame({'timestamp': [], 'funding_rate': []})
@@ -450,19 +483,22 @@ def main():
             period_end = period_meta.get('end') or PRE21_PERIODS[period_key][1]
             period_years = PRE21_PERIOD_YEARS[period_key]
 
-            # Classify funding coverage
+            # Classify funding coverage (informational only)
             coverage_type, breakdown = classify_funding_coverage(
                 period_start, period_end, bybit_ms, vision_ms, api2019_ms
             )
 
-            # Compute average funding rate
-            avg_funding = compute_avg_funding(combined_df, period_start, period_end)
+            # Compute average funding rate from monthly estimates
+            avg_funding = period_avg_monthly_rate(
+                monthly_table, fallback_rate, period_start, period_end
+            )
 
             # Apply costs
             adj_metrics = apply_costs_to_period(
                 metrics, tf, variant, period_years, avg_funding
             )
-            adj_metrics['funding_coverage'] = coverage_type
+            adj_metrics['funding_coverage'] = 'monthly_estimates'
+            adj_metrics['raw_coverage_type'] = coverage_type
             adj_metrics['funding_coverage_breakdown'] = breakdown
 
             adj_periods[period_key] = adj_metrics

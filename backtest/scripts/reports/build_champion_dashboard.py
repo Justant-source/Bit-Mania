@@ -26,6 +26,37 @@ PERIOD_LABELS = {
     'p4': 'P4 2022-12~2025-09'
 }
 
+PRE21_PERIODS = [
+    'pre21_full', 'pre21_bear', 'pre21_range',
+    'pre21_recovery', 'pre21_covid', 'pre21_bull'
+]
+PRE21_PERIOD_LABELS = {
+    'pre21_full':     'Full 2017-08~2020-12',
+    'pre21_bear':     'Bear 2017-12~2018-12',
+    'pre21_range':    'Range 2018-12~2019-04',
+    'pre21_recovery': 'Recovery 2019-04~2020-02',
+    'pre21_covid':    'COVID 2020-03~2020-04',
+    'pre21_bull':     'Bull 2020-05~2020-12',
+}
+
+FUNDING_BADGE = {
+    'bybit_live':    '🟢',
+    'binance_proxy': '🟡',
+    'mixed':         '🟠',
+    'fee_only':      '🔴',
+}
+
+PRE21_ADJ_RESULTS = ROOT / 'results' / 'adjusted_costs_pre2021' / 'all_adjusted_results_pre21.json'
+
+# 5 champion identifiers (strat, tf, variant, combo, version)
+CHAMPIONS = [
+    ('supertrend',           '4h', 'long_only',     18, 'v4'),
+    ('supertrend_trendtype', '4h', 'long_only',      6, 'v3'),
+    ('trendtype',            '1D', 'long_only',      6, 'v3'),
+    ('tradeiq_psar_ha',      '1D', 'long_only',      8, 'v3'),
+    ('tradeiq_cci_ce',       '4h', 'bidirectional',  2, 'v3'),
+]
+
 # Phase 5 gates
 PHASE5_GATES = {
     'adj_score': 34.87,
@@ -49,6 +80,20 @@ def load_adjusted_results():
 
     print(f"Loaded {len(data)} entries, deduplicated to {len(dedup)} unique combos")
     return list(dedup.values())
+
+
+def load_pre21_results():
+    """Load pre-2021 adjusted results. Returns dict keyed by (strat,tf,variant,combo)."""
+    if not PRE21_ADJ_RESULTS.exists():
+        print(f"[pre21] {PRE21_ADJ_RESULTS} not found, skipping")
+        return {}
+    data = json.loads(PRE21_ADJ_RESULTS.read_text())
+    lookup = {}
+    for entry in data:
+        key = (entry['strat'], entry['tf'], entry['variant'], entry['combo'])
+        lookup[key] = entry
+    print(f"[pre21] Loaded {len(data)} champion pre-21 entries")
+    return lookup
 
 
 def load_intrabar_stats(strat, tf, variant, combo, period):
@@ -75,9 +120,11 @@ def load_sweep_summary(version, strat, tf, variant, combo):
     return None
 
 
-def enrich_with_intrabar_and_sweep(entries):
+def enrich_with_intrabar_and_sweep(entries, pre21_lookup=None):
     """Enrich entries with intrabar MDD and sweep summary sharpe data."""
     enriched = []
+    if pre21_lookup is None:
+        pre21_lookup = {}
 
     for entry in entries:
         strat = entry['strat']
@@ -149,6 +196,16 @@ def enrich_with_intrabar_and_sweep(entries):
         entry['intrabar_mdds'] = intrabar_mdds
         entry['phase5_pass'] = phase5_pass
         entry['phase5_fails'] = phase5_fails
+
+        # Merge pre21 period data if available
+        key = (entry['strat'], entry['tf'], entry['variant'], entry['combo'])
+        if pre21_lookup and key in pre21_lookup:
+            pre21_entry = pre21_lookup[key]
+            entry['pre21_periods'] = pre21_entry.get('periods', {})
+            entry['pre21_adj_score'] = pre21_entry.get('adjusted_score', None)
+        else:
+            entry['pre21_periods'] = {}
+            entry['pre21_adj_score'] = None
 
         enriched.append(entry)
 
@@ -237,6 +294,31 @@ def build_top_30_heatmap(entries):
     return heatmap_data, labels
 
 
+def build_pre21_heatmap(entries):
+    """Build heatmap for 5 champions across pre-2021 periods."""
+    champion_keys = {(s, t, v, c): (s, t, v, c, ver) for s, t, v, c, ver in CHAMPIONS}
+    result_rows = []
+    coverage_rows = []
+    labels = []
+    for e in entries:
+        key = (e['strat'], e['tf'], e['variant'], e['combo'])
+        if key not in champion_keys:
+            continue
+        champ = champion_keys[key]
+        label = f"{champ[0]}/{champ[1]} c{champ[3]}"
+        labels.append(label)
+        row = []
+        cov_row = []
+        for p in PRE21_PERIODS:
+            pdata = e.get('pre21_periods', {}).get(p, {})
+            row.append(pdata.get('adj_cagr', None))
+            cov = pdata.get('funding_coverage', None)
+            cov_row.append(FUNDING_BADGE.get(cov, '—') if cov else '—')
+        result_rows.append(row)
+        coverage_rows.append(cov_row)
+    return result_rows, labels, coverage_rows
+
+
 def build_cost_breakdown(entries):
     """Build cost breakdown for top 20 combos."""
     top = sorted(entries, key=lambda x: x['adjusted_score'], reverse=True)[:20]
@@ -261,7 +343,7 @@ def build_cost_breakdown(entries):
     return data
 
 
-def generate_html(entries, summary_stats, group_summary, scatter_data, strategies, heatmap_data, heatmap_labels, cost_data):
+def generate_html(entries, summary_stats, group_summary, scatter_data, strategies, heatmap_data, heatmap_labels, cost_data, heatmap_data_pre21=None, labels_pre21=None, coverage_pre21=None):
     """Generate complete HTML dashboard."""
 
     # Prepare JSON for embedding
@@ -565,6 +647,16 @@ def generate_html(entries, summary_stats, group_summary, scatter_data, strategie
         </div>
 
         <div class="section">
+            <h2>Pre-2021 Period Analysis (5 Champions)</h2>
+            <p style="color:#8b949e; font-size:13px; margin-bottom:15px;">
+                Funding coverage: 🟢 Bybit live &nbsp;|&nbsp; 🟡 Binance proxy &nbsp;|&nbsp; 🟠 Mixed &nbsp;|&nbsp; 🔴 Fee-only (no funding data)
+            </p>
+            <div class="chart-container">
+                <div id="chart-pre21-heatmap"></div>
+            </div>
+        </div>
+
+        <div class="section">
             <h2>Interactive Results Table</h2>
             <input type="text" id="filter-input" placeholder="Filter by strategy/TF/variant..."
                    style="padding: 10px; background-color: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 4px; margin-bottom: 15px; width: 100%;">
@@ -599,6 +691,46 @@ def generate_html(entries, summary_stats, group_summary, scatter_data, strategie
         const heatmapData = {json.dumps(heatmap_data)};
         const heatmapLabels = {json.dumps(heatmap_labels)};
         const costData = {json.dumps(cost_data)};
+        const pre21HeatmapData = {json.dumps(heatmap_data_pre21 or [])};
+        const pre21Labels = {json.dumps(labels_pre21 or [])};
+        const pre21Coverage = {json.dumps(coverage_pre21 or [])};
+
+        // Chart: Pre-2021 Heatmap
+        function plotPre21Heatmap() {{
+            if (!pre21HeatmapData || !pre21HeatmapData.length) {{
+                document.getElementById('chart-pre21-heatmap').innerHTML =
+                    '<p style="color:#8b949e; padding:20px;">Pre-2021 data not available yet. Run apply_realistic_costs_pre21.py first.</p>';
+                return;
+            }}
+            const xLabels = {json.dumps([PRE21_PERIOD_LABELS[p] for p in PRE21_PERIODS])};
+            const hoverTexts = pre21HeatmapData.map((row, ri) =>
+                row.map((v, ci) => {{
+                    const cov = pre21Coverage[ri] ? pre21Coverage[ri][ci] : '—';
+                    return `${{pre21Labels[ri]}}<br>${{xLabels[ci]}}<br>Adj CAGR: ${{v !== null ? v.toFixed(2) + '%' : 'N/A'}}<br>Funding: ${{cov}}`;
+                }})
+            );
+            const zData = pre21HeatmapData.map(row => row.map(v => v !== null ? parseFloat(v.toFixed(2)) : 0));
+            const trace = {{
+                z: zData,
+                x: xLabels,
+                y: pre21Labels,
+                type: 'heatmap',
+                text: hoverTexts,
+                hovertemplate: '%{{text}}<extra></extra>',
+                colorscale: [[0, '#f85149'], [0.5, '#0d1117'], [1, '#3fb950']],
+            }};
+            const layout = {{
+                title: '5 Champions: Pre-2021 Adjusted CAGR',
+                xaxis: {{ title: 'Pre-2021 Period', tickangle: -30 }},
+                yaxis: {{ title: 'Champion' }},
+                plot_bgcolor: '#0d1117',
+                paper_bgcolor: '#161b22',
+                font: {{ color: '#e6edf3', family: 'Arial, sans-serif' }},
+                margin: {{ l: 200, r: 40, b: 100, t: 60 }},
+                height: 350
+            }};
+            Plotly.newPlot('chart-pre21-heatmap', [trace], layout, {{ responsive: true }});
+        }}
 
         // Chart: Group Summary
         function plotGroupSummary() {{
@@ -758,6 +890,7 @@ def generate_html(entries, summary_stats, group_summary, scatter_data, strategie
         plotScatter();
         plotHeatmap();
         plotCosts();
+        plotPre21Heatmap();
     </script>
 </body>
 </html>
@@ -770,8 +903,11 @@ def main():
     print("Loading adjusted results...")
     entries = load_adjusted_results()
 
+    print("Loading pre-2021 results...")
+    pre21_lookup = load_pre21_results()
+
     print("Enriching with intrabar stats and sweep summaries...")
-    entries = enrich_with_intrabar_and_sweep(entries)
+    entries = enrich_with_intrabar_and_sweep(entries, pre21_lookup)
 
     print("Computing summary statistics...")
     summary_stats = compute_summary_stats(entries)
@@ -784,9 +920,16 @@ def main():
     scatter_data, strategies = build_scatter_data(entries)
     heatmap_data, heatmap_labels = build_top_30_heatmap(entries)
     cost_data = build_cost_breakdown(entries)
+    heatmap_data_pre21, labels_pre21, coverage_pre21 = build_pre21_heatmap(entries)
 
     print("Generating HTML...")
-    html_content = generate_html(entries, summary_stats, group_summary, scatter_data, strategies, heatmap_data, heatmap_labels, cost_data)
+    html_content = generate_html(
+        entries, summary_stats, group_summary, scatter_data, strategies,
+        heatmap_data, heatmap_labels, cost_data,
+        heatmap_data_pre21=heatmap_data_pre21,
+        labels_pre21=labels_pre21,
+        coverage_pre21=coverage_pre21,
+    )
 
     print(f"Writing to {OUT}...")
     OUT.parent.mkdir(parents=True, exist_ok=True)

@@ -7,12 +7,13 @@
 """
 import json
 import statistics
+from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
 import numpy as np
 
 ROOT = Path('/home/justant/Data/Bit-Mania/backtest')
-FUNDING_PATH = ROOT / 'data' / 'funding' / 'BTCUSDT_8h.parquet'
+MONTHLY_FUNDING_CSV = ROOT / 'data' / 'funding' / 'BTCUSDT_monthly_estimates.csv'
 OUT_BASE = ROOT / 'results' / 'adjusted_costs'
 
 # 검증된 219 survivor 목록 수집
@@ -43,6 +44,30 @@ def load_survivors(min_score=-998.0):
     return survivors
 
 
+def load_monthly_funding(csv_path: Path) -> tuple[dict, float]:
+    """Returns ({(year, month): avg_rate_8h}, fallback_mean of observed months)."""
+    df = pd.read_csv(csv_path)
+    observed = df[df['source'] == 'observed']
+    fallback = float(observed['avg_rate_8h'].mean())
+    table = {(int(r.year), int(r.month)): float(r.avg_rate_8h) for r in df.itertuples()}
+    return table, fallback
+
+
+def period_avg_monthly_rate(table: dict, fallback: float, start_str: str, end_str: str) -> float:
+    """Average of monthly estimates over all months in [start_str, end_str] (YYYY-MM-DD)."""
+    start = datetime.strptime(start_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    end = datetime.strptime(end_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    rates = []
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        rates.append(table.get((y, m), fallback))
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+    return float(np.mean(rates)) if rates else fallback
+
+
 # TF별 평균 보유 시간 (시간 단위)
 # 백테스트에서 관찰된 평균 거래 기간 기반
 TF_HOLD_HOURS = {
@@ -70,7 +95,7 @@ PERIOD_YEARS = {
 }
 
 
-def apply_costs(row: dict, fund_df: pd.DataFrame) -> dict:
+def apply_costs(row: dict, monthly_table: dict, fallback_rate: float) -> dict:
     """단일 combo에 비용 보정 적용"""
     tf = row['tf']
     variant = row['variant']
@@ -104,21 +129,12 @@ def apply_costs(row: dict, fund_df: pd.DataFrame) -> dict:
         sharpe = m.get('sharpe', 0)
         pf = m.get('pf', 1)
 
-        # 기간별 평균 펀딩율 계산
+        # 기간별 평균 펀딩율 — monthly estimates 기반
         if p_key in PERIOD_DATES:
             s_date, e_date = PERIOD_DATES[p_key]
-            s_ts = int(pd.Timestamp(s_date).timestamp() * 1000)
-            e_ts = int(pd.Timestamp(e_date).timestamp() * 1000)
-            mask = (fund_df['timestamp'] >= s_ts) & (
-                fund_df['timestamp'] <= e_ts
-            ) & (fund_df['funding_rate'] != 0)
-            avg_fund = (
-                fund_df.loc[mask, 'funding_rate'].mean()
-                if mask.any()
-                else 0.0005
-            )
+            avg_fund = period_avg_monthly_rate(monthly_table, fallback_rate, s_date, e_date)
         else:
-            avg_fund = 0.0005  # 0.05% per 8h 기본값
+            avg_fund = fallback_rate
 
         # 기간 길이 (년)
         period_years = PERIOD_YEARS.get(p_key, 3.0)
@@ -166,7 +182,7 @@ def apply_costs(row: dict, fund_df: pd.DataFrame) -> dict:
             'pf': pf,
             'fee_cost_annual_pct': round(fee_cost_pct_annual, 3),
             'funding_cost_annual_pct': round(fund_cost_pct_annual, 3),
-            'avg_funding_rate': round(avg_fund * 100, 5),
+            'avg_funding_rate': round(avg_fund, 8),
             'hold_hours': hold_hours,
             'n_funding_periods': round(n_funding, 2),
         }
@@ -203,19 +219,17 @@ def main():
         f'v3: {sum(1 for x in survivors if x["version"] == "v3")}'
     )
 
-    # 2. 펀딩 데이터 로드
-    fund_df = pd.read_parquet(FUNDING_PATH)
-    non_zero_count = (fund_df['funding_rate'] != 0).sum()
+    # 2. 펀딩 추정치 로드 (monthly estimates CSV)
+    monthly_table, fallback_rate = load_monthly_funding(MONTHLY_FUNDING_CSV)
     print(
-        f'\n[2] 펀딩 데이터: {len(fund_df)} rows, '
-        f'non-zero: {non_zero_count} ({100*non_zero_count/len(fund_df):.1f}%)'
+        f'\n[2] 월별 펀딩 추정치: {len(monthly_table)} months, fallback={fallback_rate:.8f}'
     )
 
     # 3. 비용 보정 적용
     print(f'\n[3] 비용 보정 적용 중...')
     results = []
     for i, row in enumerate(survivors):
-        adj = apply_costs(row, fund_df)
+        adj = apply_costs(row, monthly_table, fallback_rate)
         results.append(adj)
 
         # 저장
