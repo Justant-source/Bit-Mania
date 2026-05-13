@@ -91,13 +91,13 @@ def extract_leverage(variant: str) -> int:
     return int(m.group(1)) if m else 1
 
 
-def funding_sign_for(variant: str) -> float:
+def funding_sign_for(variant: str) -> float | None:
     base = extract_base_variant(variant)
     if base == "long_only":
         return +1.0
     if base == "short_only":
         return -1.0
-    return 0.0
+    return None  # bidirectional: determined per-trade from trade.side
 
 
 def load_trades(path: Path) -> list[dict]:
@@ -112,6 +112,7 @@ def load_trades(path: Path) -> list[dict]:
                 "pnl": float(r["pnl"]),
                 "qty": float(r["qty"]),
                 "entry_price": float(r["entry_price"]),
+                "side": r.get("side", "long"),
             })
     return rows
 
@@ -149,7 +150,7 @@ def funding_rate_sum_in_window(
 
 def simulate_period(
     period_trades: list[dict],
-    f_sign: float,
+    f_sign: float | None,
     ts_arr: np.ndarray,
     rate_arr: np.ndarray,
     fallback: float,
@@ -172,7 +173,8 @@ def simulate_period(
         fee_usd = notional * FEE_DELTA_PER_SIDE * 2
 
         sum_rate = funding_rate_sum_in_window(open_ms, close_ms, ts_arr, rate_arr, fallback)
-        fund_usd = notional * sum_rate * f_sign
+        t_sign = f_sign if f_sign is not None else (+1.0 if t["side"] == "long" else -1.0)
+        fund_usd = notional * sum_rate * t_sign
 
         # Count funding events that fell in this trade's window
         lo = int(np.searchsorted(ts_arr, int(open_ms), side="left"))
@@ -312,7 +314,7 @@ def main():
                     avg_funding_rate = (
                         (sim["total_fund_usd"] / f_sign) / (
                             sum(t["qty"] * t["entry_price"] for t in period_trades) * avg_fund_events * n_trades
-                        ) if avg_fund_events > 0 and f_sign != 0 and n_trades > 0 else 0.0
+                        ) if avg_fund_events > 0 and f_sign is not None and n_trades > 0 else 0.0
                     )
 
                     periods_out[period_key] = {

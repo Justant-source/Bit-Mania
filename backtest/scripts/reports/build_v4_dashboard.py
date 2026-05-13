@@ -1127,8 +1127,8 @@ function balanceSim(r, startMs, endMs, cap) {
   const lev      = r.leverage || 1;
 
   const baseVariant = r.variant.replace(/_x\d+$/, '');
-  const fundSign = baseVariant === 'long_only' ? 1
-                 : baseVariant === 'short_only' ? -1 : 0;
+  const variantFundSign = baseVariant === 'long_only' ? 1
+                        : baseVariant === 'short_only' ? -1 : null;
 
   const baseR = _baseResultFor(r);
   const rawTrades = (baseR.trades || [])
@@ -1156,9 +1156,10 @@ function balanceSim(r, startMs, endMs, cap) {
     if (vPnl < -vMargin) vPnl = -vMargin;
 
     // Per-trade fee & funding (deducted from equity so they compound)
-    const vFee     = vNotional * TAKER_FEE_PER_SIDE * 2;
-    const sumRate  = fundSign !== 0 ? fundingRateSumInWindow(t.t_open, t.t_close) : 0;
-    const vFunding = sumRate * vNotional * fundSign;
+    const vFee      = vNotional * TAKER_FEE_PER_SIDE * 2;
+    const tFundSign = variantFundSign !== null ? variantFundSign : (t.side === 'short' ? -1 : 1);
+    const sumRate   = fundingRateSumInWindow(t.t_open, t.t_close);
+    const vFunding  = sumRate * vNotional * tFundSign;
     const vNetPnl  = vPnl - vFee - vFunding;
 
     vEq += vNetPnl;
@@ -1918,7 +1919,6 @@ function renderTradeTable(focusIdx = null) {
   // Values are computed inside balanceSim() so equity reflects the cost drag.
   // Here we just read the stored vFee / vFunding / vNetPnl for display.
   const baseVariant = r.variant.replace(/_x\d+$/, '');
-  const fundSign = baseVariant === 'long_only' ? 1 : baseVariant === 'short_only' ? -1 : 0;
 
   let totalPnl = 0, totalDur = 0, totalFee = 0, totalFunding = 0, wins = 0;
   const rows = trades.map((st, rowN) => {
@@ -1934,7 +1934,7 @@ function renderTradeTable(focusIdx = null) {
     const tradeFee     = st.vFee;
     const tradeFunding = st.vFunding;
     // hasFundingData: true if any 8h event exists in the trade's hold window
-    const hasFundingData = fundSign !== 0 && DATA.funding_ts && DATA.funding_ts.length > 0;
+    const hasFundingData = DATA.funding_ts && DATA.funding_ts.length > 0;
 
     totalPnl += dispPnl;
     totalDur += dur;
