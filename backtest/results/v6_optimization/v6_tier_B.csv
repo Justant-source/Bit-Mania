@@ -1,0 +1,1 @@
+combo_id,carrier_id,v5_combo_id,st_factor,st_period,fast_ema_len,slow_ema_len,direction_ema_len,tp_atr_mult,sl_atr_mult,v5_atr_mult,v5_mean_cagr,v5_worst_mdd,mean_cagr,std_cagr,worst_window,worst_mdd,mdd_improvement,cagr_drop,final_tier,v6_score,rank_in_tier
