@@ -41,6 +41,14 @@ SCRIPTS_DIR = Path(__file__).parent
 JESSE_ROOT  = SCRIPTS_DIR.parent.parent  # /app (scripts are at /app/scripts/runners)
 sys.path.insert(0, str(JESSE_ROOT))
 
+# --- Jesse import order fix ------------------------------------------------
+# Jesse has a circular import: multiprocessing→redis→helpers→redis.
+# Importing helpers and redis BEFORE triggering jesse.__init__ (which imports
+# cli→multiprocessing→redis) ensures they are cached when the cycle is hit.
+import jesse.helpers          # noqa: E402 — must precede `from jesse import X`
+import jesse.services.env     # noqa: E402
+import jesse.services.redis   # noqa: E402
+
 DATA_DIR      = Path(os.environ.get('DATA_DIR', '/data'))
 EXCHANGE_NAME = 'Bybit Perpetual'
 SYMBOL        = 'BTC-USDT'
@@ -701,7 +709,7 @@ def run(args):
         'starting_balance':      args.balance,
         'fee':                   args.fee,
         'type':                  'futures',
-        'futures_leverage':      args.leverage,
+        'futures_leverage':      int(args.leverage) if args.leverage == int(args.leverage) else int(args.leverage) + 1,
         'futures_leverage_mode': 'isolated',
         'exchange':              EXCHANGE_NAME,
         'warm_up_candles':       len(warmup_1m),
@@ -712,7 +720,17 @@ def run(args):
     candles_dict = {key: {'exchange': EXCHANGE_NAME, 'symbol': SYMBOL, 'candles': candles_1m}}
     warmup_dict  = {key: {'exchange': EXCHANGE_NAME, 'symbol': SYMBOL, 'candles': warmup_1m}}
 
-    # 4. Run backtest
+    # 4. Pre-populate Jesse ENV_VALUES so open_connection() works after Jesse
+    # creates storage/ in CWD (which makes is_jesse_project() return True mid-run).
+    from jesse.services.env import ENV_VALUES as _jenv
+    _jenv['POSTGRES_NAME']     = os.environ.get('JESSE_DB_NAME', 'jesse_db')
+    _jenv['POSTGRES_USERNAME'] = os.environ.get('JESSE_DB_USER', 'jesse')
+    _jenv['POSTGRES_PASSWORD'] = os.environ.get('JESSE_DB_PASSWORD', '')
+    _jenv['POSTGRES_HOST']     = os.environ.get('JESSE_DB_HOST', 'localhost')
+    _jenv['POSTGRES_PORT']     = os.environ.get('JESSE_DB_PORT', '5432')
+    _jenv['PASSWORD']          = 'backtest'
+
+    # 5. Run backtest
     print('  Running Jesse backtest...')
     raw = research.backtest(
         config=config, routes=routes, data_routes=[],
@@ -721,7 +739,7 @@ def run(args):
         hyperparameters=getattr(args, 'hp_dict', None) or {},
     )
 
-    # 5. Extract metrics
+    # 6. Extract metrics
     metrics = _extract_metrics(raw, start, end, no_upsample=no_upsample, timeframe=tf)
     verdict, checks = _pass_fail(metrics)
 
@@ -735,7 +753,7 @@ def run(args):
     for k, v in checks.items():
         print(f'    {"✓" if v else "✗"} {k}')
 
-    # 6. Write output files
+    # 7. Write output files
     trades = raw.get('trades', []) or []
     _write_stats(out_dir, strategy_name, metrics, verdict, checks,
                  balance=args.balance, leverage=args.leverage, variant=getattr(args, 'variant', 'bidirectional'))
@@ -757,7 +775,7 @@ def parse_args():
     p.add_argument('--end',      default='2026-04-30')
     p.add_argument('--balance',  type=float, default=10_000.0)
     p.add_argument('--fee',      type=float, default=0.0002)   # Bybit maker (limit order)
-    p.add_argument('--leverage', type=int,   default=1)
+    p.add_argument('--leverage', type=float, default=1)
     p.add_argument('--variant',  choices=['bidirectional', 'long_only', 'buy_and_hold'],
                    default='bidirectional')
     p.add_argument('--timeframe', choices=['1h', '4h', '1D'], default='1h',

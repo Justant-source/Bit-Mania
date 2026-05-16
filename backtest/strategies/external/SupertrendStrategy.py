@@ -12,7 +12,7 @@ from jesse.strategies import Strategy
 import jesse.indicators as ta
 import os
 
-LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
+LEVERAGE = float(os.environ.get('STRATEGY_LEVERAGE', '1'))
 
 
 class SupertrendStrategy(Strategy):
