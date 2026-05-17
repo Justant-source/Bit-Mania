@@ -146,15 +146,28 @@ def build_hp_json(job: dict) -> str:
     return json.dumps(hp)
 
 
-def run_backtest(job: dict, output_dir: Path) -> bool:
-    """Run backtest subprocess, return True if successful."""
+def run_backtest(job: dict) -> tuple[bool, Path]:
+    """
+    Run backtest in a fully self-contained temp dir.
+
+    Returns (success, run_dir). Caller MUST call shutil.rmtree(run_dir) after
+    reading stats — no permanent combo_X_W directories are ever created.
+    """
     combo_id = job['combo_id']
     window_name = job['window_name']
-    combo_out = output_dir / f"combo_{combo_id}_{window_name}"
-    combo_out.mkdir(parents=True, exist_ok=True)
+
+    run_dir = Path(tempfile.mkdtemp(prefix=f'pg_bt_{combo_id}_{window_name}_'))
+    combo_out = run_dir / 'output'
+    combo_out.mkdir()
+
+    try:
+        (run_dir / 'strategies').symlink_to('/app/strategies')
+    except Exception as e:
+        print(f'[ERROR combo={combo_id} {window_name}] symlink failed: {e}',
+              file=sys.stderr, flush=True)
+        return False, run_dir
 
     hp_json = build_hp_json(job)
-
     cmd = [
         'python3', '/app/scripts/runners/run_intrabar_backtest.py',
         '--strategy', STRATEGY,
@@ -169,34 +182,22 @@ def run_backtest(job: dict, output_dir: Path) -> bool:
         '--output', str(combo_out),
     ]
 
-    # Create temp dir with strategies symlink
-    run_dir = Path(tempfile.mkdtemp(prefix=f'pg_bt_{combo_id}_{window_name}_'))
-    try:
-        (run_dir / 'strategies').symlink_to('/app/strategies')
-    except Exception as e:
-        print(f'[ERROR combo={combo_id} {window_name}] symlink failed: {e}',
-              file=sys.stderr, flush=True)
-        shutil.rmtree(run_dir, ignore_errors=True)
-        return False
-
     try:
         subprocess.run(cmd, check=False, cwd=str(run_dir), timeout=BACKTEST_TIMEOUT)
-        return (combo_out / 'stats.json').exists()
+        return (combo_out / 'stats.json').exists(), run_dir
     except subprocess.TimeoutExpired:
         print(f'[TIMEOUT combo={combo_id} {window_name}]',
               file=sys.stderr, flush=True)
-        return False
+        return False, run_dir
     except Exception as e:
         print(f'[ERROR combo={combo_id} {window_name}] {e}',
               file=sys.stderr, flush=True)
-        return False
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
+        return False, run_dir
 
 
-def parse_stats(output_dir: Path, combo_id: int, window_name: str) -> dict | None:
-    """Parse stats.json from backtest output."""
-    stats_path = output_dir / f"combo_{combo_id}_{window_name}" / 'stats.json'
+def parse_stats(run_dir: Path, combo_id: int, window_name: str) -> dict | None:
+    """Parse stats.json from temp backtest output dir."""
+    stats_path = run_dir / 'output' / 'stats.json'
     if not stats_path.exists():
         return None
 
@@ -281,9 +282,6 @@ def main():
     sweep_id = args.sweep
     worker_id = args.worker_id
 
-    output_dir = Path('/result')
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     processed = 0
     t_start = time.time()
 
@@ -301,17 +299,22 @@ def main():
         window_name = job['window_name']
         job_start = time.time()
 
-        # Run backtest
-        success = run_backtest(job, output_dir)
+        run_dir = None
+        try:
+            # Run backtest entirely in temp dir — no permanent combo_X_W dirs
+            success, run_dir = run_backtest(job)
 
-        # Parse stats
-        stats = None
-        if success:
-            stats = parse_stats(output_dir, combo_id, window_name)
-            if not stats:
-                success = False
+            # Parse stats before cleaning up temp dir
+            stats = None
+            if success:
+                stats = parse_stats(run_dir, combo_id, window_name)
+                if not stats:
+                    success = False
+        finally:
+            if run_dir is not None:
+                shutil.rmtree(run_dir, ignore_errors=True)
 
-        # Insert result
+        # Insert result into PG
         insert_window_result(conn, job, stats, success)
         conn.close()
 
