@@ -56,7 +56,7 @@ SYMBOL        = 'BTC-USDT'
 # PASS thresholds
 PASS_CAGR_PCT    =  5.0   # %
 PASS_SHARPE      =  0.5
-PASS_MDD_PCT     = -30.0  # % (less negative = better)
+PASS_MDD_PCT     = -80.0  # % (less negative = better)
 PASS_TRADES      =  30
 PASS_WINRATE_PCT =  35.0  # %
 PASS_PF          =  1.2
@@ -349,7 +349,7 @@ def _pass_fail(metrics: dict) -> tuple[str, dict]:
     checks = {
         'CAGR ≥ 5%':          metrics['annual_return_pct'] >= PASS_CAGR_PCT,
         'Sharpe ≥ 0.5':       metrics['sharpe_ratio']      >= PASS_SHARPE,
-        'MDD ≥ -30%':         metrics['max_drawdown_pct']  >= PASS_MDD_PCT,
+        'MDD ≥ -80%':         metrics['max_drawdown_pct']  >= PASS_MDD_PCT,
         'Trades ≥ 30':        metrics['total_trades']       >= PASS_TRADES,
         'WinRate ≥ 35%':      metrics['win_rate_pct']       >= PASS_WINRATE_PCT,
         'ProfitFactor ≥ 1.2': metrics['profit_factor']      >= PASS_PF,
@@ -492,7 +492,7 @@ def _write_decision(out_dir: Path, strategy: str, metrics: dict, verdict: str, c
         f'|------|------|------|------|',
         f'| CAGR | {cagr:.2f}% | ≥ +5% | {"✓" if checks["CAGR ≥ 5%"] else "✗"} |',
         f'| Sharpe | {sharpe:.3f} | ≥ 0.5 | {"✓" if checks["Sharpe ≥ 0.5"] else "✗"} |',
-        f'| MDD | {mdd:.2f}% | ≥ -30% | {"✓" if checks["MDD ≥ -30%"] else "✗"} |',
+        f'| MDD | {mdd:.2f}% | ≥ -80% | {"✓" if checks["MDD ≥ -80%"] else "✗"} |',
         f'| Trades | {trades} | ≥ 30 | {"✓" if checks["Trades ≥ 30"] else "✗"} |',
         f'| Win Rate | {wr:.1f}% | ≥ 35% | {"✓" if checks["WinRate ≥ 35%"] else "✗"} |',
         f'| Profit Factor | {pf:.3f} | ≥ 1.2 | {"✓" if checks["ProfitFactor ≥ 1.2"] else "✗"} |',

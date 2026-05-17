@@ -1,6 +1,6 @@
 ---
 title: Backtest — 전략 R&D 통합 트리
-last_updated: 2026-05-12
+last_updated: 2026-05-17
 ---
 
 # Backtest
@@ -20,6 +20,13 @@ last_updated: 2026-05-12
 | `dashboards/` | 대시보드 HTML 산출물 |
 | `docker/` | 백테스트 인프라 (backtester + wf-scheduler + backtest-postgres) |
 | `docs/` | 백테스트 문서 단일 소스 |
+
+## PostgreSQL 통합 (2026-05)
+
+모든 v4~v7 sweep 결과가 `backtest-postgres` (`jesse_db`)의 `st_sweeps/st_combos/st_window_results` 테이블로 통합됨. 자세한 내용: `results/supertrend_x3_long_only/README.md`.
+
+향후 신규 sweep은 `scripts/optimization/pg_master.py` (PG-native, combo_X_W 디렉토리 미생성).
+대시보드: `scripts/reports/build_dashboard.py` → `results/supertrend_x3_long_only/dashboard.html`
 
 ## 빠른 시작
 
