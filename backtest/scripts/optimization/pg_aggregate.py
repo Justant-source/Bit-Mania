@@ -71,7 +71,7 @@ def load_combo_window_results(conn, sweep_id: str) -> dict[int, list[dict]]:
         """, (sweep_id,))
 
         for row in cur.fetchall():
-            combo_pk, "window", complete, cagr_adj, mdd_adj, sharpe, trades_count, \
+            combo_pk, window, complete, cagr_adj, mdd_adj, sharpe, trades_count, \
                 liquidated, finishing_balance = row
 
             if combo_pk not in results:

@@ -140,10 +140,11 @@ Supertrend v4~v7 sweep 메타데이터 및 결과를 PostgreSQL로 중앙화. �
 
 | 경로 | 설명 |
 |---|---|
-| `results/supertrend_x3_long_only/` | 3x leverage 통합 결과 (v4 baseline 216 → v5_2 dense 1296 → v7 archive 3) |
+| `results/supertrend_x3_long_only/` | 3x leverage 통합 결과 (v4~v8+) |
 | `results/supertrend_x3_long_only/README.md` | 아카이브 정보 + 사용 가이드 |
 | `results/supertrend_x3_long_only/dashboard.html` | PG 기반 생성 대시보드 |
 | `results/supertrend_x3_long_only/dashboard_v2.html` | UI 레퍼런스 (v5_2 전용, hand-authored) |
+| `results/supertrend_x3_long_only/scripts/legacy_optimizers/` | 옛 v4~v7 SQLite 기반 옵티마이저 (deprecated — pg_* 로 대체) |
 
 ## Jesse 엔진 인프라 (backtest/docker/)
 

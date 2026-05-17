@@ -47,16 +47,18 @@ $DC python3 /app/scripts/optimization/pg_master.py --sweep my_sweep --workers 6
 $DC python3 /app/scripts/reports/build_dashboard.py
 ```
 
-## combo_X_W 디렉토리 (Archive)
+## 결과 디렉토리 정책 (2026-05-17 갱신)
 
-기존 `results/v*_optimization/combo_*/` 디렉토리는 원본 보존 (삭제 안 함). PG가 SoT — 디렉토리는 archive. 향후 sweep은 PG-native (디렉토리 생성 안 함).
+- `v4~v6_optimization/`, `v7_leverage_test/`: **combo_X_W 디렉토리 + queue.sqlite3 삭제됨**. 원본 `*_all_combos.csv`/`v7_results.csv`는 provenance로 보존. PG가 SoT — raw_json+window_results로 CSV 전체 복원 가능.
+- 옛 SQLite 기반 옵티마이저 스크립트(v4~v7): `scripts/legacy_optimizers/`로 이동 (이력 참조용). 현역은 `backtest/scripts/optimization/pg_*`.
 
 ## 파일 목록
 
 | 파일 | 설명 |
 |---|---|
-| `dashboard.html` | PG 기반 생성 통합 대시보드 (v4~v7) |
+| `dashboard.html` | PG 기반 생성 통합 대시보드 (v4~v7+) |
 | `dashboard_v2.html` | UI 레퍼런스 (v5_2 전용, hand-authored) |
+| `scripts/legacy_optimizers/` | 옛 v4~v7 SQLite 기반 스크립트 (deprecated) |
 | `README.md` | 이 파일 |
 
 ## Sweep 결과 요약
@@ -68,6 +70,7 @@ $DC python3 /app/scripts/reports/build_dashboard.py
 | v5_2 | 1296 | dense grid (사이값+확장) | PLATEAU 159개, ROBUST 476개. top carrier: 173/176/164 |
 | v6 | 225 | 비대칭 TP/SL (top-25×9) | 모든 worst_mdd -90%대, 비대칭 무효 확인 |
 | v7 | 3 | top-3 carrier × 1x~3x lev | 1x MARGINAL (-36%), 2x+ FAIL. 3x archive 최종 확정 |
+| v8 | 224 | dir_ema 확장 (250→400) | sweet-spot 코어 고정, direction_ema_len 7단계 탐색 |
 
 ## 파라미터 정의
 

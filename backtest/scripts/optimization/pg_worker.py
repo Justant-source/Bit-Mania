@@ -113,12 +113,12 @@ def claim_pending_job(conn, sweep_id: str, worker_id: int) -> dict | None:
 def build_hp_json(job: dict) -> str:
     """Build hyperparameter JSON for backtest."""
     hp = {
-        'st_factor': job['st_factor'],
-        'st_period': job['st_period'],
-        'fast_ema_len': job['fast_ema_len'],
-        'slow_ema_len': job['slow_ema_len'],
-        'direction_ema_len': job['direction_ema_len'],
-        'atr_mult': job['atr_mult'],
+        'st_factor': float(job['st_factor']),
+        'st_period': int(job['st_period']),
+        'fast_ema_len': int(job['fast_ema_len']),
+        'slow_ema_len': int(job['slow_ema_len']),
+        'direction_ema_len': int(job['direction_ema_len']),
+        'atr_mult': float(job['atr_mult']),
         'sl_margin_pct': 0.0,
     }
     return json.dumps(hp)
