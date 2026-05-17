@@ -46,68 +46,90 @@ FEE = 0.00055
 
 def claim_pending_job(conn, sweep_id: str, worker_id: int) -> dict | None:
     """
-    Claim one pending (combo, window) pair using FOR UPDATE SKIP LOCKED.
+    Claim one pending (combo, window) pair atomically.
+
+    Selects a pending pair (no row in st_window_results) and immediately
+    inserts a placeholder row (complete=NULL) within the same transaction.
+    This prevents other workers from double-claiming the same pair between
+    SELECT and backtest completion.
+
     Returns job dict or None if no pending work.
     """
-    try:
-        with conn.cursor() as cur:
-            cur.execute("BEGIN")
-
-            # Claim one pending combo×window pair
-            cur.execute("""
-                SELECT c.pk, c.combo_id, c.st_factor, c.st_period, c.fast_ema_len,
-                       c.slow_ema_len, c.direction_ema_len, c.atr_mult,
-                       w.name as window_name, w.start_date, w.end_date
-                FROM (VALUES ('W1','2017-08-18','2018-12-15'),
-                            ('W2','2018-12-15','2019-10-22'),
-                            ('W3','2019-10-22','2021-02-21'),
-                            ('W4','2021-02-21','2021-11-10'),
-                            ('W5','2021-11-10','2023-01-01'),
-                            ('W6','2023-01-01','2024-03-01'),
-                            ('W7','2024-03-01','2025-04-03'),
-                            ('W8','2025-04-03','2026-04-30')) AS w(name,start_date,end_date)
-                JOIN st_combos c ON c.sweep_id = %s
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM st_window_results wr
-                    WHERE wr.combo_pk = c.pk AND wr."window" = w.name
-                )
-                ORDER BY c.combo_id, w.name
-                LIMIT 1
-                FOR UPDATE OF c SKIP LOCKED
-            """, (sweep_id,))
-
-            row = cur.fetchone()
-            if row is None:
-                cur.execute("COMMIT")
-                return None
-
-            pk, combo_id, st_factor, st_period, fast_ema_len, slow_ema_len, \
-                direction_ema_len, atr_mult, window_name, start_date, end_date = row
-
-            cur.execute("COMMIT")
-
-            return {
-                'combo_pk': pk,
-                'combo_id': combo_id,
-                'window_name': window_name,
-                'start_date': start_date,
-                'end_date': end_date,
-                'st_factor': st_factor,
-                'st_period': st_period,
-                'fast_ema_len': fast_ema_len,
-                'slow_ema_len': slow_ema_len,
-                'direction_ema_len': direction_ema_len,
-                'atr_mult': atr_mult,
-            }
-
-    except Exception as e:
-        print(f'[CLAIM ERROR worker={worker_id}] {e}', file=sys.stderr, flush=True)
+    for _ in range(10):
         try:
             with conn.cursor() as cur:
-                cur.execute("ROLLBACK")
-        except Exception:
-            pass
-        return None
+                cur.execute("BEGIN")
+
+                cur.execute("""
+                    SELECT c.pk, c.combo_id, c.st_factor, c.st_period, c.fast_ema_len,
+                           c.slow_ema_len, c.direction_ema_len, c.atr_mult,
+                           w.name as window_name, w.start_date, w.end_date
+                    FROM (VALUES ('W1','2017-08-18','2018-12-15'),
+                                ('W2','2018-12-15','2019-10-22'),
+                                ('W3','2019-10-22','2021-02-21'),
+                                ('W4','2021-02-21','2021-11-10'),
+                                ('W5','2021-11-10','2023-01-01'),
+                                ('W6','2023-01-01','2024-03-01'),
+                                ('W7','2024-03-01','2025-04-03'),
+                                ('W8','2025-04-03','2026-04-30')) AS w(name,start_date,end_date)
+                    JOIN st_combos c ON c.sweep_id = %s
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM st_window_results wr
+                        WHERE wr.combo_pk = c.pk AND wr."window" = w.name
+                    )
+                    ORDER BY c.combo_id, w.name
+                    LIMIT 1
+                    FOR UPDATE OF c SKIP LOCKED
+                """, (sweep_id,))
+
+                row = cur.fetchone()
+                if row is None:
+                    cur.execute("COMMIT")
+                    return None
+
+                pk, combo_id, st_factor, st_period, fast_ema_len, slow_ema_len, \
+                    direction_ema_len, atr_mult, window_name, start_date, end_date = row
+
+                # Insert placeholder atomically — if another worker raced and already inserted,
+                # RETURNING returns nothing; we rollback and try the next available pair.
+                cur.execute("""
+                    INSERT INTO st_window_results(combo_pk, "window", complete)
+                    VALUES (%s, %s, NULL)
+                    ON CONFLICT(combo_pk, "window") DO NOTHING
+                    RETURNING pk
+                """, (pk, window_name))
+
+                if cur.fetchone() is None:
+                    # Race: another worker claimed this pair first
+                    cur.execute("ROLLBACK")
+                    continue
+
+                cur.execute("COMMIT")
+
+                return {
+                    'combo_pk': pk,
+                    'combo_id': combo_id,
+                    'window_name': window_name,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'st_factor': st_factor,
+                    'st_period': st_period,
+                    'fast_ema_len': fast_ema_len,
+                    'slow_ema_len': slow_ema_len,
+                    'direction_ema_len': direction_ema_len,
+                    'atr_mult': atr_mult,
+                }
+
+        except Exception as e:
+            print(f'[CLAIM ERROR worker={worker_id}] {e}', file=sys.stderr, flush=True)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            return None
+
+    return None
 
 
 def build_hp_json(job: dict) -> str:
@@ -199,7 +221,7 @@ def parse_stats(output_dir: Path, combo_id: int, window_name: str) -> dict | Non
 
 
 def insert_window_result(conn, job: dict, stats: dict | None, success: bool) -> None:
-    """Insert result into st_window_results."""
+    """Update placeholder row in st_window_results with actual backtest result."""
     combo_pk = job['combo_pk']
     window_name = job['window_name']
 
@@ -211,33 +233,39 @@ def insert_window_result(conn, job: dict, stats: dict | None, success: bool) -> 
                       combo_pk, "window", complete, cagr_raw, mdd_raw, cagr_adj, mdd_adj,
                       sharpe, trades_count, liquidated, finishing_balance
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT(combo_pk, "window") DO NOTHING
+                    ON CONFLICT(combo_pk, "window") DO UPDATE SET
+                      complete=EXCLUDED.complete,
+                      cagr_raw=EXCLUDED.cagr_raw,
+                      mdd_raw=EXCLUDED.mdd_raw,
+                      cagr_adj=EXCLUDED.cagr_adj,
+                      mdd_adj=EXCLUDED.mdd_adj,
+                      sharpe=EXCLUDED.sharpe,
+                      trades_count=EXCLUDED.trades_count,
+                      liquidated=EXCLUDED.liquidated,
+                      finishing_balance=EXCLUDED.finishing_balance
+                    WHERE st_window_results.complete IS NULL
                 """, (
                     combo_pk,
                     window_name,
-                    True,  # complete
+                    True,
                     stats.get('cagr_pct'),
                     stats.get('max_drawdown_pct'),
-                    stats.get('cagr_pct'),  # cagr_adj (raw for now; aggregation will adjust)
-                    stats.get('max_drawdown_pct'),  # mdd_adj
+                    stats.get('cagr_pct'),
+                    stats.get('max_drawdown_pct'),
                     stats.get('sharpe_ratio'),
                     stats.get('total_trades'),
-                    False,  # liquidated (will be determined in aggregation)
+                    False,
                     stats.get('finishing_balance'),
                 ))
             else:
-                # Failed backtest: mark complete=False so worker won't re-claim
                 cur.execute("""
                     INSERT INTO st_window_results(
-                      combo_pk, "window", complete, cagr_raw, mdd_raw, cagr_adj, mdd_adj,
-                      sharpe, trades_count, liquidated, finishing_balance
-                    ) VALUES (%s, %s, %s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
-                    ON CONFLICT(combo_pk, "window") DO NOTHING
-                """, (
-                    combo_pk,
-                    window_name,
-                    False,  # complete=False
-                ))
+                      combo_pk, "window", complete
+                    ) VALUES (%s, %s, %s)
+                    ON CONFLICT(combo_pk, "window") DO UPDATE SET
+                      complete=EXCLUDED.complete
+                    WHERE st_window_results.complete IS NULL
+                """, (combo_pk, window_name, False))
         conn.commit()
     except Exception as e:
         print(f'[INSERT ERROR combo={job["combo_id"]} {window_name}] {e}',
