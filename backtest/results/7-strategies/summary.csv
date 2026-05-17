@@ -20,6 +20,7 @@ supertrend,4h,bidirectional,23.51,-40.81,0.686,1.09,511
 supertrend,4h,bidirectional_x2,52.29,-78.69,0.914,1.032,767
 supertrend,4h,bidirectional_x3,17.71,-95.28,0.888,1.006,767
 supertrend,4h,long_only,37.99,-26.25,1.163,1.341,248
+supertrend,4h,long_only_v2,13.13,-46.21,0.544,1.1,387
 supertrend,4h,long_only_x2,64.54,-37.44,0.95,1.198,245
 supertrend,4h,long_only_x3,84.32,-52.56,0.92,1.127,245
 supertrend,4h,long_only_x3_v2,12.13,-86.48,0.584,1.019,387

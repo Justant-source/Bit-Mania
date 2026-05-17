@@ -3,8 +3,8 @@
 **기간**: 2021-01-01 ~ 2026-04-30
 **초기자본**: $10,000 | **레버리지**: 1× | **심볼**: BTC-USDT
 
-> 자동 생성 — `sync_7strategies_docs.py` (동기화: 2026-05-17 16:31:18)
-> 수집된 결과: 65건
+> 자동 생성 — `sync_7strategies_docs.py` (동기화: 2026-05-17 16:47:10)
+> 수집된 결과: 66건
 
 ## Champion 조합 (TF별 최고 성과)
 
@@ -30,7 +30,7 @@
 | tradeiq_cci_ce | 1D | long_only | +2.66 | -15.84 | 0.279 | 1.506 | 5 |
 | stoch | 1h | bidirectional_x3 | -37.89 | -99.98 | 1.658 | 0.623 | 23 |
 
-## 전체 결과 (65 건)
+## 전체 결과 (66 건)
 
 | 전략 | TF | 변형 | CAGR(%) | MDD(%) | Sharpe | PF | 거래수 |
 |---|---|---|---|---|---|---|---|
@@ -74,6 +74,7 @@
 | trendtype | 1h | long_only_x3 | +14.98 | -96.47 | 1.447 | 1.138 | 28 |
 | supertrend_trendtype | 1h | long_only | +13.36 | -29.58 | 0.595 | 1.084 | 729 |
 | tradeiq_psar_ha | 1D | bidirectional | +13.33 | -45.01 | 0.516 | 1.204 | 133 |
+| supertrend | 4h | long_only_v2 | +13.13 | -46.21 | 0.544 | 1.100 | 387 |
 | supertrend | 1D | bidirectional | +13.06 | -51.22 | 0.499 | 1.201 | 85 |
 | tradeiq_psar_ha | 4h | long_only | +12.94 | -29.96 | 0.586 | 1.147 | 377 |
 | supertrend | 4h | long_only_x3_v2 | +12.13 | -86.48 | 0.584 | 1.019 | 387 |

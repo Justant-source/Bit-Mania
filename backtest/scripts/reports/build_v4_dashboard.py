@@ -40,7 +40,8 @@ STRATEGIES  = ['stoch', 'supertrend',
                'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce']
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
-               'bidirectional_x3', 'long_only_x3', 'long_only_x3_v2']
+               'bidirectional_x3', 'long_only_x3',
+               'long_only_v2', 'long_only_x3_v2']
 START_MS    = int(datetime(2017, 8, 18, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 _N_DAYS     = int((END_MS - START_MS) / 86_400_000) + 1  # days inclusive
@@ -900,7 +901,7 @@ const TEXT_CLR  = '#c9d1d9';
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','4h','1D']),
-  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_x3_v2']),
+  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_v2','long_only_x3_v2']),
   sortMode: 'return',                    // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
   endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
@@ -1007,7 +1008,7 @@ function fmtTotalPct(starting, finishing) {
 
 // Global variant label — used everywhere
 function varLabel(r) {
-  const base = r.variant.replace(/_x\d+(?:_v\d+)?$/, '');
+  const base = r.variant.replace(/(?:_x\d+)?(?:_v\d+)?$/, '');
   const version = r.variant.includes('_v2') ? ' v2.0' : '';
   const lev  = r.leverage > 1 ? ' · ' + r.leverage + 'x' : '';
   if (base === 'buy_and_hold') return '매수보유';
@@ -1015,11 +1016,12 @@ function varLabel(r) {
   return '양방향' + lev + version;
 }
 function varLabelShort(r) {
-  const base = r.variant.replace(/_x\d+$/, '');
+  const base = r.variant.replace(/(?:_x\d+)?(?:_v\d+)?$/, '');
+  const version = r.variant.includes('_v2') ? 'v2' : '';
   const lev  = r.leverage > 1 ? 'x' + r.leverage : '';
   if (base === 'buy_and_hold') return 'BnH';
-  if (base === 'long_only')    return '롱' + lev;
-  return '양방' + lev;
+  if (base === 'long_only')    return '롱' + lev + version;
+  return '양방' + lev + version;
 }
 function fmtBalance(r) {
   const s = getStats(r);
@@ -1079,7 +1081,10 @@ const FUNDING_8H_MS      = 8 * 3600 * 1000;
 // virtually. This makes "fresh $10k in 2022 with x3" produce the same 165 trades
 // as x1 would, just leveraged.
 function _baseVariantOf(variant) {
-  if (variant.endsWith('_x2') || variant.endsWith('_x3')) return variant.slice(0, -3);
+  // Strip the leverage marker _x{n} while preserving any _v{m} version suffix.
+  // long_only_x3      → long_only       long_only_x3_v2 → long_only_v2
+  const m = variant.match(/^(.*?)_x\d+(_v\d+)?$/);
+  if (m) return m[1] + (m[2] || '');
   return variant;
 }
 const _baseResultCache = new Map();
@@ -3171,6 +3176,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
         <span class="tag active" data-filter="variant" data-value="bidirectional_x2">양방x2</span>
         <span class="tag active" data-filter="variant" data-value="long_only_x3">롱x3</span>
         <span class="tag active" data-filter="variant" data-value="bidirectional_x3">양방x3</span>
+        <span class="tag active" data-filter="variant" data-value="long_only_v2">롱v2</span>
         <span class="tag active" data-filter="variant" data-value="long_only_x3_v2">롱x3v2</span>
         <span class="tag active" data-filter="variant" data-value="buy_and_hold">매수보유</span>
       </div>
