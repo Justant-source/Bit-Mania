@@ -80,12 +80,12 @@ def load_combo_window_results(conn, sweep_id: str) -> dict[int, list[dict]]:
             results[combo_pk].append({
                 'window': window,
                 'complete': complete,
-                'cagr_adj': cagr_adj,
-                'mdd_adj': mdd_adj,
-                'sharpe': sharpe,
-                'trades_count': trades_count or 0,
-                'liquidated': liquidated or False,
-                'finishing_balance': finishing_balance,
+                'cagr_adj': float(cagr_adj) if cagr_adj is not None else None,
+                'mdd_adj': float(mdd_adj) if mdd_adj is not None else None,
+                'sharpe': float(sharpe) if sharpe is not None else None,
+                'trades_count': int(trades_count) if trades_count is not None else 0,
+                'liquidated': bool(liquidated) if liquidated is not None else False,
+                'finishing_balance': float(finishing_balance) if finishing_balance is not None else None,
             })
 
     return results
@@ -229,12 +229,12 @@ def apply_plateau(conn, results: list[dict], sweep_id: str) -> None:
                 direction_ema_len, atr_mult = row
 
             key = (
-                round(st_factor, 2),
-                int(round(st_period)),
-                int(round(fast_ema_len)),
-                int(round(slow_ema_len)),
-                int(round(direction_ema_len)),
-                round(atr_mult, 2),
+                round(float(st_factor), 2),
+                int(round(float(st_period))),
+                int(round(float(fast_ema_len))),
+                int(round(float(slow_ema_len))),
+                int(round(float(direction_ema_len))),
+                round(float(atr_mult), 2),
             )
             # Find corresponding result
             for r in results:
@@ -262,12 +262,12 @@ def apply_plateau(conn, results: list[dict], sweep_id: str) -> None:
                 continue
 
             combo_row = {
-                'st_factor': row[0],
-                'st_period': row[1],
-                'fast_ema_len': row[2],
-                'slow_ema_len': row[3],
-                'direction_ema_len': row[4],
-                'atr_mult': row[5],
+                'st_factor': float(row[0]),
+                'st_period': int(row[1]),
+                'fast_ema_len': int(row[2]),
+                'slow_ema_len': int(row[3]),
+                'direction_ema_len': int(row[4]),
+                'atr_mult': float(row[5]),
                 'mean_cagr': r['mean_cagr'],
             }
 

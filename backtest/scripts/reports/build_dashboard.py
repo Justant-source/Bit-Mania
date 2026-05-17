@@ -175,70 +175,65 @@ const HEADER = DATA.h;
 const ROWS = DATA.r.map(r => Object.fromEntries(HEADER.map((k,i) => [k, r[i]])));
 const SWEEPS_META = DATA.sweeps;"""
 
-    # Replace the old V5_2_DATA line — use lambda to avoid re.sub interpreting \u escapes in JSON
+    # Replace the data block — handles both original (V5_2_DATA) and already-generated (DATA) formats
     _new_data_block = new_data_block  # capture for lambda
     html = re.sub(
-        r'const V5_2_DATA = \{.*?\};',
+        r'const (?:V5_2_DATA|DATA) = \{.*?\};(?:\nconst HEADER = (?:V5_2_DATA|DATA)\.h;)?(?:\nconst ROWS = (?:V5_2_DATA|DATA)\.r\.map\(r => Object\.fromEntries\(HEADER\.map\(\(k,i\) => \[k, r\[i\]\]\)\)\);)?(?:\nconst SWEEPS_META = DATA\.sweeps;)?',
         lambda m: _new_data_block,
         html_template,
         count=1,
         flags=re.DOTALL
     )
 
-    # Remove the old HEADER and ROWS lines if they still exist
+    # Remove any leftover old-style HEADER/ROWS/SWEEPS_META lines not consumed above
     html = re.sub(r'\nconst HEADER = V5_2_DATA\.h;', '', html)
     html = re.sub(r'\nconst ROWS = V5_2_DATA\.r\.map\(r => Object\.fromEntries\(HEADER\.map\(\(k,i\) => \[k, r\[i\]\]\)\)\);', '', html)
 
-    # Update subtitle with total combo count and sweep info
+    # Update subtitle — handles both original v5_2 text and previously-generated text
     sweep_list_str = ', '.join(sorted(set(data_json['sweeps'].keys())))
     total_sweeps = len(data_json['sweeps'])
     _subtitle_new = f'<div class="subtitle">전체 {total_rows:,} combos ({total_sweeps} sweeps: {sweep_list_str}). <strong>3x leverage 고정</strong>. MDD 게이트 -80%.</div>'
     html = re.sub(
-        r'<div class="subtitle">v5_2 결과 1,296 combos × 8 windows.*?</div>',
+        r'<div class="subtitle">(?:v5_2 결과 1,296 combos × 8 windows|전체 \d[\d,]* combos).*?</div>',
         lambda m: _subtitle_new,
         html, count=1, flags=re.DOTALL
     )
 
-    # Add sweep filter multiselect to controls panel
-    # Insert after the Tier filter control-group
-    sweep_filter_html = '''    <div class="control-group" id="sweep-filter-wrap">
+    # Add sweep filter multiselect to controls panel (skip if already injected)
+    if 'id="sweep-filter-wrap"' not in html:
+        sweep_filter_html = '''    <div class="control-group" id="sweep-filter-wrap">
       <label>Sweep</label>
       <!-- populated by JS -->
     </div>'''
+        pattern = r'(<select id="filter-tier">.*?</select>\s*</div>)'
+        def insert_after_tier(match):
+            return match.group(1) + '\n' + sweep_filter_html
+        html = re.sub(pattern, insert_after_tier, html, count=1, flags=re.DOTALL)
 
-    # Find the closing </div> of the Tier control-group (filter-tier)
-    # and insert the sweep filter right after it
-    pattern = r'(<select id="filter-tier">.*?</select>\s*</div>)'
-    def insert_after_tier(match):
-        return match.group(1) + '\n' + sweep_filter_html
-
-    html = re.sub(pattern, insert_after_tier, html, count=1, flags=re.DOTALL)
-
-    # Find the location after "const SWEEPS_META = DATA.sweeps;" and add sweep selection code
-    # Look for the line after "const TOP15_IDS = ..." to insert the sweep initialization
-    sweep_init_code = '''
+    # Add sweep JS init code (skip if already injected)
+    if 'SWEEP_VALUES' not in html:
+        sweep_init_code = '''
 
 // ==================== SWEEP FILTER ====================
 const SWEEP_VALUES = [...new Set(ROWS.map(r => r.sw))].sort();
 let sweepSelects = new Set(SWEEP_VALUES);
 createMultiSelect('sweep-filter-wrap', 'Sweep', SWEEP_VALUES, vals => { sweepSelects = new Set(vals); render(); });'''
+        _sweep_init = sweep_init_code
+        html = re.sub(
+            r'(const TOP15_IDS = \[.*?\];)',
+            lambda m: m.group(1) + _sweep_init,
+            html,
+            count=1,
+            flags=re.DOTALL
+        )
 
-    # Insert after TOP15_IDS definition — use lambda to avoid re.sub escape interpretation
-    _sweep_init = sweep_init_code
-    html = re.sub(
-        r'(const TOP15_IDS = \[.*?\];)',
-        lambda m: m.group(1) + _sweep_init,
-        html,
-        count=1,
-        flags=re.DOTALL
-    )
-
-    # Add sweep filter check to applyFilter()
-    html = re.sub(
-        r'(function applyFilter\(useParamFilters = true\) \{\s+return ROWS\.filter\(r => \{)',
-        lambda m: m.group(1) + '\n    if (!sweepSelects.has(r.sw)) return false;',
-        html, count=1, flags=re.DOTALL
-    )
+    # Add sweep filter check to applyFilter() (skip if already injected)
+    if 'sweepSelects.has(r.sw)' not in html:
+        html = re.sub(
+            r'(function applyFilter\(useParamFilters = true\) \{\s+return ROWS\.filter\(r => \{)',
+            lambda m: m.group(1) + '\n    if (!sweepSelects.has(r.sw)) return false;',
+            html, count=1, flags=re.DOTALL
+        )
 
     return html
 
@@ -252,6 +247,10 @@ def main():
 
     out_path = Path(args.out)
     template_path = Path('/result/supertrend_x3_long_only/dashboard_v2.html')
+    if not template_path.exists():
+        # Fall back to the previously generated dashboard.html as template
+        template_path = out_path
+        print(f"[!] dashboard_v2.html not found — using {template_path} as template", file=sys.stderr)
 
     # Validate paths
     if not template_path.exists():
