@@ -37,6 +37,13 @@ $DC python3 /app/scripts/reports/build_dashboard.py
 → `dashboard_v2.html` 생성 (브라우저, offline, self-contained)
 → 소스 템플릿: `dashboard_template.html` (커밋됨, UI 셸)
 
+### Dashboard만 단독 재빌드
+
+```bash
+DC="docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester"
+$DC python3 /result/supertrend_x3_long_only/scripts/build_dashboard.py
+```
+
 ## 추가 Sweet Spot 탐색 (신규 Sweep)
 
 `scripts/run_sweep.py` 사용:
@@ -82,6 +89,8 @@ verdict/summary 문서는 `docs/sweeps/`로 이동. SQLite 기반 레거시 스�
 |---|---|
 | `dashboard_template.html` | 대시보드 UI 셸 (커밋됨, CSS/HTML/JS 구조) |
 | `dashboard_v2.html` | 생성된 대시보드 (빌드 시 생성, gitignored) |
+| `scripts/build_dashboard.py` | dashboard_v2.html 단독 재빌드 스크립트 |
+| `scripts/run_sweep.py` | 신규 sweet spot 탐색 실행 스크립트 (pg_* 파이프라인 래퍼) |
 | `docs/sweeps/` | sweep별 verdict + summary 문서 아카이브 |
 | `docs/sweeps/v4_verdict.md` | v4 최종 판정 |
 | `docs/sweeps/v4_summary.md` | v4 sweep 결과 요약 |

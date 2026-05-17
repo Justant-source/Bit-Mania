@@ -147,10 +147,21 @@ def to_compact_json(rows, sweeps):
         ]
         data_rows.append(data_row)
 
+    # Compute distinct sorted param values from actual data
+    param_values = {
+        'sf': sorted(set(round_float(r['st_factor']) for r in rows if r['st_factor'] is not None)),
+        'sp': sorted(set(int(r['st_period']) for r in rows if r['st_period'] is not None)),
+        'fe': sorted(set(int(r['fast_ema_len']) for r in rows if r['fast_ema_len'] is not None)),
+        'se': sorted(set(int(r['slow_ema_len']) for r in rows if r['slow_ema_len'] is not None)),
+        'de': sorted(set(int(r['direction_ema_len']) for r in rows if r['direction_ema_len'] is not None)),
+        'at': sorted(set(round_float(r['atr_mult']) for r in rows if r['atr_mult'] is not None)),
+    }
+
     return {
         "h": headers,
         "r": data_rows,
-        "sweeps": sweeps
+        "sweeps": sweeps,
+        "param_values": param_values,
     }
 
 
@@ -174,6 +185,17 @@ def build_html(html_template, data_json, total_rows, sweep_counts):
 const HEADER = DATA.h;
 const ROWS = DATA.r.map(r => Object.fromEntries(HEADER.map((k,i) => [k, r[i]])));
 const SWEEPS_META = DATA.sweeps;"""
+
+    # Inject dynamic PARAM_VALUES (replaces hardcoded values in template)
+    pv = data_json.get('param_values', {})
+    if pv:
+        pv_js = json.dumps(pv, separators=(',', ':'))
+        html_template = re.sub(
+            r'const PARAM_VALUES = \{[^}]*\};',
+            f'const PARAM_VALUES = {pv_js};',
+            html_template,
+            count=1,
+        )
 
     # Replace the data block — handles both original (V5_2_DATA) and already-generated (DATA) formats
     _new_data_block = new_data_block  # capture for lambda
