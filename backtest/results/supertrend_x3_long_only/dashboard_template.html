@@ -69,6 +69,13 @@
   .pc-param-filters { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 8px; padding: 10px;
                        background: #fafafa; border-radius: 6px; border: 1px solid #e5e5e5; }
   .pc-param-filters .control-group label { font-size: 11px; margin-bottom: 4px; }
+  /* PC 필터 — 축 위치에 맞춘 절대 배치 (JS positionPCFilters가 override) */
+  #pc-param-filters { display: block; position: relative; overflow: visible; min-height: 72px;
+                      background: none; border: none; padding: 0; margin-top: 6px; }
+  #pc-param-filters > .control-group { position: absolute; width: 140px; transform: translateX(-50%);
+                                        top: 0; background: #fafafa; border: 1px solid #e5e5e5;
+                                        border-radius: 4px; padding: 4px 6px; box-sizing: border-box; }
+  #pc-param-filters > .control-group label { text-align: center; }
 </style>
 </head>
 <body>
@@ -382,6 +389,25 @@ Object.keys(PARAM_VALUES).forEach(p => {
     () => render()
   );
 });
+
+// Position PC filters centered under each axis
+function positionPCFilters() {
+  const canvas = document.getElementById('pc-canvas');
+  const container = document.getElementById('pc-param-filters');
+  if (!canvas || !container) return;
+  const groups = Array.from(container.children);
+  if (!groups.length) return;
+  const scale = canvas.offsetWidth / 1200; // rendered / natural
+  const padLeft = 30, xStep = 1140 / 5;   // matches drawPC pad + (plotW / n-1)
+  let maxH = 0;
+  groups.forEach(g => { maxH = Math.max(maxH, g.offsetHeight); });
+  container.style.minHeight = (maxH + 12) + 'px';
+  groups.forEach((g, i) => {
+    g.style.left = ((padLeft + i * xStep) * scale) + 'px';
+  });
+}
+positionPCFilters();
+window.addEventListener('resize', positionPCFilters);
 
 // Build table param filters
 Object.keys(PARAM_VALUES).forEach(p => {
