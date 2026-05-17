@@ -36,11 +36,11 @@ FUNDING_8H_PARQUET   = DATA_ROOT / 'funding' / 'BTCUSDT_8h.parquet'
 
 # ─── Backtest parameters ───────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '4h', '1D']
-STRATEGIES  = ['stoch', 'momentum_ma', 'supertrend',
+STRATEGIES  = ['stoch', 'supertrend',
                'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce']
 VARIANTS    = ['bidirectional', 'long_only',
                'bidirectional_x2', 'long_only_x2',
-               'bidirectional_x3', 'long_only_x3']
+               'bidirectional_x3', 'long_only_x3', 'long_only_x3_v2']
 START_MS    = int(datetime(2017, 8, 18, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 _N_DAYS     = int((END_MS - START_MS) / 86_400_000) + 1  # days inclusive
@@ -88,51 +88,35 @@ STRATEGY_META: dict[str, dict] = {
         'exit_en': ['Stop-loss: ATR(14) × 3.0 from entry'],
         'indicators': ['Stochastic (K=14, smooth=3)', 'EMA (7, 20, 200)', 'Heikin Ashi', 'ATR (14)'],
     },
-    'momentum_ma': {
-        'name_ko': '모멘텀 MA', 'name_en': 'Momentum MA',
-        'summary_ko': 'LazyBear 선형회귀 모멘텀이 자체 EMA(100)를 교차할 때 진입',
-        'summary_en': 'LazyBear linreg momentum crossing its own EMA(100)',
-        'entry_long_ko': [
-            '선형회귀 모멘텀(val)이 EMA(100, val_ma)를 상향 돌파',
-            'val = linreg(중선 편차, 20봉); 중선 = (20봉 고저 중간값 + SMA20) / 2',
-        ],
-        'entry_long_en': [
-            'Linreg momentum (val) crosses above its EMA(100)',
-            'val = linreg(deviation from midline, 20); midline = (HL-midpoint + SMA20) / 2',
-        ],
-        'entry_short_ko': ['val이 val_ma를 하향 돌파'],
-        'entry_short_en': ['val crosses below val_ma'],
-        'exit_ko': ['반대 교차 발생 시 청산', 'ATR(14) × 3.0 손절'],
-        'exit_en': ['Exit on reverse crossover', 'Stop-loss: ATR(14) × 3.0'],
-        'indicators': ['Linear Regression (20)', 'EMA of momentum (100)', 'ATR (14)'],
-    },
     'supertrend': {
         'name_ko': '슈퍼트렌드', 'name_en': 'Supertrend',
-        'summary_ko': 'Supertrend(7,3) + EMA(7/20) 정렬 + 200 EMA 방향 필터로 추세 추종',
-        'summary_en': 'Trend-following with Supertrend(7,3), EMA(7/20) alignment, 200 EMA filter',
+        'summary_ko': 'Supertrend + EMA 정렬 + 방향 EMA 필터로 추세 추종. v2.0은 파라미터 스윕 최적화 버전 (sweet_spot_score 92.6, PLATEAU)',
+        'summary_en': 'Trend-following with Supertrend, EMA alignment, direction EMA filter. v2.0 = sweep-optimized params (sweet_spot_score 92.6, PLATEAU)',
         'entry_long_ko': [
             'Supertrend = 상승 추세 (가격 > Supertrend 라인)',
-            'EMA(7) > EMA(20) (황금 교차)',
-            '가격 > EMA(200) (장기 상승 추세)',
+            'fast EMA > slow EMA (황금 교차)',
+            '가격 > direction EMA (장기 상승 추세)',
+            '★ v2.0 파라미터: ST(9, 2.5) · EMA(8/25) · dir_EMA(230) · ATR×3.2',
         ],
         'entry_long_en': [
             'Supertrend = uptrend (price above Supertrend line)',
-            'EMA(7) > EMA(20) (bullish EMA cross)',
-            'Price above EMA(200) (long-term uptrend)',
+            'fast EMA > slow EMA (bullish EMA cross)',
+            'Price above direction EMA (long-term uptrend)',
+            '★ v2.0 params: ST(9, 2.5) · EMA(8/25) · dir_EMA(230) · ATR×3.2',
         ],
         'entry_short_ko': [
             'Supertrend = 하락 추세',
-            'EMA(7) < EMA(20)',
-            '가격 < EMA(200)',
+            'fast EMA < slow EMA',
+            '가격 < direction EMA',
         ],
         'entry_short_en': [
             'Supertrend = downtrend (price below Supertrend line)',
-            'EMA(7) < EMA(20) (bearish EMA cross)',
-            'Price below EMA(200)',
+            'fast EMA < slow EMA (bearish EMA cross)',
+            'Price below direction EMA',
         ],
-        'exit_ko': ['EMA(7) ↔ EMA(20) 교차 시 청산 (추세 반전)', 'ATR(14) × 3.0 손절'],
-        'exit_en': ['Exit on EMA(7)/EMA(20) crossover (trend reversal)', 'Stop-loss: ATR(14) × 3.0'],
-        'indicators': ['Supertrend (7, 3.0)', 'EMA (7, 20, 200)', 'ATR (14)'],
+        'exit_ko': ['fast/slow EMA 교차 시 청산 (추세 반전)', 'ATR(14) × atr_mult 손절 (v2.0: ×3.2)'],
+        'exit_en': ['Exit on fast/slow EMA crossover (trend reversal)', 'Stop-loss: ATR(14) × atr_mult (v2.0: ×3.2)'],
+        'indicators': ['Supertrend (period, factor)', 'fast EMA / slow EMA / direction EMA', 'ATR (14)'],
     },
     'trendtype': {
         'name_ko': '트렌드타입', 'name_en': 'TrendType',
@@ -273,12 +257,11 @@ def compute_optimal_params() -> dict[str, dict]:
     # Only the parameters actually swept per strategy — avoids leaking fixed HP into the table
     _SWEEP_KEYS: dict[str, list[str]] = {
         'supertrend':           ['st_factor', 'st_period'],
-        'supertrend_trendtype': ['st_factor', 'atr_len'],
+        'supertrend_trendtype': ['st_factor', 'atr_len', 'filter_mask'],
         'trendtype':            ['atr_len', 'di_len'],
         'tradeiq_psar_ha':       ['rsi_len', 'atr_mult'],
         'tradeiq_cci_ce':       ['cci_period', 'ce_mult'],
         'stoch':                ['stoch_k_period', 'atr_mult'],
-        'momentum_ma':          ['lin_len', 'atr_mult', 'val_ma_len'],
     }
 
     sweep_bases = [
@@ -550,8 +533,8 @@ def collect_all_results(btc_daily: list[dict] | None = None,
         if not math.isfinite(calmar):  calmar  = 0.0
         returns_daily = _compute_daily_returns(equity)
         streaks = _compute_streaks(trades)
-        # Leverage from variant suffix (_x2 / _x3)
-        lev_m = re.search(r'_x(\d+)$', variant)
+        # Leverage from variant suffix (_x2 / _x3 / _x3_v2)
+        lev_m = re.search(r'_x(\d+)', variant)
         leverage = int(lev_m.group(1)) if lev_m else 1
         # Liquidation detection (balance ≤ 5% of starting)
         liq_threshold = starting * 0.05
@@ -917,7 +900,7 @@ const TEXT_CLR  = '#c9d1d9';
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','4h','1D']),
-  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
+  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_x3_v2']),
   sortMode: 'return',                    // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
   endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
@@ -1024,11 +1007,12 @@ function fmtTotalPct(starting, finishing) {
 
 // Global variant label — used everywhere
 function varLabel(r) {
-  const base = r.variant.replace(/_x\d+$/, '');
+  const base = r.variant.replace(/_x\d+(?:_v\d+)?$/, '');
+  const version = r.variant.includes('_v2') ? ' v2.0' : '';
   const lev  = r.leverage > 1 ? ' · ' + r.leverage + 'x' : '';
   if (base === 'buy_and_hold') return '매수보유';
-  if (base === 'long_only')    return '롱전용' + lev;
-  return '양방향' + lev;
+  if (base === 'long_only')    return '롱전용' + lev + version;
+  return '양방향' + lev + version;
 }
 function varLabelShort(r) {
   const base = r.variant.replace(/_x\d+$/, '');
@@ -1441,7 +1425,7 @@ const TF_ORDER   = { '1h': 0, '4h': 1, '1D': 2 };
 // ── Sidebar ─────────────────────────────────────────────────
 const STRAT_DISPLAY_ORDER = [
   'supertrend','tradeiq_psar_ha','trendtype','supertrend_trendtype',
-  'tradeiq_cci_ce','stoch','momentum_ma','buy_and_hold',
+  'tradeiq_cci_ce','stoch','buy_and_hold',
 ];
 
 function buildSidebar() {
@@ -1980,6 +1964,7 @@ function renderTradeTable(focusIdx = null) {
   const losses       = trades.length - wins;
   const meta         = DATA.meta[r.strat] || {};
   const stratLabel   = `${meta.name_ko||r.strat} / ${varLabel(r)} / ${r.tf}`;
+  const fundSign     = baseVariant === 'long_only' ? 1 : baseVariant === 'short_only' ? -1 : 0;
   const fundNote     = (fundSign !== 0 && (!DATA.funding_ts || !DATA.funding_ts.length))
     ? `<span style="color:#484f58;font-size:10px"> · 펀딩비: 데이터 없음</span>` : '';
 
@@ -3186,6 +3171,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
         <span class="tag active" data-filter="variant" data-value="bidirectional_x2">양방x2</span>
         <span class="tag active" data-filter="variant" data-value="long_only_x3">롱x3</span>
         <span class="tag active" data-filter="variant" data-value="bidirectional_x3">양방x3</span>
+        <span class="tag active" data-filter="variant" data-value="long_only_x3_v2">롱x3v2</span>
         <span class="tag active" data-filter="variant" data-value="buy_and_hold">매수보유</span>
       </div>
       <div class="filter-label" style="margin-top:6px">정렬 / 보기</div>

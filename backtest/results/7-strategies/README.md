@@ -3,19 +3,19 @@
 **기간**: 2021-01-01 ~ 2026-04-30
 **초기자본**: $10,000 | **레버리지**: 1× | **심볼**: BTC-USDT
 
-> 자동 생성 — `sync_7strategies_docs.py` (동기화: 2026-05-12 22:08:20)
-> 수집된 결과: 67건
+> 자동 생성 — `sync_7strategies_docs.py` (동기화: 2026-05-17 16:31:18)
+> 수집된 결과: 65건
 
 ## Champion 조합 (TF별 최고 성과)
 
 | 전략 | TF | 변형 | CAGR(%) | MDD(%) | Sharpe | PF | 거래수 |
 |---|---|---|---|---|---|---|---|
+| supertrend_trendtype | 4h | long_only_x3_v2 | +140.51 | -75.04 | 1.325 | 1.150 | 429 |
 | supertrend | 1D | long_only_x2 | +59.33 | -39.59 | 1.287 | 1.601 | 41 |
 | tradeiq_psar_ha | 1D | long_only_x3 | +51.39 | -58.00 | 0.900 | 1.212 | 87 |
 | supertrend_trendtype | 1D | long_only_x2 | +44.15 | -45.96 | 1.484 | 1.491 | 33 |
 | trendtype | 1D | long_only_x2 | +44.13 | -38.50 | 1.284 | 1.537 | 61 |
 | trendtype | 1h | long_only_x2 | +42.43 | -67.10 | 1.486 | 2.018 | 28 |
-| supertrend_trendtype | 4h | long_only | +39.50 | -29.28 | 1.284 | 1.452 | 188 |
 | stoch | 1D | bidirectional | +38.65 | -69.75 | 0.870 | 1.958 | 35 |
 | supertrend | 4h | long_only | +37.99 | -26.25 | 1.163 | 1.341 | 248 |
 | tradeiq_psar_ha | 1h | long_only_x2 | +31.98 | -25.87 | 1.365 | 1.924 | 26 |
@@ -25,18 +25,16 @@
 | trendtype | 4h | long_only | +15.59 | -33.81 | 0.676 | 1.175 | 441 |
 | supertrend_trendtype | 1h | long_only | +13.36 | -29.58 | 0.595 | 1.084 | 729 |
 | tradeiq_psar_ha | 4h | long_only | +12.94 | -29.96 | 0.586 | 1.147 | 377 |
-| momentum_ma | 1D | long_only | +9.99 | -74.25 | 0.441 | 1.165 | 65 |
 | tradeiq_cci_ce | 1h | bidirectional | +7.82 | -24.67 | 0.466 | 1.135 | 257 |
 | supertrend | 1h | long_only | +6.72 | -30.00 | 0.366 | 1.037 | 991 |
-| momentum_ma | 1h | bidirectional_x2 | +5.45 | -68.18 | 0.571 | 1.025 | 54 |
 | tradeiq_cci_ce | 1D | long_only | +2.66 | -15.84 | 0.279 | 1.506 | 5 |
-| momentum_ma | 4h | long_only | -1.31 | -77.03 | 0.235 | 0.994 | 326 |
 | stoch | 1h | bidirectional_x3 | -37.89 | -99.98 | 1.658 | 0.623 | 23 |
 
-## 전체 결과 (67 건)
+## 전체 결과 (65 건)
 
 | 전략 | TF | 변형 | CAGR(%) | MDD(%) | Sharpe | PF | 거래수 |
 |---|---|---|---|---|---|---|---|
+| supertrend_trendtype | 4h | long_only_x3_v2 | +140.51 | -75.04 | 1.325 | 1.150 | 429 |
 | supertrend | 4h | long_only_x3 | +84.32 | -52.56 | 0.920 | 1.127 | 245 |
 | supertrend | 1D | long_only_x3 | +77.66 | -54.92 | 1.237 | 1.392 | 41 |
 | supertrend_trendtype | 4h | long_only_x3 | +65.54 | -64.02 | 0.949 | 1.113 | 192 |
@@ -46,6 +44,7 @@
 | trendtype | 1D | bidirectional_x2 | +56.96 | -47.31 | 1.018 | 1.260 | 131 |
 | trendtype | 1D | long_only_x3 | +56.78 | -53.08 | 1.235 | 1.343 | 61 |
 | supertrend_trendtype | 1D | long_only_x3 | +56.70 | -61.57 | 1.442 | 1.291 | 33 |
+| supertrend | 4h | bidirectional_x2 | +52.29 | -78.69 | 0.914 | 1.032 | 767 |
 | tradeiq_psar_ha | 1D | long_only_x3 | +51.39 | -58.00 | 0.900 | 1.212 | 87 |
 | supertrend_trendtype | 4h | long_only_x2 | +50.47 | -47.72 | 0.958 | 1.185 | 192 |
 | supertrend_trendtype | 1D | long_only_x2 | +44.15 | -45.96 | 1.484 | 1.491 | 33 |
@@ -68,6 +67,7 @@
 | trendtype | 1D | long_only | +21.54 | -27.54 | 0.919 | 1.645 | 85 |
 | supertrend_trendtype | 4h | bidirectional | +20.57 | -39.26 | 0.651 | 1.087 | 394 |
 | stoch | 1D | long_only | +19.75 | -70.30 | 0.611 | 1.314 | 35 |
+| supertrend | 4h | bidirectional_x3 | +17.71 | -95.28 | 0.888 | 1.006 | 767 |
 | trendtype | 1h | long_only | +17.66 | -27.74 | 0.752 | 1.129 | 1380 |
 | stoch | 4h | long_only | +17.50 | -63.25 | 0.572 | 1.093 | 228 |
 | trendtype | 4h | long_only | +15.59 | -33.81 | 0.676 | 1.175 | 441 |
@@ -76,15 +76,14 @@
 | tradeiq_psar_ha | 1D | bidirectional | +13.33 | -45.01 | 0.516 | 1.204 | 133 |
 | supertrend | 1D | bidirectional | +13.06 | -51.22 | 0.499 | 1.201 | 85 |
 | tradeiq_psar_ha | 4h | long_only | +12.94 | -29.96 | 0.586 | 1.147 | 377 |
+| supertrend | 4h | long_only_x3_v2 | +12.13 | -86.48 | 0.584 | 1.019 | 387 |
 | supertrend_trendtype | 1D | bidirectional | +11.25 | -44.06 | 0.467 | 1.211 | 59 |
-| momentum_ma | 1D | long_only | +9.99 | -74.25 | 0.441 | 1.165 | 65 |
 | trendtype | 1h | bidirectional_x3 | +7.91 | -97.87 | 1.109 | 1.050 | 55 |
 | tradeiq_cci_ce | 1h | bidirectional | +7.82 | -24.67 | 0.466 | 1.135 | 257 |
 | supertrend | 1h | long_only | +6.72 | -30.00 | 0.366 | 1.037 | 991 |
 | tradeiq_cci_ce | 1h | long_only | +6.60 | -26.09 | 0.452 | 1.125 | 187 |
-| momentum_ma | 1h | bidirectional_x2 | +5.45 | -68.18 | 0.571 | 1.025 | 54 |
+| supertrend | 1D | bidirectional_x2 | +4.82 | -95.72 | 0.668 | 1.042 | 122 |
 | tradeiq_cci_ce | 4h | long_only | +4.29 | -33.90 | 0.298 | 1.111 | 80 |
-| momentum_ma | 1h | long_only | +4.20 | -66.11 | 0.348 | 1.010 | 1071 |
 | trendtype | 1h | bidirectional | +4.13 | -60.23 | 0.312 | 1.008 | 3026 |
 | tradeiq_cci_ce | 1D | long_only | +2.66 | -15.84 | 0.279 | 1.506 | 5 |
 | stoch | 1h | bidirectional | +1.83 | -70.68 | 0.313 | 1.005 | 881 |
@@ -93,17 +92,13 @@
 | tradeiq_psar_ha | 4h | bidirectional | -0.61 | -47.89 | 0.179 | 0.997 | 779 |
 | stoch | 1h | long_only | -0.67 | -67.75 | 0.258 | 0.998 | 827 |
 | tradeiq_psar_ha | 1h | long_only | -1.22 | -47.97 | 0.096 | 0.993 | 1664 |
-| momentum_ma | 4h | long_only | -1.31 | -77.03 | 0.235 | 0.994 | 326 |
 | trendtype | 4h | bidirectional | -1.99 | -72.95 | 0.154 | 0.993 | 807 |
 | supertrend | 1h | bidirectional | -3.60 | -55.35 | 0.158 | 0.992 | 2000 |
-| momentum_ma | 1D | bidirectional | -5.77 | -80.15 | 0.158 | 0.954 | 114 |
 | supertrend_trendtype | 1h | bidirectional | -6.14 | -57.28 | 0.062 | 0.982 | 1534 |
+| supertrend | 1D | bidirectional_x3 | -8.75 | -97.58 | 0.828 | 0.944 | 122 |
 | stoch | 4h | bidirectional | -14.03 | -67.92 | 0.014 | 0.917 | 246 |
-| momentum_ma | 4h | bidirectional | -15.04 | -74.36 | -0.029 | 0.905 | 915 |
 | tradeiq_psar_ha | 1h | bidirectional | -19.90 | -75.94 | -0.343 | 0.942 | 3246 |
-| momentum_ma | 1h | bidirectional | -24.40 | -87.34 | -0.222 | 0.954 | 3703 |
 | stoch | 1h | bidirectional_x3 | -37.89 | -99.98 | 1.658 | 0.623 | 23 |
-| momentum_ma | 1h | bidirectional_x3 | -39.62 | -97.88 | 0.443 | 0.830 | 55 |
 
 ## 참고
 
