@@ -3,7 +3,7 @@
 ## 개요
 
 BTC/USDT 4h Supertrend 전략 6-파라미터 백테스트 전체 결과 저장소.
-v4→v5→v5_2→v6→v7 검증 체인 완료 (2026-05). **결론: 3x archive 확정, 실거래 = fa80 funding-arb 단독.**
+v4→v5→v5_2→v6→v7→v8 검증 체인 완료 (2026-05). **결론: 3x archive 확정, 실거래 = fa80 funding-arb 단독.**
 
 ## 3x-Only 정책
 
@@ -19,9 +19,9 @@ v4→v5→v5_2→v6→v7 검증 체인 완료 (2026-05). **결론: 3x archive �
 
 | 테이블 | 내용 |
 |---|---|
-| `st_sweeps` | v4/v5/v5_2/v6/v7 sweep 메타데이터 |
-| `st_combos` | 전체 2,064 combos (v4=216, v5=324, v5_2=1296, v6=225, v7=3) |
-| `st_window_results` | window별 CAGR/MDD/Sharpe (W1~W8, v7=full/recent) |
+| `st_sweeps` | v4/v5/v5_2/v6/v7/v8 sweep 메타데이터 |
+| `st_combos` | 전체 2,288 combos (v4=216, v5=324, v5_2=1296, v6=225, v7=3, v8=224) |
+| `st_window_results` | window별 CAGR/MDD/Sharpe (W1~W8) |
 
 ### 마이그레이션 (일회성)
 ```bash
@@ -49,15 +49,25 @@ $DC python3 /app/scripts/reports/build_dashboard.py
 
 ## 결과 디렉토리 정책 (2026-05-17 갱신)
 
-- `v4~v6_optimization/`, `v7_leverage_test/`: **combo_X_W 디렉토리 + queue.sqlite3 삭제됨**. 원본 `*_all_combos.csv`/`v7_results.csv`는 provenance로 보존. PG가 SoT — raw_json+window_results로 CSV 전체 복원 가능.
+- `v4_optimization/`: **존재 유지** — `v4_all_combos.csv` + verdict 보존 (provenance). PG가 SoT.
+- `v5_optimization/`, `v5_2_optimization/`, `v6_optimization/`: **2026-05-17 완전 삭제됨**. verdict/summary는 `docs/sweeps/`로 이동. CSV는 PG에 있으므로 삭제.
+- `v7_leverage_test/`: combo_X_W + queue 삭제, `v7_results.csv` 보존. PG가 SoT.
+- `combo_0_W1 ~ combo_223_W8` (v8 결과 1,792개): **2026-05-17 완전 삭제됨**. PG에 완전히 적재됨 (st_window_results 1,792행, complete=True).
 - 옛 SQLite 기반 옵티마이저 스크립트(v4~v7): `scripts/legacy_optimizers/`로 이동 (이력 참조용). 현역은 `backtest/scripts/optimization/pg_*`.
 
 ## 파일 목록
 
-| 파일 | 설명 |
+| 파일/디렉토리 | 설명 |
 |---|---|
-| `dashboard.html` | PG 기반 생성 통합 대시보드 (v4~v7+) |
-| `dashboard_v2.html` | UI 레퍼런스 (v5_2 전용, hand-authored) |
+| `dashboard.html` | PG 기반 생성 통합 대시보드 (v4~v8, 2,288 combos) |
+| `docs/sweeps/` | sweep별 verdict + summary 문서 아카이브 |
+| `docs/sweeps/v5_summary.md` | v5 sweep 결과 요약 |
+| `docs/sweeps/19_SUPERTREND_V5_PLATEAU_CROSSVAL_VERDICT.md` | v5 최종 판정 |
+| `docs/sweeps/v5_2_summary.md` | v5_2 sweep 결과 요약 |
+| `docs/sweeps/21_SUPERTREND_V5_2_GAPFILL_VERDICT.md` | v5_2 최종 판정 |
+| `docs/sweeps/v6_summary.md` | v6 sweep 결과 요약 |
+| `docs/sweeps/20_SUPERTREND_V6_ASYMMETRIC_TPSL_VERDICT.md` | v6 최종 판정 |
+| `docs/sweeps/v8_direction_ema_sweep.md` | v8 sweep 결과 + 핵심 발견 |
 | `scripts/legacy_optimizers/` | 옛 v4~v7 SQLite 기반 스크립트 (deprecated) |
 | `README.md` | 이 파일 |
 
