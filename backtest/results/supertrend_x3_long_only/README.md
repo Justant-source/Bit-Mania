@@ -19,8 +19,8 @@ v4→v5→v5_2→v6→v7→v8 검증 체인 완료 (2026-05). **결론: 3x archi
 
 | 테이블 | 내용 |
 |---|---|
-| `st_sweeps` | v4/v5/v5_2/v6/v7/v8 sweep 메타데이터 |
-| `st_combos` | 전체 2,288 combos (v4=216, v5=324, v5_2=1296, v6=225, v7=3, v8=224) |
+| `st_sweeps` | v4/v5/v5_2/v6/v7/v8/v9a/v9b sweep 메타데이터 |
+| `st_combos` | 전체 2,464 combos (v4=216, v5=324, v5_2=1296, v6=225, v7=3, v8=224, v9a=64, v9b=112) |
 | `st_window_results` | window별 CAGR/MDD/Sharpe (W1~W8) |
 
 ### 마이그레이션 (일회성)
@@ -93,6 +93,7 @@ verdict/summary 문서는 `docs/sweeps/`로 이동. SQLite 기반 레거시 스�
 | `docs/sweeps/v6_summary.md` | v6 sweep 결과 요약 |
 | `docs/sweeps/v7_verdict.md` | v7 레버리지 테스트 판정 |
 | `docs/sweeps/v8_direction_ema_sweep.md` | v8 sweep 결과 + 핵심 발견 |
+| `docs/sweeps/v9_sweep.md` | v9a+v9b sweep 결과 (dir_ema 하단 + slow_ema 확장) |
 | `scripts/run_sweep.py` | 신규 sweet spot 탐색 실행 스크립트 |
 | `README.md` | 이 파일 |
 
@@ -106,6 +107,8 @@ verdict/summary 문서는 `docs/sweeps/`로 이동. SQLite 기반 레거시 스�
 | v6 | 225 | 비대칭 TP/SL (top-25×9) | 모든 worst_mdd -90%대, 비대칭 무효 확인 |
 | v7 | 3 | top-3 carrier × 1x~3x lev | 1x MARGINAL (-36%), 2x+ FAIL. 3x archive 최종 확정 |
 | v8 | 224 | dir_ema 확장 (250→400) | sweet-spot 코어 고정, direction_ema_len 7단계 탐색 |
+| v9a | 64 | dir_ema 하단(240,260) + st_factor=2.4 고정 | MIXED/EDGE. top score=56.89, mean_cagr=425.7% |
+| v9b | 112 | slow_ema 확장(26,28) × dir_ema 240~400 | MIXED top. top score=59.79, mean_cagr=442.2% |
 
 ## 파라미터 정의
 
