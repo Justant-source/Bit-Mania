@@ -20,7 +20,7 @@ backtest/runtime/
 /data/
 
 # dashboard HTML (generated artifact)
-backtest/results/**/dashboard.html
+backtest/results/**/dashboard_v2.html
 
 # LLM Advisor data source runtime files
 cryptoengine/services/llm-advisor/alerts/*.md

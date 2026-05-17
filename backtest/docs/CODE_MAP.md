@@ -134,17 +134,18 @@ Supertrend v4~v7 sweep 메타데이터 및 결과를 PostgreSQL로 중앙화. �
 
 | 코드 경로 | 역할 | 입력 | 출력 |
 |---|---|---|---|
-| `backtest/scripts/reports/build_dashboard.py` | PG 기반 통합 대시보드 생성 (v4~v7 + 신규 sweep) | `st_sweeps`, `st_combos`, `st_window_results` | `results/supertrend_x3_long_only/dashboard.html` (self-contained) |
+| `backtest/scripts/reports/build_dashboard.py` | PG 기반 통합 대시보드 생성 (v4~v8+) | `st_sweeps`, `st_combos`, `st_window_results` + `dashboard_template.html` | `results/supertrend_x3_long_only/dashboard_v2.html` (self-contained) |
 
 ### 결과 저장소
 
 | 경로 | 설명 |
 |---|---|
-| `results/supertrend_x3_long_only/` | 3x leverage 통합 결과 (v4~v8+) |
+| `results/supertrend_x3_long_only/` | 3x leverage 통합 결과 (v4~v8+, 2288 combos) |
 | `results/supertrend_x3_long_only/README.md` | 아카이브 정보 + 사용 가이드 |
-| `results/supertrend_x3_long_only/dashboard.html` | PG 기반 생성 대시보드 |
-| `results/supertrend_x3_long_only/dashboard_v2.html` | UI 레퍼런스 (v5_2 전용, hand-authored) |
-| `results/supertrend_x3_long_only/scripts/legacy_optimizers/` | 옛 v4~v7 SQLite 기반 옵티마이저 (deprecated — pg_* 로 대체) |
+| `results/supertrend_x3_long_only/dashboard_template.html` | 대시보드 UI 셸 (커밋됨, CSS/HTML/JS 구조) |
+| `results/supertrend_x3_long_only/dashboard_v2.html` | 생성된 대시보드 (gitignored, 빌드 시 재생성) |
+| `results/supertrend_x3_long_only/scripts/run_sweep.py` | 신규 sweet spot 탐색 실행 스크립트 (pg_* 파이프라인 래퍼) |
+| `results/supertrend_x3_long_only/docs/sweeps/` | v4~v8 sweep별 verdict + summary 문서 |
 
 ## Jesse 엔진 인프라 (backtest/docker/)
 

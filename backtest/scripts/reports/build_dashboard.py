@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-build_dashboard.py — Build dashboard.html from PostgreSQL unified data.
+build_dashboard.py — Build dashboard_v2.html from PostgreSQL data.
 
-Queries st_combos table, transforms to compact columnar JSON format, and injects
-into dashboard_v2.html template. Adds sweep filter multiselect control.
+Reads dashboard_template.html (committed UI shell), injects all sweep data from
+st_combos/st_window_results, and writes self-contained dashboard_v2.html.
 
 Usage:
-    python3 build_dashboard.py [--out /result/supertrend_x3_long_only/dashboard.html]
+    python3 build_dashboard.py [--out /result/supertrend_x3_long_only/dashboard_v2.html]
 
 Environment:
     JESSE_DB_HOST, JESSE_DB_PORT (optional; defaults: backtest-postgres, 5432)
@@ -241,20 +241,17 @@ createMultiSelect('sweep-filter-wrap', 'Sweep', SWEEP_VALUES, vals => { sweepSel
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Build unified dashboard from PostgreSQL data')
-    parser.add_argument('--out', type=str, default='/result/supertrend_x3_long_only/dashboard.html',
+    parser.add_argument('--out', type=str, default='/result/supertrend_x3_long_only/dashboard_v2.html',
                         help='Output HTML file path')
     args = parser.parse_args()
 
     out_path = Path(args.out)
-    template_path = Path('/result/supertrend_x3_long_only/dashboard_v2.html')
-    if not template_path.exists():
-        # Fall back to the previously generated dashboard.html as template
-        template_path = out_path
-        print(f"[!] dashboard_v2.html not found — using {template_path} as template", file=sys.stderr)
+    template_path = Path('/result/supertrend_x3_long_only/dashboard_template.html')
 
     # Validate paths
     if not template_path.exists():
         print(f"ERROR: Template not found: {template_path}", file=sys.stderr)
+        print("  Expected: dashboard_template.html (committed UI shell)", file=sys.stderr)
         sys.exit(1)
 
     # Create output directory if needed
