@@ -38,10 +38,25 @@ FUNDING_8H_PARQUET   = DATA_ROOT / 'funding' / 'BTCUSDT_8h.parquet'
 TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = ['stoch', 'supertrend',
                'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce']
-VARIANTS    = ['bidirectional', 'long_only',
-               'bidirectional_x2', 'long_only_x2',
-               'bidirectional_x3', 'long_only_x3',
-               'long_only_v2', 'long_only_x3_v2']
+_VARIANTS_BASE = ['bidirectional', 'long_only',
+                  'bidirectional_x2', 'long_only_x2',
+                  'bidirectional_x3', 'long_only_x3',
+                  'long_only_v2', 'long_only_x3_v2']
+
+
+def _discover_combo_variants() -> list[str]:
+    """Auto-discover long_only_{id} / long_only_x3_{id} from results dir."""
+    import re
+    found = []
+    base = RESULT_DIR / 'supertrend' / '4h'
+    if base.exists():
+        for d in sorted(base.iterdir()):
+            if re.match(r'^long_only(?:_x3)?_\d+$', d.name) and (d / 'stats.json').exists():
+                found.append(d.name)
+    return found
+
+
+VARIANTS = _VARIANTS_BASE + _discover_combo_variants()
 START_MS    = int(datetime(2017, 8, 18, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 _N_DAYS     = int((END_MS - START_MS) / 86_400_000) + 1  # days inclusive
@@ -492,11 +507,28 @@ def load_8h_funding_series() -> dict:
     return {'ts': ts, 'rates': rates, 'fallback': fallback}
 
 
+_LIQ_RISK_JSON = RESULTS_ROOT / 'supertrend_x3_long_only' / 'covid_crash_analysis' / 'liquidation_risk.json'
+_VARIANT_TO_LIQ_COMBO: dict[str, str] = {
+    'long_only_x3':     'default',
+    'long_only_x3_v2':  'v2',
+    'long_only_x3_164': 'combo_164',
+    'long_only_x3_173': 'combo_173',
+    'long_only_x3_176': 'combo_176',
+}
+
+
 def collect_all_results(btc_daily: list[dict] | None = None,
                          costs_lookup: dict | None = None) -> dict:
     """Returns dict keyed by strategy_dir, each with list of result objects.
     btc_daily is used to build a dense BnH equity curve."""
     groups: dict[str, list[dict]] = {}
+
+    # Load liquidation risk analysis results (2018-2026 full period)
+    _liq_risk_results: dict = {}
+    if _LIQ_RISK_JSON.exists():
+        _lrd = json.loads(_LIQ_RISK_JSON.read_text())
+        _liq_risk_results = _lrd.get('results', {})
+        print(f'  Liq risk data loaded: {len(_liq_risk_results)} combos')
 
     def _process(tf: str, strat_dir: str, variant: str, folder: Path):
         stats_path = folder / 'stats.json'
@@ -548,6 +580,17 @@ def collect_all_results(btc_daily: list[dict] | None = None,
                 liquidated = True
                 liq_month = m['month']
                 break
+        # Safety: liquidation risk verdict from full-period analysis
+        liq_risk = None
+        combo_id = _VARIANT_TO_LIQ_COMBO.get(variant)
+        if combo_id and strat_dir == 'supertrend' and tf == '4h' and combo_id in _liq_risk_results:
+            cr = _liq_risk_results[combo_id]
+            liq_risk = {
+                'verdict': cr.get('verdict', 'UNKNOWN'),
+                'trades':  cr.get('total_trades', 0),
+                'events':  cr.get('total_liq_risk_events', 0),
+                'period':  _lrd.get('analysis_period', '2018-2026'),
+            }
         result = {
             'id':       f'{strat_dir}__{variant}__{tf}',
             'strat':    strat_dir,
@@ -557,6 +600,7 @@ def collect_all_results(btc_daily: list[dict] | None = None,
             'leverage':    leverage,
             'liquidated':  liquidated,
             'liq_month':   liq_month,
+            'liq_risk':    liq_risk,
             'stats': {
                 'cagr':     round(stats.get('cagr_pct', 0), 4),
                 'sharpe':   round(stats.get('sharpe_ratio', 0), 4),
@@ -976,10 +1020,14 @@ function getResultById(id) {
 }
 
 function filteredResults() {
-  return getAllResults().filter(r =>
-    state.tfFilter.has(r.tf) &&
-    state.variantFilter.has(r.variant)
-  );
+  return getAllResults().filter(r => {
+    if (!state.tfFilter.has(r.tf)) return false;
+    if (state.variantFilter.has(r.variant)) return true;
+    // Combo x3 variants (long_only_x3_257 etc.) are controlled by the 'long_only_x3' filter.
+    // 1x combo variants stay hidden — they exist only as balanceSim base data.
+    if (/^long_only_x3_[0-9]+$/.test(r.variant)) return state.variantFilter.has('long_only_x3');
+    return false;
+  });
 }
 
 function fmtDollar(v) {
@@ -1008,20 +1056,29 @@ function fmtTotalPct(starting, finishing) {
 
 // Global variant label — used everywhere
 function varLabel(r) {
-  const base = r.variant.replace(/(?:_x\d+)?(?:_v\d+)?$/, '');
-  const version = r.variant.includes('_v2') ? ' v2.0' : '';
+  // Extract numeric combo_id (e.g. long_only_x3_257 → comboId='257').
+  // _(?!v) prevents matching version suffix _v2 as a combo id.
+  const comboM = r.variant.match(/_(?!v)([0-9]+)$/);
+  const comboId = comboM ? comboM[1] : null;
+  const comboSfx = comboId ? ' #' + comboId : '';
+  const base = r.variant.replace(/(?:_x[0-9]+)?(?:_v[0-9]+)?(?:_[0-9]+)?$/, '');
+  // Combo variants are sweep-optimised v2.0 params; version variants use _v2 suffix.
+  const version = (r.variant.includes('_v2') || comboId) ? ' v2.0' : '';
   const lev  = r.leverage > 1 ? ' · ' + r.leverage + 'x' : '';
   if (base === 'buy_and_hold') return '매수보유';
-  if (base === 'long_only')    return '롱전용' + lev + version;
-  return '양방향' + lev + version;
+  if (base === 'long_only')    return '롱전용' + lev + version + comboSfx;
+  return '양방향' + lev + version + comboSfx;
 }
 function varLabelShort(r) {
-  const base = r.variant.replace(/(?:_x\d+)?(?:_v\d+)?$/, '');
-  const version = r.variant.includes('_v2') ? 'v2' : '';
+  const comboM = r.variant.match(/_(?!v)([0-9]+)$/);
+  const comboId = comboM ? comboM[1] : null;
+  const comboSfx = comboId ? '#' + comboId : '';
+  const base = r.variant.replace(/(?:_x[0-9]+)?(?:_v[0-9]+)?(?:_[0-9]+)?$/, '');
+  const version = (r.variant.includes('_v2') || comboId) ? 'v2' : '';
   const lev  = r.leverage > 1 ? 'x' + r.leverage : '';
   if (base === 'buy_and_hold') return 'BnH';
-  if (base === 'long_only')    return '롱' + lev + version;
-  return '양방' + lev + version;
+  if (base === 'long_only')    return '롱' + lev + version + comboSfx;
+  return '양방' + lev + version + comboSfx;
 }
 function fmtBalance(r) {
   const s = getStats(r);
@@ -1081,9 +1138,10 @@ const FUNDING_8H_MS      = 8 * 3600 * 1000;
 // virtually. This makes "fresh $10k in 2022 with x3" produce the same 165 trades
 // as x1 would, just leveraged.
 function _baseVariantOf(variant) {
-  // Strip the leverage marker _x{n} while preserving any _v{m} version suffix.
-  // long_only_x3      → long_only       long_only_x3_v2 → long_only_v2
-  const m = variant.match(/^(.*?)_x\d+(_v\d+)?$/);
+  // Strip the leverage marker _x{n} while preserving any _v{m} or _{combo_id} suffix.
+  // long_only_x3        → long_only        long_only_x3_v2  → long_only_v2
+  // long_only_x3_257    → long_only_257
+  const m = variant.match(/^(.*?)_x[0-9]+(_(?:v[0-9]+|[0-9]+))?$/);
   if (m) return m[1] + (m[2] || '');
   return variant;
 }
@@ -1600,6 +1658,20 @@ function renderKPIs() {
            &nbsp;<span style="color:#c9d1d9">— ${s.liq_month}</span>
            <br><span style="color:#8b949e;font-size:11px">이후 잔고 $0 고정</span>
          </div>` : '';
+    // Safety badge: liquidation risk from full-period analysis
+    const lr = r.liq_risk;
+    const safetyBanner = lr
+      ? (lr.verdict === 'ZERO_RISK'
+          ? `<div style="background:#0d1f12;border:1px solid #3fb950;border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:11px;display:flex;align-items:center;gap:6px">
+               <span style="color:#3fb950;font-size:13px">🛡</span>
+               <span><strong style="color:#3fb950">청산위험 ZERO</strong>
+               <span style="color:#6e7681"> · ${lr.period} ${lr.trades}건 전수검사 · 3x liq 미도달</span></span>
+             </div>`
+          : `<div style="background:#2d1c0e;border:1px solid #e3b341;border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:11px">
+               ⚠️ <strong style="color:#e3b341">청산위험 존재</strong>
+               <span style="color:#6e7681"> · ${lr.events}건 위험 이벤트</span>
+             </div>`)
+      : '';
     // Cost breakdown banner (shown when adj data is available)
     let costBanner = '';
     if (hasAdj && s.cost_data) {
@@ -1626,6 +1698,7 @@ function renderKPIs() {
     return `<div class="kpi-card">
       <div class="kpi-label">${name}</div>
       ${liqBanner}
+      ${safetyBanner}
       ${costBanner}
       <div class="kpi-value ${cagrCls}">${multStr}</div>
       <div class="kpi-sub">총수익배수 · ${hasAdj ? '조정 ' : ''}CAGR ${fmtPct(dispCagr)}/yr</div>
@@ -1886,7 +1959,7 @@ function renderTradeTable(focusIdx = null) {
   }
 
   function fmtMs(ms) {
-    const d = new Date(ms);
+    const d = new Date(Math.round(ms / 14400000) * 14400000);
     const p = n => String(n).padStart(2, '0');
     const yy = String(d.getUTCFullYear()).slice(2);
     return `${yy}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
@@ -2098,7 +2171,7 @@ function showTradeDetail(id, month) {
   }
 
   function fmtMs(ms) {
-    const d = new Date(ms);
+    const d = new Date(Math.round(ms / 14400000) * 14400000);
     const pad = n => String(n).padStart(2,'0');
     const yy = String(d.getUTCFullYear()).slice(2);
     return `${yy}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
