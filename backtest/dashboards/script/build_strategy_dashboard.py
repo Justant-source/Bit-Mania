@@ -951,7 +951,7 @@ const TEXT_CLR  = '#c9d1d9';
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','4h','1D']),
-  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_v2','long_only_x3_v2']),
+  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_v2']),
   sortMode: 'return',                    // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
   endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
@@ -1029,9 +1029,9 @@ function filteredResults() {
   return getAllResults().filter(r => {
     if (!state.tfFilter.has(r.tf)) return false;
     if (state.variantFilter.has(r.variant)) return true;
-    // Combo x3 variants (long_only_x3_257 etc.) are controlled by the 'long_only_x3' filter.
+    // Combo x3 variants (long_only_x3_257 etc.) and v2 signal variant are controlled by 'long_only_x3'.
     // 1x combo variants stay hidden — they exist only as balanceSim base data.
-    if (/^long_only_x3_[0-9]+$/.test(r.variant)) return state.variantFilter.has('long_only_x3');
+    if (/^long_only_x3_[0-9]+$/.test(r.variant) || r.variant === 'long_only_x3_v2') return state.variantFilter.has('long_only_x3');
     return false;
   });
 }
@@ -3251,7 +3251,6 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
         <span class="tag active" data-filter="variant" data-value="long_only_x3">롱x3</span>
         <span class="tag active" data-filter="variant" data-value="bidirectional_x3">양방x3</span>
         <span class="tag active" data-filter="variant" data-value="long_only_v2">롱v2</span>
-        <span class="tag active" data-filter="variant" data-value="long_only_x3_v2">롱x3v2</span>
         <span class="tag active" data-filter="variant" data-value="buy_and_hold">매수보유</span>
       </div>
       <div class="filter-label" style="margin-top:6px">정렬 / 보기</div>

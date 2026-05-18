@@ -223,10 +223,7 @@ const SWEEPS_META = DATA.sweeps;"""
 
     # Add sweep filter multiselect to controls panel (skip if already injected)
     if 'id="sweep-filter-wrap"' not in html:
-        sweep_filter_html = '''    <div class="control-group" id="sweep-filter-wrap">
-      <label>Sweep</label>
-      <!-- populated by JS -->
-    </div>'''
+        sweep_filter_html = '''    <div id="sweep-filter-wrap"><!-- populated by JS --></div>'''
         pattern = r'(<select id="filter-tier">.*?</select>\s*</div>)'
         def insert_after_tier(match):
             return match.group(1) + '\n' + sweep_filter_html
