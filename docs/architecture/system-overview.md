@@ -5,7 +5,7 @@ related_code:
   - docker-compose.yml
   - cryptoengine/services/
   - cryptoengine/shared/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 새로운 마이크로서비스 추가 시
   - 서비스 레이어 구성 변경 시
@@ -17,7 +17,7 @@ when_to_update: |
 ## 1. 시스템 소개
 
 CryptoEngine은 Bybit 비트코인 선물 시장을 대상으로 하는 **자동매매 시스템**이다.
-핵심 전략은 **펀딩비 차익거래(Funding Rate Arbitrage)**이며, 그리드 트레이딩과 적응형 DCA를 보조 전략으로 운영한다.
+**핵심 전략은 Supertrend 4시간 추세추종 전략**이며, Long-only 3x 레버리지로 운영된다 (Phase 5 메인넷 실전 중).
 
 전체 시스템은 **Docker Compose** 기반의 마이크로서비스 아키텍처로 구성되어 있으며,
 WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
@@ -49,32 +49,32 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 ### 2.3 Strategy (전략)
 
-| 서비스 | 유형 | 역할 |
-|--------|------|------|
-| **funding-arb** | 핵심 전략 | 델타 뉴트럴 포지션 구성 + 펀딩비 수취. 양/음 펀딩비 방향에 따라 롱/숏 진입 |
-| **adaptive-dca** | 보조 전략 | Fear & Greed 지수 기반 적응형 분할매수. 시장 공포 시 공격적 매수 |
+| 서비스 | 유형 | 상태 | 역할 |
+|--------|------|------|------|
+| **supertrend** | 메인 전략 | ✅ **활성** (Phase 5) | Supertrend 4h 추세추종, Long-only 3x 레버리지. 4시간 봉 마감 시 신호 계산, EMA 교차 및 ATR 기반 청산 |
+| **adaptive-dca** | 보조 전략 | ⚠️ 비활성 | Fear & Greed 지수 기반 적응형 분할매수. 재활성화 검토 중 |
 
 ### 2.4 Intelligence (지능)
 
-| 서비스 | 역할 |
-|--------|------|
-| **llm-advisor** | Anthropic SDK + LangGraph 기반 시장 분석. 기술적/펀더멘털 데이터를 종합하여 판단 리포트 생성. `llm_reports` 테이블에 결과 저장 |
+| 서비스 | 상태 | 역할 |
+|--------|------|------|
+| **llm-advisor** | ❌ 삭제됨 | 이전: Anthropic SDK + LangGraph 기반 시장 분석. Phase 5 단순화로 제거됨 |
 
 ### 2.5 Interface (인터페이스)
 
-| 서비스 | 역할 | 포트 |
-|--------|------|------|
-| **telegram-bot** | 실시간 알림 전송 (AlertDispatcher: 배치·레이트리밋·dedup) + 비상 명령 수신(`/kill`, `/status`, `/pause_all`, `/resume_all`). Kill Switch 발동 시 즉시 알림 + ACK 확인. 30분 간격 시스템 하트비트 전송. 일일 리포트 자동 전송 (08:00, 20:00 UTC). Phase 5: STRICT_MONITORING 모드 (24시간 강화 모니터링, 1시간 강제 상태 리포트, 마진비율 경고) | - |
-| **dashboard** | Express.js 기반 웹 대시보드. 내부용(상세 지표)과 공개용(요약) 분리 | 3000 (내부), 3001 (공개) |
-| **grafana** | Grafana 10.4 기반 모니터링 대시보드. PostgreSQL + Prometheus 데이터소스. 공개 대시보드 기능 활성화 | 3002 |
+| 서비스 | 상태 | 역할 | 포트 |
+|--------|------|------|------|
+| **telegram-bot** | ✅ **복구** (Phase 5) | 실시간 알림 전송 + 비상 명령 수신 (`/kill`, `/status`, `/positions`, `/resume`). Kill Switch 발동 시 즉시 알림. Phase 5: STRICT_MONITORING 모드 (24시간 강화, 1시간 강제 상태 리포트) | Telegram API |
+| **dashboard** | ✅ 활성 | Express.js 웹 대시보드. 내부용(상세 지표)과 공개용(요약) 분리 | 3000 (내부), 3001 (공개) |
+| **grafana** | ✅ 활성 | Grafana 기반 모니터링. PostgreSQL + Prometheus 데이터소스 | 3002 |
 
 ### 2.6 Analysis (분석)
 
 | 서비스 | 역할 |
 |--------|------|
-| **backtester** | 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. 스킬셋 35개+ (`tests/backtest/`). **v2 재건 완료** (2026-04-11): Jesse 프레임워크 통합 (`jesse_project/`), 실데이터 파이프라인 5개 스크립트, 버그 3개 수정, 합성 데이터 폴백 4개 제거 |
+| **backtester** | 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. Jesse 프레임워크 기반, Supertrend 전략 검증용 |
 | **log-retention** | 매일 03:00 KST `service_logs` 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일) |
-| **wf-scheduler** | 매월 1일 02:00 KST Walk-Forward 분석 자동 실행 (`monthly_wf_runner.py`). 결과 요약 Telegram 전송 |
+| **wf-scheduler** | ⚠️ 아카이브됨 | 이전: Walk-Forward 월간 분석. Phase 5 단순화로 수동 분석으로 변경 |
 
 ---
 
@@ -162,15 +162,15 @@ graph TB
 
 | 채널 | 발행자 | 구독자 | 메시지 내용 |
 |------|--------|--------|------------|
-| `market:funding_rate` | market-data | funding-arb, orchestrator | 현재 펀딩비율, 다음 정산 시각 |
-| `market:regime` | market-data | orchestrator | 시장 레짐 (trending / ranging / volatile) |
-| `strategy:command:{id}` | orchestrator | 각 전략 서비스 | 자본 배분 비율, 시작/정지/파라미터 변경 명령 |
-| `order:request` | 각 전략 서비스 | execution-engine | 주문 요청 (종목, 방향, 수량, 가격, 유형) |
-| `order:update` | execution-engine | 각 전략 서비스 | 체결/부분체결/취소/거부 알림 |
-| `kill_switch` | orchestrator | execution-engine | 긴급 청산 명령 (레벨 1~4) |
-| `system:service_health` | orchestrator (watchdog) | (모니터링) | 서비스 헬스 상태 { status, dead_services, timestamp } |
-| `system:config_reload` | orchestrator (config watcher) | (감사 로그) | kill_switch 설정 변경 이력 { section, changed_keys, old/new_values, timestamp } |
-| `telegram:notification` | orchestrator (watchdog) | telegram-bot | Dead man's switch 알림 |
+| `market:ohlcv:bybit:BTCUSDT:4h` | market-data | supertrend, orchestrator | 4시간 확정 캔들 (OHLCV) |
+| `market:regime` | market-data | orchestrator, supertrend | 시장 레짐 (trending_up / trending_down / ranging / volatile) |
+| `strategy:command:supertrend-01` | orchestrator | supertrend | 자본 배분, 시작/정지/파라미터 명령 |
+| `order:request` | supertrend | execution-engine | 주문 요청 (BTC/USDT, 방향, 수량, 가격) |
+| `order:update` | execution-engine | supertrend | 체결/취소/거부 알림 |
+| `strategy:status:supertrend-01` | supertrend | orchestrator | 포지션 상태, P&L, 하트비트 |
+| `ce:kill_switch` | orchestrator | execution-engine, telegram-bot | 긴급 청산 명령 (레벨 1~4) |
+| `system:service_health` | orchestrator (watchdog) | (모니터링) | 서비스 헬스 상태 |
+| `telegram:notification` | orchestrator, execution-engine | telegram-bot | 알림 메시지 (Kill Switch, 주문, 에러) |
 
 ---
 
@@ -200,12 +200,7 @@ graph LR
     end
 
     subgraph strat["Strategy"]
-        funding["funding-arb<br>core strategy<br>funding rate income"]
-        dca["adaptive-dca<br>auxiliary strategy<br>Fear&Greed DCA"]
-    end
-
-    subgraph intel["Intelligence"]
-        llm["llm-advisor<br>Anthropic SDK<br>market analysis"]
+        supertrend["supertrend<br>main strategy<br>Supertrend 4h 3x<br>long-only"]
     end
 
     subgraph iface["Interface"]
@@ -218,17 +213,13 @@ graph LR
     market_data --> pg
     market_data --> redis
     redis --> orchestrator
-    redis --> funding
-    redis --> dca
+    redis --> supertrend
     orchestrator --> redis
-    funding --> redis
-    dca --> redis
+    supertrend --> redis
     redis --> execution
     execution --> bybit_rest
     execution --> pg
     execution --> redis
-    llm --> anthropic_api
-    llm --> pg
     tg_bot --> telegram_api
     tg_bot --> redis
     dash --> pg
@@ -263,12 +254,11 @@ graph LR
     end
     
     subgraph strat["Strategy"]
-        fa["funding-arb"]
-        dca["adaptive-dca"]
+        st["supertrend<br>4h 3x long-only"]
     end
     
     subgraph storage["Storage"]
-        pg["PostgreSQL<br>OHLCV, funding rate"]
+        pg["PostgreSQL<br>OHLCV, trades"]
         redis["Redis Pub/Sub"]
     end
     
@@ -276,12 +266,11 @@ graph LR
     md --> pg
     md --> redis
     redis -->|"market:regime"| orch
-    redis -->|"market:funding"| fa
-    orch -->|"strategy:*:command"| fa
-    orch -->|"strategy:*:command"| dca
-    fa -->|"order:request"| exec
-    dca -->|"order:request"| exec
-    exec -->|"order:result"| redis
+    redis -->|"market:ohlcv:4h"| st
+    orch -->|"strategy:command:supertrend-01"| st
+    st -->|"order:request"| exec
+    exec -->|"order:update"| redis
+    redis -->|"order:update"| st
     exec -->|"REST API"| bybit
     exec --> pg
     
@@ -293,13 +282,13 @@ graph LR
 
 **상세 흐름:**
 
-1. **시세 수집**: market-data가 Bybit WebSocket에서 실시간 가격, 펀딩비, 오더북 데이터를 수신
-2. **데이터 저장 및 발행**: OHLCV는 PostgreSQL에 저장하고, 펀딩비와 레짐 정보는 Redis로 발행
-3. **전략 조율**: strategy-orchestrator가 레짐 정보를 수신하여 전략별 자본 배분 가중치를 계산하고 명령 발행
-4. **전략 실행**: 각 전략 서비스가 시장 데이터와 오케스트레이터 명령을 수신하여 매매 판단 후 주문 요청
-5. **주문 처리**: execution-engine이 안전 검증(레버리지, 포지션 크기) 후 Bybit API로 주문 실행
-6. **결과 통보**: 체결 결과를 Redis로 발행하고, PostgreSQL에 거래 기록 저장
-7. **모니터링**: Grafana + Prometheus가 전체 시스템 메트릭을 시각화, 이상 시 Telegram 알림
+1. **시세 수집**: market-data가 Bybit WebSocket에서 실시간 가격(OHLCV), 레짐 데이터를 수신
+2. **데이터 저장 및 발행**: 4시간 확정 캔들을 PostgreSQL에 저장하고, Redis로 발행
+3. **전략 조율**: strategy-orchestrator가 시장 레짐을 모니터링하고 supertrend에 자본 배분 명령 발행
+4. **전략 실행**: supertrend가 4시간 캔들 확정 시 Supertrend 신호 + EMA 조건을 계산 → 주문 요청
+5. **주문 처리**: execution-engine이 안전 검증(레버리지 3x, 포지션 크기) 후 Bybit API로 주문 실행
+6. **결과 통보**: 체결 결과를 Redis로 발행하고 supertrend에 전달, PostgreSQL에 거래 기록 저장
+7. **모니터링**: Kill Switch 4단계 모니터링, 이상 시 Telegram 즉시 알림
 
 ---
 
@@ -310,8 +299,7 @@ graph LR
 ```
 config/
 ├── strategies/
-│   ├── funding-arb.yaml      # 펀딩비 전략 파라미터 (진입 임계값, 포지션 크기 등)
-│   └── adaptive-dca.yaml     # DCA 전략 파라미터 (분할 횟수, Fear&Greed 임계값 등)
+│   └── supertrend.yaml       # Supertrend 전략 파라미터 (period, multiplier, EMA 기간, leverage 등)
 ├── orchestrator.yaml         # 레짐별 가중치, Kill Switch 임계값
 ├── prometheus/
 │   └── prometheus.yml        # Prometheus 스크래핑 대상 설정
@@ -331,14 +319,13 @@ config/
 ## 8. 안전 장치
 
 - **Kill Switch 4단계**: 경고 → 포지션 축소 → 전체 청산 → 시스템 전면 중지
-- **테스트넷 강제**: `BYBIT_TESTNET=true` 기본값. Phase 5 전까지 변경 금지
-- **레버리지 제한**: 선물 포지션 최대 5배 레버리지 (fa80_lev5_r30 채택, `SafetyGuard` 이중 강제)
+- **Supertrend 3x 하드 리밋**: 레버리지 절대 3배 초과 금지 (`SafetyGuard` 이중 강제)
 - **출금 불가**: API 키에 Withdraw 권한 미부여
 - **헬스체크**: PostgreSQL, Redis에 Docker 헬스체크 설정. 의존 서비스 시작 순서 보장
-- **Dead Man's Switch**: execution-engine/market-data가 30초마다 Redis에 하트비트 발행. 오케스트레이터 워치독이 60초마다 확인, execution-engine 하트비트 5분 이상 미수신 시 Kill Switch 자동 발동
+- **Dead Man's Switch**: market-data/execution-engine이 30초마다 Redis에 하트비트 발행. 오케스트레이터 워치독이 60초마다 확인, 5분 이상 미수신 시 Kill Switch 자동 발동
 - **Redis 보안**: `requirepass` 인증 활성화, 포트 127.0.0.1에만 바인딩 (외부 접근 차단)
-- **주문 Rate Limiting**: 전략별 초당 2회 / 분당 30회 제한 (기본값, 설정 가능)
+- **주문 Rate Limiting**: supertrend 초당 2회 / 분당 30회 제한 (기본값, 설정 가능)
 - **Redis Fail-Closed**: Redis 3회 연속 연결 실패 시 신규 주문 전면 차단. 로컬 메모리 캐시(TTL 60초)로 일시적 단절 완충
 - **설정 핫 리로드**: `orchestrator.yaml`의 kill_switch 임계값을 서비스 재시작 없이 변경 가능 (최대 30초 반영)
-- **Phase 5 모드**: `PHASE5_MODE=true` 또는 `BYBIT_TESTNET=false` 시 소액 실전용 안전장치 자동 활성화 — fixed_notional 사이징, Kill Switch 절대값 AND 조건, STRICT_MONITORING, 시작 시 잔고 검증
-- **비상 SOP**: `docs/EMERGENCY_MANUAL_CLOSE.md` — 봇 응답 없을 때 Bybit 앱/웹으로 수동 청산하는 5단계 절차
+- **Phase 5 모드**: `PHASE5_MODE=true` + `BYBIT_TESTNET=false` 시 메인넷 소액 운영 안전장치 자동 활성화 — fixed_notional $150 사이징, Kill Switch 절대값 AND 조건, STRICT_MONITORING 24h, 시작 시 잔고 검증
+- **비상 SOP**: `docs/policies/emergency-manual-close.md` — 봇 응답 없을 때 Bybit 앱/웹으로 수동 청산하는 절차

@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/services/execution/safety.py
   - cryptoengine/services/orchestrator/core.py
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Kill Switch 임계값 변경 시
   - 안전 검증 규칙 변경 시

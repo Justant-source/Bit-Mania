@@ -82,7 +82,7 @@ last_updated: 2026-05-18
 | [architecture/](architecture/) | 시스템 설계 — 시스템 개요, 데이터 흐름 | system-overview.md |
 | [policies/](policies/) | 정책 — BTC-only, Kill Switch, 운영 규칙 | btc-only.md, kill-switch.md |
 | [policies/operations/](policies/operations/) | 운영 매뉴얼 — Runbook, 모니터링, 배포 | runbook.md, monitoring.md, mainnet-switch.md |
-| [policies/strategies/](policies/strategies/) | 전략 사양 — Supertrend, Adaptive DCA | supertrend.md, funding-arb.md (archived), adaptive-dca.md |
+| [policies/strategies/](policies/strategies/) | 전략 사양 — Supertrend (활성), FA/DCA (폐기/비활성) | supertrend.md, README.md |
 | [structure/](structure/) | 코드 레이아웃 — 19개 서비스, 디렉토리 트리 | — |
 | [../backtest/docs/](../backtest/docs/) | 백테스트 & 검증 — Jesse, 스킬셋, Phase 4 체크 | methodology/backtest-skillset.md, phase4-checklist.md |
 

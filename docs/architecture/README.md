@@ -1,7 +1,7 @@
 ---
 title: 아키텍처 문서
 category: architecture
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 시스템 구조 변경 시 (서비스 추가/제거)
   - 데이터 흐름 변경 시 (채널, 이벤트 순서)

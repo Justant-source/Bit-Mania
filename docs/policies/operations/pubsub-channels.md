@@ -4,7 +4,7 @@ category: policies/operations
 related_code:
   - cryptoengine/shared/redis_client.py
   - cryptoengine/services/*/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 채널 추가/삭제 시
   - 메시지 포맷 변경 시
@@ -20,27 +20,23 @@ when_to_update: |
 graph LR
     subgraph pub["Publishers"]
         MD["market-data"]
-        FA["funding-arb"]
-        DCA["adaptive-dca"]
+        ST["supertrend"]
         ORC["strategy-orchestrator"]
         ENG["execution-engine"]
     end
 
     subgraph ch["Redis Channels"]
-        C1["market:ohlcv\n:{exchange}:{symbol}:{tf}"]
+        C1["market:ohlcv\n:bybit:BTCUSDT:4h"]
         C2["market:regime"]
-        C3["market:funding:{symbol}"]
         C4["order:request"]
         C5["order:update"]
-        C6["strategy:command:{id}"]
+        C6["strategy:command:supertrend-01"]
         C7["ce:kill_switch"]
         C8["system:service_health"]
-        C9["ce:kill_switch:ack"]
     end
 
     subgraph sub["Subscribers"]
-        FA2["funding-arb"]
-        DCA2["adaptive-dca"]
+        ST2["supertrend"]
         ORC2["strategy-orchestrator"]
         ENG2["execution-engine"]
         TG["telegram-bot"]
@@ -48,28 +44,20 @@ graph LR
 
     MD --> C1
     MD --> C2
-    MD --> C3
-    FA --> C4
-    DCA --> C4
     ORC --> C6
     ORC --> C7
     ORC --> C8
+    ST --> C4
     ENG --> C5
-    ENG --> C9
 
-    C1 --> FA2
-    C1 --> DCA2
+    C1 --> ST2
     C1 --> ORC2
     C2 --> ORC2
-    C3 --> FA2
     C4 --> ENG2
-    C5 --> FA2
-    C5 --> DCA2
-    C6 --> FA2
-    C6 --> DCA2
+    C5 --> ST2
+    C6 --> ST2
     C7 --> ENG2
     C7 --> TG
-    C9 --> ORC2
 
     style C7 fill:#ff4444,color:#fff
     style C4 fill:#4caf50,color:#fff
@@ -100,8 +88,7 @@ OHLCV 캔들 데이터 배포. Market Data Collector → 전략 서비스
 ```
 
 **수신자**:
-- funding-arb 전략
-- adaptive-dca 전략
+- supertrend 전략 (4h 캔들만, confirmed=true)
 - orchestrator
 
 ---
@@ -129,29 +116,11 @@ OHLCV 캔들 데이터 배포. Market Data Collector → 전략 서비스
 - `ranging`: 횡보 (박스권)
 - `volatile`: 고변동성
 
-**전략별 대응**:
-- `trending_up/down` → 펀딩비 차익거래 유지
-- `volatile` → 전체 전략 축소
-
----
-
-#### `market:funding:{symbol}`
-
-펀딩레이트 업데이트 → Funding Arb 전략의 핵심 입력
-
-**메시지 예시**:
-
-```json
-{
-  "exchange": "bybit",
-  "symbol": "BTCUSDT",
-  "rate": 0.0001,
-  "predicted_rate": 0.00008,
-  "next_funding_time": "2026-04-03T16:00:00Z"
-}
-```
-
-**수신자**: funding-arb 전략 (진입/청산 판정)
+**전략별 대응** (Supertrend):
+- `trending_up` → 가중치 60% (최적)
+- `trending_down` → 가중치 10% (회피, long-only)
+- `ranging` → 가중치 30% (낮음)
+- `volatile` → 가중치 40% (중간)
 
 ---
 
@@ -181,8 +150,7 @@ OHLCV 캔들 데이터 배포. Market Data Collector → 전략 서비스
 ```
 
 **발행자**: 
-- funding-arb (현물/선물 동시 주문)
-- adaptive-dca (매수 주문)
+- supertrend (4시간 신호 기반 주문)
 
 ---
 

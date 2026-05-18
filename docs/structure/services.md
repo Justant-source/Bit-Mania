@@ -5,6 +5,10 @@ related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/services/
 last_updated: 2026-05-18
+note: |
+  Supertrend 4h 3x 단일 전략 (Phase 5 메인넷).
+  Funding Arb, Adaptive DCA, llm-advisor 제거.
+  telegram-bot 복구.
 ---
 
 # 마이크로서비스 아키텍처
@@ -36,9 +40,6 @@ graph TD
         DCA[adaptive-dca\n보조전략\n현재 비활성]
     end
 
-    subgraph intel["🤖 Intelligence"]
-        LLM[llm-advisor\nClaude API]
-    end
 
     subgraph iface["📡 Interface"]
         TG[telegram-bot\n알림+비상명령]
@@ -53,13 +54,11 @@ graph TD
 
     PG & RD --> core
     MD --> RD
-    RD --> ORC & ST & DCA
+    RD --> ORC & ST
     ORC --> RD
     ST --> RD
-    DCA --> RD
     RD --> ENG
     ENG --> PG & RD
-    LLM --> PG
     TG --> RD
     DASH --> PG & RD
     GF --> PG & PROM
@@ -69,7 +68,6 @@ graph TD
     BT -.->|"--profile backtest"| PG
 
     style ST fill:#ff9800,color:#fff
-    style DCA fill:#bdbdbd,color:#fff
     style ENG fill:#4caf50,color:#fff
     style ORC fill:#2196f3,color:#fff
 ```
@@ -106,12 +104,6 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
   - `market:regime` — trending_up/ranging/trending_down/volatile/uncertain 분류
 - **핵심 파일**: collector.py, funding_monitor.py, regime_detector.py
 
-#### llm-advisor
-- **역할**: Claude Code 기반 시장 분석, AI 판단 저장
-- **언어**: Python 3.12
-- **입력**: 현재 시장 상태, 포지션 정보
-- **출력**: PostgreSQL `llm_judgments` 테이블
-- **빈도**: 설정 가능 (기본 4시간마다)
 
 ---
 
@@ -133,16 +125,11 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 - **STRATEGY_ID**: supertrend-01
 - **배포**: service_shutdown 시 포지션 보존 (Redis 복구)
 
-#### adaptive-dca (보조 전략)
+#### adaptive-dca (보조 전략, 비활성)
+- **상태**: ⚠️ 현재 비활성 (orchestrator.yaml weight=0.0)
 - **역할**: Fear & Greed 지수 기반 적응형 평균단가 하락 매수
 - **언어**: Python 3.12
-- **입력**: 
-  - Redis `market:regime`
-  - Redis `strategy:command:{id}` (자본 배분)
-- **출력**: Redis `order:request`
-- **파라미터**: config/strategies/adaptive-dca.yaml
-  - pairs: [BTCUSDT]
-  - allocation: 20% of total capital
+- **참고**: 재활성화 검토 중
 
 #### strategy-orchestrator
 - **역할**: 전략 자본 배분, 레짐 기반 가중치 조정, Kill Switch 조율

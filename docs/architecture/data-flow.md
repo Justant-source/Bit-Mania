@@ -5,8 +5,9 @@ related_code:
   - cryptoengine/services/market-data/
   - cryptoengine/services/execution/
   - cryptoengine/services/orchestrator/
+  - cryptoengine/services/strategies/supertrend/
   - cryptoengine/shared/redis_client.py
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Redis Pub/Sub 채널 추가/변경 시
   - 데이터베이스 스키마 변경 시
@@ -87,11 +88,10 @@ CREATE TABLE ohlcv (
 - **확정 캔들**: Redis 발행 + PostgreSQL UPSERT + Redis Hash 캐시 갱신
 - **타임프레임**: 1m / 5m / 15m / 1h / 4h (WS 구독), 1d (미포함 -- 백테스트 스크립트에서 별도 수집)
 
-### 1.5 펀딩비 저장 (funding_rates 테이블)
+### 1.5 펀딩비 데이터 (funding_rates 테이블) — 아카이브됨
 
-8시간 간격 펀딩비를 `funding_rates` 테이블에 저장한다.
-`FundingMonitor`가 Bybit REST API를 60초 간격으로 폴링하고,
-CoinGlass API로 다중 거래소 비교 데이터를 300초 간격으로 수집한다.
+**주의**: 펀딩비 수집은 여전히 작동하지만, Supertrend 전략은 펀딩비를 사용하지 않습니다.
+이전 Funding Arb 전략은 2026-05-18 폐기되었습니다 ([ADR-004](../../../docs/ADR/004. Funding Arbitrage 전략 폐기_2026-05-18.md)).
 
 ```sql
 CREATE TABLE funding_rates (
@@ -105,9 +105,6 @@ CREATE TABLE funding_rates (
     UNIQUE (exchange, symbol, next_funding_time)
 );
 ```
-
-- **경고 임계값**: 0.05%/8h (~21.9% APR) -- 펀딩비 차익 기회 감지
-- **위험 임계값**: 0.10%/8h (~43.8% APR) -- 극단적 펀딩비 경보
 
 ### 1.6 Orderbook L2 스냅샷
 
@@ -181,36 +178,42 @@ CREATE TABLE funding_rates (
 
 ---
 
-## 1.8 펀딩비 정산 사이클 (Funding Settlement Cycle)
+## 1.8 Supertrend 신호 생성 (Signal Generation Cycle)
 
-Bybit의 펀딩비 정산은 **UTC 기준 8시간 주기**:
+Supertrend 전략은 **4시간 봉 확정 시**에만 신호를 계산합니다:
 
-| 정산 시각 (UTC) | 정산 시각 (KST) | 설명 |
+| 봉 마감 시각 (KST) | 다음 신호 계산 | 설명 |
 |-----------------|-----------------|------|
-| 00:00 | 09:00 | 1차 정산 |
-| 08:00 | 17:00 | 2차 정산 |
-| 16:00 | 다음날 01:00 | 3차 정산 |
+| 01:00 (UTC 16:00) | 01:00 | 4h 봉 0번 마감 |
+| 05:00 (UTC 20:00) | 05:00 | 4h 봉 1번 마감 |
+| 09:00 (UTC 00:00+1) | 09:00 | 4h 봉 2번 마감 |
+| 13:00 (UTC 04:00) | 13:00 | 4h 봉 3번 마감 |
+| 17:00 (UTC 08:00) | 17:00 | 4h 봉 0번 마감 (다시) |
+| 21:00 (UTC 12:00) | 21:00 | 4h 봉 1번 마감 |
 
-funding-arb 전략이 관심 있는 데이터:
-- **펀딩비율**: 8시간 주기 이전에 수지 결정 (현물도 long, 선물도 long일 때 음수 추적 대비)
-- **다음 정산시각**: REST API `/v5/market/funding/history`에서 `nextFundingTime` 조회
-- **경고 임계값**: 0.05%/8h (연 21.9%) → 통상적 기회
-- **위험 임계값**: 0.10%/8h (연 43.8%) → 극단적 상황 (역펀딩 또는 Bybit 유동성 부족)
+Supertrend 신호 판단:
+- **시장 데이터**: `market:ohlcv:bybit:BTCUSDT:4h` 수신 (confirmed=true만)
+- **신호 계산**: Supertrend(period=8, mult=2.4) + EMA(7,27,230) 조건
+- **진입 조건**: ST 상승 + EMA(7) > EMA(27) + Price > EMA(230)
+- **청산 조건**: EMA 하강 교차 또는 ATR×3.2 거리 초과
+- **주문 발행**: 신호 확인 후 즉시 `order:request` 채널 발행
 
-funding-arb 포지션 보유 시:
+Supertrend 포지션 보유 시:
 
 ```mermaid
 graph TD
-    A["현물 롱 + 선물 숏<br>포지션 유지"] --> B["매 5분마다<br>지갑 조회<br>execution-engine"]
-    B --> C["정산 시각<br>5분 전"]
-    C --> D["포지션 확정<br>선물 매도 레그<br>현물 매수 레그"]
-    D --> E["펀딩비 확정<br>Redis market:funding<br>채널 발행"]
-    E --> F["다음 사이클 대기"]
+    A["4시간 봉<br>확정 (confirmed)"] --> B["Supertrend 신호<br>계산"]
+    B --> C{"진입/청산<br>신호?"}
+    C -->|YES| D["주문 생성<br>order:request"]
+    C -->|NO| E["대기"]
+    D --> F["execution-engine<br>실행"]
+    F --> G["포지션 업데이트<br>Redis 발행"]
+    E --> H["다음 4h 봉 대기"]
     
     style A fill:#E8F5E9
-    style C fill:#FFF3E0
-    style D fill:#E3F2FD
-    style E fill:#E3F2FD
+    style B fill:#E3F2FD
+    style D fill:#4CAF50,color:#fff
+    style G fill:#E3F2FD
 ```
 
 ---

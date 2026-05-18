@@ -5,7 +5,7 @@ related_code:
   - docker-compose.yml
   - Dockerfile
   - config/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Docker Compose 서비스 추가/제거 시
   - 환경 설정 변경 시
@@ -42,13 +42,8 @@ graph TB
         exec["execution-engine"]
     end
     
-    subgraph strat["Strategy 2개"]
-        fa["funding-arb"]
-        dca["adaptive-dca"]
-    end
-    
-    subgraph intel["Intelligence 1개"]
-        llm["llm-advisor"]
+    subgraph strat["Strategy 1개"]
+        st["supertrend"]
     end
     
     subgraph iface["Interface 3개"]
@@ -86,10 +81,8 @@ graph TB
 | **market-data** | 커스텀 빌드 | WebSocket 데이터 수집, 레짐 감지 | `/tmp/heartbeat_ok` | 0.5 / 256M |
 | **strategy-orchestrator** | 커스텀 빌드 | 전략 조율, 자본 배분 | 없음 | 0.5 / 256M |
 | **execution-engine** | 커스텀 빌드 | 주문 실행, 포지션 추적, 안전 검증 | `/tmp/heartbeat_ok` | 0.5 / 256M |
-| **funding-arb** | 커스텀 빌드 | 핵심 전략: 델타 뉴트럴 + 펀딩비 수취 | `/tmp/heartbeat_ok` | 0.5 / 256M |
-| **adaptive-dca** | 커스텀 빌드 | 보조 전략: Fear&Greed 기반 DCA | 없음 | 0.3 / 128M |
-| **llm-advisor** | 커스텀 빌드 | Anthropic SDK 기반 시장 분석 | 없음 | 1.0 / 512M |
-| **telegram-bot** | 커스텀 빌드 | 알림 전송 + 비상 명령 수신 | 없음 | 0.2 / 128M |
+| **supertrend** | 커스텀 빌드 | 메인 전략: Supertrend 4h 3x long-only | `/tmp/heartbeat_ok` | 0.5 / 256M |
+| **telegram-bot** | 커스텀 빌드 | ✅ 복구: 알림 전송 + 비상 명령 수신 | 없음 | 0.2 / 128M |
 | **dashboard** | 커스텀 빌드 | 내부(3000) + 공개(3001) 웹 대시보드 | 없음 | 0.5 / 256M |
 | **grafana** | `grafana/grafana:10.4.14` | 시각화 대시보드, 알림 | 없음 | 0.5 / 512M |
 | **node-exporter** | `prom/node-exporter:v1.8.0` | 호스트 시스템 메트릭 | 없음 | 0.1 / 64M |
