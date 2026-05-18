@@ -337,6 +337,7 @@ services:
       DASHBOARD_INTERNAL_PORT: ${DASHBOARD_INTERNAL_PORT:-3000}
       DASHBOARD_PUBLIC_PORT: ${DASHBOARD_PUBLIC_PORT:-3001}
       DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-}
+      PROMETHEUS_URL: http://prometheus:9090
     ports:
       - "${DASHBOARD_INTERNAL_PORT:-3000}:3000"
       - "${DASHBOARD_PUBLIC_PORT:-3001}:3001"
@@ -349,41 +350,6 @@ services:
           memory: 256M
         reservations:
           memory: 64M
-
-  grafana:
-    image: grafana/grafana:10.4.14
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-      prometheus:
-        condition: service_started
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource,redis-datasource
-      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
-      GF_PANELS_DISABLE_SANITIZE_HTML: "true"
-      GF_UNIFIED_ALERTING_ENABLED: "true"
-      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/trading/overview.json
-      PHASE5_MODE: ${PHASE5_MODE:-false}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./config/grafana/alerting:/etc/grafana/provisioning/alerting:ro
-      - llm-reports:/usr/share/grafana/public/reports:ro
-    ports:
-      - "3002:3000"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-        reservations:
-          memory: 128M
 
   # ── Observability Stack ─────────────────────────────────────
   node-exporter:
@@ -513,8 +479,6 @@ volumes:
   pgdata:
     driver: local
   redisdata:
-    driver: local
-  grafana-data:
     driver: local
   prometheus-data:
     driver: local

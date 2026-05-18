@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supertrend 대시보드 — CryptoEngine</title>
+<link rel="stylesheet" href="/css/dashboard.css">
+<!-- Plotly loaded from CDN matching 7-strategies dashboard -->
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">⚡ CryptoEngine</div>
+      <div class="sub">Supertrend 4h · 3x · Long-only</div>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" href="/supertrend">
+        <span class="nav-icon">📊</span> 전략 비교
+      </a>
+      <a class="nav-item" href="/monitor">
+        <span class="nav-icon">🖥️</span> 시스템 모니터
+      </a>
+      <a class="nav-item" href="/regime">
+        <span class="nav-icon">🌐</span> 레짐 분석
+      </a>
+    </nav>
+    <div style="padding:10px 14px; border-top:1px solid #30363d; font-size:11px; color:#484f58;" id="last-updated">
+      갱신 중…
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- KPI Header -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">현재 포지션</div>
+        <div class="kpi-value" id="kpi-position">—</div>
+        <div class="kpi-sub" id="kpi-position-sub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">신호 상태</div>
+        <div class="kpi-value" id="kpi-signal">—</div>
+        <div class="kpi-sub" id="kpi-signal-sub">최근 봉</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">다음 4h 봉</div>
+        <div class="kpi-value" id="kpi-nextbar">—</div>
+        <div class="kpi-sub" id="kpi-nextbar-sub">다음 신호 기회</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">체결 일치율</div>
+        <div class="kpi-value" id="kpi-match">—</div>
+        <div class="kpi-sub" id="kpi-match-sub">예상 vs 실제</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">평균 슬리피지</div>
+        <div class="kpi-value" id="kpi-slippage">—</div>
+        <div class="kpi-sub" id="kpi-slippage-sub">진입가 기준</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">자본 배분</div>
+        <div class="kpi-value" id="kpi-capital">—</div>
+        <div class="kpi-sub" id="kpi-capital-sub">레짐 30%</div>
+      </div>
+    </div>
+
+    <!-- Section: 가격 차트 + 진입·청산 마커 -->
+    <div class="section-hdr">
+      <div class="section-hdr-line"></div>
+      <div class="section-hdr-text">가격 차트 · 예상/실제 진입·청산</div>
+      <div class="section-hdr-line"></div>
+    </div>
+
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="card-title">BTC/USDT 4h · 예상 진입(파랑) vs 실제 체결(초록)</div>
+        <div style="display:flex;gap:6px">
+          <button class="day-btn active" data-days="30">30일</button>
+          <button class="day-btn" data-days="60">60일</button>
+          <button class="day-btn" data-days="90">90일</button>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart-price" style="min-height:320px">
+        <div class="empty-state">데이터 로딩 중…</div>
+      </div>
+    </div>
+
+    <!-- Section: 예상 vs 실제 자산 곡선 -->
+    <div class="section-hdr">
+      <div class="section-hdr-line"></div>
+      <div class="section-hdr-text">자산 곡선 비교</div>
+      <div class="section-hdr-line"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title">예상 자산 (파랑) vs 실제 자산 (초록)</div>
+      <div class="chart-wrap" id="chart-equity" style="min-height:220px">
+        <div class="empty-state">데이터 로딩 중…</div>
+      </div>
+    </div>
+
+    <!-- Section: 예상 vs 실제 거래 비교 테이블 -->
+    <div class="section-hdr">
+      <div class="section-hdr-line"></div>
+      <div class="section-hdr-text">예상 vs 실제 거래 비교</div>
+      <div class="section-hdr-line"></div>
+    </div>
+
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-title" id="compare-title">비교 데이터 로딩 중…</div>
+        <div style="font-size:11px;color:#8b949e">
+          <span class="badge badge-blue">매칭</span>
+          <span class="badge badge-red" style="margin-left:4px">놓침</span>
+          <span class="badge badge-yellow" style="margin-left:4px">초과</span>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table id="compare-table">
+          <thead>
+            <tr>
+              <th>봉 시각 (KST)</th>
+              <th>구분</th>
+              <th class="cmp-expected">예상 가격</th>
+              <th class="cmp-expected">예상 수량</th>
+              <th class="cmp-actual">실제 체결가</th>
+              <th class="cmp-actual">실제 수량</th>
+              <th class="cmp-diff">시간 지연</th>
+              <th class="cmp-diff">슬리피지</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="compare-tbody">
+            <tr><td colspan="9" style="color:#484f58;text-align:center">데이터 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section: 현재 지표 상태 -->
+    <div class="section-hdr">
+      <div class="section-hdr-line"></div>
+      <div class="section-hdr-text">최근 봉 지표 상태</div>
+      <div class="section-hdr-line"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title">Supertrend · EMA · ATR 최신값</div>
+      <div id="indicator-panel" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:8px">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<style>
+.day-btn {
+  padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer;
+  border: 1px solid #30363d; background: #21262d; color: #8b949e;
+}
+.day-btn.active { background: #1f6feb; border-color: #388bfd; color: #cae8ff; }
+</style>
+
+<script src="/js/supertrend-dashboard.js"></script>
+</body>
+</html>

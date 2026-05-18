@@ -54,7 +54,21 @@ last_updated: 2026-05-18
 | `shared/db/migrations/*.sql` | [structure/README.md](structure/README.md) |
 | `shared/db/migrations/012_quarterly_perp_spread.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
 | `shared/db/migrations/013_multi_exchange.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
+| `shared/db/migrations/016_supertrend_signals.sql` | [structure/README.md](structure/README.md) |
 | `.env` | [policies/operations/runbook.md](policies/operations/runbook.md) |
+
+## 대시보드
+
+| 코드 | 문서 |
+|------|------|
+| `services/dashboard/src/routes/supertrend.ts` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/routes/monitor.ts` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/alertEvaluator.ts` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/public/supertrend.html` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/public/monitor.html` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/public/js/supertrend-dashboard.js` | [structure/services.md](structure/services.md) |
+| `services/dashboard/src/public/js/monitor-dashboard.js` | [structure/services.md](structure/services.md) |
+| `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 
 ## 공유 라이브러리
 

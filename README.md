@@ -26,7 +26,7 @@ cp .env.example .env
 # .env 편집: BYBIT_API_KEY, BYBIT_API_SECRET, DB_PASSWORD
 
 # 2. 인프라 기동
-docker compose up -d postgres redis grafana
+docker compose up -d postgres redis
 
 # 3. 서비스 기동
 docker compose up -d market-data execution-engine supertrend strategy-orchestrator
@@ -41,9 +41,9 @@ docker compose ps
 
 | 서비스 | 포트 |
 |--------|------|
-| 내부 대시보드 | http://localhost:3000 |
+| 내부 대시보드 (Supertrend) | http://localhost:3000/supertrend |
+| 내부 대시보드 (모니터) | http://localhost:3000/monitor |
 | 공개 대시보드 | http://localhost:3001 |
-| Grafana | http://localhost:3002 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 

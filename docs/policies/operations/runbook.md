@@ -19,7 +19,7 @@ when_to_update: |
 
 ```mermaid
 flowchart TD
-    START(["시스템 시작"]) --> INF["1단계: 인프라 기동\npostgres / redis / grafana"]
+    START(["시스템 시작"]) --> INF["1단계: 인프라 기동\npostgres / redis"]
     INF --> WAIT{"헬스체크 통과?"}
     WAIT -->|대기| WAIT
     WAIT -->|통과| CORE["2단계: 핵심 서비스\nmarket-data\nexecution-engine\nstrategy-orchestrator\nfunding-arb"]
@@ -41,8 +41,8 @@ flowchart TD
 cd ~/Data/Bit-Mania/cryptoengine
 cat .env | grep -E "BYBIT_|DB_"
 
-# 2. 인프라 시작 (PostgreSQL, Redis, Grafana)
-docker compose up -d postgres redis grafana
+# 2. 인프라 시작 (PostgreSQL, Redis)
+docker compose up -d postgres redis
 
 # 3. 핵심 서비스 시작
 docker compose up -d market-data execution-engine strategy-orchestrator funding-arb
@@ -99,11 +99,9 @@ docker compose logs --tail=100 funding-arb | grep -E "ERROR|CRITICAL"
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
   "SELECT id, symbol, size, entry_price, updated_at FROM positions WHERE status='open' ORDER BY updated_at DESC;"
 
-# 5. Grafana 대시보드 확인 (http://localhost:3002)
-#    - Portfolio P&L
-#    - Daily Drawdown
-#    - Strategy Status
-#    - Kill Switch Events
+# 5. 대시보드 확인
+#    http://localhost:3000/supertrend  — Supertrend 예상 vs 실제 비교
+#    http://localhost:3000/monitor     — 자산/Kill Switch/레짐/서비스 상태
 ```
 
 ### 주간 확인 사항
@@ -364,17 +362,18 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 
 ## 모니터링
 
-### Grafana 대시보드
+### 대시보드 (Grafana 대체)
 
-http://localhost:3002 (admin / ***REMOVED***)
+http://localhost:3000/supertrend — Supertrend 예상 vs 실제 비교  
+http://localhost:3000/monitor   — 자산/Kill Switch/레짐/서비스 상태/인프라
 
 **주요 패널**:
-- **Portfolio P&L**: 누적 손익
-- **Daily Drawdown %**: 일일 낙폭
-- **Strategy Status**: 각 전략 ON/OFF
-- **Kill Switch Events**: 발동 이력
-- **Margin Ratio**: 마진 안전성 (최저값 > 10x 권장)
-- **API Response Time**: 거래소 API 레이턴시
+- **Supertrend 비교**: 매 4h 봉 예상 진입·청산 vs 실제 체결 (가격, 수량, 지연)
+- **자산 곡선**: 예상(백테스트) vs 실제(메인넷) 30일
+- **Kill Switch**: 현재 상태 + 발동 이력
+- **레짐**: 현재 레짐, 오케스트레이터 가중치
+- **서비스 상태**: 서비스별 마지막 응답 시간 + 오류 건수
+- **인프라**: CPU / 메모리 / 디스크 / Redis (Prometheus 연동)
 
 ### 핵심 메트릭
 
@@ -488,4 +487,4 @@ docker compose restart postgres
 - [../kill-switch.md](../kill-switch.md) — Kill Switch 정책 및 임계값
 - [../emergency-manual-close.md](../emergency-manual-close.md) — 비상 청산 SOP
 - [deployment-procedure.md](deployment-procedure.md) — Docker 배포 절차
-- [monitoring.md](monitoring.md) — Grafana/Telegram 모니터링
+- [monitoring.md](monitoring.md) — 대시보드/Telegram 모니터링

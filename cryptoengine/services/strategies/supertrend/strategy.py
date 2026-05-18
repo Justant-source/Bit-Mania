@@ -108,6 +108,38 @@ class SupertrendLiveStrategy(BaseStrategy):
             leverage=self.leverage,
         )
 
+        # Ensure supertrend_signals table exists (self-create, idempotent)
+        if self._db_pool:
+            try:
+                async with self._db_pool.acquire() as conn:
+                    await conn.execute("""
+                        CREATE TABLE IF NOT EXISTS supertrend_signals (
+                            id                 BIGSERIAL PRIMARY KEY,
+                            bar_ts             TIMESTAMPTZ NOT NULL,
+                            computed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                            st_dir             SMALLINT    NOT NULL,
+                            fast_ema           DOUBLE PRECISION NOT NULL,
+                            slow_ema           DOUBLE PRECISION NOT NULL,
+                            dir_ema            DOUBLE PRECISION NOT NULL,
+                            price              DOUBLE PRECISION NOT NULL,
+                            atr_14             DOUBLE PRECISION NOT NULL,
+                            allocated_capital  DOUBLE PRECISION NOT NULL,
+                            had_position       BOOLEAN NOT NULL,
+                            entry_ok           BOOLEAN NOT NULL,
+                            exit_signal        BOOLEAN NOT NULL,
+                            exit_reason        VARCHAR(20),
+                            expected_action    VARCHAR(10) NOT NULL,
+                            expected_qty       DOUBLE PRECISION,
+                            expected_stop_loss DOUBLE PRECISION
+                        )
+                    """)
+                    await conn.execute("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_supertrend_signals_bar_ts
+                            ON supertrend_signals (bar_ts)
+                    """)
+            except Exception:
+                self._log.exception("signal_table_create_error")
+
         # Create exchange connector
         self._exchange = exchange_factory(
             "bybit",
@@ -276,9 +308,17 @@ class SupertrendLiveStrategy(BaseStrategy):
             atr_14=round(atr_14, 2),
         )
 
-        # ── Entry Signal ────────────────────────────────────────────────
+        # ── Pre-compute expected action for signal logging ──────────────
+        # Capture pre-decision state before any order submission
+        had_position = self._has_position
+        entry_ok = False
+        exit_signal = False
+        exit_reason: str | None = None
+        expected_action = "hold"
+        expected_qty: float | None = None
+        expected_stop_loss: float | None = None
 
-        if not self._has_position:
+        if not had_position:
             entry_ok = (
                 st_dir == 1
                 and fast_ema > slow_ema
@@ -286,25 +326,106 @@ class SupertrendLiveStrategy(BaseStrategy):
                 and self._last_bar_ts > self._last_liquidation_ts
                 and self._last_bar_ts > self._atr_cooldown_until
             )
-
             if entry_ok:
-                await self._enter_long(price)
-                return
+                expected_action = "enter"
+                expected_qty = (self.allocated_capital * 0.95 * self.leverage) / price
+                expected_stop_loss = price * (1 - 0.70 / self.leverage)
+        else:
+            ema_cross_exit = fast_ema < slow_ema
+            atr_stop = atr_14 * self.atr_mult
+            atr_distance_exit = abs(price - self._entry_price) >= atr_stop
+            if ema_cross_exit or atr_distance_exit:
+                exit_signal = True
+                exit_reason = "ema_cross" if ema_cross_exit else "atr_distance"
+                expected_action = "exit"
+
+        # Persist signal asynchronously (fire-and-forget, never blocks trading)
+        asyncio.create_task(
+            self._persist_signal(
+                bar_ts=self._last_bar_ts,
+                st_dir=st_dir,
+                fast_ema=float(fast_ema),
+                slow_ema=float(slow_ema),
+                dir_ema=float(dir_ema),
+                price=float(price),
+                atr_14=float(atr_14),
+                had_position=had_position,
+                entry_ok=entry_ok,
+                exit_signal=exit_signal,
+                exit_reason=exit_reason,
+                expected_action=expected_action,
+                expected_qty=expected_qty,
+                expected_stop_loss=expected_stop_loss,
+            )
+        )
+
+        # ── Entry Signal ────────────────────────────────────────────────
+
+        if entry_ok:
+            await self._enter_long(price)
+            return
 
         # ── Exit Signal (has position) ──────────────────────────────────
 
-        if self._has_position:
-            # Exit on EMA cross
-            ema_cross_exit = fast_ema < slow_ema
+        if exit_signal:
+            await self._exit_long(exit_reason, exit_reason == "atr_distance")
+            return
 
-            # Exit on ATR distance
-            atr_stop = atr_14 * self.atr_mult
-            atr_distance_exit = abs(price - self._entry_price) >= atr_stop
+    # ── Signal Persistence ─────────────────────────────────────────────
 
-            if ema_cross_exit or atr_distance_exit:
-                exit_reason = "ema_cross" if ema_cross_exit else "atr_distance"
-                await self._exit_long(exit_reason, atr_distance_exit)
-                return
+    async def _persist_signal(
+        self,
+        bar_ts: int,
+        st_dir: int,
+        fast_ema: float,
+        slow_ema: float,
+        dir_ema: float,
+        price: float,
+        atr_14: float,
+        had_position: bool,
+        entry_ok: bool,
+        exit_signal: bool,
+        exit_reason: str | None,
+        expected_action: str,
+        expected_qty: float | None,
+        expected_stop_loss: float | None,
+    ) -> None:
+        """Persist the per-bar computed signal to supertrend_signals table."""
+        if not self._db_pool:
+            return
+        try:
+            async with self._db_pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO supertrend_signals (
+                        bar_ts, computed_at, st_dir, fast_ema, slow_ema, dir_ema,
+                        price, atr_14, allocated_capital, had_position, entry_ok,
+                        exit_signal, exit_reason, expected_action,
+                        expected_qty, expected_stop_loss
+                    ) VALUES (
+                        to_timestamp($1::bigint / 1000.0), NOW(),
+                        $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                    )
+                    ON CONFLICT (bar_ts) DO NOTHING
+                    """,
+                    bar_ts,
+                    st_dir,
+                    fast_ema,
+                    slow_ema,
+                    dir_ema,
+                    price,
+                    atr_14,
+                    self.allocated_capital,
+                    had_position,
+                    entry_ok,
+                    exit_signal,
+                    exit_reason,
+                    expected_action,
+                    expected_qty,
+                    expected_stop_loss,
+                )
+        except Exception:
+            self._log.exception("signal_persist_error")
 
     # ── Order Submission ───────────────────────────────────────────────
 

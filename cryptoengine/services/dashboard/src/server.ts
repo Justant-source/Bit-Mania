@@ -15,6 +15,9 @@ import { createInternalRouter } from "./routes/internal";
 import { createPublicRouter } from "./routes/public";
 import { createRegimeRouter } from "./routes/regime";
 import { createGrafanaWebhookRouter } from "./routes/grafana_webhook";
+import { createSupertrendRouter } from "./routes/supertrend";
+import { createMonitorRouter } from "./routes/monitor";
+import { startAlertEvaluator } from "./alertEvaluator";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -83,25 +86,38 @@ async function main(): Promise<void> {
   // Grafana webhook — no auth (Docker network internal, trusted source only)
   internalApp.use("/grafana-webhook", createGrafanaWebhookRouter(redis));
 
-  // Regime dashboard static files (no auth for static assets & HTML pages)
+  // Static files (CSS, JS, images) — no auth
   internalApp.use(express.static(path.join(__dirname, "../public")));
 
-  // Regime API routes (protected)
+  // Strategy-specific routes (protected)
   internalApp.use("/api/internal/regime", apiKeyAuth, createRegimeRouter(pool, redis));
+  internalApp.use("/api/internal/supertrend", apiKeyAuth, createSupertrendRouter(pool, redis));
+  internalApp.use("/api/internal/monitor", apiKeyAuth, createMonitorRouter(pool, redis));
 
-  // Main dashboard
+  // Pages — Supertrend expected-vs-actual is the primary landing page
   internalApp.get("/", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../public/index.html"));
+    res.sendFile(path.join(__dirname, "../public/supertrend.html"));
   });
-
-  // Regime page
+  internalApp.get("/supertrend", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public/supertrend.html"));
+  });
+  internalApp.get("/monitor", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public/monitor.html"));
+  });
   internalApp.get("/regime", (_req, res) => {
     res.sendFile(path.join(__dirname, "../public/regime.html"));
+  });
+  // Keep old index for backward compat
+  internalApp.get("/index", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public/index.html"));
   });
 
   internalApp.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "dashboard-internal" });
   });
+
+  // Start alert evaluator (replaces Grafana alerting rules)
+  startAlertEvaluator(pool, redis);
 
   internalApp.listen(INTERNAL_PORT, () => {
     console.log(`[dashboard] Internal API listening on port ${INTERNAL_PORT}`);

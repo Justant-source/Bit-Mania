@@ -90,12 +90,8 @@ graph TD
 - **채널**: market:ohlcv:bybit:BTCUSDT:4h, market:regime, strategy:command:{id}, order:request, order:update, kill_switch
 - **TTL**: 전략 상태 1시간 (배포 중 포지션 유지)
 
-#### Grafana
-- **역할**: 실시간 모니터링 대시보드 (내부 3000, 공개 3001)
-- **이미지**: grafana/grafana:latest
-- **포트**: 3002
-- **로그인**: admin / ***REMOVED***
-- **기능**: Live Performance, Strategy Monitor, Market Regime, Public Performance Dashboard
+#### ~~Grafana~~ (제거됨 2026-05-18)
+Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 서비스(:3000)로 완전 흡수됩니다.
 
 ---
 
@@ -224,7 +220,13 @@ graph TD
   - ACK 확인: Kill Switch 발동 시 사용자 확인 요청
 
 #### dashboard
-- **내부 대시보드** (포트 3000): 모든 시스템 상태 (개발자용)
+- **내부 대시보드** (포트 3000): 전략 예상/실제 비교, 시스템 모니터링 (Grafana 대체)
+  - `/supertrend` — Supertrend 4h 예상(백테스트) vs 실제(메인넷) 거래 비교
+  - `/monitor` — 자산 곡선, Kill Switch, 레짐, 포지션, 서비스 상태, 인프라 메트릭
+  - `/regime` — 레짐 분석 (기존 유지)
+  - `GET /api/internal/supertrend/*` — 예상/실제/비교/자산/상태/캔들 API
+  - `GET /api/internal/monitor/*` — 포트폴리오/킬스위치/레짐/포지션/서비스/인프라 API
+  - `alertEvaluator` — Grafana 9개 알림 규칙 포팅, Redis `ce:alerts:grafana` 발행 (60s 주기)
 - **공개 대시보드** (포트 3001): 공개 가능한 성과 지표만 노출
   - Cumulative PnL %, Win Rate, Total Trades, Avg Duration, Sharpe Ratio
   - Strategy Breakdown, Daily PnL, Funding Payments
@@ -326,7 +328,7 @@ flowchart LR
 |---------|-----------|--------------|----------------|------|
 | **postgres** | 1.0 | 512M | 256M | 데이터 저장소 (최우선) |
 | **redis** | 0.5 | 320M | 128M | 메시지 큐 + 캐시 |
-| **grafana** | 0.5 | 512M | 128M | 모니터링 대시보드 |
+| ~~grafana~~ | — | — | — | 제거됨 (dashboard로 흡수) |
 | **market-data** | 0.5 | 256M | 64M | WebSocket 수집 |
 | **execution-engine** | 0.5 | 256M | 64M | 주문 실행 |
 | **supertrend** | 0.5 | 256M | 64M | 메인 전략 (4h 추세추종) |
@@ -346,7 +348,7 @@ flowchart LR
 **정책**:
 - **Limits**: 최대 사용 가능 리소스 (초과 시 OOM Kill)
 - **Reservations**: 보장된 최소 리소스 (스케줄링 기준)
-- **Database/Cache 우선**: postgres (1.0 CPU), redis (0.5 CPU), grafana (0.5 CPU)
+- **Database/Cache 우선**: postgres (1.0 CPU), redis (0.5 CPU)
 - **전략 서비스**: 각 0.5 CPU, 256M (동시 실행 가능)
 - **Heavy Batch**: backtester (2.0 CPU, 1G) — `--profile backtest`로 선택적 실행
 
@@ -380,11 +382,11 @@ Bybit API
   ├─ execution-engine (주문 실행, 포지션 조회)
   └─ supertrend (초기화 시 레버리지 설정, 백필)
 
-Grafana (3002)
-  ←─ (visualization)
-  ├─ PostgreSQL (쿼리 데이터)
-  ├─ prometheus (시스템 메트릭, 선택)
-  └─ redis-exporter (Redis 메트릭, 선택)
+Dashboard (3000/3001)
+  ←─ (visualization — Grafana 대체)
+  ├─ PostgreSQL (supertrend_signals, orders, portfolio_snapshots 등 쿼리)
+  ├─ Redis (strategy status, positions, ce:alerts:grafana 발행)
+  ├─ prometheus (HTTP API — 인프라 메트릭 CPU/mem/disk/Redis)
 ```
 
 ### docker-compose depends_on 순서
@@ -406,7 +408,6 @@ adaptive-dca (market-data, redis 필수)
 
 # 4단계: 보조 서비스 (독립적)
 dashboard (postgres, redis 옵션)
-grafana (독립, 데이터소스만)
 
 # 5단계: 배치/스케줄 (필요 시만)
 backtester (--profile backtest, backtest/docker/docker-compose.yml)
