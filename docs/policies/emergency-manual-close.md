@@ -3,7 +3,7 @@ title: 비상 수동 청산 SOP
 category: policies
 related_code:
   - cryptoengine/services/telegram-bot/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Telegram 명령 변경 시
   - 비상 청산 절차 변경 시
@@ -15,8 +15,8 @@ when_to_update: |
 > [!danger] 이 문서를 즉시 접근 가능한 위치에 저장하라
 > 봇이 완전히 다운되었을 때 사용한다. 휴대폰 메모앱 즐겨찾기 또는 Telegram Saved Messages에 이 문서를 보관하라.
 
-**최종 업데이트**: 2026-05-01  
-**적용 환경**: Phase 5 메인넷 운영 중 봇 또는 서버 장애 발생 시
+**최종 업데이트**: 2026-05-18  
+**적용 환경**: Phase 5 메인넷 Supertrend 운영 중 봇 또는 서버 장애 발생 시
 
 ---
 
@@ -38,32 +38,29 @@ when_to_update: |
 ```mermaid
 flowchart TD
     A["⚠️ 비상 상황 발생<br>봇 응답 없음 또는 서버 다운"] --> B["Step 0: 사전 확인<br>30초"]
-    B --> C["Bybit 앱 로그인<br>PoS 계정 조회"]
-    C --> D["Step 1: Perp 포지션 청산<br>먼저"]
-    D --> E["BTCUSDT Short<br>시장가 전량 청산"]
-    E --> F["Step 2: Spot BTC 매도<br>두번째"]
-    F --> G["Bybit Spot<br>BTC/USDT 시장가 전량"]
-    G --> H["Step 3: 미체결 주문 취소"]
-    H --> I["미체결 주문<br>StopMarket 주문 취소"]
-    I --> J["Step 4: 청산 완료 확인"]
-    J --> K{청산<br>완료?}
-    K -->|Yes| L["Step 5: 봇/DB 상태 정리"]
-    K -->|No| M["❌ 반복<br>Step 1-3"]
-    L --> N["SSH: docker compose ps"]
-    N --> O["DB: positions 업데이트"]
-    O --> P["Redis: 캐시 클리어"]
-    P --> Q["서비스 재시작"]
-    Q --> R["Step 6: 원인 분석"]
-    R --> S["로그 검토<br>Kill Switch 확인"]
-    S --> T["Step 7: 사고 보고"]
-    T --> U["✅ 청산 완료<br>손실 기록"]
+    B --> C["Bybit 앱 로그인<br>계정 조회"]
+    C --> D["Step 1: 영구선물 포지션 청산"]
+    D --> E["BTCUSDT Long<br>시장가 전량 청산<br>(Supertrend 롱 포지션)"]
+    E --> F["Step 2: 미체결 주문 취소"]
+    F --> G["Bybit 선물<br>미체결 주문 모두 취소<br>(StopLoss 주문 등)"]
+    G --> H["Step 3: 청산 완료 확인"]
+    H --> I{포지션<br>모두 청산?}
+    I -->|Yes| J["Step 4: 봇/DB 상태 정리"]
+    I -->|No| K["❌ 반복<br>Step 1-3"]
+    J --> L["SSH: docker compose ps"]
+    L --> M["DB: positions 업데이트"]
+    M --> N["Redis: 캐시 클리어"]
+    N --> O["서비스 재시작"]
+    O --> P["Step 5: 원인 분석"]
+    P --> Q["로그 검토<br>Kill Switch 확인"]
+    Q --> R["Step 6: 사고 보고"]
+    R --> S["✅ 청산 완료<br>손실 기록"]
     
-    M --> D
+    K --> D
     
-    style U fill:#4caf50,color:#fff
+    style S fill:#4caf50,color:#fff
     style A fill:#f44336,color:#fff
     style D fill:#ff9800,color:#fff
-    style F fill:#ff9800,color:#fff
 ```
 
 ## 0. 사전 확인 (30초)
@@ -75,24 +72,24 @@ flowchart TD
    - 종목, 방향(롱/숏), 수량, 진입가, 현재 손익 기록
 3. **[현물]** 탭 → BTC 보유량 확인 (Spot Long 레그)
 
-> [!note] 델타 뉴트럴 포지션 구조
-> funding-arb는 **현물 BTC 매수 (Spot Long) + 영구선물 BTC 매도 (Perp Short)** 를 동시에 보유한다.
-> 두 레그를 모두 청산해야 한다.
+> [!note] Supertrend 포지션 구조
+> Supertrend는 **영구선물 BTC 롱 (Perp Long, 3x 레버리지)** 만 보유한다.
+> 포지션이 있으면 즉시 시장가 청산한다.
 
 ---
 
 ## 1. Bybit 앱에서 선물(Perp) 포지션 청산
 
-### 청산 순서도 (Perp → Spot 반드시 이 순서)
+### 청산 순서도 (Long 포지션만, 간단함)
 
 ```mermaid
 flowchart LR
-    A["포지션 구조<br>Spot Long + Perp Short<br>델타 중립"] --> B["1️⃣ Perp 청산<br>레버리지 제거"]
-    B --> C["BTCUSDT Short<br>시장가 청산"]
-    C --> D["✅ 마진 회수"]
-    D --> E["2️⃣ Spot 청산<br>BTC 매도"]
-    E --> F["BTC/USDT 시장가<br>전량 매도"]
-    F --> G["✅ 현금화 완료"]
+    A["포지션 구조<br>Supertrend<br>BTCUSDT Long 3x<br>레버리지"] --> B["1️⃣ Perp 청산<br>롱 포지션 시장가"]
+    B --> C["BTCUSDT Long<br>시장가 전량 청산"]
+    C --> D["✅ 포지션 청산 완료"]
+    D --> E["2️⃣ 미체결 주문 취소"]
+    E --> F["StopLoss 주문<br>모두 취소"]
+    F --> G["✅ 청산 완료"]
     
     style B fill:#ff9800,color:#fff
     style E fill:#ff9800,color:#fff
@@ -103,7 +100,7 @@ flowchart LR
 
 1. 하단 메뉴 **[거래]** 탭
 2. 오른쪽 상단 **[포지션]** 탭
-3. `BTCUSDT` 포지션 찾기 (Short 방향)
+3. `BTCUSDT` 포지션 찾기 (Long 방향, Supertrend 롱 포지션)
 4. 포지션 옆 **[청산]** 버튼 탭
 5. **수량**: 전량 선택 (또는 수량 직접 입력)
 6. **주문 유형**: **시장가(Market)** 선택 ← 반드시 시장가
@@ -120,66 +117,46 @@ flowchart LR
 6. **[Confirm Close]** 클릭
 7. 체결 확인: Balance 변화 확인
 
-> [!warning] 선물 먼저 청산
-> 레버리지가 걸린 선물 포지션을 **반드시 먼저** 청산한다. 현물 먼저 청산하면 델타 노출이 발생한다.
+> [!warning] 포지션 청산 필수
+> 레버리지가 걸린 Long 포지션을 **반드시 청산**한다. 시장가 주문으로 즉시 체결하라.
 
 ---
 
-## 2. Bybit 앱에서 현물(Spot) BTC 매도
+## 2. Bybit에서 미체결 주문 취소
+
+Supertrend는 진입 시 거래소에 StopLoss 주문을 자동 배치한다. 포지션 청산 후 이 주문이 남아있으면 잔고에서 마진이 잡힌다.
 
 ### 2a. 모바일 앱
 
-1. 하단 **[자산]** → **[현물]** 탭
-2. BTC 보유 확인
-3. **[거래]** → 종목: `BTC/USDT`
-4. **[매도]** 탭 선택
-5. **주문 유형**: **시장가(Market)**
-6. 수량: **전량** 선택
-7. **[확인]** → 인증 완료
-8. 체결 확인: USDT 잔고 증가 확인
+1. **[거래]** → **[미체결 주문]** (Open Orders) 탭
+2. StopMarket 또는 StopLoss 유형 주문 확인
+3. 있으면 주문 옆 **[취소(Cancel)]** 클릭
+4. 모든 미체결 선물 주문 취소 확인
 
 ### 2b. PC 웹
 
-1. **[Spot]** → 검색: `BTCUSDT`
-2. 오른쪽 **[Sell]** 패널
-3. Order Type: **Market**
-4. Amount: **100%** (전량 매도)
-5. **[Sell BTC]** 클릭
-6. 체결 확인
-
-> [!note] Spot 잔고가 없는 경우
-> `positions` 테이블에서 `spot_qty`를 확인했는데 현물 잔고가 없다면 이미 청산되었거나 
-> perp 전략(Perp-only)으로 운영 중인 것이다. 이 경우 2단계를 건너뛰어도 된다.
+1. **[Derivatives]** → **[USDT Perpetual]** → **[Open Orders]** 탭
+2. 모든 열린 주문 확인 (특히 StopMarket, Limit 주문)
+3. 선택 후 **[Cancel]** 클릭
+4. 취소 확인
 
 ---
 
-## 3. Bybit 스탑로스 주문 확인 및 취소
-
-funding-arb는 진입 시 거래소에 StopMarket 스탑로스 주문을 자동 배치한다. 포지션 청산 후 이 주문이 남아있으면 잔고에서 마진이 잡힌다.
-
-1. **[선물]** → **[미체결 주문]** (Open Orders) 탭
-2. StopMarket 유형 주문 확인
-3. 있으면 **[취소(Cancel)]** 클릭
-4. 모든 미체결 선물 주문 취소 확인
-
----
-
-## 4. 청산 완료 확인
+## 3. 청산 완료 확인
 
 | 확인 항목 | 기대값 |
 |---------|-------|
-| 선물 포지션 | 0 (없음) |
-| 현물 BTC | 0 또는 미미한 잔량 |
-| 미체결 선물 주문 | 0 |
+| 선물 포지션 | 0 (없음) — BTCUSDT Long 포지션 완전 청산 |
+| 미체결 선물 주문 | 0 — StopLoss 주문 모두 취소 |
 | USDT 잔고 | 초기 잔고 ± 손익 |
 
 ---
 
-## 5. 봇/DB 상태 정리
+## 4. 봇/DB 상태 정리
 
 봇이 복구되면 내부 상태와 거래소 상태가 불일치할 수 있다. 다음 절차로 정리한다.
 
-### 5a. 서비스 정지 확인 (SSH 가능 시)
+### 4a. 서비스 정지 확인 (SSH 가능 시)
 
 ```bash
 cd ~/Data/Bit-Mania/cryptoengine

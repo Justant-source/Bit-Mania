@@ -2,9 +2,9 @@
 title: 배포 시 포지션 보호 원칙
 category: policies
 related_code:
-  - cryptoengine/services/strategies/funding-arb/strategy.py
+  - cryptoengine/services/strategies/supertrend/strategy.py
   - cryptoengine/docker-compose.yml
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 배포 절차 변경 시
   - Redis TTL 변경 시
@@ -24,11 +24,11 @@ when_to_update: |
 
 ### 이유
 
-CryptoEngine은 **dev/stage 환경 없이 prod에 직접 배포**한다. 따라서:
+CryptoEngine은 **Phase 5 메인넷에 직접 배포**한다 (테스트넷 단계 완료). 따라서:
 
-- 배포할 때마다 포지션을 청산하면 거래 수수료 낭비 (매번 왕복 0.11%)
-- 델타 중립이 깨지는 위험
-- 배포 중 시장 변동에 노출
+- 배포할 때마다 포지션을 청산하면 거래 수수료 낭비 (매번 진입·청산 0.05% × 2)
+- 배포 중 시장 변동에 노출 (특히 Supertrend 4시간 신호 미수신)
+- 4시간 봉 확정 직후 배포 시 추세 신호 놓칠 수 있음
 
 **해결책**: 포지션 상태를 Redis에 저장했다가, 1시간 내 재시작 시 자동 복구.
 
@@ -39,19 +39,17 @@ CryptoEngine은 **dev/stage 환경 없이 prod에 직접 배포**한다. 따라�
 | 종료 사유 | 포지션 | 상태 저장 | 재시작 후 |
 |---------|--------|----------|----------|
 | `service_shutdown` (배포) | **유지** | Redis 저장 | 자동 복구 |
-| `kill_switch` | **즉시 청산** | 이벤트만 저장 | 청산됨 (유지 X) |
-| `funding_reversal` | **즉시 청산** | 이벤트만 저장 | 청산됨 (유지 X) |
-| `basis_divergence_risk` | **즉시 청산** | 이벤트만 저장 | 청산됨 (유지 X) |
-| `basis_convergence` | **수익 실현** | 거래 기록만 저장 | 청산됨 (수익 확보) |
+| `kill_switch` | **즉시 청산** | 이벤트만 저장 | 청산됨 (긴급 상황) |
+| `signal_exit` | **즉시 청산** | 거래 기록만 저장 | 청산됨 (신호 기반) |
+| `strategy_stop` | **즉시 청산** | 이벤트만 저장 | 청산됨 (전략 정지) |
 
 ```mermaid
 flowchart TD
     STOP["서비스 종료/재시작"] --> WHY{종료 사유?}
     WHY -->|service_shutdown<br>배포·재시작| A["포지션 유지<br>Redis에 상태 저장<br>TTL 1시간"]
     WHY -->|kill_switch| B["즉시 청산<br>긴급 상황"]
-    WHY -->|funding_reversal| C["즉시 청산<br>펀딩비 음수 전환"]
-    WHY -->|basis_divergence_risk| D["즉시 청산<br>스프레드 과도 확대"]
-    WHY -->|basis_convergence| E["청산<br>수익 실현"]
+    WHY -->|signal_exit| C["즉시 청산<br>신호 기반 종료"]
+    WHY -->|strategy_stop| D["즉시 청산<br>전략 정지"]
 
     A --> A2{TTL 1시간<br>이내 재시작?}
     A2 -->|Yes| A3["포지션 자동 복구<br>✅ 수수료 절약"]
@@ -67,23 +65,25 @@ flowchart TD
 
 ### 상태 저장 데이터
 
-배포 시 Redis `strategy:saved_state:funding_arb` 에 저장되는 정보:
+배포 시 Redis `strategy:saved_state:supertrend-01` 에 저장되는 정보:
 
 ```json
 {
-  "strategy_id": "funding_arb_01",
+  "strategy_id": "supertrend-01",
   "position": {
     "entry_price": 65000.0,
-    "spot_qty": 0.15,
-    "perp_qty": 0.15,
-    "entry_time": "2026-05-01T12:00:00Z",
-    "entry_fee": 53.625
+    "side": "buy",
+    "qty": 0.15,
+    "leverage": 3,
+    "entry_time": "2026-05-18T12:00:00Z",
+    "entry_fee": 53.625,
+    "current_pnl": 1250.50
   },
   "timestamps": {
-    "saved_at": "2026-05-01T14:30:00Z",
+    "saved_at": "2026-05-18T14:30:00Z",
     "ttl_seconds": 3600
   },
-  "mode": "delta_neutral"
+  "mode": "long_only"
 }
 ```
 
