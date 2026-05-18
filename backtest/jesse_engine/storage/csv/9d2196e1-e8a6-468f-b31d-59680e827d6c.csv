@@ -1,2 +1,0 @@
-"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
-"6082662d-79c6-46aa-8141-e0d6a96c3311","TradeIQ220320Strategy","BTC-USDT","Bybit Perpetual","long","108800.0","112714.9","0.008731617647058824","1.063800875459559","950.0","33.11960905101098","3.486274636948525","8640000.0","1751486460000.0","1760126460000.0"

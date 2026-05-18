@@ -71,16 +71,6 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
                 UNIQUE (exchange, symbol, timeframe, ts)
             );
 
-            CREATE TABLE IF NOT EXISTS trades (
-                id            BIGSERIAL PRIMARY KEY,
-                exchange      TEXT        NOT NULL,
-                symbol        TEXT        NOT NULL,
-                price         DOUBLE PRECISION NOT NULL,
-                quantity      DOUBLE PRECISION NOT NULL,
-                side          TEXT        NOT NULL,
-                ts            TIMESTAMPTZ NOT NULL
-            );
-
             CREATE TABLE IF NOT EXISTS funding_rate_history (
                 id                 BIGSERIAL PRIMARY KEY,
                 exchange           TEXT        NOT NULL,

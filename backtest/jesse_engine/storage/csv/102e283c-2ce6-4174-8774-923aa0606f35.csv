@@ -1,2 +1,0 @@
-"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
-"971698ea-b584-484f-8a65-ac9ca9a40411","BuyAndHoldStrategy","BTC-USDT","Bybit Perpetual","long","8345.04","88455.3","1.1384007745918532","60.60867012021512","9500.0","91136.97336663454","959.3365617540478","187286400.0","1579845660000.0","1767132060000.0"

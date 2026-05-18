@@ -1,3 +1,0 @@
-"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
-"84250e76-221d-48be-919f-3ad1cd75eca5","StochStrategy_LongOnly","BTC-USDT","Bybit Perpetual","long","29420.7","71678.4","0.032290190240205026","1.7954800446624315","950.0","1362.7136920688495","143.4435465335631","20736000.0","1691798460000.0","1712534460000.0"
-"f350bb3c-ef0b-4908-9499-976bb8ef383a","StochStrategy_LongOnly","BTC-USDT","Bybit Perpetual","long","71678.4","88455.3","0.0313145662775035","2.7579845490515247","2244.5780074654067","522.6033624319972","23.282922700562526","54518400.0","1712534460000.0","1767052860000.0"

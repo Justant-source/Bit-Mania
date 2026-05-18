@@ -1,2 +1,0 @@
-"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
-"5fd13cde-bfca-46a7-949d-5216bf789f77","SupertrendStrategy","BTC-USDT","Bybit Perpetual","long","100904.7","91508.9","0.00941482408648953","0.9963471077164889","950.0","-89.45615125955484","-9.416436974689983","12960000.0","1750622460000.0","1763582460000.0"
