@@ -148,7 +148,7 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
             entry_time: entry.created_at,   exit_time: exit.created_at,
             entry_fill_time: entry.updated_at, exit_fill_time: exit.updated_at,
             entry_price: entryPrice, exit_price: exitPrice,
-            qty, total_fees: fees, realized_pnl, exit_reason: actualExitReason,
+            qty, total_fees: fees, realized_pnl: realizedPnl, exit_reason: actualExitReason,
           });
           exitIdx++;
         } else {

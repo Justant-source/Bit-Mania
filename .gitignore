@@ -3,6 +3,7 @@ node_modules/
 /.request/
 /.result/
 /cryptoengine/.env
+/dashboard/.env
 
 # Python
 **/__pycache__/
