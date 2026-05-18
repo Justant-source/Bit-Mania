@@ -34,12 +34,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _paths import DATA_ROOT, RESULTS_ROOT
+from _paths import DATA_ROOT, RESULTS_ROOT, DASHBOARDS_ROOT
 
 RESULT_DIR = RESULTS_ROOT / '7-strategies'
 BTC_KLINES = DATA_ROOT / 'binance_vision' / 'klines' / 'BTCUSDT'
 
-DEFAULT_HTML = RESULT_DIR / 'dashboard.html'
+DEFAULT_HTML = DASHBOARDS_ROOT / 'strategy_dashboard.html'
+DASHBOARD_BUILD_SCRIPT = DASHBOARDS_ROOT / 'script' / 'build_strategy_dashboard.py'
 
 START_MS = int(datetime(2021, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS   = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
@@ -568,7 +569,7 @@ def main():
     check_2f_marker_count(audit, V4)
 
     print('[2H] sliceCache.clear() presence…')
-    check_cache_invalidation(audit, SCRIPT_DIR / 'build_v4_dashboard.py')
+    check_cache_invalidation(audit, DASHBOARD_BUILD_SCRIPT)
 
     print('\n=== Summary ===')
     print(audit.summary())

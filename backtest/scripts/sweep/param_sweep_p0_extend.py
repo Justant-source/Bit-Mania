@@ -459,7 +459,7 @@ def main() -> None:
     print(f'  1. Champion re-run (inside container):')
     print(f'     python /app/scripts/sweep/param_sweep_v3.py --champion-run')
     print(f'  2. Dashboard rebuild (on host):')
-    print(f'     python3 backtest/scripts/reports/build_v4_dashboard.py')
+    print(f'     python3 backtest/dashboards/script/build_strategy_dashboard.py')
     print(f'End: {datetime.now(timezone.utc).isoformat()}')
 
 

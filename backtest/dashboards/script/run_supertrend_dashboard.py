@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-build_dashboard.py — dashboard_v2.html 재빌드 스크립트.
+run_supertrend_dashboard.py — supertrend_sweep_dashboard.html 재빌드 래퍼.
 
 PostgreSQL의 st_combos/st_window_results에서 전체 sweep 데이터를 읽어
-dashboard_v2.html을 생성합니다.
+supertrend_sweep_dashboard.html을 생성합니다.
 
 Usage (Docker 컨테이너 내부):
     DC="docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester"
-    $DC python3 /result/supertrend_x3_long_only/scripts/build_dashboard.py
+    $DC python3 /dashboards/script/run_supertrend_dashboard.py
 
     # 출력 경로 지정
-    $DC python3 /result/supertrend_x3_long_only/scripts/build_dashboard.py --out /result/supertrend_x3_long_only/dashboard_v2.html
+    $DC python3 /dashboards/script/run_supertrend_dashboard.py --out /dashboards/supertrend_sweep_dashboard.html
 """
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-BUILD_SCRIPT = '/app/scripts/reports/build_dashboard.py'
-DEFAULT_OUT = '/result/supertrend_x3_long_only/dashboard_v2.html'
-TEMPLATE = '/result/supertrend_x3_long_only/dashboard_template.html'
+BUILD_SCRIPT = '/dashboards/script/build_supertrend_dashboard.py'
+DEFAULT_OUT = '/dashboards/supertrend_sweep_dashboard.html'
+TEMPLATE = '/dashboards/script/supertrend_dashboard_template.html'
 
 
 def main():

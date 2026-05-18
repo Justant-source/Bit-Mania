@@ -26,7 +26,8 @@ last_updated: 2026-05-17
 모든 v4~v7 sweep 결과가 `backtest-postgres` (`jesse_db`)의 `st_sweeps/st_combos/st_window_results` 테이블로 통합됨. 자세한 내용: `results/supertrend_x3_long_only/README.md`.
 
 향후 신규 sweep은 `scripts/optimization/pg_master.py` (PG-native, combo_X_W 디렉토리 미생성).
-대시보드: `scripts/reports/build_dashboard.py` → `results/supertrend_x3_long_only/dashboard.html`
+대시보드: `dashboards/script/build_supertrend_dashboard.py` → `dashboards/supertrend_sweep_dashboard.html`  
+7-전략 대시보드: `dashboards/script/build_strategy_dashboard.py` → `dashboards/strategy_dashboard.html`
 
 ## 빠른 시작
 

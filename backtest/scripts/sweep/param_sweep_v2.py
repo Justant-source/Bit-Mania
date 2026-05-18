@@ -571,7 +571,7 @@ def run_champion_backtests(strats: list, tfs: list, variants: list) -> None:
 
     print('\n[champion] Done.')
     print('Rebuild dashboard on HOST:')
-    print('  python3 backtest/scripts/reports/build_v4_dashboard.py')
+    print('  python3 backtest/dashboards/script/build_strategy_dashboard.py')
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────

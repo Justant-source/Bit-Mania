@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-build_dashboard.py — Build dashboard_v2.html from PostgreSQL data.
+build_supertrend_dashboard.py — Build supertrend_sweep_dashboard.html from PostgreSQL data.
 
-Reads dashboard_template.html (committed UI shell), injects all sweep data from
-st_combos/st_window_results, and writes self-contained dashboard_v2.html.
+Reads supertrend_dashboard_template.html (committed UI shell), injects all sweep data from
+st_combos/st_window_results, and writes self-contained supertrend_sweep_dashboard.html.
 
 Usage:
-    python3 build_dashboard.py [--out /result/supertrend_x3_long_only/dashboard_v2.html]
+    python3 build_supertrend_dashboard.py [--out /dashboards/supertrend_sweep_dashboard.html]
 
 Environment:
     JESSE_DB_HOST, JESSE_DB_PORT (optional; defaults: backtest-postgres, 5432)
@@ -263,12 +263,12 @@ createMultiSelect('sweep-filter-wrap', 'Sweep', SWEEP_VALUES, vals => { sweepSel
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description='Build unified dashboard from PostgreSQL data')
-    parser.add_argument('--out', type=str, default='/result/supertrend_x3_long_only/dashboard_v2.html',
+    parser.add_argument('--out', type=str, default='/dashboards/supertrend_sweep_dashboard.html',
                         help='Output HTML file path')
     args = parser.parse_args()
 
     out_path = Path(args.out)
-    template_path = Path('/result/supertrend_x3_long_only/dashboard_template.html')
+    template_path = Path('/dashboards/script/supertrend_dashboard_template.html')
 
     # Validate paths
     if not template_path.exists():

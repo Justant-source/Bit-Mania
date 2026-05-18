@@ -36,8 +36,8 @@ from pathlib import Path
 
 GENERATE_GRID = '/app/scripts/optimization/pg_generate_grid.py'
 MASTER = '/app/scripts/optimization/pg_master.py'
-BUILD_DASHBOARD = '/app/scripts/reports/build_dashboard.py'
-DASHBOARD_OUT = '/result/supertrend_x3_long_only/dashboard_v2.html'
+BUILD_DASHBOARD = '/dashboards/script/build_supertrend_dashboard.py'
+DASHBOARD_OUT = '/dashboards/supertrend_sweep_dashboard.html'
 
 
 def run(cmd: list[str], label: str) -> int:

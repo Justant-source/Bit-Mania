@@ -28,7 +28,7 @@ last_updated: 2026-05-17
 | `backtest/scripts/sweep/param_sweep_v3.py` | `docs/optimization/param_sweep_v3.md`, `docs/runs/*.md` |
 | `backtest/scripts/analysis/rolling_window_analysis.py` | `docs/optimization/rolling_window_test.md` |
 | `backtest/scripts/analysis/walk_forward.py` | `docs/methodology/jesse-engine.md` |
-| `backtest/scripts/reports/build_v4_dashboard.py` | `docs/runs/*.md` | 비용=sim 실측 일원화: balanceSim이 계산한 실 수수료·펀딩(feePaid/fundPaid/grossFinishing)을 slicedStats에서 직접 사용, adj_cagr 이중차감 제거 (2026-05-18) |
+| `backtest/dashboards/script/build_strategy_dashboard.py` | `docs/runs/*.md` | 비용=sim 실측 일원화: balanceSim이 계산한 실 수수료·펀딩(feePaid/fundPaid/grossFinishing)을 slicedStats에서 직접 사용, adj_cagr 이중차감 제거 (2026-05-18) |
 | `backtest/scripts/reports/build_champion_dashboard.py` | `docs/runs/*.md` |
 | `backtest/scripts/data/download_binance_vision.py` | `docs/methodology/backtest-skillset.md` |
 | `backtest/scripts/data/jesse_import.py` | `docs/methodology/jesse-engine.md` |
@@ -80,7 +80,7 @@ last_updated: 2026-05-17
 2. merge_funding_sources.py       → BTCUSDT_8h.parquet 갱신 (Bybit + Binance 병합)
 3. build_monthly_funding_estimates.py → BTCUSDT_monthly_estimates.csv (레거시 스크립트용)
 4. apply_realistic_costs_7strategies.py → all_adjusted_results_7s.json
-5. build_v4_dashboard.py          → dashboard.html (8h funding series 임베드)
+5. build_strategy_dashboard.py    → dashboards/strategy_dashboard.html (8h funding series 임베드)
 ```
 
 ### 펀딩비 모델 (per-event, 2026-05-13 이후)
@@ -134,7 +134,7 @@ Supertrend v4~v7 sweep 메타데이터 및 결과를 PostgreSQL로 중앙화. �
 
 | 코드 경로 | 역할 | 입력 | 출력 |
 |---|---|---|---|
-| `backtest/scripts/reports/build_dashboard.py` | PG 기반 통합 대시보드 생성 (v4~v8+) | `st_sweeps`, `st_combos`, `st_window_results` + `dashboard_template.html` | `results/supertrend_x3_long_only/dashboard_v2.html` (self-contained) |
+| `backtest/dashboards/script/build_supertrend_dashboard.py` | PG 기반 통합 대시보드 생성 (v4~v8+) | `st_sweeps`, `st_combos`, `st_window_results` + `dashboards/script/supertrend_dashboard_template.html` | `dashboards/supertrend_sweep_dashboard.html` (self-contained) |
 
 ### 결과 저장소
 
@@ -142,8 +142,8 @@ Supertrend v4~v7 sweep 메타데이터 및 결과를 PostgreSQL로 중앙화. �
 |---|---|
 | `results/supertrend_x3_long_only/` | 3x leverage 통합 결과 (v4~v8+, 2288 combos) |
 | `results/supertrend_x3_long_only/README.md` | 아카이브 정보 + 사용 가이드 |
-| `results/supertrend_x3_long_only/dashboard_template.html` | 대시보드 UI 셸 (커밋됨, CSS/HTML/JS 구조) |
-| `results/supertrend_x3_long_only/dashboard_v2.html` | 생성된 대시보드 (gitignored, 빌드 시 재생성) |
+| `results/supertrend_x3_long_only/dashboards/script/supertrend_dashboard_template.html` | 대시보드 UI 셸 (커밋됨, CSS/HTML/JS 구조) |
+| `dashboards/supertrend_sweep_dashboard.html` | 생성된 대시보드 (gitignored, 빌드 시 재생성) |
 | `results/supertrend_x3_long_only/scripts/run_sweep.py` | 신규 sweet spot 탐색 실행 스크립트 (pg_* 파이프라인 래퍼) |
 | `results/supertrend_x3_long_only/docs/sweeps/` | v4~v8 sweep별 verdict + summary 문서 |
 

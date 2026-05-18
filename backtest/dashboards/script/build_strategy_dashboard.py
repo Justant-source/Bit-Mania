@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-V4 Backtest Dashboard Builder
-Generates a single self-contained HTML dashboard with all 76 backtest results.
+7-Strategies Backtest Dashboard Builder
+Generates a single self-contained HTML dashboard with all backtest results.
 
 Usage:
-    python build_v4_dashboard.py [--output PATH]
+    python build_strategy_dashboard.py [--output PATH]
 
-Output: cryptoengine/.result/v4/dashboard.html (~5-8MB, offline-capable)
+Output: backtest/dashboards/strategy_dashboard.html (~5-8MB, offline-capable)
 """
 from __future__ import annotations
 
@@ -22,13 +22,13 @@ from pathlib import Path
 import pandas as pd
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
 from _paths import DATA_ROOT, RESULTS_ROOT, DASHBOARDS_ROOT
 
 RESULT_DIR          = RESULTS_ROOT / '7-strategies'
 PRE21_BACKFILL_DIR  = RESULTS_ROOT / 'pre2021_backfill'
 BTC_KLINES          = DATA_ROOT / 'ohlcv' / 'BTCUSDT'
-DEFAULT_OUT         = RESULT_DIR / 'dashboard.html'
+DEFAULT_OUT         = DASHBOARDS_ROOT / 'strategy_dashboard.html'
 
 ADJUSTED_PRE21_JSON = RESULTS_ROOT / 'adjusted_costs_pre2021' / 'all_adjusted_results_pre21.json'
 ADJUSTED_POST21_JSON = RESULTS_ROOT / 'adjusted_costs_7strategies' / 'all_adjusted_results_7s.json'
