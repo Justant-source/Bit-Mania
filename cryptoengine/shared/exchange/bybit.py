@@ -23,7 +23,7 @@ from shared.models.position import Position
 log = structlog.get_logger(__name__)
 
 _DEFAULT_RATE_LIMIT = 50  # ms between REST calls
-MAX_LEVERAGE: int = 2  # Project policy: never exceed 2x leverage
+MAX_LEVERAGE: int = 3  # Project policy: never exceed 3x leverage (CLAUDE.md: max 5x)
 
 
 class BybitConnector(ExchangeConnector):

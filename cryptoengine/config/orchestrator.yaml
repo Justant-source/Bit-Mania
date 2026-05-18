@@ -65,29 +65,35 @@ regime_detection:
 # DCA 6년 Walk-Forward 실패 (consistency 0.409, 2022 MDD -42%) → 가중치 0 고정
 # Phase 4 이후 4주 테스트넷 운영 결과에 따라 DCA 추가 여부 재결정
 weights:
-  # 횡보: FA 지배적 (Test E 횡보 Sharpe 2.72)
+  # 횡보: Supertrend 30% + Cash 70%
   ranging:
-    funding_arb: 0.50
+    supertrend: 0.30
     adaptive_dca: 0.00
-    cash_reserve: 0.50
+    cash_reserve: 0.70
 
-  # 상승추세: 현금 80% 방어, FA 20% 유지
+  # 상승추세: Supertrend 70% + Cash 30% (추세 따라)
   trending_up:
-    funding_arb: 0.20
+    supertrend: 0.70
     adaptive_dca: 0.00
-    cash_reserve: 0.80
+    cash_reserve: 0.30
 
-  # 하락추세: Cash 90% 방어, FA 10% 유지 (Test E: 소량 FA가 소폭 개선)
+  # 하락추세: Supertrend 10% + Cash 90% (방어)
   trending_down:
-    funding_arb: 0.10
+    supertrend: 0.10
     adaptive_dca: 0.00
     cash_reserve: 0.90
 
-  # 고변동: FA 40% + Cash 60% (Test E volatile FA Sharpe 2.63)
+  # 고변동: Supertrend 30% + Cash 70%
   volatile:
-    funding_arb: 0.40
+    supertrend: 0.30
     adaptive_dca: 0.00
-    cash_reserve: 0.60
+    cash_reserve: 0.70
+
+  # 불확실: Supertrend 5% + Cash 95% (매우 방어적)
+  uncertain:
+    supertrend: 0.05
+    adaptive_dca: 0.00
+    cash_reserve: 0.95
 
 # ── Weight Transition ─────────────────────────────────────────
 transition:

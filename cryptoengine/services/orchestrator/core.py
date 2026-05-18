@@ -35,11 +35,11 @@ from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
-StrategyName = Literal["funding_arb", "dca", "cash"]
+StrategyName = Literal["supertrend", "dca", "cash"]
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
 
 STRATEGY_CHANNELS: dict[str, str] = {
-    "funding_arb": "strategy:command:funding-arb-01",
+    "supertrend": "strategy:command:supertrend-01",
     "dca": "strategy:command:adaptive-dca-01",
 }
 
@@ -88,7 +88,7 @@ class StrategyOrchestrator:
         self._monitored_services: list[str] = [
             "execution-engine",
             "market-data",
-            "funding-arb",
+            "supertrend",
             "adaptive-dca",
         ]
 
@@ -343,7 +343,7 @@ class StrategyOrchestrator:
         if self._redis is None:
             return
 
-        emergency_weights = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency_weights = {"supertrend": 0.0, "dca": 0.0, "cash": 1.0}
         self._current_weights = emergency_weights
 
         for strategy_id, channel in STRATEGY_CHANNELS.items():
@@ -601,7 +601,7 @@ class StrategyOrchestrator:
 
         # 전략 서비스 ID → Redis 키 매핑
         strategy_key_map: dict[str, str] = {
-            "funding-arb": "strategy:status:funding-arb-01",
+            "supertrend": "strategy:status:supertrend-01",
             "adaptive-dca": "strategy:status:adaptive-dca-01",
         }
         # 인프라 서비스: heartbeat:{service} 키 사용

@@ -1,4 +1,4 @@
-"""Entry point for the Funding-Rate Arbitrage strategy service."""
+"""Entry point for the Supertrend 4h Long-Only strategy service."""
 
 from __future__ import annotations
 
@@ -11,14 +11,14 @@ import structlog
 from shared import load_config, setup_logging
 from shared.log_events import *
 from shared.redis_client import close_redis
-from strategy.strategy import FundingArbStrategy
+from strategy.strategy import SupertrendLiveStrategy
 
-SERVICE_NAME = "funding-arb"
+SERVICE_NAME = "supertrend"
 
 logger = structlog.get_logger()
 
 
-async def _shutdown(strategy: FundingArbStrategy) -> None:
+async def _shutdown(strategy: SupertrendLiveStrategy) -> None:
     """Graceful shutdown handler."""
     logger.info(SERVICE_STOPPING, message="종료 요청 수신")
     await strategy.on_stop(reason="service_shutdown")
@@ -27,10 +27,10 @@ async def _shutdown(strategy: FundingArbStrategy) -> None:
 
 async def main() -> None:
     setup_logging(service_name=SERVICE_NAME)
-    config = load_config(os.getenv("CONFIG_PATH", "/app/config/strategies/funding-arb.yaml"))
+    config = load_config(os.getenv("CONFIG_PATH", "/app/config/strategies/supertrend.yaml"))
 
-    strategy_id = os.getenv("STRATEGY_ID", "funding-arb")
-    strategy = FundingArbStrategy(strategy_id=strategy_id, config=config)
+    strategy_id = os.getenv("STRATEGY_ID", "supertrend-01")
+    strategy = SupertrendLiveStrategy(strategy_id=strategy_id, config=config)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -38,7 +38,7 @@ async def main() -> None:
             sig, lambda: asyncio.create_task(_shutdown(strategy))
         )
 
-    logger.info(SERVICE_STARTED, message="funding-arb 서비스 시작", strategy_id=strategy_id)
+    logger.info(SERVICE_STARTED, message="supertrend 서비스 시작", strategy_id=strategy_id)
     await strategy.run()
 
 

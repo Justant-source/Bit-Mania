@@ -278,7 +278,7 @@ async def check_db_connectivity() -> CheckResult:
 
         await pool.close()
 
-        required_tables = {"trades", "positions", "ohlcv_history", "funding_rate_history"}
+        required_tables = {"trades", "positions", "ohlcv_history"}
         missing = required_tables - set(table_names)
 
         detail = {"tables": table_names, "missing": list(missing)}
@@ -327,7 +327,7 @@ def check_config_files() -> CheckResult:
 
     base = pathlib.Path(__file__).parent.parent  # cryptoengine/
     required_files = [
-        "config/strategies/funding-arb.yaml",
+        "config/strategies/supertrend.yaml",
         "config/strategies/adaptive-dca.yaml",
         "config/orchestrator.yaml",
     ]
@@ -457,7 +457,7 @@ def print_report(results: list[CheckResult], as_json: bool = False) -> int:
         print("  전환 절차:")
         print("    1. .env 에서 BYBIT_TESTNET=false 변경")
         print("    2. BYBIT_API_KEY / BYBIT_API_SECRET 를 메인넷 키로 교체")
-        print("    3. docker compose up -d --build execution-engine funding-arb strategy-orchestrator")
+        print("    3. docker compose up -d --build execution-engine supertrend strategy-orchestrator")
         print("    4. 첫 5분 간 포지션 크기, 수수료 로그 직접 확인")
     else:
         print("\n  ✗ 실전 전환 불가 — 위 FAIL 항목을 해결한 후 재실행하세요.")

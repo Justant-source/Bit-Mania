@@ -19,18 +19,18 @@ RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "unc
 
 # Default weight matrix used when config is missing or incomplete
 DEFAULT_WEIGHT_MATRIX: dict[str, dict[str, float]] = {
-    "ranging": {"funding_arb": 0.65, "dca": 0.15, "cash": 0.20},
-    "trending_up": {"funding_arb": 0.20, "dca": 0.50, "cash": 0.30},
-    "trending_down": {"funding_arb": 0.25, "dca": 0.10, "cash": 0.65},
-    "volatile": {"funding_arb": 0.15, "dca": 0.05, "cash": 0.80},
-    "uncertain": {"funding_arb": 0.05, "dca": 0.05, "cash": 0.90},
+    "ranging": {"supertrend": 0.30, "dca": 0.00, "cash": 0.70},
+    "trending_up": {"supertrend": 0.70, "dca": 0.00, "cash": 0.30},
+    "trending_down": {"supertrend": 0.10, "dca": 0.00, "cash": 0.90},
+    "volatile": {"supertrend": 0.30, "dca": 0.00, "cash": 0.70},
+    "uncertain": {"supertrend": 0.05, "dca": 0.00, "cash": 0.95},
 }
 
-STRATEGY_KEYS = ("funding_arb", "dca", "cash")
+STRATEGY_KEYS = ("supertrend", "dca", "cash")
 
 # Mapping from config YAML keys to internal strategy keys
 _CONFIG_KEY_MAP: dict[str, str] = {
-    "funding_arb": "funding_arb",
+    "supertrend": "supertrend",
     "adaptive_dca": "dca",
     "dca": "dca",
     "cash_reserve": "cash",

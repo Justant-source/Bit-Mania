@@ -172,7 +172,7 @@ class PortfolioMonitor:
     async def _collect_strategy_states(self) -> list[dict[str, Any]]:
         """Read strategy status from Redis."""
         strategies: list[dict[str, Any]] = []
-        strategy_ids = ["funding-arb-01", "adaptive-dca-01"]
+        strategy_ids = ["supertrend-01", "adaptive-dca-01"]
 
         for sid in strategy_ids:
             key = f"strategy:status:{sid}"

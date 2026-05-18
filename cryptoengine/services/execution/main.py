@@ -41,6 +41,8 @@ EXCHANGE = os.getenv("EXCHANGE", "bybit")
 BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "")
 BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 BYBIT_TESTNET = os.getenv("BYBIT_TESTNET", "true").lower() == "true"
+# 0.2333 = 70% equity loss threshold / 3x leverage = entry × 0.7667 catastrophic stop
+STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "0.2333"))
 
 SERVICE_NAME = "execution-engine"
 
@@ -306,6 +308,7 @@ async def main() -> None:
         redis=redis_client,
         db_pool=db_pool,
         position_tracker=position_tracker,
+        stop_loss_pct=STOP_LOSS_PCT,
     )
 
     # --- Graceful shutdown ---

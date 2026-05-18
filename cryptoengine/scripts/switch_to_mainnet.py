@@ -260,7 +260,7 @@ async def main() -> None:
     print("  ✅ 메인넷 전환 완료!")
     print("=" * 60)
     print("\n  다음 단계:")
-    print("  1. docker compose stop funding-arb strategy-orchestrator execution-engine")
+    print("  1. docker compose stop supertrend strategy-orchestrator execution-engine")
     print("  2. .env에 PHASE5_MODE=true, EXPECTED_INITIAL_BALANCE_USD=200,")
     print("     STRICT_MONITORING_HOURS=24 추가")
     print("  3. docker compose --profile backtest run --rm backtester \\")

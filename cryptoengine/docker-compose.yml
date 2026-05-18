@@ -182,6 +182,7 @@ services:
       PHASE5_MODE: ${PHASE5_MODE:-false}
       STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
       EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
+      STOP_LOSS_PCT: ${STOP_LOSS_PCT:-0.2333}
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
       interval: 60s
@@ -199,43 +200,6 @@ services:
           memory: 64M
 
   # ── Strategy Services ───────────────────────────────────────
-  funding-arb:
-    build:
-      context: .
-      dockerfile: services/strategies/funding-arb/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      market-data:
-        condition: service_started
-    environment:
-      <<: *common-env
-      STRATEGY_ID: funding-arb-01
-      BYBIT_API_KEY: ${BYBIT_API_KEY}
-      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
-      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
-      PHASE5_MODE: ${PHASE5_MODE:-false}
-      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
-      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
-    healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 64M
-
   adaptive-dca:
     build:
       context: .
@@ -260,6 +224,43 @@ services:
           memory: 128M
         reservations:
           memory: 32M
+
+  supertrend:
+    build:
+      context: .
+      dockerfile: services/strategies/supertrend/Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      market-data:
+        condition: service_started
+    environment:
+      <<: *common-env
+      STRATEGY_ID: supertrend-01
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
+      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
+      PHASE5_MODE: ${PHASE5_MODE:-false}
+      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
+      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./config:/app/config:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # ── Intelligence & Reporting ────────────────────────────────
   llm-advisor:

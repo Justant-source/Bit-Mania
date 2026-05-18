@@ -1,0 +1,60 @@
+# ============================================================
+# Supertrend Strategy Configuration
+# ============================================================
+
+strategy:
+  name: supertrend
+  version: "1.0"
+  enabled: true
+  description: >
+    Trend-following strategy using Supertrend indicator with ADX
+    and multiple EMA filters. Suitable for 4h timeframe during
+    trending market regimes.
+
+# ── Model Parameters ──────────────────────────────────────────
+model:
+  # Supertrend calculation
+  st_factor: 2.4        # ATR multiplier for Supertrend bands
+  st_period: 8          # ATR lookback period
+  # EMA filters
+  fast_ema_len: 7       # Fast EMA for direction confirmation
+  slow_ema_len: 27      # Slow EMA for trend confirmation
+  direction_ema_len: 230  # Long EMA for overall direction bias
+  # ATR settings
+  atr_mult: 3.2         # ATR multiplier for stop-loss distance
+
+# ── Exchange Configuration ────────────────────────────────────
+exchange: bybit
+symbol: "BTC/USDT:USDT"
+timeframe: "4h"
+
+# ── Leverage & Position Sizing ────────────────────────────────
+leverage: 3.0
+
+sizing:
+  # Use this percentage of allocated capital per position
+  pct_equity: 95.0
+  # Bybit minimum notional value (USD)
+  min_notional_usd: 65
+  # Candlesticks to buffer history (avoid edge cases)
+  candle_lookback: 300
+
+# ── Risk Management ───────────────────────────────────────────
+risk:
+  # Maximum portfolio drawdown before auto-disable (%)
+  # Supertrend user accepted 100% (no managed stop)
+  max_drawdown_pct: 100.0
+  # Bars to wait after ATR exit before next entry
+  cooldown_bars: 1
+
+# ── Execution Settings ────────────────────────────────────────
+tick_interval: 60           # Check every 60s, but only act on confirmed 4h bars
+max_orders_per_second: 2
+max_orders_per_minute: 10
+
+# ── Phase 5 Overrides ─────────────────────────────────────────
+# BYBIT_TESTNET=false or PHASE5_MODE=true activates these.
+# Supertrend in Phase 5 uses allocated_capital directly (no override needed).
+phase5:
+  # Sizing stays pct_equity mode; orchestrator will allocate proper capital
+  pct_equity: 95.0
