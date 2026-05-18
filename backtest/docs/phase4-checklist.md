@@ -1,17 +1,22 @@
 ---
-title: Phase 4 완료 체크리스트
+title: Phase 4 완료 체크리스트 (Funding Arb 기준, 아카이브)
 category: test
 related_code:
   - cryptoengine/scripts/phase5_preflight.py
   - cryptoengine/services/jesse_engine/scripts/run_full_validation.sh
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Phase 4 완료 항목 추가 시
   - 체크 명령 변경 시
   - Phase 5 진입 기준 변경 시
 ---
 
-# Phase 4 완료 체크리스트
+> ⚠️ **[2026-05-18]** 이 체크리스트는 **Funding Arb 전략 기준**으로 작성되었습니다.
+> 
+> Supertrend 전략은 Phase 4 없이 직접 메인넷 전환됨 (사용자 승인 완료).
+> Supertrend Phase 4 체크리스트는 별도 작성 필요 (현재 미작성).
+
+# Phase 4 완료 체크리스트 [폐기됨, 아카이브]
 
 ```mermaid
 flowchart LR

@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-13
+last_updated: 2026-05-18
 ---
 
 # Code → Docs 역인덱스
@@ -12,9 +12,11 @@ last_updated: 2026-05-13
 | 코드 | 문서 |
 |------|------|
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
-| `services/strategies/funding-arb/**` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/supertrend/**` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/funding-arb/**` | [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) (폐기됨, 히스토리용) |
 | `services/strategies/adaptive-dca/**` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
-| `config/strategies/funding-arb.yaml` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) · [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) |
+| `config/strategies/supertrend.yaml` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) |
+| `config/strategies/funding-arb.yaml` | [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) (폐기됨) |
 | `config/strategies/adaptive-dca.yaml` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
 | `backtest/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
 | `backtest/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
@@ -58,6 +60,7 @@ last_updated: 2026-05-13
 
 | 코드 | 문서 |
 |------|------|
+| `shared/exchange/bybit.py` | [policies/leverage-limits.md](policies/leverage-limits.md) (MAX_LEVERAGE: 3x) |
 | `shared/exchange/**` | [structure/README.md](structure/README.md) |
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) · [structure/README.md](structure/README.md) |
 | `shared/models/**` | [structure/README.md](structure/README.md) |

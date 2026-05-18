@@ -1,20 +1,19 @@
 ---
-title: Funding Arb 전략 사양
+title: Funding Arb 전략 사양 (폐기됨)
 category: policies/strategies
 related_code:
-  - cryptoengine/services/strategies/funding-arb/
-  - cryptoengine/config/strategies/funding-arb.yaml
-  - cryptoengine/config/orchestrator.yaml
-  - backtest/strategies/
-last_updated: 2026-05-02
-when_to_update: |
-  - funding-arb.yaml 파라미터 변경 시
-  - 백테스트 결과 업데이트 시
-  - orchestrator.yaml 레짐별 가중치 변경 시
-  - Phase 5 진입 시 (phase5 오버라이드 활성화)
+  - cryptoengine/services/strategies/funding-arb/ (삭제됨)
+  - cryptoengine/config/strategies/funding-arb.yaml (삭제됨)
+last_updated: 2026-05-18
 ---
 
-# Funding Arb (펀딩비 차익거래) 전략 사양
+> ⚠️ **[2026-05-18 폐기]** Funding Arb 전략은 **Supertrend 4h Long-Only 3x (#173)** 전략으로 대체되었습니다.
+> 
+> 코드 서비스 및 설정 파일이 삭제되었습니다. 이 문서는 **히스토리 참조 및 아카이빙 목적으로만 보존**합니다.
+> 
+> → [현재 메인 전략: Supertrend](supertrend.md)
+
+# Funding Arb (펀딩비 차익거래) 전략 사양 [폐기됨]
 
 ## 전략 개요
 

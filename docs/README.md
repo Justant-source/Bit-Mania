@@ -1,17 +1,17 @@
 ---
 title: CryptoEngine 문서 홈
 category: root
-last_updated: 2026-05-12
+last_updated: 2026-05-18
 ---
 
 # CryptoEngine 문서
 
-> **BTC 선물 자동매매 시스템**. 펀딩비 차익거래(FA) 핵심 전략, BTC 단일 운영, Bybit 테스트넷 → 메인넷 소액 투자.
+> **BTC 선물 자동매매 시스템**. Supertrend 4h 추세추종 메인 전략, BTC 단일 운영, Bybit 테스트넷 → 메인넷 소액 투자.
 >
-> **현재 상태 (Phase 4)**: 테스트넷 포워드 테스트 진행 중
-> - 채택 설정: `fa80_lev5_r30` (FA 80% 자본, 5x 레버리지, 30% 재투자)
-> - 백테스트 성과: CAGR +34.87% | Sharpe 3.583 | MDD -4.52% | 6년 청산 0회
-> - 운영 모드: 테스트넷 (`BYBIT_TESTNET=true`)
+> **현재 상태 (Phase 5)**: 메인넷 소액 실전 운영 중
+> - 채택 설정: `supertrend_4h_x3_173` (Supertrend 4h Long-only, 3x 레버리지, combo #173)
+> - 백테스트 성과: CAGR +128.93% | Sharpe 1.30 | MDD -86.94% (극한 위험, 사용자 승인)
+> - 운영 모드: 메인넷 (`BYBIT_TESTNET=false`)
 
 이 디렉토리(`docs/`)가 프로젝트의 **유일한 문서 source-of-truth**이다.
 어떤 코드를 수정하든 [CODE_MAP.md](CODE_MAP.md) 에서 관련 문서를 찾아 함께 업데이트해야 한다.
@@ -82,7 +82,7 @@ last_updated: 2026-05-12
 | [architecture/](architecture/) | 시스템 설계 — 시스템 개요, 데이터 흐름 | system-overview.md |
 | [policies/](policies/) | 정책 — BTC-only, Kill Switch, 운영 규칙 | btc-only.md, kill-switch.md |
 | [policies/operations/](policies/operations/) | 운영 매뉴얼 — Runbook, 모니터링, 배포 | runbook.md, monitoring.md, mainnet-switch.md |
-| [policies/strategies/](policies/strategies/) | 전략 사양 — Funding Arb, Adaptive DCA | funding-arb.md, adaptive-dca.md |
+| [policies/strategies/](policies/strategies/) | 전략 사양 — Supertrend, Adaptive DCA | supertrend.md, funding-arb.md (archived), adaptive-dca.md |
 | [structure/](structure/) | 코드 레이아웃 — 19개 서비스, 디렉토리 트리 | — |
 | [../backtest/docs/](../backtest/docs/) | 백테스트 & 검증 — Jesse, 스킬셋, Phase 4 체크 | methodology/backtest-skillset.md, phase4-checklist.md |
 
@@ -92,11 +92,11 @@ last_updated: 2026-05-12
 
 | 항목 | 현재값 | 정상 범위 | 경고 |
 |------|--------|-----------|------|
-| **CAGR** (연환산) | +34.87% | > +15% | < 0% |
-| **Sharpe Ratio** | 3.583 | > 2.0 | < 1.0 |
-| **Max Drawdown** | -4.52% | -5% ~ 0% | > -10% |
-| **Daily P&L** | -2% ~ +5% | -2% ~ +5% | < -3% |
-| **Margin Ratio** | > 36x (기준) | > 10x | 5x ~ 10x (경고), < 5x (긴급) |
+| **CAGR** (연환산) | +128.93% | > +15% | < 0% |
+| **Sharpe Ratio** | 1.30 | > 1.0 | < 0.5 |
+| **Max Drawdown** | -86.94% | ⚠️ **극한 위험** | > -50% (경고) |
+| **Daily P&L** | -5% ~ +10% | -5% ~ +10% | < -10% |
+| **Margin Ratio** (Phase 5) | > 2.0x (기준) | > 1.5x | 1.0x ~ 1.5x (경고), < 1.0x (긴급) |
 | **Kill Switch Events** | 0회 (7일) | 0회 | 1회 이상 |
 
 ---
@@ -166,7 +166,7 @@ docs/
     │   └── README.md
     │
     ├── runs/
-    │   └── *.md — 7개 전략별 실험 ledger (supertrend, momentum_ma, stoch 등)
+    │   └── *.md — 7개 전략별 실험 ledger (supertrend, stoch 등)
     │
     ├── optimization/
     │   ├── param_sweep_v2.md — v2 파라미터 스윕 (2,688 backtests, 완료)
@@ -184,12 +184,14 @@ docs/
 
 | 섹션 | 상태 | 마지막 업데이트 |
 |------|------|-----------------|
+| Supertrend 전략 | ✅ 메인 | 2026-05-18 |
+| Funding Arb 전략 | 🗂️ 폐기 (히스토리) | 2026-05-18 |
 | 운영 매뉴얼 (runbook) | ✅ 최신 | 2026-05-01 |
 | Kill Switch | ✅ 최신 | 2026-04-12 |
 | 모니터링 | ✅ 최신 | 2026-05-01 |
 | 메인넷 전환 | ✅ 최신 | 2026-05-01 |
 | 용어집 | 📝 확장 필요 | 2026-05-01 |
-| Phase 4 체크리스트 | ✅ 활성 | 2026-04-12 |
+| Phase 4 체크리스트 | ⚠️ 아카이브 | 2026-05-18 |
 | param_sweep v2 | ✅ 완료 | 2026-05-12 |
 | param_sweep v3 | ⚠️ 부분 완료 | 2026-05-12 |
 | 7개 전략 백테스트 MD | ✅ v2+v3 반영 | 2026-05-12 |

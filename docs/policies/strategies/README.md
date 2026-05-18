@@ -1,7 +1,7 @@
 ---
 title: 거래 전략
 category: policies/strategies
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 새 전략 추가 시
   - orchestrator.yaml 가중치 변경 시
@@ -18,71 +18,60 @@ CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략�
 
 | 전략 | 상태 | CAGR | Sharpe | 역할 |
 |------|------|------|--------|------|
-| [Funding Arb](funding-arb.md) | ✅ **활성** | +34.87% | 3.583 | 핵심 (메인 수익원) |
+| [Supertrend](supertrend.md) | ✅ **메인** | +128.93% | 1.30 | 메인 수익원 (추세추종) |
+| [Funding Arb](funding-arb.md) | 🗂️ **폐기** | +34.87% | 3.583 | 이전 핵심 전략 (히스토리) |
 | [Adaptive DCA](adaptive-dca.md) | ⚠️ **비활성** | N/A | N/A | 보조 (재활성화 검토 중) |
 
 ---
 
-## Funding Arb (핵심 전략, 활성)
+## Supertrend 4h Long-Only (메인 전략, 활성)
 
 ### 개요
 
-**무기한 선물의 펀딩레이트를 수취하기 위한 델타 중립(Delta-Neutral) 전략**
+**BTC 4시간 추세 추종 전략으로, Supertrend 지표 + EMA 조합을 활용한 추세기반 매매**
 
-- **진입**: 현물 BTC 매수 + 선물 BTC 매도 (동시)
-- **수익**: 방향성 없는 펀딩비 캐리 수익 (8시간마다 정산)
-- **리스크**: 펀딩비 반전 시 즉시 청산
-- **레버리지**: 5x (하드 리밋)
+- **진입**: Supertrend 상승 신호 + EMA(7) > EMA(27) + Price > EMA(230)
+- **청산**: EMA 하강 교차 또는 ATR 기반 손절/익절
+- **리스크**: 극단 하락 시 높은 손실 (MDD −86.94%)
+- **레버리지**: 3x (하드 리밋)
 
-### 백테스트 성과 (fa80_lev5_r30)
+### 백테스트 성과 (supertrend_4h_x3_173)
 
-**기간**: 2020-04-01 ~ 2026-03-31 (6년, Test 12 Stage D2)
+**기간**: 2017-01-01 ~ 2026-05-18 (9년, 전체 역사)
 
-| 지표 | 값 |
-|------|-----|
-| **CAGR** | +34.87% |
-| **Sharpe Ratio** | 3.583 |
-| **Maximum Drawdown** | -4.52% |
-| **Liquidations** | 0회 (마진 안전성 최우수) |
+| 지표 | 값 | 평가 |
+|------|-----|------|
+| **CAGR** | +128.93% | ✅ 매우 우수 |
+| **Sharpe Ratio** | 1.30 | ⚠️ 적절 |
+| **Maximum Drawdown** | -86.94% | ⚠️ **극한 위험** |
+| **거래 수** | 378회 | ✅ 충분한 샘플 |
 
 ### 핵심 파라미터
 
 ```yaml
-# 자본 배분
-fa_capital_ratio: 0.80                   # 포트폴리오의 80%
-leverage: 5.0
+# 기본 설정
+timeframe: 4h
+direction: long_only
+leverage: 3
 
-# 진입 조건
-entry:
-  min_funding_rate_annualized: 15.0      # 연 15% 이상
-  consecutive_intervals: 3                # 3회 연속 양수
-  max_entry_spread_pct: 0.05             # Spread < 0.05%
-  min_open_interest_usd: 5_000_000       # 유동성 $5M 이상
+# 지표
+indicators:
+  supertrend:
+    period: 8
+    multiplier: 2.4
+  ema_fast: 7
+  ema_slow: 27
+  ema_trend: 230
+  atr_exit_multiplier: 3.2
 
-# 청산 조건
-exit:
-  min_funding_rate_annualized: 5.0       # 수익성 상실 시 청산
-  exit_on_rate_flip: true                # 음수 전환 즉시 청산
-  max_holding_hours: 720                 # 30일 강제 청산
-  stop_loss_pct: 2.0
-  take_profit_pct: 3.0
-```
-
-### Phase 5 (메인넷 소액 실전) 오버라이드
-
-`BYBIT_TESTNET=false` 또는 `PHASE5_MODE=true` 시:
-
-```yaml
+# Phase 5 (메인넷)
 phase5:
   sizing_mode: fixed_notional
   fixed_notional_usd: 150                # $200 × 75% (안전 버퍼)
-  max_concurrent_positions: 1            # 5 → 1 (소액 리스크 관리)
-  entry:
-    min_funding_rate_annualized: 25.0    # 15% → 25% (수수료 현실화)
-    consecutive_intervals: 4             # 3 → 4 (더 보수적)
+  max_concurrent_positions: 1            # 소액 리스크 관리
 ```
 
-[상세 문서 →](funding-arb.md)
+[상세 문서 →](supertrend.md)
 
 ---
 
@@ -305,32 +294,32 @@ Strategy Orchestrator가 **시장 레짐**에 따라 자본을 동적 배분:
 
 ```yaml
 weights:
-  ranging:           # 횡보 시장 (Sharpe 2.72)
-    funding_arb: 0.50
+  ranging:           # 횡보 시장 (낮은 수익성)
+    supertrend: 0.30
     adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.50
+    cash_reserve: 0.70
   
-  trending_up:       # 상승추세
-    funding_arb: 0.20
+  trending_up:       # 상승추세 (최적 환경)
+    supertrend: 0.60
     adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.80
+    cash_reserve: 0.40
   
-  trending_down:     # 하락추세 (리스크 최소)
-    funding_arb: 0.10
+  trending_down:     # 하락추세 (Long-only 회피)
+    supertrend: 0.10
     adaptive_dca: 0.00  # DCA 비활성
     cash_reserve: 0.90
   
-  volatile:          # 고변동성 (Sharpe 2.63)
-    funding_arb: 0.40
+  volatile:          # 고변동성
+    supertrend: 0.40
     adaptive_dca: 0.00  # DCA 비활성
     cash_reserve: 0.60
 ```
 
 **해석**:
-- **Ranging**: FA 수익 극대화 환경 → FA 50% + 현금 50%
-- **Trending Up**: 상승장 진행 중 → 현금 80% 확보 (하락 시 매수)
-- **Trending Down**: 하락 위험 높음 → 현금 90% 방어 (FA 축소)
-- **Volatile**: 변동성 높음 → FA 40% 유지 (스프레드 위험 고려)
+- **Trending Up**: Supertrend 최고 가중치 60% (상승장 최적)
+- **Volatile**: 중간 가중치 40% (변동성 높아도 추세 추종)
+- **Ranging**: 낮은 가중치 30% (횡보 시 수익성 낮음)
+- **Trending Down**: 최소 가중치 10% (Long-only는 약세장 회피)
 
 **주의**: DCA는 현재 모든 레짐에서 0.0 (비활성)
 
@@ -340,12 +329,14 @@ weights:
 
 포트폴리오 레벨 Kill Switch 발동 시:
 
-| Level | 조건 | Funding Arb | Adaptive DCA |
-|-------|------|------------|-------------|
+| Level | 조건 | Supertrend | Adaptive DCA |
+|-------|------|-----------|-------------|
 | **L1** | 전략 손실 > 3% | 포지션 청산 | 매수 중지 |
 | **L2** | 일일 손실 > 5% | 포지션 청산 | 포지션 청산 |
 | **L3** | 시스템 장애 | 시장가 청산 | 시장가 청산 |
 | **L4** | 수동 비상 정지 | 즉시 청산 | 즉시 청산 |
+
+**Phase 5 추가**: 절대값 기준 AND 로직 — `drawdown_pct ≤ -5.0` AND `drawdown_usd ≥ $50`
 
 [상세 정책 →](../kill-switch.md)
 
@@ -403,17 +394,21 @@ docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm
 
 ## 참고: 서비스 구현
 
-### Funding Arb 서비스
+### Supertrend 서비스
 
-**파일**: `cryptoengine/services/strategies/funding-arb/`
+**파일**: `cryptoengine/services/strategies/supertrend/`
 
 | 모듈 | 역할 |
 |------|------|
 | `strategy.py` | 메인 전략 로직 (BaseStrategy 상속) |
-| `funding_tracker.py` | 펀딩비 추적 + NetProfitabilityCheck |
-| `delta_neutral.py` | 현물-선물 헷지 관리 |
-| `basis_spread_sm.py` | Basis spread 상태 머신 |
-| `cross_exchange.py` | Cross-exchange 차익거래 (미사용) |
+| `indicators.py` | Supertrend, EMA 지표 계산 |
+| `main.py` | 서비스 엔트리포인트 |
+
+### Funding Arb 서비스 (폐기됨, 히스토리용)
+
+**파일**: `cryptoengine/services/strategies/funding-arb/` (삭제됨)
+
+이전 버전 이해를 위한 참조용 문서만 [policies/strategies/funding-arb.md](funding-arb.md)에 보존됨.
 
 ### Adaptive DCA 서비스
 

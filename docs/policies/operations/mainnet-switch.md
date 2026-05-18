@@ -6,11 +6,12 @@ related_code:
   - cryptoengine/scripts/switch_to_testnet.py (롤백 스크립트)
   - cryptoengine/scripts/phase5_preflight.py (8개 항목 점검)
   - cryptoengine/.env
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Phase 5 진입 기준 변경 시
   - 초기 자본 설정 변경 시
   - 메인넷 환경 변수 변경 시
+  - 메인 전략 변경 시 (Supertrend)
 ---
 
 # 메인넷 전환 절차 (Phase 5)
@@ -266,25 +267,37 @@ docker compose logs --tail=50 funding-arb | grep -E "initialized|ready|ERROR"
 
 ## 메인넷 모드 (Phase 5) 특수 설정
 
-### fixed_notional 포지션 사이징
+### fixed_notional 포지션 사이징 (Supertrend)
 
-테스트넷 `pct_equity` (포트폴리오 비율 기반)에서 메인넷 `fixed_notional` (고정액)로 자동 변경:
+테스트넷 동적 사이징에서 메인넷 고정액으로 자동 변경:
 
 ```python
 # Phase 5 자동 적용 (PHASE5_MODE=true)
 phase5:
-  sizing_mode: fixed_notional   # pct_equity → fixed_notional
-  fixed_notional_usd: 150       # $200 × 75% 안전 버퍼
-  max_concurrent_positions: 1   # 5 → 1 (소액 리스크 관리)
-  fa_capital_ratio: 0.75        # 0.80 → 0.75
-  reinvest_ratio: 0.0           # 재투자 비활성 (소액에서 무의미)
-  min_position_usd: 50          # 100 → 50
+  sizing_mode: fixed_notional       # 고정액 포지션
+  fixed_notional_usd: 150           # $200 × 75% 안전 버퍼
+  max_concurrent_positions: 1       # 소액 집중 관리
+  min_position_usd: 50              # Bybit 최소 주문
   
-  # 진입 조건 강화
-  entry:
-    min_funding_rate_annualized: 25.0   # 15% → 25%
-    min_funding_rate: 0.00012
-    consecutive_intervals: 4             # 3 → 4
+  # Supertrend 지표 유지 (테스트넷과 동일)
+  indicators:
+    supertrend:
+      period: 8
+      multiplier: 2.4
+    ema_fast: 7
+    ema_slow: 27
+    ema_trend: 230
+    atr_exit_multiplier: 3.2
+```
+
+### 이전 FA 설정 (참고, 더 이상 사용 안 함)
+
+이전 Funding Arb 전략의 Phase 5 설정:
+```yaml
+# [폐기됨] 이전 FA Phase 5 오버라이드
+# fixed_notional_usd: 150
+# fa_capital_ratio: 0.75
+# reinvest_ratio: 0.0
 ```
 
 ### 절대값 AND Kill Switch
@@ -391,13 +404,15 @@ docker compose up -d
 ## 체크리스트 (메인넷 실행 전)
 
 ```markdown
-메인넷 전환 GO/NO-GO:
+메인넷 전환 GO/NO-GO (Supertrend 4h):
 - [ ] Phase 4 모든 항목 완료
+- [ ] Supertrend 파라미터 최종 확인 (ST 8, 2.4 / EMA 7,27,230)
 - [ ] API 키 교체 (메인넷)
 - [ ] EXPECTED_INITIAL_BALANCE_USD = $200
 - [ ] STRICT_MONITORING_HOURS = 24
 - [ ] PHASE5_MODE = true
 - [ ] BYBIT_TESTNET = false (마지막 변경)
+- [ ] MAX_LEVERAGE = 3 (공유 라이브러리에서 확인)
 - [ ] 최종 백업 완료
 - [ ] 비상 청산 SOP 준비 완료
 - [ ] Telegram 봇 토큰 확인
@@ -406,8 +421,8 @@ docker compose up -d
 GO 신호 받으면:
 - [ ] 스크립트 실행 또는 수동 진행
 - [ ] 24시간 강화 모니터링
-- [ ] 첫 거래 진입 확인
-- [ ] 첫 수익 실현 확인
+- [ ] 첫 거래 진입 확인 (Supertrend 신호)
+- [ ] 첫 청산 (수익/손실) 확인
 - [ ] 이상 없으면 일상 운영으로 전환
 ```
 
