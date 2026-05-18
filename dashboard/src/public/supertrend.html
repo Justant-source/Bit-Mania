@@ -129,14 +129,14 @@
       <div class="card-head">
         <div>
           <div class="card-title">BTC/USDT · 4h</div>
-          <div class="card-sub">예상 진입 (파랑) · 실제 체결 (초록)</div>
+          <div class="card-sub">ST(8, 2.4) · EMA 7/27/230 · ATR(14)×3.2 | △▽ 예상 신호 · ▲▼ 체결 완료</div>
         </div>
         <div class="flex gap-2 items-center">
-          <span class="badge info">예상</span>
-          <span class="badge success">실제</span>
+          <span class="badge neutral">△ 예상</span>
+          <span class="badge success">▲ 체결</span>
         </div>
       </div>
-      <div class="chart-wrap" id="chart-price" style="min-height:320px">
+      <div class="chart-wrap" id="chart-price" style="min-height:460px">
         <div class="empty-state">데이터 로딩 중…</div>
       </div>
     </div>
@@ -203,6 +203,17 @@
     </div>
 
   </main>
+</div>
+
+<!-- 신호 조건 설명 모달 -->
+<div class="modal-overlay" id="signal-modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="signal-modal-title">신호 상세</span>
+      <button class="modal-close" id="signal-modal-close">✕ 닫기</button>
+    </div>
+    <div id="signal-modal-body"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
