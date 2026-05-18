@@ -543,6 +543,11 @@ def collect_all_results(btc_daily: list[dict] | None = None,
         _p21_monthly = PRE21_BACKFILL_DIR / strat_dir / tf / variant / 'pre21_full' / 'monthly_returns.csv'
         if _p21_trades.exists():
             pre21_trades = _load_csv_trades(_p21_trades)
+            # Only keep pre21 trades that close BEFORE the main backtest's first trade opens.
+            # When main already covers the full period (e.g. starts 2017-09), pre21 would
+            # otherwise create duplicate overlapping positions in balanceSim → inflated results.
+            main_start_ms = min((t['t_open'] for t in trades), default=float('inf'))
+            pre21_trades = [t for t in pre21_trades if t.get('t_close', 0) < main_start_ms]
             trades = sorted(pre21_trades + trades, key=lambda t: t.get('t_open', 0))
         if _p21_monthly.exists():
             pre21_monthly = _load_csv_monthly(_p21_monthly)
@@ -1184,8 +1189,10 @@ function balanceSim(r, startMs, endMs, cap) {
     .sort((a, b) => a.t_open - b.t_open);
 
   let vEq        = startBal;
+  let gEq        = startBal;  // gross equity: same trades, no fee/funding deducted
   let peak       = startBal, mdd = 0;
   let liquidated = false, liqMonth = null;
+  let totalFee   = 0, totalFund = 0;
   const points    = [{ t: startMs, v: vEq }];
   const simTrades = [];
 
@@ -1208,6 +1215,15 @@ function balanceSim(r, startMs, endMs, cap) {
     const sumRate   = fundingRateSumInWindow(t.t_open, t.t_close);
     const vFunding  = sumRate * vNotional * tFundSign;
     const vNetPnl  = vPnl - vFee - vFunding;
+
+    totalFee  += vFee;
+    totalFund += vFunding;
+
+    // Gross parallel equity: same price move + liquidation cap, no fee/funding
+    const gMargin = gEq * cap;
+    let gPnl = gMargin * lev * priceMove;
+    if (gPnl < -gMargin) gPnl = -gMargin;
+    gEq += gPnl;
 
     vEq += vNetPnl;
     if (!liquidated && vEq > peak) peak = vEq;
@@ -1237,6 +1253,9 @@ function balanceSim(r, startMs, endMs, cap) {
     liquidated, liqMonth,
     trades:           simTrades,
     rawSliceTrades:   rawTrades,
+    grossFinishing:   gEq,
+    feePaid:          totalFee,
+    fundPaid:         totalFund,
   };
   _balanceSimCache.set(key, res);
   return res;
@@ -1362,46 +1381,28 @@ function slicedStats(r, startMs, endMs) {
     tradeCount = 0; winRate = 0; pf = 0;
   }
 
-  // ── Cost adjustment ──────────────────────────────────────────────────────────
-  // Fee cost is always computable from trade count + known FEE_DELTA constant.
-  // Funding cost is added from precomputed data when a matching period exists.
-  // adj_cagr is always set (never null) so the cost banner is always visible.
-  const FEE_DELTA_PER_SIDE = 0.00035;  // maker→taker delta (0.055% - 0.020%)
-  const lev = r.leverage || 1;
-
-  // Buy-and-hold has no trading costs
+  // ── Cost figures from balanceSim realized totals ─────────────────────────────
+  // cagr already reflects real taker fees + per-event funding (balanceSim deducts
+  // vFee + vFunding each trade, compounded). gross_cagr is the cost-free baseline.
+  // adj_cagr = cagr (already net) — kept equal so downstream sort/chart code is unchanged.
   const isBnH = r.variant === 'buy_and_hold';
-  let fee_cost_dyn = 0, fund_cost = 0, fundCoverage = null;
+  let gross_cagr = 0, effective_cost_data = null;
 
-  if (!isBnH && !liquidated && tradeCount > 0 && years > 0) {
-    const tradesPerYear = tradeCount / years;
-    fee_cost_dyn = parseFloat((tradesPerYear * FEE_DELTA_PER_SIDE * 2 * 100 * lev).toFixed(3));
+  if (!isBnH && useSim && tradeCount > 0 && years > 0) {
+    const gf = sim.grossFinishing > 0 ? sim.grossFinishing : startBal;
+    gross_cagr = ((gf / startBal) ** (1 / years) - 1) * 100;
+    // Express cost drag as CAGR pp reduction (not as % of initial capital, which
+    // explodes when equity compounds to millions). Split gross-net gap proportionally.
+    const cagrDrag   = gross_cagr - cagr;   // pp reduction due to all costs
+    const totalPaid  = sim.feePaid + Math.abs(sim.fundPaid);
+    const fee_pct_yr  = totalPaid > 0 ? cagrDrag * (sim.feePaid            / totalPaid) : 0;
+    const fund_pct_yr = totalPaid > 0 ? cagrDrag * (Math.abs(sim.fundPaid) / totalPaid) : 0;
+    effective_cost_data = { fee: fee_pct_yr, fund: fund_pct_yr, coverage: 'sim_real' };
   }
 
-  // Funding cost from precomputed period data (when an exact preset is active)
-  const costKey  = currentCostKey();
-  const costData = (costKey && r.costs && r.costs[costKey]) ? r.costs[costKey] : null;
-  if (costData) {
-    // Use precomputed fee from JSON (more accurate — based on full period trade count)
-    // and add funding cost
-    fund_cost    = costData.fund || 0;
-    fundCoverage = costData.coverage || null;
-    // Prefer precomputed fee when available (same formula, avoids floating-point drift)
-    fee_cost_dyn = costData.fee || fee_cost_dyn;
-  }
-
-  const total_cost = fee_cost_dyn + fund_cost;
-  // adj_cagr: raw CAGR minus annual costs; null only for buy-and-hold or 0-trade slices
   const adj_cagr = (!isBnH && tradeCount > 0 && !liquidated)
-    ? parseFloat((cagr - total_cost).toFixed(2))
+    ? parseFloat(cagr.toFixed(2))
     : null;
-
-  // Effective costData: always synthesise even without precomputed period data
-  const effective_cost_data = (!isBnH && tradeCount > 0) ? {
-    fee:      fee_cost_dyn,
-    fund:     fund_cost,
-    coverage: fundCoverage || (costKey ? 'fee_only' : 'dynamic'),
-  } : null;
 
   const stats = {
     cagr, sharpe, mdd,
@@ -1415,6 +1416,7 @@ function slicedStats(r, startMs, endMs) {
     calmar:    mdd !== 0 ? cagr / Math.abs(mdd) : 0,
     liquidated, liq_month,
     adj_cagr,
+    gross_cagr,
     cost_data: effective_cost_data,
   };
   sliceCache.set(key, stats);
@@ -1679,29 +1681,27 @@ function renderKPIs() {
       const feeTxt  = cd.fee  ? `수수료 -${cd.fee.toFixed(2)}%/yr` : '';
       const fundTxt = cd.fund ? `펀딩 -${cd.fund.toFixed(2)}%/yr`  : '';
       const costParts = [feeTxt, fundTxt].filter(Boolean).join(' · ');
-      const isDynamic = cd.coverage === 'dynamic';
-      const covColor  = cd.coverage === 'bybit_live' ? '#3fb950'
-                      : cd.coverage === 'fee_only'   ? '#8b949e'
-                      : isDynamic                    ? '#6e7681'
+      const covColor  = cd.coverage === 'sim_real' ? '#3fb950'
+                      : cd.coverage === 'fee_only' ? '#8b949e'
                       : '#e3b341';
-      const covLabel  = cd.coverage === 'bybit_live' ? '실 펀딩 데이터'
-                      : cd.coverage === 'fee_only'   ? '수수료만 (펀딩 없음)'
-                      : isDynamic                    ? '수수료만 (기간 미매핑)'
-                      : '부분 펀딩 데이터';
+      const covLabel  = cd.coverage === 'sim_real' ? '실 수수료·펀딩 (sim)'
+                      : cd.coverage === 'fee_only' ? '수수료만 (펀딩 없음)'
+                      : '부분 데이터';
+      const grossStr = (s.gross_cagr != null && s.gross_cagr !== 0) ? fmtPct(s.gross_cagr) : '?';
       costBanner = `<div style="background:#1c2d19;border:1px solid #238636;border-radius:4px;padding:4px 8px;margin-bottom:6px;font-size:11px;color:#8b949e">
-        비용 조정: <span style="color:#e06c75">${costParts || '적용 없음'}</span>
+        비용 반영(실측): <span style="color:#e06c75">${costParts || '없음'}</span>
         &nbsp;<span style="color:${covColor};font-size:10px">[${covLabel}]</span>
-        <br><span style="color:#484f58;font-size:10px">원본 CAGR: ${fmtPct(s.cagr)}/yr → 조정: ${fmtPct(dispCagr)}/yr</span>
+        <br><span style="color:#484f58;font-size:10px">비용 전 CAGR: ${grossStr}/yr → 실비용 반영: ${fmtPct(dispCagr)}/yr</span>
       </div>`;
     }
-    const cagrLabel = hasAdj ? '조정 CAGR/yr' : 'CAGR/yr';
+    const cagrLabel = hasAdj ? '실비용 CAGR/yr' : 'CAGR/yr';
     return `<div class="kpi-card">
       <div class="kpi-label">${name}</div>
       ${liqBanner}
       ${safetyBanner}
       ${costBanner}
       <div class="kpi-value ${cagrCls}">${multStr}</div>
-      <div class="kpi-sub">총수익배수 · ${hasAdj ? '조정 ' : ''}CAGR ${fmtPct(dispCagr)}/yr</div>
+      <div class="kpi-sub">총수익배수 · ${hasAdj ? '실비용 ' : ''}CAGR ${fmtPct(dispCagr)}/yr</div>
       <hr style="border-color:#21262d;margin:8px 0">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
         <div><div style="color:#8b949e">Sharpe</div><div style="font-weight:600">${fmtSharpe(s.sharpe)}</div></div>

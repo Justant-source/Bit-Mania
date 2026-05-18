@@ -28,7 +28,7 @@ last_updated: 2026-05-17
 | `backtest/scripts/sweep/param_sweep_v3.py` | `docs/optimization/param_sweep_v3.md`, `docs/runs/*.md` |
 | `backtest/scripts/analysis/rolling_window_analysis.py` | `docs/optimization/rolling_window_test.md` |
 | `backtest/scripts/analysis/walk_forward.py` | `docs/methodology/jesse-engine.md` |
-| `backtest/scripts/reports/build_v4_dashboard.py` | `docs/runs/*.md` |
+| `backtest/scripts/reports/build_v4_dashboard.py` | `docs/runs/*.md` | 비용=sim 실측 일원화: balanceSim이 계산한 실 수수료·펀딩(feePaid/fundPaid/grossFinishing)을 slicedStats에서 직접 사용, adj_cagr 이중차감 제거 (2026-05-18) |
 | `backtest/scripts/reports/build_champion_dashboard.py` | `docs/runs/*.md` |
 | `backtest/scripts/data/download_binance_vision.py` | `docs/methodology/backtest-skillset.md` |
 | `backtest/scripts/data/jesse_import.py` | `docs/methodology/jesse-engine.md` |
