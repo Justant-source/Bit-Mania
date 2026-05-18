@@ -604,8 +604,7 @@ class BotHandlers:
     # ── Command: /pause_all ───────────────────────────────────────
 
     _ALL_STRATEGY_CHANNELS = [
-        "strategy:command:funding-arb",
-        "strategy:command:adaptive-dca",
+        "strategy:command:supertrend-01",
     ]
 
     async def pause_all_command(
@@ -622,7 +621,7 @@ class BotHandlers:
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 "\u23f8 *All strategies paused.*\n"
-                "Stop command sent to: `funding-arb`, `adaptive-dca`.\n"
+                "Stop command sent to: `supertrend-01`.\n"
                 "_Positions are retained. Use /resume_all to restart._",
                 parse_mode="Markdown",
             )
@@ -659,7 +658,7 @@ class BotHandlers:
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 "\u25b6\ufe0f *All strategies resumed.*\n"
-                "Start command sent to: `funding-arb`, `adaptive-dca`.\n"
+                "Start command sent to: `supertrend-01`.\n"
                 "_Orchestrator will re-issue capital allocation on next cycle._",
                 parse_mode="Markdown",
             )
