@@ -49,8 +49,8 @@ services:
       BACKUP_CRON: ${BACKUP_CRON:-0 17 * * *}   # 매일 02:00 KST
       RUN_ON_STARTUP: ${BACKUP_ON_STARTUP:-false}
     volumes:
-      - ./scripts/pg_backup.sh:/scripts/pg_backup.sh:ro
-      - ./scripts/pg_backup_entrypoint.sh:/scripts/pg_backup_entrypoint.sh:ro
+      - ./scripts/sh/pg_backup.sh:/scripts/pg_backup.sh:ro
+      - ./scripts/sh/pg_backup_entrypoint.sh:/scripts/pg_backup_entrypoint.sh:ro
       - pg-backups:/backups
     entrypoint: ["sh", "/scripts/pg_backup_entrypoint.sh"]
     deploy:
@@ -73,8 +73,8 @@ services:
       LOG_RETENTION_CRON: ${LOG_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
       RETENTION_ON_STARTUP: ${RETENTION_ON_STARTUP:-false}
     volumes:
-      - ./scripts/log_retention.sh:/scripts/log_retention.sh:ro
-      - ./scripts/log_retention_entrypoint.sh:/scripts/log_retention_entrypoint.sh:ro
+      - ./scripts/sh/log_retention.sh:/scripts/log_retention.sh:ro
+      - ./scripts/sh/log_retention_entrypoint.sh:/scripts/log_retention_entrypoint.sh:ro
     entrypoint: ["sh", "/scripts/log_retention_entrypoint.sh"]
     deploy:
       resources:
