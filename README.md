@@ -41,9 +41,8 @@ docker compose ps
 
 | 서비스 | 포트 |
 |--------|------|
-| 내부 대시보드 (Supertrend) | http://localhost:3000/supertrend |
-| 내부 대시보드 (모니터) | http://localhost:3000/monitor |
-| 공개 대시보드 | http://localhost:3001 |
+| 대시보드 (Supertrend) | http://localhost:3000/supertrend |
+| 대시보드 (모니터) | http://localhost:3000/monitor |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 

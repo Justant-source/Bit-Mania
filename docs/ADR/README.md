@@ -1,7 +1,7 @@
 ---
 title: Architecture Decision Records
 category: ADR
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 ---
 
 # Architecture Decision Records (ADR)
@@ -74,6 +74,10 @@ related_code:
 | # | 제목 | 상태 | 날짜 | 요약 |
 |---|-----|------|------|------|
 | 001 | BTC 단일 운영 정책 | Accepted | 2026-05-01 | Multi-symbol 거래 금지, BTCUSDT만 사용 |
+| 002 | Multi-symbol FA 도입 검토 | Superseded by ADR-004 | 2026-05-02 | FA 도입 제안 (나중에 폐기) |
+| 003 | Supertrend 단일 전략 채택 | Accepted | 2026-05-18 | 4h Supertrend 추세추종 메인 전략 도입 |
+| 004 | Funding Arbitrage 전략 폐기 | Accepted | 2026-05-18 | FA 완전 폐기, 실전 제거 |
+| 005 | Adaptive DCA 전략 폐기 | Accepted | 2026-05-18 | Adaptive DCA 완전 폐기 |
 
 ### 계획 중 ADR
 
@@ -253,4 +257,4 @@ grep -r "BTCUSDT" cryptoengine/config/ | wc -l
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-05-18

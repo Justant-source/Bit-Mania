@@ -11,31 +11,16 @@ last_updated: 2026-05-18
 | 코드 경로 | 관련 문서 |
 |---|---|
 | `backtest/strategies/external/SupertrendStrategy.py` | `backtest/docs/strategies/017_supertrend.md` |
-| `backtest/strategies/external/StochStrategy.py` | `backtest/docs/strategies/016_stoch.md` |
-| `backtest/strategies/external/SupertrendTrendTypeStrategy.py` | `backtest/docs/strategies/020_supertrend_trendtype.md` |
-| `backtest/strategies/external/TradeIQPsarHaStrategy.py` | `backtest/docs/strategies/018_tradeiq_psar_ha.md` |
-| `backtest/strategies/external/TradeIQCciCeStrategy.py` | `backtest/docs/strategies/021_tradeiq_cci_ce.md` |
-| `backtest/strategies/external/TrendTypeStrategy.py` | `backtest/docs/strategies/019_trendtype.md` |
 
 ## 스크립트
 
 | 코드 경로 | 관련 문서 |
 |---|---|
-| `backtest/scripts/runners/run_external_backtest.py` | `backtest/docs/methodology/backtest-skillset.md` |
-| `backtest/scripts/runners/run_stt_only.py` | `backtest/docs/strategies/020_supertrend_trendtype.md` |
-| `backtest/scripts/runners/run_supertrend_only.py` | `backtest/docs/strategies/017_supertrend.md` |
 | `backtest/scripts/analysis/rolling_window_analysis.py` | `backtest/docs/methodology/backtest-skillset.md` |
 | `backtest/scripts/analysis/walk_forward.py` | `backtest/docs/methodology/jesse-engine.md` |
 | `backtest/scripts/analysis/apply_realistic_costs_7strategies.py` | `backtest/docs/strategies/` |
 | `backtest/dashboards/script/build_strategy_dashboard.py` | `backtest/docs/strategies/` |
 | `backtest/dashboards/script/build_supertrend_dashboard.py` | `backtest/results/supertrend_x3_long_only/README.md` |
-| `backtest/scripts/reports/build_champion_dashboard.py` | `backtest/docs/strategies/` |
-| `backtest/scripts/reports/sync_7strategies_docs.py` | `backtest/docs/strategies/` |
-| `backtest/scripts/data/download_binance_vision.py` | `backtest/docs/methodology/backtest-skillset.md` |
-| `backtest/scripts/data/jesse_import.py` | `backtest/docs/methodology/jesse-engine.md` |
-| `backtest/scripts/data/fetch_bybit_funding_history.py` | `backtest/docs/methodology/backtest-skillset.md` |
-| `backtest/scripts/data/resample_4h_from_1h.py` | `backtest/docs/methodology/backtest-skillset.md` |
-| `backtest/scripts/data/validate_data_quality.py` | `backtest/docs/methodology/backtest-skillset.md` |
 
 ## PG-native 최적화 파이프라인 (현행)
 
@@ -51,18 +36,16 @@ last_updated: 2026-05-18
 
 | 코드 경로 | 역할 | 입력 | 출력 |
 |---|---|---|---|
-| `backtest/scripts/db/schema_st.sql` | Supertrend sweep 테이블 스키마 (st_sweeps, st_combos, st_window_results) | — | PostgreSQL 테이블 |
-| `backtest/scripts/db/verify.py` | 테이블 무결성 검증 (row counts, 통계, 범위 체크) | PostgreSQL | 검증 리포트 |
+| `backtest/scripts/db/schema.sql` | 백테스트 데이터베이스 스키마 | — | PostgreSQL 테이블 |
 
 ## 대시보드 & 리포팅
 
 | 코드 경로 | 역할 | 입력 | 출력 |
 |---|---|---|---|
-| `backtest/dashboards/script/build_strategy_dashboard.py` | 7-strategies 대시보드 생성 | `results/7-strategies/` + `BTCUSDT_8h.parquet` | `dashboards/strategy_dashboard.html` |
-| `backtest/dashboards/script/build_supertrend_dashboard.py` | Supertrend sweep 대시보드 생성 (v4~v9+) | `st_sweeps`, `st_combos`, `st_window_results` + 템플릿 | `dashboards/supertrend_sweep_dashboard.html` |
-| `backtest/dashboards/script/run_supertrend_dashboard.py` | 대시보드 단독 재빌드 래퍼 | — | `dashboards/supertrend_sweep_dashboard.html` |
+| `backtest/dashboards/script/build_strategy_dashboard.py` | 7-strategies 대시보드 생성 | `results/7-strategies/` + `BTCUSDT_8h.parquet` | `backtest/dashboards/strategy_dashboard.html` |
+| `backtest/dashboards/script/build_supertrend_dashboard.py` | Supertrend sweep 대시보드 생성 (v4~v9+) | `st_sweeps`, `st_combos`, `st_window_results` + 템플릿 | `backtest/dashboards/supertrend_sweep_dashboard.html` |
+| `backtest/dashboards/script/run_supertrend_dashboard.py` | 대시보드 단독 재빌드 래퍼 | — | `backtest/dashboards/supertrend_sweep_dashboard.html` |
 | `backtest/dashboards/script/supertrend_dashboard_template.html` | 대시보드 UI 셸 (커밋됨) | — | — |
-| `backtest/scripts/audit/audit_v4_dashboard.py` | 7-strategies 대시보드 데이터 무결성 검사 | 대시보드 HTML | 검사 리포트 |
 
 ## Jesse 엔진 인프라
 

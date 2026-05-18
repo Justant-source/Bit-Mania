@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-19
+last_updated: 2026-05-18
 ---
 
 # Code → Docs 역인덱스
@@ -13,18 +13,7 @@ last_updated: 2026-05-19
 |------|------|
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
 | `services/strategies/supertrend/**` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/strategies/funding-arb/**` | [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) (폐기됨, 히스토리용) |
-| `services/strategies/adaptive-dca/**` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
 | `config/strategies/supertrend.yaml` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) |
-| `config/strategies/funding-arb.yaml` | [policies/strategies/funding-arb.md](policies/strategies/funding-arb.md) (폐기됨) |
-| `config/strategies/adaptive-dca.yaml` | [backtest/docs/strategies/003_adaptive_dca.md](../backtest/docs/strategies/003_adaptive_dca.md) |
-| `backtest/strategies/multi_symbol_funding_arb.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `backtest/strategies/cross_exchange_fa.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `backtest/strategies/dynamic_threshold_fa.py` | [backtest/docs/strategies/001_funding_arb.md](../backtest/docs/strategies/001_funding_arb.md) |
-| `backtest/configs/multi_symbol_fa.yaml` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `backtest/scripts/data/coinalyze_client.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `backtest/scripts/data/fetch_multi_symbol.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
-| `backtest/scripts/data/fetch_multi_exchange.py` | [ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md](ADR/002.%20Multi-symbol%20FA%20도입%20검토_2026-05-02.md) |
 
 ## 실행 / 주문
 
@@ -44,7 +33,8 @@ last_updated: 2026-05-19
 |------|------|
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) |
 | `shared/log_events.py` | [structure/README.md](structure/README.md) |
-| `services/telegram-bot/**` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) |
+| `services/telegram-bot/**` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) · [structure/services.md](structure/services.md) |
+| `config/telegram.yaml` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) |
 
 ## 인프라
 
@@ -58,17 +48,10 @@ last_updated: 2026-05-19
 | `shared/db/migrations/017_drop_ohlcv_1m_longterm.sql` (deferred) | [architecture/data-stores.md](architecture/data-stores.md) |
 | `.env` | [policies/operations/runbook.md](policies/operations/runbook.md) |
 
-## 대시보드
+## 대시보드 & 백필
 
 | 코드 | 문서 |
 |------|------|
-| `services/dashboard/src/routes/supertrend.ts` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/routes/monitor.ts` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/alertEvaluator.ts` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/public/supertrend.html` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/public/monitor.html` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/public/js/supertrend-dashboard.js` | [structure/services.md](structure/services.md) |
-| `services/dashboard/src/public/js/monitor-dashboard.js` | [structure/services.md](structure/services.md) |
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 
 ## 공유 라이브러리
@@ -85,7 +68,6 @@ last_updated: 2026-05-19
 | 코드 | 문서 |
 |------|------|
 | `backtest/scripts/db/schema.sql` | [architecture/data-stores.md](architecture/data-stores.md) |
-| `backtest/scripts/data/import_parquet_to_pg.py` | [architecture/data-stores.md](architecture/data-stores.md) — Parquet→PostgreSQL 일괄 적재 (일회성, 2026-05-18) |
 | `docker-compose.yml` (backtest-postgres service) | [architecture/data-stores.md](architecture/data-stores.md) · [structure/services.md](structure/services.md) |
 
 ## 백테스트 코드
