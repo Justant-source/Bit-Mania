@@ -19,20 +19,18 @@ RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "unc
 
 # Default weight matrix used when config is missing or incomplete
 DEFAULT_WEIGHT_MATRIX: dict[str, dict[str, float]] = {
-    "ranging": {"supertrend": 0.30, "dca": 0.00, "cash": 0.70},
-    "trending_up": {"supertrend": 0.70, "dca": 0.00, "cash": 0.30},
-    "trending_down": {"supertrend": 0.10, "dca": 0.00, "cash": 0.90},
-    "volatile": {"supertrend": 0.30, "dca": 0.00, "cash": 0.70},
-    "uncertain": {"supertrend": 0.05, "dca": 0.00, "cash": 0.95},
+    "ranging": {"supertrend": 0.30, "cash": 0.70},
+    "trending_up": {"supertrend": 0.70, "cash": 0.30},
+    "trending_down": {"supertrend": 0.10, "cash": 0.90},
+    "volatile": {"supertrend": 0.30, "cash": 0.70},
+    "uncertain": {"supertrend": 0.05, "cash": 0.95},
 }
 
-STRATEGY_KEYS = ("supertrend", "dca", "cash")
+STRATEGY_KEYS = ("supertrend", "cash")
 
 # Mapping from config YAML keys to internal strategy keys
 _CONFIG_KEY_MAP: dict[str, str] = {
     "supertrend": "supertrend",
-    "adaptive_dca": "dca",
-    "dca": "dca",
     "cash_reserve": "cash",
     "cash": "cash",
 }

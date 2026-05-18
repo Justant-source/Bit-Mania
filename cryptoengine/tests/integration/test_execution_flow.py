@@ -135,7 +135,7 @@ def pipeline(mock_exchange, mock_redis, mock_db):
 def buy_payload():
     return {
         "request_id": "int-test-001",
-        "strategy_id": "funding_arb_01",
+        "strategy_id": "supertrend-01",
         "exchange": "bybit",
         "symbol": "BTC/USDT:USDT",
         "side": "buy",
@@ -190,7 +190,7 @@ class TestFullExecutionFlow:
     async def test_sell_order_flow(self, pipeline, mock_exchange):
         sell_payload = {
             "request_id": "int-test-sell-001",
-            "strategy_id": "funding_arb_01",
+            "strategy_id": "supertrend-01",
             "exchange": "bybit",
             "symbol": "BTC/USDT:USDT",
             "side": "sell",
@@ -229,12 +229,12 @@ class TestExecutionWithErrors:
         assert result["status"] == "rejected"
 
     @pytest.mark.asyncio
-    async def test_multiple_strategies_tracked_separately(self, mock_exchange, mock_redis, mock_db):
+    async def test_multiple_orders_tracked_separately(self, mock_exchange, mock_redis, mock_db):
         pipeline = ExecutionPipeline(mock_exchange, mock_redis, mock_db)
 
         p1 = {
-            "request_id": "funding-001",
-            "strategy_id": "funding_arb",
+            "request_id": "st-001",
+            "strategy_id": "supertrend-01",
             "exchange": "bybit",
             "symbol": "BTC/USDT:USDT",
             "side": "buy",
@@ -243,8 +243,8 @@ class TestExecutionWithErrors:
             "price": 65000.0,
         }
         p2 = {
-            "request_id": "dca-001",
-            "strategy_id": "adaptive_dca",
+            "request_id": "st-002",
+            "strategy_id": "supertrend-01",
             "exchange": "bybit",
             "symbol": "BTC/USDT:USDT",
             "side": "sell",
@@ -258,6 +258,6 @@ class TestExecutionWithErrors:
 
         assert r1 is not None
         assert r2 is not None
-        assert r1["strategy_id"] == "funding_arb"
-        assert r2["strategy_id"] == "adaptive_dca"
+        assert r1["strategy_id"] == "supertrend-01"
+        assert r2["strategy_id"] == "supertrend-01"
         assert len(pipeline._tracker.fills) == 2

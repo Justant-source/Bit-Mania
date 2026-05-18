@@ -249,7 +249,7 @@ def sample_funding_data() -> pd.DataFrame:
 def sample_order_request() -> OrderRequest:
     """Provide a standard OrderRequest for testing."""
     return OrderRequest(
-        strategy_id="funding_arb_01",
+        strategy_id="supertrend-01",
         exchange="bybit",
         symbol="BTC/USDT:USDT",
         side="buy",
@@ -286,16 +286,10 @@ def sample_portfolio_state() -> PortfolioState:
         weekly_drawdown=-0.012,
         strategies=[
             StrategySnapshot(
-                strategy_id="funding_arb_01",
-                allocated_capital=2500.0,
-                current_pnl=80.0,
+                strategy_id="supertrend-01",
+                allocated_capital=6500.0,
+                current_pnl=120.0,
                 position_count=1,
-            ),
-            StrategySnapshot(
-                strategy_id="adaptive_dca_01",
-                allocated_capital=4000.0,
-                current_pnl=40.0,
-                position_count=5,
             ),
         ],
     )

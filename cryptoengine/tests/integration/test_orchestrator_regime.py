@@ -27,14 +27,14 @@ from shared.models.position import PortfolioState
 # ---------------------------------------------------------------------------
 
 DEFAULT_WEIGHT_MATRIX = {
-    "ranging": {"funding_arb": 0.65, "dca": 0.15, "cash": 0.20},
-    "trending_up": {"funding_arb": 0.20, "dca": 0.50, "cash": 0.30},
-    "trending_down": {"funding_arb": 0.25, "dca": 0.10, "cash": 0.65},
-    "volatile": {"funding_arb": 0.15, "dca": 0.05, "cash": 0.80},
-    "uncertain": {"funding_arb": 0.05, "dca": 0.05, "cash": 0.90},
+    "ranging": {"supertrend": 0.30, "cash": 0.70},
+    "trending_up": {"supertrend": 0.70, "cash": 0.30},
+    "trending_down": {"supertrend": 0.10, "cash": 0.90},
+    "volatile": {"supertrend": 0.30, "cash": 0.70},
+    "uncertain": {"supertrend": 0.05, "cash": 0.95},
 }
 
-STRATEGY_KEYS = ("funding_arb", "dca", "cash")
+STRATEGY_KEYS = ("supertrend", "cash")
 
 
 class WeightManager:
@@ -104,26 +104,21 @@ def wm():
 class TestRegimeChangeWeights:
     def test_ranging_weights(self, wm):
         weights = wm.get_target_weights("ranging")
-        assert weights["funding_arb"] == 0.65
-        assert weights["cash"] == 0.20
+        assert weights["supertrend"] == 0.30
+        assert weights["cash"] == 0.70
         assert sum(weights.values()) == pytest.approx(1.0)
 
     def test_volatile_weights(self, wm):
         weights = wm.get_target_weights("volatile")
-        assert weights["cash"] == 0.80
-        assert weights["funding_arb"] == 0.15
+        assert weights["cash"] == 0.70
+        assert weights["supertrend"] == 0.30
         assert sum(weights.values()) == pytest.approx(1.0)
 
-    def test_regime_change_shifts_funding_arb_weight(self, wm):
+    def test_regime_change_shifts_supertrend_weight(self, wm):
         ranging = wm.get_target_weights("ranging")
         volatile = wm.get_target_weights("volatile")
-        assert volatile["funding_arb"] < ranging["funding_arb"]
-        assert volatile["cash"] > ranging["cash"]
-
-    def test_trending_up_favors_dca(self, wm):
-        weights = wm.get_target_weights("trending_up")
-        assert weights["dca"] == 0.50
-        assert weights["dca"] > weights["funding_arb"]
+        assert volatile["supertrend"] == ranging["supertrend"]
+        assert volatile["cash"] == ranging["cash"]
 
     def test_trending_down_high_cash(self, wm):
         weights = wm.get_target_weights("trending_down")
@@ -150,17 +145,14 @@ class TestSmoothTransition:
         volatile = wm.get_target_weights("volatile")
 
         step1 = wm.smooth_transition(ranging, volatile)
-        # funding_arb should be between ranging (0.65) and volatile (0.15)
-        assert step1["funding_arb"] < ranging["funding_arb"]
-        assert step1["funding_arb"] > volatile["funding_arb"]
-
-        # Cash should increase but not jump to 0.80
-        assert step1["cash"] > ranging["cash"]
-        assert step1["cash"] < volatile["cash"]
+        # supertrend stays at 0.30 (both regimes same)
+        assert step1["supertrend"] == ranging["supertrend"]
+        # Cash stays at 0.70 (both regimes same)
+        assert step1["cash"] == ranging["cash"]
 
     def test_multiple_steps_converge(self, wm):
         current = wm.get_target_weights("ranging")
-        target = wm.get_target_weights("volatile")
+        target = wm.get_target_weights("trending_up")
 
         for _ in range(20):
             current = wm.smooth_transition(current, target)
@@ -170,11 +162,11 @@ class TestSmoothTransition:
             assert current[k] == pytest.approx(target[k], abs=0.02)
 
     def test_small_changes_ignored(self, wm):
-        current = {"funding_arb": 0.65, "dca": 0.15, "cash": 0.20}
-        target = {"funding_arb": 0.66, "dca": 0.14, "cash": 0.20}
+        current = {"supertrend": 0.30, "cash": 0.70}
+        target = {"supertrend": 0.31, "cash": 0.69}
         smoothed = wm.smooth_transition(current, target)
         # Changes < 2% should not move
-        assert smoothed["funding_arb"] == pytest.approx(current["funding_arb"], abs=0.001)
+        assert smoothed["supertrend"] == pytest.approx(current["supertrend"], abs=0.001)
 
     def test_weights_always_sum_to_one(self, wm):
         current = wm.get_target_weights("ranging")
@@ -190,15 +182,15 @@ class TestSmoothTransition:
 
 class TestKillSwitchOverride:
     def test_kill_switch_sets_all_cash(self):
-        emergency = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency = {"supertrend": 0.0, "cash": 1.0}
         assert emergency["cash"] == 1.0
         assert sum(v for k, v in emergency.items() if k != "cash") == 0.0
 
     def test_kill_switch_overrides_current_weights(self, wm):
         current = wm.get_target_weights("ranging")
-        assert current["funding_arb"] > 0  # non-zero before kill
+        assert current["supertrend"] > 0  # non-zero before kill
 
-        emergency = {"funding_arb": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency = {"supertrend": 0.0, "cash": 1.0}
         # After kill switch, weights should be emergency
         for k in STRATEGY_KEYS:
             assert emergency.get(k, 0) == (1.0 if k == "cash" else 0.0)

@@ -33,18 +33,6 @@ export function createRegimeRouter(pool: Pool, redis: Redis): Router {
         ? JSON.parse(orchestratorStateRaw)
         : null;
 
-      // FA 배분 계산
-      let faAllocation = { pct: 0, usd: 0 };
-      if (orchestratorState) {
-        const weights = orchestratorState.weights ?? {};
-        const faPct = (weights["funding-arb"] ?? weights["fa"] ?? 0) * 100;
-        const totalEquity = orchestratorState.total_equity ?? 0;
-        faAllocation = {
-          pct: Math.round(faPct * 100) / 100,
-          usd: Math.round(totalEquity * (faPct / 100) * 100) / 100,
-        };
-      }
-
       return res.json({
         raw_regime: regime.regime ?? null,
         raw_regime_at: regime.detected_at ?? null,
@@ -73,7 +61,6 @@ export function createRegimeRouter(pool: Pool, redis: Redis): Router {
         active_regime: orchestratorState?.regime ?? null,
         active_weights: orchestratorState?.weights ?? null,
         total_equity: orchestratorState?.total_equity ?? null,
-        fa_allocation: faAllocation,
         timestamp: regime.detected_at ?? new Date().toISOString(),
       });
     } catch (err) {

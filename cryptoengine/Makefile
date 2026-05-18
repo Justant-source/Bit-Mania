@@ -36,15 +36,11 @@ test: ## Run the full test suite across all services
 	$(COMPOSE) run --rm --no-deps market-data pytest -v /app/tests/
 	$(COMPOSE) run --rm --no-deps strategy-orchestrator pytest -v /app/tests/
 	$(COMPOSE) run --rm --no-deps execution-engine pytest -v /app/tests/
-	$(COMPOSE) run --rm --no-deps funding-arb pytest -v /app/tests/
-	$(COMPOSE) run --rm --no-deps adaptive-dca pytest -v /app/tests/
 
 test-unit: ## Run unit tests only (no external dependencies)
 	$(COMPOSE) run --rm --no-deps market-data pytest -v -m unit /app/tests/
 	$(COMPOSE) run --rm --no-deps strategy-orchestrator pytest -v -m unit /app/tests/
 	$(COMPOSE) run --rm --no-deps execution-engine pytest -v -m unit /app/tests/
-	$(COMPOSE) run --rm --no-deps funding-arb pytest -v -m unit /app/tests/
-	$(COMPOSE) run --rm --no-deps adaptive-dca pytest -v -m unit /app/tests/
 
 fetch-history-3y: ## Download 3 years of OHLCV + funding rate data from Bybit (2023-04-01 ~ now)
 	$(COMPOSE) --profile backtest run --rm backtester \
@@ -87,7 +83,7 @@ emergency: ## EMERGENCY: Close all positions and halt trading immediately
 	@echo "!!! EMERGENCY SHUTDOWN !!!"
 	@echo "Sending kill signal to all strategy services..."
 	$(COMPOSE) exec execution-engine python -m engine.emergency_close_all
-	$(COMPOSE) stop funding-arb adaptive-dca strategy-orchestrator
+	$(COMPOSE) stop supertrend strategy-orchestrator
 	@echo "All strategies stopped. Execution engine still running for position monitoring."
 	@echo "Review positions at http://localhost:3000"
 

@@ -35,12 +35,11 @@ from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
-StrategyName = Literal["supertrend", "dca", "cash"]
+StrategyName = Literal["supertrend", "cash"]
 RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
 
 STRATEGY_CHANNELS: dict[str, str] = {
     "supertrend": "strategy:command:supertrend-01",
-    "dca": "strategy:command:adaptive-dca-01",
 }
 
 
@@ -89,7 +88,6 @@ class StrategyOrchestrator:
             "execution-engine",
             "market-data",
             "supertrend",
-            "adaptive-dca",
         ]
 
         self._config_path: str = os.environ.get("CONFIG_PATH", "/app/config/orchestrator.yaml")
@@ -602,7 +600,6 @@ class StrategyOrchestrator:
         # 전략 서비스 ID → Redis 키 매핑
         strategy_key_map: dict[str, str] = {
             "supertrend": "strategy:status:supertrend-01",
-            "adaptive-dca": "strategy:status:adaptive-dca-01",
         }
         # 인프라 서비스: heartbeat:{service} 키 사용
         infra_services = ["execution-engine", "market-data"]

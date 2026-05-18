@@ -68,31 +68,26 @@ weights:
   # 횡보: Supertrend 30% + Cash 70%
   ranging:
     supertrend: 0.30
-    adaptive_dca: 0.00
     cash_reserve: 0.70
 
   # 상승추세: Supertrend 70% + Cash 30% (추세 따라)
   trending_up:
     supertrend: 0.70
-    adaptive_dca: 0.00
     cash_reserve: 0.30
 
   # 하락추세: Supertrend 10% + Cash 90% (방어)
   trending_down:
     supertrend: 0.10
-    adaptive_dca: 0.00
     cash_reserve: 0.90
 
   # 고변동: Supertrend 30% + Cash 70%
   volatile:
     supertrend: 0.30
-    adaptive_dca: 0.00
     cash_reserve: 0.70
 
   # 불확실: Supertrend 5% + Cash 95% (매우 방어적)
   uncertain:
     supertrend: 0.05
-    adaptive_dca: 0.00
     cash_reserve: 0.95
 
 # ── Weight Transition ─────────────────────────────────────────

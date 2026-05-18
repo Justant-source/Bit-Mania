@@ -224,31 +224,6 @@ services:
           memory: 64M
 
   # ── Strategy Services ───────────────────────────────────────
-  adaptive-dca:
-    build:
-      context: .
-      dockerfile: services/strategies/adaptive-dca/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      market-data:
-        condition: service_started
-    environment:
-      <<: *common-env
-      STRATEGY_ID: adaptive-dca-01
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.3"
-          memory: 128M
-        reservations:
-          memory: 32M
-
   supertrend:
     build:
       context: .
@@ -287,36 +262,6 @@ services:
           memory: 64M
 
   # ── Intelligence & Reporting ────────────────────────────────
-  llm-advisor:
-    build:
-      context: .
-      dockerfile: services/llm-advisor/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      <<: *common-env
-      CLAUDE_CODE_PATH: /usr/local/bin/claude
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      FRED_API_KEY: ${FRED_API_KEY:-}
-      DATABASE_URL: postgresql://cryptoengine:${DB_PASSWORD}@postgres:5432/cryptoengine
-      HOME: /home/claude
-    volumes:
-      - ./config:/app/config:ro
-      - ${HOME}/.claude/.credentials.json:/home/claude/.claude/.credentials.json:ro
-      - ${HOME}/.claude/settings.json:/home/claude/.claude/settings.json:ro
-      - llm-reports:/app/reports
-    ports:
-      - "8091:8091"
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          memory: 128M
-
   telegram-bot:
     build:
       context: .
@@ -507,6 +452,4 @@ volumes:
   prometheus-data:
     driver: local
   pg-backups:
-    driver: local
-  llm-reports:
     driver: local
