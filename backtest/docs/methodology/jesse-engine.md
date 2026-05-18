@@ -1,29 +1,31 @@
 ---
-title: Jesse Engine 가이드
+title: Jesse Engine 가이드 (아카이브)
 category: test
 related_code:
   - backtest/jesse_engine/
   - backtest/jesse_engine/config.py
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Jesse 프레임워크 버전 업데이트 시
   - 새 데이터 파이프라인 추가 시
   - 디버깅 팁 추가 시
 ---
 
-# Jesse Engine 가이드
+# Jesse Engine 가이드 (아카이브)
 
-Jesse 프레임워크 기반 백테스트 환경 설정 및 사용.
+**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #173)`을 실운영 중입니다.
+
+Jesse 프레임워크 기반 백테스트 환경 설정 및 사용 (과거 FA 및 v2-v3 전략 검증용).
 
 ## 개요
 
-Jesse Engine은 Phase 7-10 백테스트 환경으로, 자체 엔진(V1-V4)을 보증 검증하는 독립적 프레임워크입니다.
+Jesse Engine은 과거 Phase 7-10 백테스트 환경으로, 펀딩 차익거래(Funding Arbitrage) 전략들을 검증하는 독립적 프레임워크였습니다.
 
 **Jesse 프레임워크**: Python 기반 암호화폐 백테스트 라이브러리 (Jesse 1.x Research API 사용)
 
 **평가 기간**: 2023-04-01 ~ 2026-04-01 (3년 신뢰할 수 있는 실데이터)
 
-**주요 전략**:
+**과거 검증 전략** (현재 폐기):
 - FundingArbitrage (v1) — 펀딩비 기본 차익거래
 - FundingArbitrageWithMacroFilter (v2) — + FOMC/CPI 필터
 - FundingArbitrageWithFGSizer (v3) — + Fear&Greed 동적 사이징

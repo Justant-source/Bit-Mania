@@ -1,24 +1,25 @@
 ---
-title: Jesse vs 자체 엔진 성과 비교
+title: Jesse vs 자체 엔진 성과 비교 (아카이브)
 category: test
 related_code:
   - backtest/jesse_engine/
   - backtest/jesse_engine/scripts/run_fa_backtest.py
-  - cryptoengine/config/strategies/funding-arb.yaml
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - Jesse 백테스트 완료 시
   - 자체 엔진 로직 수정 시
   - 성과 비교 분석 완료 시
 ---
 
-# Jesse vs 자체 엔진 성과 비교
+# Jesse vs 자체 엔진 성과 비교 (아카이브)
+
+**상태**: 아카이브 문서. Funding Arbitrage 전략은 2026-05-18 메인넷에서 폐기되었으며, Supertrend 4h 3x long-only로 전환되었습니다.
 
 ## 개요
 
-Jesse 프레임워크 기반 FA 백테스트 결과와 기존 자체 엔진 결과의 직접 비교.
+Jesse 프레임워크 기반 FA(펀딩 차익거래) 백테스트 결과와 기존 자체 엔진 결과의 과거 비교.
 
-**조사 목표**:
+**조사 목표** (완료):
 1. Jesse와 자체 엔진 로직의 동등성 검증
 2. 데이터 갭으로 인한 성과 과장 여부 확인
 3. 메인넷 진입 전 기대값 조정

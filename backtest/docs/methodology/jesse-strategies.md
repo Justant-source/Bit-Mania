@@ -1,21 +1,23 @@
 ---
-title: Jesse 전략 목록 및 사양
+title: Jesse 전략 목록 및 사양 (아카이브)
 category: test
 related_code:
   - backtest/jesse_engine/strategies/
   - backtest/jesse_engine/scripts/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
   - 새 Jesse 전략 추가 시
   - 전략 하이퍼파라미터 변경 시
   - V5 Pass Criteria 업데이트 시
 ---
 
-# Jesse 전략 목록 및 사양
+# Jesse 전략 목록 및 사양 (아카이브)
+
+**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #173)`을 배포 중입니다.
 
 ## 개요
 
-Jesse 프레임워크 기반 백테스트에서 운영되는 전략들. 현재 **단일 심볼 BTC 정책** 준수.
+Jesse 프레임워크 기반 백테스트에서 과거 검증되던 전략들 (Funding Arbitrage v1-v3). 현재 **단일 심볼 BTC 정책** 준수하며 메인넷 전략은 추세추종 Supertrend로 전환되었습니다.
 
 ---
 
