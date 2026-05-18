@@ -2,18 +2,20 @@
 
 ## 프로젝트 개요
 
-비트코인 선물 자동매매 시스템. 펀딩비 차익거래 핵심 전략, BTC 단일 운영. Docker Compose 기반, 테스트넷 → 메인넷 소액 투자 준비.
+비트코인 선물 자동매매 시스템. Supertrend 4h 추세추종 메인 전략, BTC 단일 운영. Docker Compose 기반, 메인넷 소액 실전 운영 중.
 
 ## 현재 진행 상태
 
-- **Phase 4 진행 중**: 테스트넷 포워드 테스트 (fa80_lev5_r30, CAGR +34.87%)
-- **Phase 5 준비**: 메인넷 소액 전환 대기 ($200 USDT, `switch_to_mainnet.py`)
+- **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $200 USDT
+  - 전략: `supertrend_4h_x3_173` (Supertrend 4h Long-only, 3x, combo #173)
+  - 백테스트: CAGR +128.93% | Sharpe 1.30 | MDD -86.94% (사용자 승인)
+  - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=200`
 
 ## 핵심 원칙
 
 1. **생존 우선**: 수익보다 포지션 보호. Kill Switch 4단계 계층 유지
-2. **테스트넷 우선**: `BYBIT_TESTNET=true` 확인 후 작업
-3. **단계별 검증**: Phase 3 → 4 → 5 순서, 절대 건너뛰지 않음
+2. **메인넷 신중 운영**: Phase 5 실전 중. 코드 변경 전 포지션 확인 (Telegram `/positions`)
+3. **단계별 검증**: Phase 3 → 4 → 5 순서, 절대 건너뛰지 않음 (이미 완료)
 4. **BTC 단일 운영**: 다중 심볼 금지 (변동성/신뢰)
 5. **포지션 보호**: 배포 시에도 청산하지 않음 (service_shutdown → Redis 복구)
 
@@ -48,11 +50,11 @@
 
 ```bash
 # 핵심 명령
-docker compose up -d --build --no-deps funding-arb          # 단일 서비스 재빌드
-docker compose logs --tail=20 funding-arb | grep 복구        # 복구 확인
+docker compose up -d --build --no-deps supertrend           # 단일 서비스 재빌드
+docker compose logs --tail=20 supertrend | grep 복구         # 복구 확인
 
 # shared/ 변경 시 전체 서비스 재빌드
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 
 ## Docker 및 공유 라이브러리
@@ -69,7 +71,7 @@ COPY ../../shared /app/shared        # ✗ 실패
 ```bash
 docker compose up -d postgres redis        # 인프라만 기동
 docker compose up -d --build --no-deps <s> # 특정 서비스 재빌드
-docker compose logs -f funding-arb          # 실시간 로그
+docker compose logs -f supertrend          # 실시간 로그
 make emergency                              # 비상 청산
 ```
 
@@ -86,19 +88,30 @@ make emergency                              # 비상 청산
 
 ## 코드 작업 시 필수 규칙
 
-1. **BYBIT_TESTNET=false 금지**: Phase 5 명시적 승인 전까지 절대 변경 금지
+1. **BYBIT_TESTNET=false**: Phase 5 메인넷 실전 중 — 테스트넷 전환 시 포지션 수동 청산 후 진행
 2. **Kill Switch 약화 금지**: `shared/kill_switch.py` 로직 절대 수정 금지
-3. **레버리지 5x 제한**: `fa80_lev5_r30` 초과 금지 (CAGR +34.87%, Sharpe 3.583, MDD -4.52%)
+3. **레버리지 3x 운영**: `supertrend_4h_x3_173` (3x 하드 캡, 초과 절대 금지)
 4. **BTC 단일 운영**: 다중 심볼 거래 금지
 5. **shared/ 변경 시**: 모든 서비스 이미지 재빌드 필수
 
-## 다음 작업
+## 운영 및 모니터링
 
-→ `docs/archive/CLAUDE_history.md` 및 본 CLAUDE.md의 "현재 진행 상태" 참조
-
-**Phase 4 → 5 전환**:
+**Phase 5 일상 운영**:
 ```bash
-scripts/phase5_preflight.py              # Phase 5 진입 전 8개 항목 검증
-scripts/switch_to_mainnet.py             # 메인넷 전환 (9단계, 이중 확인)
-# 설정: EXPECTED_INITIAL_BALANCE_USD=200, STRICT_MONITORING_HOURS=24, PHASE5_MODE=true
+# 상태 확인
+docker compose ps
+docker compose logs --tail=50 supertrend
+
+# 신호/포지션 확인
+redis-cli -a "$REDIS_PASSWORD" GET "strategy:status:supertrend-01"
+
+# Kill Switch 수동 해제 (require_manual_reset 발동 시)
+redis-cli -a "$REDIS_PASSWORD" SET ce:kill_switch:active 0
+```
+
+**롤백 절차** (메인넷 → 테스트넷):
+```bash
+# 1. 먼저 Telegram /kill 또는 make emergency 로 포지션 청산
+# 2. 테스트넷 전환
+python scripts/switch_to_testnet.py
 ```

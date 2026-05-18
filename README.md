@@ -1,8 +1,8 @@
 # CryptoEngine
 
-**비트코인 선물 자동매매 시스템** — 펀딩비 차익거래, BTC 단일 운영, 델타 뉴트럴 전략
+**비트코인 선물 자동매매 시스템** — Supertrend 4h 추세추종, BTC 단일 운영, Long-only 3x
 
-> **상태**: Phase 4 (테스트넷 포워드 테스트) 진행 중 | Phase 5 (소액 실전) 준비 중
+> **상태**: Phase 5 (메인넷 소액 실전) 운영 중 | Supertrend 4h Long-only 3x, $200 USDT
 
 ---
 
@@ -29,7 +29,7 @@ cp .env.example .env
 docker compose up -d postgres redis grafana
 
 # 3. 서비스 기동
-docker compose up -d market-data execution-engine funding-arb strategy-orchestrator
+docker compose up -d market-data execution-engine supertrend strategy-orchestrator
 
 # 4. 확인
 docker compose ps

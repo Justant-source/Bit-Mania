@@ -4,7 +4,7 @@ category: structure
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/services/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 ---
 
 # 마이크로서비스 아키텍처
@@ -32,7 +32,7 @@ graph TD
     end
 
     subgraph strat["📈 Strategies"]
-        FA[funding-arb\n핵심전략]
+        ST[supertrend\n메인전략 4h 3x]
         DCA[adaptive-dca\n보조전략\n현재 비활성]
     end
 
@@ -53,9 +53,9 @@ graph TD
 
     PG & RD --> core
     MD --> RD
-    RD --> ORC & FA & DCA
+    RD --> ORC & ST & DCA
     ORC --> RD
-    FA --> RD
+    ST --> RD
     DCA --> RD
     RD --> ENG
     ENG --> PG & RD
@@ -68,7 +68,7 @@ graph TD
     LR --> PG
     BT -.->|"--profile backtest"| PG
 
-    style FA fill:#ff9800,color:#fff
+    style ST fill:#ff9800,color:#fff
     style DCA fill:#bdbdbd,color:#fff
     style ENG fill:#4caf50,color:#fff
     style ORC fill:#2196f3,color:#fff
@@ -87,7 +87,7 @@ graph TD
 - **역할**: Pub/Sub 메시징, 전략 상태 캐시, 세션 저장
 - **이미지**: redis:7
 - **포트**: 6379
-- **채널**: market:funding_rate, market:regime, strategy:command:{id}, order:request, order:update, kill_switch
+- **채널**: market:ohlcv:bybit:BTCUSDT:4h, market:regime, strategy:command:{id}, order:request, order:update, kill_switch
 - **TTL**: 전략 상태 1시간 (배포 중 포지션 유지)
 
 #### Grafana
@@ -106,8 +106,8 @@ graph TD
 - **언어**: Python 3.12
 - **입력**: Bybit WebSocket (BTCUSDT)
 - **출력**: Redis channels
-  - `market:funding_rate` — 8시간마다 펀딩비 업데이트
-  - `market:regime` — trending/ranging/volatile 분류
+  - `market:ohlcv:bybit:BTCUSDT:4h` — 4h 봉 확정 시 발행 (confirmed=true)
+  - `market:regime` — trending_up/ranging/trending_down/volatile/uncertain 분류
 - **핵심 파일**: collector.py, funding_monitor.py, regime_detector.py
 
 #### llm-advisor
@@ -121,19 +121,21 @@ graph TD
 
 ### 3. Strategy Execution
 
-#### funding-arb (핵심 전략)
-- **역할**: 펀딩비 차익거래, 델타 뉴트럴 포지션 관리
+#### supertrend (메인 전략, Phase 5 활성)
+- **역할**: Supertrend 4h 추세추종, Long-only 3x 레버리지
 - **언어**: Python 3.12
-- **입력**: 
-  - Redis `market:funding_rate` (펀딩비)
-  - Redis `strategy:command:{id}` (자본 배분)
+- **입력**:
+  - Redis `market:ohlcv:bybit:BTCUSDT:4h` (4h 확정 봉, confirmed=true)
+  - Redis `strategy:command:supertrend-01` (자본 배분)
 - **출력**: Redis `order:request` (주문 요청)
-- **파라미터**: config/strategies/funding-arb.yaml
-  - pairs: [BTCUSDT] (BTC 단일 운영)
-  - min_funding_rate: 0.0001
-  - max_position_hours: 168
-- **안전장치**: Kill Switch 4계층, 기저 스프레드 모니터링
-- **배포**: service_shutdown 시 포지션 Redis에 저장 → 재시작 후 자동 복구 (TTL 1시간)
+- **파라미터**: `config/strategies/supertrend.yaml`
+  - st_factor: 2.4, st_period: 8
+  - fast_ema: 7, slow_ema: 27, dir_ema: 230, atr_mult: 3.2
+  - leverage: 3, symbol: BTC/USDT:USDT
+- **진입/청산**: 4h 봉 마감 시만 신호 계산; EMA 교차 또는 ATR 거리 초과 시 청산
+- **안전장치**: 진입 시 exchange-native SL (entry × 0.7667), Kill Switch 4계층
+- **STRATEGY_ID**: supertrend-01
+- **배포**: service_shutdown 시 포지션 보존 (Redis 복구)
 
 #### adaptive-dca (보조 전략)
 - **역할**: Fear & Greed 지수 기반 적응형 평균단가 하락 매수
@@ -147,7 +149,7 @@ graph TD
   - allocation: 20% of total capital
 
 #### strategy-orchestrator
-- **역할**: 두 전략 간 자본 배분, 레짐 기반 가중치 조정, Kill Switch 조율
+- **역할**: 전략 자본 배분, 레짐 기반 가중치 조정, Kill Switch 조율
 - **언어**: Python 3.12
 - **입력**:
   - Redis `market:regime`
@@ -156,9 +158,11 @@ graph TD
   - Redis `strategy:command:{id}`
   - Redis `kill_switch` (긴급 청산 신호)
 - **파라미터**: config/orchestrator.yaml
-  - trending: {funding-arb: 80%, adaptive-dca: 20%}
-  - ranging: {funding-arb: 60%, adaptive-dca: 40%}
-  - volatile: {funding-arb: 40%, adaptive-dca: 60%}
+  - trending_up:   {supertrend: 70%, cash_reserve: 30%}
+  - ranging:       {supertrend: 30%, cash_reserve: 70%}
+  - trending_down: {supertrend: 10%, cash_reserve: 90%}
+  - volatile:      {supertrend: 30%, cash_reserve: 70%}
+  - uncertain:     {supertrend:  5%, cash_reserve: 95%}
 
 ---
 
@@ -247,29 +251,36 @@ graph TD
 ## Redis Pub/Sub 채널
 
 ```
-market:funding_rate
+market:ohlcv:bybit:BTCUSDT:4h
   ├─ Publisher: market-data
-  ├─ Subscribers: funding-arb, strategy-orchestrator
-  └─ Content: { "rate": 0.0001, "timestamp": "2026-05-01T..." }
+  ├─ Subscribers: supertrend (confirmed=true 봉만 처리)
+  └─ Content: { "open": 95000, "high": 96000, "low": 94000, "close": 95500,
+               "volume": 1234.5, "ts": 1716048000000, "confirmed": true }
 
 market:regime
   ├─ Publisher: market-data
   ├─ Subscribers: strategy-orchestrator, adaptive-dca
-  └─ Content: { "regime": "trending|ranging|volatile", "ts": "..." }
+  └─ Content: { "regime": "trending_up|ranging|trending_down|volatile|uncertain", "ts": "..." }
 
-strategy:command:{strategy_id}
+strategy:command:supertrend-01
   ├─ Publisher: strategy-orchestrator
-  ├─ Subscriber: funding-arb, adaptive-dca
-  └─ Content: { "action": "start|stop", "allocation": 0.8, "ts": "..." }
+  ├─ Subscriber: supertrend
+  └─ Content: { "action": "start|stop|rebalance", "capital": 60.0, "ts": "..." }
+
+strategy:status:supertrend-01
+  ├─ Publisher: supertrend (heartbeat, TTL 300s)
+  ├─ Subscriber: strategy-orchestrator (watchdog)
+  └─ Content: { "strategy_id": "supertrend-01", "is_running": true, ... }
 
 order:request
-  ├─ Publishers: funding-arb, adaptive-dca
+  ├─ Publishers: supertrend, adaptive-dca
   ├─ Subscriber: execution-engine
-  └─ Content: { "symbol": "BTCUSDT", "side": "long|short", "size": 10, ... }
+  └─ Content: { "symbol": "BTC/USDT:USDT", "side": "buy|sell", "quantity": 0.003,
+               "reduce_only": false, "stop_loss": 94000.0, ... }
 
 order:update
   ├─ Publisher: execution-engine
-  ├─ Subscribers: funding-arb, adaptive-dca, strategy-orchestrator
+  ├─ Subscribers: supertrend, adaptive-dca, strategy-orchestrator
   └─ Content: { "status": "filled|canceled", "trade_id": "...", "pnl": 50, ... }
 
 kill_switch
@@ -287,7 +298,7 @@ flowchart LR
     PG[(postgres\n헬스체크)] --> MD
     PG --> ORC
     PG --> ENG
-    PG --> FA
+    PG --> ST
     PG --> DCA
     PG --> LLM
     PG --> TG
@@ -318,7 +329,7 @@ flowchart LR
 | **grafana** | 0.5 | 512M | 128M | 모니터링 대시보드 |
 | **market-data** | 0.5 | 256M | 64M | WebSocket 수집 |
 | **execution-engine** | 0.5 | 256M | 64M | 주문 실행 |
-| **funding-arb** | 0.5 | 256M | 64M | 핵심 전략 |
+| **supertrend** | 0.5 | 256M | 64M | 메인 전략 (4h 추세추종) |
 | **strategy-orchestrator** | 0.5 | 256M | 64M | 자본 배분 |
 | **adaptive-dca** | 0.3 | 128M | 32M | 보조 전략 |
 | **telegram-bot** | 0.2 | 128M | 32M | 알림 (경량) |
@@ -356,18 +367,18 @@ PostgreSQL (5432)
 
 Redis (6379)
   ←─ (pub/sub messaging + state cache)
-  ├─ market-data (funding_rate, regime 발행)
+  ├─ market-data (ohlcv, regime 발행)
   ├─ strategy-orchestrator (명령 발행, kill_switch 발행)
   ├─ execution-engine (order 구독)
-  ├─ funding-arb (funding_rate, command 구독, order 발행)
+  ├─ supertrend (ohlcv:4h confirmed 구독, order 발행)
   ├─ adaptive-dca (regime, command 구독, order 발행)
   └─ telegram-bot (kill_switch 구독, alerts 발행)
 
 Bybit API
   ←─ (market data + order execution)
-  ├─ market-data (펀딩비, OHLCV 수집)
+  ├─ market-data (OHLCV 수집)
   ├─ execution-engine (주문 실행, 포지션 조회)
-  └─ funding-arb (현재 포지션 확인)
+  └─ supertrend (초기화 시 레버리지 설정, 백필)
 
 Grafana (3002)
   ←─ (visualization)
@@ -390,7 +401,7 @@ strategy-orchestrator (postgres, redis 필수)
 telegram-bot (postgres 필수)
 
 # 3단계: 전략 (orchestrator 이후)
-funding-arb (market-data, redis 필수)
+supertrend (market-data, redis 필수)
 adaptive-dca (market-data, redis 필수)
 
 # 4단계: 보조 서비스 (독립적)
@@ -411,118 +422,105 @@ log-retention (postgres 필수)
 
 ## 서비스 간 체결 흐름
 
-### 진입 시나리오 (funding-arb 예)
+### 진입 시나리오 (supertrend 예)
 
 ```
 1. market-data
-   → Bybit WebSocket에서 펀딩비 수집
-   → Redis `market:funding_rate` 발행
+   → Bybit WebSocket에서 4h OHLCV 수집
+   → 4h 봉 확정 시 Redis `market:ohlcv:bybit:BTCUSDT:4h` 발행 (confirmed=true)
 
 2. strategy-orchestrator
-   → `market:funding_rate` 구독
-   → 보유 자본 배분 결정 (80% funding-arb, 20% adaptive-dca)
-   → Redis `strategy:command:funding-arb` 발행 (allocation: 0.8)
+   → market:regime 기반 자본 배분 결정 (ranging 30%, trending_up 70%)
+   → Redis `strategy:command:supertrend-01` 발행 (capital: 60.0)
 
-3. funding-arb
-   → `strategy:command:funding-arb` 구독 (allocation 업데이트)
-   → `market:funding_rate` 모니터링
-   → 연속 3회 양수 펀딩비 감지
-   → 진입 주문 생성 (LONG 선물 + SHORT 스팟)
+3. supertrend
+   → `market:ohlcv:bybit:BTCUSDT:4h` 구독 (confirmed=true 봉만 처리)
+   → 300봉 버퍼에서 Supertrend / EMA(7/27/230) / ATR(14) 계산
+   → 진입 조건 확인: ST 상승 AND fast EMA > slow EMA AND price > dir EMA
+   → 진입 주문 생성 (LONG, 3x, stop_loss = entry × 0.7667)
    → Redis `order:request` 발행
 
 4. execution-engine
    → `order:request` 구독
-   → Bybit API로 주문 실행
-   → 체결 확인
+   → Bybit API로 market buy 실행
+   → 체결 확인, exchange-native SL 설정 (entry × 0.7667)
    → PostgreSQL `trades` / `positions` 저장
    → Redis `order:update` 발행 (filled)
 
-5. funding-arb
+5. supertrend
    → `order:update` 구독
-   → 포지션 상태 업데이트 (Redis)
+   → 포지션 상태 업데이트 (_has_position, _entry_price)
 ```
 
-### 청산 시나리오 (기저 극단 확산)
+### 청산 시나리오 (EMA 교차 / ATR 거리)
 
 ```
-1. execution-engine
-   → 10분마다 현재 위치 조회
-   → 기저 스프레드 계산 (현물-선물 = spot_price - futures_price)
-   → 스프레드 > 0.5% 감지
+1. supertrend
+   → 다음 confirmed 4h 봉 수신
+   → EMA(7) < EMA(27) 감지 (추세 반전)
+   → 청산 주문 발행: sell, reduce_only=True
+   → Redis `order:request` 발행
 
-2. funding-arb
-   → 자체 판정: 기저 극단 확산 (basis_divergence_risk)
-   → 청산 주문 발행
-   → Redis `order:request` (CLOSE 액션)
-
-3. execution-engine
+2. execution-engine
    → 청산 주문 실행
-   → PostgreSQL `positions` status = closed, reason = basis_divergence_risk
+   → PostgreSQL `positions` status = closed
    → Redis `order:update` (closed)
 
-4. telegram-bot
-   → PostgreSQL `positions` 변경 구독
-   → "포지션 청산: 기저 극단 확산 (PnL +$50)" 메시지 발송
+3. telegram-bot
+   → PostgreSQL positions 변경 구독
+   → "포지션 청산: ema_cross (PnL +$50)" 메시지 발송
 ```
 
-### 펀딩비 차익 진입 ~ 청산 흐름
+### Supertrend 4h 진입 ~ 청산 흐름
 
 ```mermaid
 sequenceDiagram
     participant MD as market-data
     participant ORC as orchestrator
-    participant FA as funding-arb
+    participant ST as supertrend
     participant ENG as execution-engine
     participant BYBIT as Bybit API
     participant PG as PostgreSQL
     participant TG as telegram-bot
 
-    MD->>MD: Bybit 펀딩비 수집
-    MD->>Redis: 발행: market:funding_rate
-    ORC->>Redis: 구독: market:funding_rate
-    ORC->>ORC: 자본 배분 계산<br>funding-arb: 80%
-    ORC->>Redis: 발행: strategy:command:funding-arb
+    MD->>MD: Bybit 4h 봉 확정
+    MD->>Redis: 발행: market:ohlcv:bybit:BTCUSDT:4h (confirmed=true)
+    ORC->>ORC: regime 감지 → 자본 배분
+    ORC->>Redis: 발행: strategy:command:supertrend-01 (capital: 60)
     
-    FA->>Redis: 구독: market:funding_rate
-    FA->>Redis: 구독: strategy:command:funding-arb
-    FA->>FA: 조건 검사<br>연속 3회 양수 펀딩비
-    Note over FA: 조건 만족 → 진입 결정
+    ST->>Redis: 구독: market:ohlcv:bybit:BTCUSDT:4h
+    ST->>ST: Supertrend / EMA / ATR 계산
+    Note over ST: 3중 조건 확인 → 진입 결정
     
-    FA->>Redis: 발행: order:request<br>LONG 선물 + SHORT 스팟
+    ST->>Redis: 발행: order:request<br>(buy, 3x, SL=entry×0.7667)
     ENG->>Redis: 구독: order:request
-    ENG->>BYBIT: 주문 실행<br>create_order()
-    BYBIT->>BYBIT: 주문 체결
+    ENG->>BYBIT: market buy 실행<br>exchange-native SL 설정
     BYBIT->>ENG: 체결 확인
     
     ENG->>PG: 저장: trades, positions
     ENG->>Redis: 발행: order:update (filled)
     
-    FA->>Redis: 구독: order:update
-    FA->>FA: 포지션 상태 업데이트
+    ST->>Redis: 구독: order:update
+    ST->>ST: _has_position=True, _entry_price 기록
     
-    TG->>PG: 모니터링: positions
-    TG->>TG: 포지션 진입 감지
-    TG->>TG: Telegram 메시지 생성
-    TG->>TG: 알림 발송
+    TG->>PG: 포지션 진입 감지
+    TG->>TG: Telegram 알림 발송
     
-    loop 포지션 보유 중
-        ENG->>ENG: 10분마다: 기저 스프레드 확인
-        ENG->>FA: Kill Switch 신호 체크
+    loop 다음 4h 봉마다
+        MD->>Redis: ohlcv confirmed 발행
+        ST->>ST: EMA(7) < EMA(27) 또는 ATR 거리 확인
     end
     
-    FA->>FA: 기저 극단 확산 감지<br>basis_divergence_risk
-    FA->>Redis: 발행: order:request (CLOSE)
+    ST->>ST: EMA 교차 감지 → 청산 결정
+    ST->>Redis: 발행: order:request (sell, reduce_only=True)
     
-    ENG->>Redis: 구독: order:request (CLOSE)
-    ENG->>BYBIT: 청산 주문 실행
+    ENG->>BYBIT: market sell 실행
     BYBIT->>ENG: 체결 확인
-    
-    ENG->>PG: 업데이트: positions<br>status=closed
-    ENG->>Redis: 발행: order:update (closed)
+    ENG->>PG: positions status=closed
+    ENG->>Redis: order:update (closed)
     
     TG->>PG: 포지션 종료 감지
-    TG->>TG: Telegram 메시지<br>"포지션 청산: 기저 극단 +$50"
-    TG->>TG: 알림 발송
+    TG->>TG: Telegram 알림 발송
 
     Note over TG,BYBIT: 라이브 거래 종료
 ```
@@ -531,21 +529,18 @@ sequenceDiagram
 
 ## Phase별 서비스 활성화
 
-### Phase 4 (테스트넷, 현재)
-- **활성**: postgres, redis, grafana, market-data, execution-engine, funding-arb, 
-  strategy-orchestrator, telegram-bot, dashboard, log-retention, wf-scheduler
+### Phase 5 (메인넷, 현재 운영 중 — 2026-05-18~)
+- **활성**: postgres, redis, grafana, market-data, execution-engine, supertrend,
+  strategy-orchestrator, telegram-bot, dashboard, log-retention
   (backtester: backtest/docker/docker-compose.yml --profile backtest 별도 실행)
-- **비활성**: -
-- **테스트넷**: BYBIT_TESTNET=true
-
-### Phase 5 (메인넷 진입 예정)
-- **동일 서비스 유지**
-- **메인넷 전환**: BYBIT_TESTNET=false (명시적 승인 후)
-- **추가 설정**:
-  - EXPECTED_INITIAL_BALANCE_USD=200 (초기 잔고 검증)
-  - STRICT_MONITORING_HOURS=24 (첫 24시간 강화 모니터링)
-  - PHASE5_MODE=true (절대값 Kill Switch 활성화)
+- **비활성**: adaptive-dca (weight=0.0), wf-scheduler (제거됨)
+- **메인넷**: `BYBIT_TESTNET=false`
+- **Phase 5 설정**:
+  - `PHASE5_MODE=true` (절대값 Kill Switch 활성화)
+  - `EXPECTED_INITIAL_BALANCE_USD=200` (초기 잔고 검증)
+  - `STOP_LOSS_PCT=0.2333` (entry × 0.7667 catastrophic backstop)
+  - `STOP_LOSS_MODE=per_trade` (per-strategy SL)
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-05-18

@@ -151,16 +151,7 @@ EMA(7) < EMA(27)
 
 ```
 Current Close ≤ EMA(230)
-→ 약화된 추세, 청산 고려
-```
-
-- 장기 추세 이탈 시 포지션 축소
-
-### 4. 시간 기반 강제 청산
-
-```
-보유 시간 ≥ 72시간 (3일)
-→ 강제 청산 (이익/손실 여부 무관)
+→ 방향 필터 조건 미충족 — 신규 진입 억제 (청산 조건은 EMA cross만)
 ```
 
 ---
@@ -267,29 +258,35 @@ flowchart TD
 Strategy Orchestrator가 시장 레짐에 따라 Supertrend 자본 배분을 동적 조정:
 
 ```yaml
+# config/orchestrator.yaml 실제 값
 weights:
+  trending_up:       # 상승추세 (최적)
+    supertrend: 0.70
+    cash_reserve: 0.30
+    
   ranging:           # 횡보 (낮음 수익성)
     supertrend: 0.30
     cash_reserve: 0.70
-    
-  trending_up:       # 상승추세 (최적)
-    supertrend: 0.60
-    cash_reserve: 0.40
     
   trending_down:     # 하락추세 (Long-only이므로 회피)
     supertrend: 0.10
     cash_reserve: 0.90
     
   volatile:          # 고변동성
-    supertrend: 0.40
-    cash_reserve: 0.60
+    supertrend: 0.30
+    cash_reserve: 0.70
+
+  uncertain:         # 불확실
+    supertrend: 0.05
+    cash_reserve: 0.95
 ```
 
 **해석**:
-- **Trending Up**: Supertrend 최고 가중치 60% (상승장 최적)
-- **Volatile**: 중간 가중치 40% (변동성 높아도 진입)
+- **Trending Up**: Supertrend 최고 가중치 70% (상승장 최적)
 - **Ranging**: 낮은 가중치 30% (횡보 시 수익성 낮음)
+- **Volatile**: 낮은 가중치 30% (변동성 높을 때 보수적)
 - **Trending Down**: 최소 가중치 10% (Long-only는 약세장 회피)
+- **Uncertain**: 5% (불확실 구간 최소 노출)
 
 ---
 
