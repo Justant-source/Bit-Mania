@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-18
+last_updated: 2026-05-19
 ---
 
 # Code → Docs 역인덱스
@@ -51,10 +51,11 @@ last_updated: 2026-05-18
 | 코드 | 문서 |
 |------|------|
 | `docker-compose.yml` | [structure/services.md](structure/services.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
-| `shared/db/migrations/*.sql` | [structure/README.md](structure/README.md) |
+| `shared/db/migrations/*.sql` | [structure/README.md](structure/README.md) · [architecture/data-stores.md](architecture/data-stores.md) |
 | `shared/db/migrations/012_quarterly_perp_spread.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
 | `shared/db/migrations/013_multi_exchange.sql` | [architecture/data-flow.md](architecture/data-flow.md) |
 | `shared/db/migrations/016_supertrend_signals.sql` | [structure/README.md](structure/README.md) |
+| `shared/db/migrations/017_drop_ohlcv_1m_longterm.sql` (deferred) | [architecture/data-stores.md](architecture/data-stores.md) |
 | `.env` | [policies/operations/runbook.md](policies/operations/runbook.md) |
 
 ## 대시보드
@@ -78,6 +79,14 @@ last_updated: 2026-05-18
 | `shared/exchange/**` | [structure/README.md](structure/README.md) |
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) · [structure/README.md](structure/README.md) |
 | `shared/models/**` | [structure/README.md](structure/README.md) |
+
+## 백테스트 데이터 저장소
+
+| 코드 | 문서 |
+|------|------|
+| `backtest/scripts/db/schema.sql` | [architecture/data-stores.md](architecture/data-stores.md) |
+| `backtest/scripts/data/import_parquet_to_pg.py` | [architecture/data-stores.md](architecture/data-stores.md) — Parquet→PostgreSQL 일괄 적재 (일회성, 2026-05-18) |
+| `docker-compose.yml` (backtest-postgres service) | [architecture/data-stores.md](architecture/data-stores.md) · [structure/services.md](structure/services.md) |
 
 ## 백테스트 코드
 

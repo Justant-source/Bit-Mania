@@ -82,6 +82,30 @@ services:
           cpus: "0.2"
           memory: 64M
 
+  ohlcv-retention:
+    image: postgres:16-alpine
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: cryptoengine
+      DB_USER: cryptoengine
+      DB_PASSWORD: ${DB_PASSWORD}
+      OHLCV_RETENTION_CRON: ${OHLCV_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
+      OHLCV_RETENTION_DAYS: ${OHLCV_RETENTION_DAYS:-7}            # 롤링 보존 기간 (기본 7일)
+      OHLCV_RETENTION_ON_STARTUP: ${OHLCV_RETENTION_ON_STARTUP:-false}
+    volumes:
+      - ./scripts/sh/ohlcv_retention.sh:/scripts/ohlcv_retention.sh:ro
+      - ./scripts/sh/ohlcv_retention_entrypoint.sh:/scripts/ohlcv_retention_entrypoint.sh:ro
+    entrypoint: ["sh", "/scripts/ohlcv_retention_entrypoint.sh"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 64M
+
   redis:
     image: redis:7-alpine
     restart: always

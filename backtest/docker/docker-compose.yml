@@ -64,7 +64,7 @@ services:
       # API (read-only 백테스트용)
       FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
-      - ../data:/data:ro              # OHLCV 원본 (read-only)
+      - ../../data:/data:ro           # OHLCV 원본 (read-only)
       - ../results:/result            # 백테스트 결과 출력
       - ../dashboards:/dashboards     # 대시보드 HTML + 빌드 스크립트
       - ../runtime:/app/runtime       # Jesse 런타임 캐시
@@ -111,7 +111,7 @@ services:
       WF_MIN_FUNDING: ${WF_MIN_FUNDING:-0.0001}
       FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
-      - ../data:/data:ro
+      - ../../data:/data:ro
       - ../results:/result
       - ../dashboards:/dashboards
       - ../runtime:/app/runtime
