@@ -297,9 +297,17 @@ class BaseStrategy(ABC):
         match command.action:
             case "start":
                 capital = command.allocated_capital or 0.0
-                self.allocated_capital = capital
                 if command.max_drawdown is not None:
                     self.max_drawdown = command.max_drawdown
+                if self.is_running:
+                    # Already running — rebalance only if capital changed
+                    if capital != self.allocated_capital:
+                        old = self.allocated_capital
+                        self.allocated_capital = capital
+                        await self._rebalance(capital)
+                        self._log.info("capital_rebalanced", old=old, new=capital)
+                    return
+                self.allocated_capital = capital
                 try:
                     await self.on_start(capital, command.params)
                 except Exception:
