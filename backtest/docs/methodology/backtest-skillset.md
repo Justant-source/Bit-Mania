@@ -2,8 +2,8 @@
 title: 백테스트 스킬셋 규칙 및 스크립트 인덱스
 category: test
 related_code:
-  - cryptoengine/services/jesse_engine/scripts/
-  - cryptoengine/services/jesse_engine/scripts/README.md
+  - backtest/jesse_engine/scripts/
+  - backtest/jesse_engine/scripts/README.md
 last_updated: 2026-05-11
 when_to_update: |
   - 새 백테스트 스크립트 추가 시
@@ -19,11 +19,11 @@ when_to_update: |
 
 ### 규칙 1: 기존 스킬 확인 (필수)
 
-`cryptoengine/services/jesse_engine/scripts/` 디렉토리를 먼저 확인한다.  
+`backtest/jesse_engine/scripts/` 디렉토리를 먼저 확인한다.  
 새 스크립트를 작성하기 전에 **기존에 동일하거나 유사한 스크립트가 있는지 확인**한다.
 
 ```bash
-ls -la cryptoengine/services/jesse_engine/scripts/
+ls -la backtest/jesse_engine/scripts/
 ```
 
 ### 규칙 2: 새 스크립트 위치 (필수)
@@ -31,14 +31,14 @@ ls -la cryptoengine/services/jesse_engine/scripts/
 모든 백테스트 Python 및 Shell 파일은 **다음 위치**에 생성한다:
 
 ```
-cryptoengine/services/jesse_engine/scripts/  ← 최상위 스크립트
-cryptoengine/services/jesse_engine/scripts/data/  ← 데이터 수집 스크립트
+backtest/jesse_engine/scripts/  ← 최상위 스크립트
+backtest/jesse_engine/scripts/data/  ← 데이터 수집 스크립트
 ```
 
 **올바른 예**:
 ```
-cryptoengine/services/jesse_engine/scripts/run_backtest.py  ✓
-cryptoengine/services/jesse_engine/scripts/data/download_binance_vision.py  ✓
+backtest/jesse_engine/scripts/run_backtest.py  ✓
+backtest/jesse_engine/scripts/data/download_binance_vision.py  ✓
 ```
 
 **잘못된 예**:
@@ -50,7 +50,7 @@ cryptoengine/services/my_backtest.py  ✗
 
 ### 규칙 3: README 업데이트 (필수)
 
-`cryptoengine/services/jesse_engine/scripts/README.md`를 반드시 업데이트해야 하는 시점:
+`backtest/jesse_engine/scripts/README.md`를 반드시 업데이트해야 하는 시점:
 
 - 새 스크립트 **추가** → 해당 테이블에 행 추가
 - 기존 스크립트 **수정** (파라미터·목적 변경) → 해당 행 업데이트
@@ -203,7 +203,7 @@ docker compose --profile backtest run --rm jesse_engine \
     --start 2023-04-01 --end 2026-04-01
 
 # Step 4: 전체 V5 검증 파이프라인
-./cryptoengine/services/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
+./backtest/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
 ```
 
 ---
@@ -225,7 +225,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 ```bash
 # 전체 검증 파이프라인
-./cryptoengine/services/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
+./backtest/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
 
 # 백테스트 스크립트
 docker compose --profile backtest run --rm jesse_engine \
@@ -308,7 +308,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 새로운 백테스트 스크립트 추가 시:
 
-- [ ] `cryptoengine/services/jesse_engine/scripts/` 또는 `scripts/data/` 에 파일 생성
+- [ ] `backtest/jesse_engine/scripts/` 또는 `scripts/data/` 에 파일 생성
 - [ ] 파일 docstring에 목적, 입력, 출력, 실행 명령 작성
 - [ ] 필요한 라이브러리 import (polars, pandas, asyncpg, etc.)
 - [ ] `scripts/README.md` 업데이트 (테이블에 행 추가)

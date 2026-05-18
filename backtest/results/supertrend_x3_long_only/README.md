@@ -23,12 +23,12 @@ v4→v5→v5_2→v6→v7→v8 검증 체인 완료 (2026-05). **결론: 3x archi
 | `st_combos` | 전체 2,464 combos (v4=216, v5=324, v5_2=1296, v6=225, v7=3, v8=224, v9a=64, v9b=112) |
 | `st_window_results` | window별 CAGR/MDD/Sharpe (W1~W8) |
 
-### 마이그레이션 (일회성)
+### 스키마 검증
 ```bash
 DC="docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm backtester"
-$DC python3 /app/scripts/db/migrate_all.py   # schema 적용 + v4~v7 CSV 적재
 $DC python3 /app/scripts/db/verify.py        # row counts + 통계 검증
 ```
+> 마이그레이션 스크립트(migrate_v4~v7, migrate_all)는 v4~v7 데이터 PG 적재 완료 후 삭제됨. 현재 PG가 유일한 SoT.
 
 ### 대시보드 빌드
 ```bash

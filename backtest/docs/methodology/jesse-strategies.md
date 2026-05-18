@@ -2,8 +2,8 @@
 title: Jesse 전략 목록 및 사양
 category: test
 related_code:
-  - cryptoengine/services/jesse_engine/strategies/
-  - cryptoengine/services/jesse_engine/scripts/
+  - backtest/jesse_engine/strategies/
+  - backtest/jesse_engine/scripts/
 last_updated: 2026-05-01
 when_to_update: |
   - 새 Jesse 전략 추가 시
@@ -79,7 +79,7 @@ graph TD
 
 ### Phase 9 — FundingArbitrage (v1)
 
-**파일**: `cryptoengine/services/jesse_engine/strategies/funding_arbitrage.py`
+**파일**: `backtest/jesse_engine/strategies/funding_arbitrage.py`
 
 #### 설명
 펀딩비 차익거래의 기본 구현. 델타 중립 포지션(롱 현물 + 숏 선물)으로 펀딩비 수익만 추구.
@@ -145,7 +145,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 ### Phase 10.1 — FundingArbitrageWithMacroFilter (v2)
 
-**파일**: `cryptoengine/services/jesse_engine/strategies/funding_arbitrage_v2.py`
+**파일**: `backtest/jesse_engine/strategies/funding_arbitrage_v2.py`
 
 #### 설명
 FundingArbitrage v1을 확장하여 FOMC/CPI 이벤트 주변에서 진입 억제. 기존 포지션은 유지 가능.
@@ -188,7 +188,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 ### Phase 10.2 — FundingArbitrageWithFGSizer (v3)
 
-**파일**: `cryptoengine/services/jesse_engine/strategies/funding_arbitrage_v3.py`
+**파일**: `backtest/jesse_engine/strategies/funding_arbitrage_v3.py`
 
 #### 설명
 FundingArbitrage v2를 확장하여 Fear&Greed 지수 기반 동적 포지션 사이징. 극단적 감정 상태에서 포지션 축소.
@@ -240,7 +240,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 ### Phase 7.2 — BtcBuyAndHold (Sanity Check)
 
-**파일**: `cryptoengine/services/jesse_engine/strategies/sanity_check.py`
+**파일**: `backtest/jesse_engine/strategies/sanity_check.py`
 
 #### 설명
 Jesse 엔진 정확성 검증용 도구. 가장 단순한 전략: 1회 진입 후 영구 보유.

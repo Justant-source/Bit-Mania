@@ -2,8 +2,8 @@
 title: Jesse Engine 가이드
 category: test
 related_code:
-  - cryptoengine/services/jesse_engine/
-  - cryptoengine/services/jesse_engine/config.py
+  - backtest/jesse_engine/
+  - backtest/jesse_engine/config.py
 last_updated: 2026-05-01
 when_to_update: |
   - Jesse 프레임워크 버전 업데이트 시
@@ -363,7 +363,7 @@ docker compose --profile backtest run --rm jesse_engine \
 
 ```bash
 # 이 명령이 모든 5단계를 자동 실행 (30분 ~ 2시간 소요)
-./cryptoengine/services/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
+./backtest/jesse_engine/scripts/run_full_validation.sh FundingArbitrage
 ```
 
 **실행 순서**:
@@ -586,7 +586,7 @@ docker compose --profile backtest run --rm jesse_engine \
 ## Jesse 프로젝트 디렉토리 구조
 
 ```
-cryptoengine/services/jesse_engine/
+backtest/jesse_engine/
 ├── Dockerfile                    # Jesse 환경 구성
 ├── requirements.txt              # 의존성 (polars, pandas, asyncpg, jesse 등)
 ├── config.py                     # Jesse 설정 (exchange, symbol 등)

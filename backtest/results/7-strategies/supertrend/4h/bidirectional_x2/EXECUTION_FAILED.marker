@@ -1,0 +1,32 @@
+status: FAILED
+reason: 'fast_ema_len'
+executed_at: 2026-05-17T11:14:26.339005+00:00
+traceback:
+Traceback (most recent call last):
+  File "/app/scripts/runners/run_intrabar_backtest.py", line 799, in <module>
+    verdict, metrics = run(args)
+                       ^^^^^^^^^
+  File "/app/scripts/runners/run_intrabar_backtest.py", line 735, in run
+    raw = research.backtest(
+          ^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 65, in backtest
+    return _isolated_backtest(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 155, in _isolated_backtest
+    backtest_result = simulator(
+                      ^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 503, in simulator
+    return _step_simulator(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 605, in _step_simulator
+    r.strategy._execute()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1251, in _execute
+    self._check()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1049, in _check
+    should_short = self.should_short()
+                   ^^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/SupertrendStrategy.py", line 69, in should_short
+    fast = ta.ema(self.candles, period=self.hp['fast_ema_len'],      sequential=False)
+                                       ~~~~~~~^^^^^^^^^^^^^^^^
+KeyError: 'fast_ema_len'
+

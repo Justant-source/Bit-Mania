@@ -2,8 +2,8 @@
 title: Jesse vs 자체 엔진 성과 비교
 category: test
 related_code:
-  - cryptoengine/services/jesse_engine/
-  - cryptoengine/services/jesse_engine/scripts/run_fa_backtest.py
+  - backtest/jesse_engine/
+  - backtest/jesse_engine/scripts/run_fa_backtest.py
   - cryptoengine/config/strategies/funding-arb.yaml
 last_updated: 2026-05-01
 when_to_update: |

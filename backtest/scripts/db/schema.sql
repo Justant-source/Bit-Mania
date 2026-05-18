@@ -75,3 +75,35 @@ CREATE TABLE IF NOT EXISTS st_window_results (
 );
 
 CREATE INDEX IF NOT EXISTS st_window_results_combo_idx ON st_window_results(combo_pk);
+
+-- ── OHLCV candle tables (backtest analytics — separate from Jesse's internal candles) ──
+
+CREATE TABLE IF NOT EXISTS ohlcv_1m (
+  id        BIGSERIAL PRIMARY KEY,
+  exchange  TEXT    NOT NULL DEFAULT 'Bybit Perpetual',
+  symbol    TEXT    NOT NULL DEFAULT 'BTCUSDT',
+  timestamp BIGINT  NOT NULL,   -- milliseconds since epoch (UTC)
+  open      FLOAT8  NOT NULL,
+  high      FLOAT8  NOT NULL,
+  low       FLOAT8  NOT NULL,
+  close     FLOAT8  NOT NULL,
+  volume    FLOAT8  NOT NULL,
+  UNIQUE (exchange, symbol, timestamp)
+);
+
+CREATE INDEX IF NOT EXISTS ohlcv_1m_sym_ts_idx ON ohlcv_1m (symbol, timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS ohlcv_4h (
+  id        BIGSERIAL PRIMARY KEY,
+  exchange  TEXT    NOT NULL DEFAULT 'Bybit Perpetual',
+  symbol    TEXT    NOT NULL DEFAULT 'BTCUSDT',
+  timestamp BIGINT  NOT NULL,   -- milliseconds since epoch (UTC), bar open time
+  open      FLOAT8  NOT NULL,
+  high      FLOAT8  NOT NULL,
+  low       FLOAT8  NOT NULL,
+  close     FLOAT8  NOT NULL,
+  volume    FLOAT8  NOT NULL,
+  UNIQUE (exchange, symbol, timestamp)
+);
+
+CREATE INDEX IF NOT EXISTS ohlcv_4h_sym_ts_idx ON ohlcv_4h (symbol, timestamp DESC);
