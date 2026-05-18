@@ -74,6 +74,7 @@ async function main(): Promise<void> {
   });
 
   startAlertEvaluator(pool, redis);
+  startInfraSnapshots(redis);
 
   app.listen(PORT, () => {
     console.log(`[dashboard] Listening on port ${PORT}`);
@@ -88,6 +89,55 @@ async function main(): Promise<void> {
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
+// 5-minute infra snapshot loop — stores CPU/mem/disk/Redis in Redis sorted sets
+function startInfraSnapshots(redis: Redis): void {
+  const PROM_URL = process.env.PROMETHEUS_URL || "http://prometheus:9090";
+  const EXPIRE_SEC = 26 * 3600;  // 26h TTL ensures full 24h coverage
+  const RETAIN_MS  = 24 * 3600 * 1000;
+
+  async function promQ(expr: string): Promise<number | null> {
+    try {
+      const res = await fetch(`${PROM_URL}/api/v1/query?query=${encodeURIComponent(expr)}`);
+      if (!res.ok) return null;
+      const j: any = await res.json();
+      if (j.status === "success" && j.data?.result?.length > 0)
+        return parseFloat(j.data.result[0].value[1]);
+    } catch { /* ignore */ }
+    return null;
+  }
+
+  async function snap(): Promise<void> {
+    const [cpu, mem, disk, redisMem] = await Promise.allSettled([
+      promQ('100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
+      promQ('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'),
+      promQ('(node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100'),
+      promQ('redis_memory_used_bytes / redis_memory_max_bytes * 100'),
+    ]);
+
+    const vals: Record<string, number | null> = {
+      cpu:   cpu.status   === "fulfilled" ? cpu.value   : null,
+      mem:   mem.status   === "fulfilled" ? mem.value   : null,
+      disk:  disk.status  === "fulfilled" ? disk.value  : null,
+      redis: redisMem.status === "fulfilled" ? redisMem.value : null,
+    };
+
+    const now    = Date.now();
+    const nowIso = new Date(now).toISOString();
+
+    for (const [key, val] of Object.entries(vals)) {
+      if (val === null) continue;
+      const member = JSON.stringify({ ts: nowIso, val: Math.round(val * 10) / 10 });
+      const rKey   = `ce:infra:history:${key}`;
+      await redis.zadd(rKey, now, member);
+      await redis.expire(rKey, EXPIRE_SEC);
+      await redis.zremrangebyscore(rKey, 0, now - RETAIN_MS);
+    }
+  }
+
+  setTimeout(snap, 15_000);          // first snap after 15s
+  setInterval(snap, 5 * 60_000);     // then every 5 minutes
 }
 
 main().catch((err) => {

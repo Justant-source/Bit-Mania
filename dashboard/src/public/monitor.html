@@ -146,11 +146,11 @@
     <!-- Infra Metrics -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">인프라 (Prometheus)</div>
+      <div class="section-hdr-text">인프라 (클릭 시 24시간 추이)</div>
       <div class="section-hdr-line"></div>
     </div>
     <div class="chart-card">
-      <div class="infra-grid" id="infra-grid">
+      <div class="gauge-grid" id="infra-grid">
         <div style="color:#484f58;font-size:12px">로딩 중…</div>
       </div>
     </div>
@@ -158,6 +158,19 @@
   </main>
 </div>
 
+<!-- ── 24h 추이 모달 ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="infra-modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="modal-title">24시간 추이</span>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div id="modal-chart" style="min-height:300px"></div>
+    <div id="modal-last-update" style="font-size:11px;color:#484f58;margin-top:8px;text-align:right"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="/js/monitor-dashboard.js"></script>
 </body>
 </html>

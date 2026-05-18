@@ -27,8 +27,17 @@ function darkLayout(extra) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────
-let currentDays = 30;
+let currentFrom = "2026-05-15";  // 운영 시작일 고정 기본값
 let compareData = [];
+
+function fromToDays(from) {
+  if (/^\d{4}/.test(from)) {
+    const diffMs = Date.now() - new Date(from).getTime();
+    return Math.max(1, Math.ceil(diffMs / 86400000) + 1);
+  }
+  const m = from.match(/^(\d+)/);
+  return m ? parseInt(m[1]) : 30;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -79,8 +88,9 @@ document.querySelectorAll(".day-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".day-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    currentDays = parseInt(btn.dataset.days, 10);
+    currentFrom = btn.dataset.from;
     loadCharts();
+    updateCompare();
   });
 });
 
@@ -110,7 +120,7 @@ async function updateStatus() {
     const sig = data.latest_signal;
     if (sig) {
       const signalText = sig.expected_action === "enter" ? "🟢 진입 신호" :
-                         sig.expected_action === "exit"  ? "🔴 청산 신호" : "⚪ 대기";
+                         sig.expected_action === "exit"  ? "🔴 종료 신호" : "⚪ 대기";
       setKpi("kpi-signal", signalText);
       setKpi("kpi-signal-sub", `ST${sig.st_dir > 0 ? "↑" : "↓"} 가격 ${Number(sig.price).toLocaleString()}`);
 
@@ -132,7 +142,7 @@ async function updateStatus() {
     const sbPos = document.getElementById("sb-position");
     if (sbPos) sbPos.textContent = `포지션: ${pos ? `${pos.side || "LONG"} ${fmtBTC(pos.size)}` : "없음"}`;
     const sbSig = document.getElementById("sb-signal");
-    if (sbSig && sig) sbSig.textContent = `신호: ${sig.expected_action === "enter" ? "🟢 진입" : sig.expected_action === "exit" ? "🔴 청산" : "⚪ 대기"}`;
+    if (sbSig && sig) sbSig.textContent = `신호: ${sig.expected_action === "enter" ? "🟢 진입" : sig.expected_action === "exit" ? "🔴 종료" : "⚪ 대기"}`;
     const sbNext = document.getElementById("sb-nextbar");
     if (sbNext && data.next_bar_eta_ms !== null) sbNext.textContent = `다음 봉: ${Math.ceil(data.next_bar_eta_ms / 60_000)}분 후`;
 
@@ -164,7 +174,7 @@ function renderIndicators(sig) {
 
 async function updateCompare() {
   try {
-    const data = await apiFetch(`/api/internal/supertrend/compare?from=${currentDays} days`);
+    const data = await apiFetch(`/api/internal/supertrend/compare?from=${currentFrom}`);
     compareData = data.comparison || [];
 
     const stats = data.stats || {};
@@ -194,7 +204,7 @@ function renderCompareTable(rows) {
                         r.status === "missed"  ? "cmp-miss" : "cmp-extra";
     const statusLabel = r.status === "matched" ? "✅ 매칭" :
                         r.status === "missed"  ? "❌ 놓침" : "⚠️ 초과";
-    const actionLabel = r.expected_action === "enter" ? "🟢 진입" : "🔴 청산";
+    const actionLabel = r.expected_action === "enter" ? "🟢 진입" : "🔴 종료";
     const slipColor = r.slippage_pct !== null && Math.abs(r.slippage_pct) > 0.1 ? LOSS : TEXT;
 
     return `<tr class="${r.status === "matched" ? "" : ""}">
@@ -223,9 +233,9 @@ async function renderPriceChart() {
 
   try {
     const [candlesData, expData, actData] = await Promise.all([
-      apiFetch(`/api/internal/supertrend/candles?days=${currentDays}`),
-      apiFetch(`/api/internal/supertrend/expected?from=${currentDays} days`),
-      apiFetch(`/api/internal/supertrend/actual?from=${currentDays} days`),
+      apiFetch(`/api/internal/supertrend/candles?days=${fromToDays(currentFrom)}`),
+      apiFetch(`/api/internal/supertrend/expected?from=${currentFrom}`),
+      apiFetch(`/api/internal/supertrend/actual?from=${currentFrom}`),
     ]);
 
     const candles = candlesData.candles || [];
@@ -276,9 +286,9 @@ async function renderPriceChart() {
         type: "scatter", mode: "markers",
         x: expExits.map((s) => new Date(s.bar_ts)),
         y: expExits.map((s) => parseFloat(s.price) * 1.003),
-        name: "예상 청산",
+        name: "예상 종료",
         marker: { color: EXP_CLR, symbol: "triangle-down", size: 10 },
-        hovertemplate: "예상 청산 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>",
+        hovertemplate: "예상 종료 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>",
       });
     }
 
@@ -302,9 +312,9 @@ async function renderPriceChart() {
         type: "scatter", mode: "markers",
         x: actExits.map((t) => new Date(t.exit_fill_time || t.exit_time)),
         y: actExits.map((t) => t.exit_price * 1.006),
-        name: "실제 체결(청산)",
+        name: "실제 체결(종료)",
         marker: { color: BTC_CLR, symbol: "triangle-down-open", size: 12, line: { width: 2, color: BTC_CLR } },
-        hovertemplate: "실제 청산 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>",
+        hovertemplate: "실제 종료 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>",
       });
     }
 
@@ -327,7 +337,7 @@ async function renderEquityChart() {
   if (!div) return;
 
   try {
-    const data = await apiFetch(`/api/internal/supertrend/equity?days=${currentDays}`);
+    const data = await apiFetch(`/api/internal/supertrend/equity?days=${fromToDays(currentFrom)}`);
     const exp = data.expected || [];
     const act = data.actual || [];
 

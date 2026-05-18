@@ -31,14 +31,19 @@ async function promQuery(expr: string): Promise<number | null> {
   }
 }
 
-// Per-service log freshness thresholds (seconds), from thresholds.md
+// Per-service log freshness thresholds (seconds)
 const SERVICE_THRESHOLDS: Record<string, { green: number; yellow: number }> = {
-  "market-data":         { green: 120,   yellow: 300 },
-  "execution-engine":    { green: 30,    yellow: 120 },
-  "supertrend":          { green: 120,   yellow: 300 },
-  "strategy-orchestrator": { green: 120, yellow: 300 },
-  "telegram-bot":        { green: 300,   yellow: 600 },
-  "dashboard":           { green: 60,    yellow: 180 },
+  "market-data":            { green: 3 * 3600,      yellow: 6 * 3600 },   // logs hourly-ish
+  "execution-engine":       { green: 30,             yellow: 120 },
+  "supertrend":             { green: 4 * 3600 + 600, yellow: 8 * 3600 },  // 4h bar cycle
+  "strategy-orchestrator":  { green: 3 * 3600,       yellow: 6 * 3600 },
+  "telegram-bot":           { green: 6 * 3600,       yellow: 12 * 3600 }, // event-driven
+};
+
+// Redis key fallback for services that may not write to service_logs
+const REDIS_HEARTBEAT_KEYS: Record<string, string> = {
+  "supertrend":            "strategy:status:supertrend-01",
+  "strategy-orchestrator": "orchestrator:state",
 };
 
 export function createMonitorRouter(pool: Pool, redis: Redis): Router {
@@ -153,47 +158,6 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
     }
   });
 
-  // ── GET /regime ───────────────────────────────────────────────────────
-
-  router.get("/regime", async (req: Request, res: Response) => {
-    try {
-      const days = parseInt((req.query.days as string) || "7", 10);
-
-      const [currentRes, timelineRes, weightsRaw] = await Promise.all([
-        pool.query(`
-          SELECT new_regime AS regime, detected_at, confirmed_at,
-                 transition_type, transition_duration_seconds
-          FROM regime_transitions
-          WHERE confirmed = true
-          ORDER BY confirmed_at DESC
-          LIMIT 1
-        `),
-        pool.query(`
-          SELECT new_regime AS regime, confirmed_at, previous_regime
-          FROM regime_transitions
-          WHERE confirmed = true
-            AND confirmed_at >= NOW() - $1::int * INTERVAL '1 day'
-          ORDER BY confirmed_at ASC
-        `, [days]),
-        redis.get("orchestrator:state"),
-      ]);
-
-      let weights = null;
-      if (weightsRaw) {
-        try { weights = JSON.parse(weightsRaw).weights; } catch { /* ignore */ }
-      }
-
-      return res.json({
-        current: currentRes.rows[0] || null,
-        timeline: timelineRes.rows,
-        weights,
-      });
-    } catch (err) {
-      console.error("[monitor] /regime error:", err);
-      return res.status(500).json({ error: "Failed to fetch regime data" });
-    }
-  });
-
   // ── GET /positions ────────────────────────────────────────────────────
 
   router.get("/positions", async (_req: Request, res: Response) => {
@@ -272,8 +236,36 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
         };
       });
 
-      // Add known services that have no log entries (dead)
+      // Add known services missing from service_logs; try Redis heartbeat fallback
       for (const svc of Object.keys(SERVICE_THRESHOLDS)) {
+        const existing = services.find((s: any) => s.service === svc);
+        const redisKey = REDIS_HEARTBEAT_KEYS[svc];
+
+        if ((!existing || existing.status === "red") && redisKey) {
+          try {
+            const raw = await redis.get(redisKey);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const ts = parsed.computed_at || parsed.last_tick || parsed.updated_at || parsed.timestamp || parsed.bar_ts;
+              if (ts) {
+                const staleSec = Math.round((now - new Date(ts).getTime()) / 1000);
+                const thresholds = SERVICE_THRESHOLDS[svc];
+                const status =
+                  staleSec <= thresholds.green ? "green" :
+                  staleSec <= thresholds.yellow ? "yellow" : "red";
+
+                if (!existing) {
+                  services.push({ service: svc, last_log: ts, stale_sec: staleSec, status, errors_6h: 0 });
+                } else if (status !== "red") {
+                  existing.status   = status;
+                  existing.stale_sec = staleSec;
+                  existing.last_log  = ts;
+                }
+              }
+            }
+          } catch { /* non-critical */ }
+        }
+
         if (!services.find((s: any) => s.service === svc)) {
           services.push({ service: svc, last_log: null, stale_sec: Infinity, status: "red", errors_6h: 0 });
         }
@@ -315,6 +307,28 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
     } catch (err) {
       console.error("[monitor] /infra error:", err);
       return res.status(500).json({ error: "Failed to fetch infra metrics" });
+    }
+  });
+
+  // ── GET /infra/history ───────────────────────────────────────────────
+  // Returns 24h of 5-minute snapshots stored in Redis sorted set.
+
+  router.get("/infra/history", async (req: Request, res: Response) => {
+    const key = req.query.key as string;
+    const validKeys = ["cpu", "mem", "disk", "redis"];
+    if (!validKeys.includes(key)) {
+      return res.status(400).json({ error: "key must be one of: cpu, mem, disk, redis" });
+    }
+    try {
+      const raw = await redis.zrange(`ce:infra:history:${key}`, 0, -1);
+      const history: Array<{ ts: string; val: number }> = [];
+      for (const s of raw) {
+        try { history.push(JSON.parse(s)); } catch { /* skip malformed */ }
+      }
+      return res.json({ key, history });
+    } catch (err) {
+      console.error("[monitor] /infra/history error:", err);
+      return res.status(500).json({ error: "Failed to fetch infra history" });
     }
   });
 

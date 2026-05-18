@@ -21,15 +21,9 @@
     <div style="padding:12px 14px;border-bottom:1px solid #30363d">
       <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">운영 전략</div>
       <div style="font-size:12px;font-weight:600;color:#c9d1d9;margin-bottom:6px">supertrend_4h_x3_173</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
         <span class="badge badge-blue">4H Long-only</span>
         <span class="badge badge-yellow">3× 레버리지</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
-        <div style="color:#8b949e">CAGR</div><div style="color:#3fb950;text-align:right">+128.93%</div>
-        <div style="color:#8b949e">Sharpe</div><div style="color:#c9d1d9;text-align:right">1.30</div>
-        <div style="color:#8b949e">MDD</div><div style="color:#f85149;text-align:right">-86.94%</div>
-        <div style="color:#8b949e">Phase</div><div style="color:#79c0ff;text-align:right">5 · 메인넷</div>
       </div>
     </div>
 
@@ -88,14 +82,14 @@
       <div class="kpi-card">
         <div class="kpi-label">자본 배분</div>
         <div class="kpi-value" id="kpi-capital">—</div>
-        <div class="kpi-sub" id="kpi-capital-sub">레짐 가중치</div>
+        <div class="kpi-sub" id="kpi-capital-sub">95% 현금 × 3×</div>
       </div>
     </div>
 
     <!-- Section: 가격 차트 -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">가격 차트 · 예상/실제 진입·청산</div>
+      <div class="section-hdr-text">가격 차트 · 예상/실제 진입·종료</div>
       <div class="section-hdr-line"></div>
     </div>
 
@@ -103,9 +97,9 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="card-title">BTC/USDT 4h · 예상 진입(파랑) vs 실제 체결(초록)</div>
         <div style="display:flex;gap:6px">
-          <button class="day-btn active" data-days="30">30일</button>
-          <button class="day-btn" data-days="60">60일</button>
-          <button class="day-btn" data-days="90">90일</button>
+          <button class="day-btn active" data-from="2026-05-15">운영 시작</button>
+          <button class="day-btn" data-from="30">30일</button>
+          <button class="day-btn" data-from="7">7일</button>
         </div>
       </div>
       <div class="chart-wrap" id="chart-price" style="min-height:320px">

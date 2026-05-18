@@ -44,11 +44,6 @@ function setEl(id, text) {
   if (el) el.textContent = text;
 }
 
-function setElHtml(id, html) {
-  const el = document.getElementById(id);
-  if (el) el.innerHTML = html;
-}
-
 // ── Portfolio ─────────────────────────────────────────────────────────────
 
 async function updatePortfolio() {
@@ -87,7 +82,6 @@ async function updatePortfolio() {
       mddEl.className = `kpi-value ${data.max_drawdown < -0.05 ? "neg" : "warn"}`;
     }
 
-    // Equity chart
     if (data.curve && data.curve.length > 0) {
       const div = document.getElementById("chart-equity");
       Plotly.react(div, [{
@@ -143,43 +137,6 @@ async function updateKillSwitch() {
     }
   } catch (err) {
     console.warn("[monitor] killswitch error:", err);
-  }
-}
-
-// ── Regime ────────────────────────────────────────────────────────────────
-
-const REGIME_COLORS = { ranging: "#2196F3", trending_up: "#4CAF50", trending_down: "#F44336", volatile: "#FF9800", uncertain: "#9E9E9E" };
-const REGIME_LABELS = { ranging: "횡보", trending_up: "상승추세", trending_down: "하락추세", volatile: "변동성", uncertain: "불확실" };
-
-async function updateRegime() {
-  try {
-    const data = await apiFetch("/api/internal/monitor/regime?days=7");
-    const panel = document.getElementById("regime-panel");
-    if (!panel) return;
-
-    const cur = data.current;
-    const w = data.weights || {};
-    const regimeName = cur ? (REGIME_LABELS[cur.regime] || cur.regime) : "—";
-    const regimeColor = cur ? (REGIME_COLORS[cur.regime] || "#9E9E9E") : "#9E9E9E";
-
-    const weightRows = Object.entries(w).map(([k, v]) =>
-      `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0">
-        <span style="color:#8b949e">${k}</span>
-        <span style="color:#c9d1d9">${(v * 100).toFixed(0)}%</span>
-      </div>`
-    ).join("");
-
-    panel.innerHTML = `
-      <div style="margin-bottom:10px">
-        <span style="font-size:18px;font-weight:700;color:${regimeColor}">${regimeName}</span>
-        ${cur && cur.transition_type ? `<span style="font-size:11px;color:#8b949e;margin-left:8px">${cur.transition_type}</span>` : ""}
-      </div>
-      <div style="margin-bottom:4px;font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.05em">오케스트레이터 가중치</div>
-      ${weightRows}
-      ${cur && cur.confirmed_at ? `<div style="font-size:11px;color:#8b949e;margin-top:8px">전환: ${fmtKST(cur.confirmed_at)}</div>` : ""}
-    `;
-  } catch (err) {
-    console.warn("[monitor] regime error:", err);
   }
 }
 
@@ -242,35 +199,139 @@ async function updateServiceHealth() {
   }
 }
 
-// ── Infra ─────────────────────────────────────────────────────────────────
+// ── Infra gauges (circular) ───────────────────────────────────────────────
+
+const GAUGE_STEPS = [
+  { max: 60, color: "#3fb950" },   // 녹색
+  { max: 75, color: "#e3b341" },   // 노랑
+  { max: 90, color: "#e67e22" },   // 주황
+  { max: 101, color: "#f85149" },  // 빨강
+];
+
+function gaugeColor(val) {
+  if (val === null) return "#484f58";
+  for (const s of GAUGE_STEPS) {
+    if (val < s.max) return s.color;
+  }
+  return "#f85149";
+}
+
+function svgGauge(val, label, color) {
+  const r = 36, cx = 50, cy = 52;
+  const circ = 2 * Math.PI * r;
+  const fill = val !== null ? Math.min(circ * (val / 100), circ) : 0;
+  const gap  = circ - fill;
+  const pct  = val !== null ? val.toFixed(1) : "—";
+  const c    = val !== null ? color : "#30363d";
+
+  return `<svg viewBox="0 0 100 104" width="108" height="108">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#21262d" stroke-width="8"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
+      stroke="${c}" stroke-width="8"
+      stroke-dasharray="${fill.toFixed(2)} ${gap.toFixed(2)}"
+      stroke-linecap="round"
+      transform="rotate(-90 ${cx} ${cy})"/>
+    <text x="${cx}" y="${cy - 3}" text-anchor="middle" fill="#e6edf3"
+      font-size="15" font-weight="700" font-family="'Segoe UI',system-ui">${pct}${val !== null ? "%" : ""}</text>
+    <text x="${cx}" y="${cy + 13}" text-anchor="middle" fill="#8b949e"
+      font-size="9" font-family="'Segoe UI',system-ui">${label}</text>
+  </svg>`;
+}
+
+const GAUGE_META = [
+  { key: "cpu",   label: "CPU",    apiKey: "cpu_pct" },
+  { key: "mem",   label: "메모리", apiKey: "mem_pct" },
+  { key: "disk",  label: "디스크", apiKey: "disk_pct" },
+  { key: "redis", label: "Redis",  apiKey: "redis_mem_pct" },
+];
 
 async function updateInfra() {
   try {
     const data = await apiFetch("/api/internal/monitor/infra");
-
-    const items = [
-      { label: "CPU",     val: data.cpu_pct,       status: data.cpu_status,       unit: "%" },
-      { label: "메모리",  val: data.mem_pct,       status: data.mem_status,       unit: "%" },
-      { label: "디스크",  val: data.disk_pct,      status: data.disk_status,      unit: "%" },
-      { label: "Redis",   val: data.redis_mem_pct, status: data.redis_mem_status, unit: "%" },
-    ];
-
     const grid = document.getElementById("infra-grid");
     if (!grid) return;
 
-    grid.innerHTML = items.map(({ label, val, status, unit }) =>
-      `<div class="infra-card">
-        <div class="infra-label">${label}</div>
-        <div class="infra-val ${status === "red" ? "neg" : status === "yellow" ? "warn" : "pos"}">
-          ${val !== null ? `${val}${unit}` : "—"}
-        </div>
-        ${val !== null ? `<div class="infra-bar"><div class="infra-fill ${status}" style="width:${Math.min(val, 100)}%"></div></div>` : ""}
-      </div>`
-    ).join("");
+    grid.innerHTML = GAUGE_META.map(({ key, label, apiKey }) => {
+      const val   = data[apiKey] !== undefined ? data[apiKey] : null;
+      const color = gaugeColor(val);
+      const tier  = val === null ? "—" : val < 60 ? "정상" : val < 75 ? "주의" : val < 90 ? "경고" : "위험";
+      return `<div class="gauge-card" data-key="${key}" data-label="${label}" title="클릭 시 24시간 추이">
+        ${svgGauge(val, label, color)}
+        <div class="gauge-tier" style="color:${color}">${tier}</div>
+        <div class="gauge-hint">클릭 → 24h 추이</div>
+      </div>`;
+    }).join("");
+
+    grid.querySelectorAll(".gauge-card").forEach((card) => {
+      card.addEventListener("click", () => openInfraModal(card.dataset.key, card.dataset.label));
+    });
   } catch (err) {
     console.warn("[monitor] infra error:", err);
   }
 }
+
+// ── Infra history modal ───────────────────────────────────────────────────
+
+async function openInfraModal(key, label) {
+  const overlay = document.getElementById("infra-modal");
+  const chartDiv = document.getElementById("modal-chart");
+  document.getElementById("modal-title").textContent = `${label} — 24시간 추이`;
+  overlay.style.display = "flex";
+  chartDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#484f58">로딩 중…</div>`;
+  document.getElementById("modal-last-update").textContent = "";
+
+  try {
+    const data = await apiFetch(`/api/internal/monitor/infra/history?key=${key}`);
+    const pts  = data.history || [];
+
+    if (pts.length === 0) {
+      chartDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#484f58">스냅샷 누적 중 (5분 주기 기록)</div>`;
+      return;
+    }
+
+    const ts   = pts.map((p) => new Date(p.ts));
+    const vals = pts.map((p) => p.val);
+    const color = gaugeColor(vals[vals.length - 1]);
+
+    Plotly.react(chartDiv, [{
+      type: "scatter", mode: "lines+markers",
+      x: ts, y: vals,
+      name: label,
+      line: { color, width: 2 },
+      marker: { color, size: 4 },
+      fill: "tozeroy",
+      fillcolor: color + "22",
+      hovertemplate: `%{x|%m/%d %H:%M}<br>${label}: %{y:.1f}%<extra></extra>`,
+    }], {
+      paper_bgcolor: "#161b22", plot_bgcolor: "#0d1117",
+      font: { color: "#c9d1d9", size: 11 },
+      xaxis: { gridcolor: "#21262d", color: "#c9d1d9", type: "date" },
+      yaxis: { gridcolor: "#21262d", color: "#c9d1d9", range: [0, 100], ticksuffix: "%" },
+      margin: { l: 45, r: 15, t: 15, b: 40 },
+      autosize: true,
+      shapes: [
+        { type: "line", x0: ts[0], x1: ts[ts.length - 1], y0: 60, y1: 60, line: { color: "#e3b341", width: 1, dash: "dot" } },
+        { type: "line", x0: ts[0], x1: ts[ts.length - 1], y0: 75, y1: 75, line: { color: "#e67e22", width: 1, dash: "dot" } },
+        { type: "line", x0: ts[0], x1: ts[ts.length - 1], y0: 90, y1: 90, line: { color: "#f85149", width: 1, dash: "dot" } },
+      ],
+    }, { responsive: true, displayModeBar: false });
+
+    const last = pts[pts.length - 1]?.ts;
+    if (last) {
+      document.getElementById("modal-last-update").textContent =
+        `마지막 기록: ${new Date(last).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`;
+    }
+  } catch (err) {
+    chartDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:300px;color:#484f58">로딩 실패</div>`;
+  }
+}
+
+document.getElementById("modal-close")?.addEventListener("click", () => {
+  document.getElementById("infra-modal").style.display = "none";
+});
+document.getElementById("infra-modal")?.addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.style.display = "none";
+});
 
 // ── Init & polling ────────────────────────────────────────────────────────
 
@@ -278,7 +339,6 @@ async function refreshAll() {
   await Promise.allSettled([
     updatePortfolio(),
     updateKillSwitch(),
-    updateRegime(),
     updatePositions(),
     updateServiceHealth(),
     updateInfra(),
