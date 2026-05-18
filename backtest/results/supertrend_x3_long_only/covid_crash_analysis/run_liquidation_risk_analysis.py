@@ -52,9 +52,9 @@ SYMBOL         = 'BTC-USDT'
 LEVERAGE       = 3
 BALANCE        = 10_000.0
 FEE            = 0.001
-BACKTEST_START = '2019-01-01'
+BACKTEST_START = '2018-01-01'     # 2017-08 데이터 시작 → 4.5개월 warmup 확보
 BACKTEST_END   = '2026-04-30'
-WARMUP_START   = '2018-06-01'    # dir_ema 250 × 4h 충분 (~7개월)
+WARMUP_START   = '2017-08-18'    # BTC 데이터 실제 시작일, 816개 4h봉 warmup
 
 # 3x isolated, Bybit Perp 0.5% maintenance
 MAINT_MARGIN = 0.005
@@ -62,13 +62,21 @@ LIQ_RATIO    = 1 - (1 / LEVERAGE - MAINT_MARGIN)  # = 0.6717
 
 _4H_MS = 4 * 3_600_000
 
+# 대시보드에 올라간 5개 콤보 전수 검사
 COMBOS = [
+    # 기본 파라미터 (default)
+    {'id': 'default',   'st_factor': 3.0, 'st_period': 7,
+     'fast_ema_len': 7, 'slow_ema_len': 20, 'direction_ema_len': 200, 'atr_mult': 3.0},
+    # v2 파라미터
+    {'id': 'v2',        'st_factor': 2.3, 'st_period': 8,
+     'fast_ema_len': 10, 'slow_ema_len': 20, 'direction_ema_len': 250, 'atr_mult': 3.0},
+    # v6_st 검증된 top-3 (2019-2026 ZERO_RISK 확인)
+    {'id': 'combo_164', 'st_factor': 2.4, 'st_period': 8,
+     'fast_ema_len': 7, 'slow_ema_len': 25, 'direction_ema_len': 230, 'atr_mult': 3.2},
     {'id': 'combo_173', 'st_factor': 2.4, 'st_period': 8,
      'fast_ema_len': 7, 'slow_ema_len': 27, 'direction_ema_len': 230, 'atr_mult': 3.2},
     {'id': 'combo_176', 'st_factor': 2.4, 'st_period': 8,
      'fast_ema_len': 7, 'slow_ema_len': 27, 'direction_ema_len': 250, 'atr_mult': 3.2},
-    {'id': 'combo_164', 'st_factor': 2.4, 'st_period': 8,
-     'fast_ema_len': 7, 'slow_ema_len': 25, 'direction_ema_len': 230, 'atr_mult': 3.2},
 ]
 
 

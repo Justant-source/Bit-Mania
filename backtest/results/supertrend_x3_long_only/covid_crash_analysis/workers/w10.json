@@ -1,0 +1,45 @@
+{
+  "worker_id": "w10",
+  "combo_id": "combo_176",
+  "variants": [
+    "eq_stop_75",
+    "eq_stop_80"
+  ],
+  "combo_params": {
+    "st_factor": 2.4,
+    "st_period": 8,
+    "fast_ema_len": 7,
+    "slow_ema_len": 27,
+    "direction_ema_len": 250,
+    "atr_mult": 3.2
+  },
+  "results": {
+    "eq_stop_75": {
+      "metrics": {
+        "cagr_pct": 111.52,
+        "mdd_pct": -82.93,
+        "sharpe": 1.2451,
+        "trades": 343,
+        "win_rate": 44.31,
+        "pf": 0.0,
+        "net_profit": 51040.08
+      },
+      "trades_count": 343,
+      "stop_events": []
+    },
+    "eq_stop_80": {
+      "metrics": {
+        "cagr_pct": 111.52,
+        "mdd_pct": -82.93,
+        "sharpe": 1.2451,
+        "trades": 343,
+        "win_rate": 44.31,
+        "pf": 0.0,
+        "net_profit": 51040.08
+      },
+      "trades_count": 343,
+      "stop_events": []
+    }
+  },
+  "generated_at": "2026-05-18T03:42:45Z"
+}

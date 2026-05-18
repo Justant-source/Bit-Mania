@@ -1,0 +1,44 @@
+{
+  "worker_id": "w03",
+  "combo_id": "v2",
+  "variants": [
+    "no_stop",
+    "eq_stop_70"
+  ],
+  "combo_params": {
+    "st_factor": 2.3,
+    "st_period": 8,
+    "fast_ema_len": 10,
+    "slow_ema_len": 20,
+    "direction_ema_len": 250,
+    "atr_mult": 3.0
+  },
+  "results": {
+    "no_stop": {
+      "metrics": {
+        "cagr_pct": 83.11,
+        "mdd_pct": -80.23,
+        "sharpe": 1.1004,
+        "trades": 350,
+        "win_rate": 45.14,
+        "pf": 0.0,
+        "net_profit": 15292.03
+      },
+      "trades_count": 350
+    },
+    "eq_stop_70": {
+      "metrics": {
+        "cagr_pct": 83.11,
+        "mdd_pct": -80.23,
+        "sharpe": 1.1004,
+        "trades": 350,
+        "win_rate": 45.14,
+        "pf": 0.0,
+        "net_profit": 15292.03
+      },
+      "trades_count": 350,
+      "stop_events": []
+    }
+  },
+  "generated_at": "2026-05-18T03:42:22Z"
+}

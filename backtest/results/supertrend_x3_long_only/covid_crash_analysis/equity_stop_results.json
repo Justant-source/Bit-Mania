@@ -2,165 +2,271 @@
   "leverage": 3,
   "maint_margin": 0.005,
   "liq_ratio": 0.6716666666666666,
-  "analysis_period": "2019-01-01 ~ 2026-04-30",
-  "generated_at": "2026-05-17T23:26:28Z",
+  "analysis_period": "2018-01-01 ~ 2026-04-30",
+  "generated_at": "2026-05-18T03:48:56Z",
   "results": {
-    "combo_173": {
+    "default": {
       "no_stop": {
         "metrics": {
-          "cagr_pct": 122.03,
-          "mdd_pct": -67.79,
-          "sharpe": 1.2809,
-          "trades": 324,
-          "win_rate": 45.37,
+          "cagr_pct": 79.96,
+          "mdd_pct": -73.38,
+          "sharpe": 1.0894,
+          "trades": 365,
+          "win_rate": 44.38,
           "pf": 0.0,
-          "net_profit": 34411.15
+          "net_profit": 13220.4
         },
-        "trades_count": 324
+        "trades_count": 365
       },
       "eq_stop_70": {
         "metrics": {
-          "cagr_pct": 122.03,
-          "mdd_pct": -67.79,
-          "sharpe": 1.2809,
-          "trades": 324,
-          "win_rate": 45.37,
+          "cagr_pct": 79.96,
+          "mdd_pct": -73.38,
+          "sharpe": 1.0894,
+          "trades": 365,
+          "win_rate": 44.38,
           "pf": 0.0,
-          "net_profit": 34411.15
+          "net_profit": 13220.4
         },
-        "trades_count": 324,
+        "trades_count": 365,
         "stop_events": []
       },
       "eq_stop_75": {
         "metrics": {
-          "cagr_pct": 122.03,
-          "mdd_pct": -67.79,
-          "sharpe": 1.2809,
-          "trades": 324,
-          "win_rate": 45.37,
+          "cagr_pct": 79.96,
+          "mdd_pct": -73.38,
+          "sharpe": 1.0894,
+          "trades": 365,
+          "win_rate": 44.38,
           "pf": 0.0,
-          "net_profit": 34411.15
+          "net_profit": 13220.4
         },
-        "trades_count": 324,
+        "trades_count": 365,
         "stop_events": []
       },
       "eq_stop_80": {
         "metrics": {
-          "cagr_pct": 122.03,
-          "mdd_pct": -67.79,
-          "sharpe": 1.2809,
-          "trades": 324,
-          "win_rate": 45.37,
+          "cagr_pct": 79.96,
+          "mdd_pct": -73.38,
+          "sharpe": 1.0894,
+          "trades": 365,
+          "win_rate": 44.38,
           "pf": 0.0,
-          "net_profit": 34411.15
+          "net_profit": 13220.4
         },
-        "trades_count": 324,
+        "trades_count": 365,
         "stop_events": []
       }
     },
-    "combo_176": {
+    "v2": {
       "no_stop": {
         "metrics": {
-          "cagr_pct": 121.89,
-          "mdd_pct": -69.32,
-          "sharpe": 1.2824,
-          "trades": 316,
-          "win_rate": 45.25,
+          "cagr_pct": 83.11,
+          "mdd_pct": -80.23,
+          "sharpe": 1.1004,
+          "trades": 350,
+          "win_rate": 45.14,
           "pf": 0.0,
-          "net_profit": 34248.81
+          "net_profit": 15292.03
         },
-        "trades_count": 316
+        "trades_count": 350
       },
       "eq_stop_70": {
         "metrics": {
-          "cagr_pct": 121.89,
-          "mdd_pct": -69.32,
-          "sharpe": 1.2824,
-          "trades": 316,
-          "win_rate": 45.25,
+          "cagr_pct": 83.11,
+          "mdd_pct": -80.23,
+          "sharpe": 1.1004,
+          "trades": 350,
+          "win_rate": 45.14,
           "pf": 0.0,
-          "net_profit": 34248.81
+          "net_profit": 15292.03
         },
-        "trades_count": 316,
+        "trades_count": 350,
         "stop_events": []
       },
       "eq_stop_75": {
         "metrics": {
-          "cagr_pct": 121.89,
-          "mdd_pct": -69.32,
-          "sharpe": 1.2824,
-          "trades": 316,
-          "win_rate": 45.25,
+          "cagr_pct": 83.11,
+          "mdd_pct": -80.23,
+          "sharpe": 1.1004,
+          "trades": 350,
+          "win_rate": 45.14,
           "pf": 0.0,
-          "net_profit": 34248.81
+          "net_profit": 15292.03
         },
-        "trades_count": 316,
+        "trades_count": 350,
         "stop_events": []
       },
       "eq_stop_80": {
         "metrics": {
-          "cagr_pct": 121.89,
-          "mdd_pct": -69.32,
-          "sharpe": 1.2824,
-          "trades": 316,
-          "win_rate": 45.25,
+          "cagr_pct": 83.11,
+          "mdd_pct": -80.23,
+          "sharpe": 1.1004,
+          "trades": 350,
+          "win_rate": 45.14,
           "pf": 0.0,
-          "net_profit": 34248.81
+          "net_profit": 15292.03
         },
-        "trades_count": 316,
+        "trades_count": 350,
         "stop_events": []
       }
     },
     "combo_164": {
       "no_stop": {
         "metrics": {
-          "cagr_pct": 118.0,
-          "mdd_pct": -65.45,
-          "sharpe": 1.2719,
-          "trades": 322,
-          "win_rate": 46.27,
+          "cagr_pct": 94.34,
+          "mdd_pct": -73.78,
+          "sharpe": 1.1581,
+          "trades": 352,
+          "win_rate": 42.61,
           "pf": 0.0,
-          "net_profit": 30075.52
+          "net_profit": 25167.75
         },
-        "trades_count": 322
+        "trades_count": 352
       },
       "eq_stop_70": {
         "metrics": {
-          "cagr_pct": 118.0,
-          "mdd_pct": -65.45,
-          "sharpe": 1.2719,
-          "trades": 322,
-          "win_rate": 46.27,
+          "cagr_pct": 94.34,
+          "mdd_pct": -73.78,
+          "sharpe": 1.1581,
+          "trades": 352,
+          "win_rate": 42.61,
           "pf": 0.0,
-          "net_profit": 30075.52
+          "net_profit": 25167.75
         },
-        "trades_count": 322,
+        "trades_count": 352,
         "stop_events": []
       },
       "eq_stop_75": {
         "metrics": {
-          "cagr_pct": 118.0,
-          "mdd_pct": -65.45,
-          "sharpe": 1.2719,
-          "trades": 322,
-          "win_rate": 46.27,
+          "cagr_pct": 94.34,
+          "mdd_pct": -73.78,
+          "sharpe": 1.1581,
+          "trades": 352,
+          "win_rate": 42.61,
           "pf": 0.0,
-          "net_profit": 30075.52
+          "net_profit": 25167.75
         },
-        "trades_count": 322,
+        "trades_count": 352,
         "stop_events": []
       },
       "eq_stop_80": {
         "metrics": {
-          "cagr_pct": 118.0,
-          "mdd_pct": -65.45,
-          "sharpe": 1.2719,
-          "trades": 322,
-          "win_rate": 46.27,
+          "cagr_pct": 94.34,
+          "mdd_pct": -73.78,
+          "sharpe": 1.1581,
+          "trades": 352,
+          "win_rate": 42.61,
           "pf": 0.0,
-          "net_profit": 30075.52
+          "net_profit": 25167.75
         },
-        "trades_count": 322,
+        "trades_count": 352,
+        "stop_events": []
+      }
+    },
+    "combo_173": {
+      "no_stop": {
+        "metrics": {
+          "cagr_pct": 100.56,
+          "mdd_pct": -82.18,
+          "sharpe": 1.1895,
+          "trades": 351,
+          "win_rate": 43.87,
+          "pf": 0.0,
+          "net_profit": 32735.91
+        },
+        "trades_count": 351
+      },
+      "eq_stop_70": {
+        "metrics": {
+          "cagr_pct": 100.56,
+          "mdd_pct": -82.18,
+          "sharpe": 1.1895,
+          "trades": 351,
+          "win_rate": 43.87,
+          "pf": 0.0,
+          "net_profit": 32735.91
+        },
+        "trades_count": 351,
+        "stop_events": []
+      },
+      "eq_stop_75": {
+        "metrics": {
+          "cagr_pct": 100.56,
+          "mdd_pct": -82.18,
+          "sharpe": 1.1895,
+          "trades": 351,
+          "win_rate": 43.87,
+          "pf": 0.0,
+          "net_profit": 32735.91
+        },
+        "trades_count": 351,
+        "stop_events": []
+      },
+      "eq_stop_80": {
+        "metrics": {
+          "cagr_pct": 100.56,
+          "mdd_pct": -82.18,
+          "sharpe": 1.1895,
+          "trades": 351,
+          "win_rate": 43.87,
+          "pf": 0.0,
+          "net_profit": 32735.91
+        },
+        "trades_count": 351,
+        "stop_events": []
+      }
+    },
+    "combo_176": {
+      "no_stop": {
+        "metrics": {
+          "cagr_pct": 111.52,
+          "mdd_pct": -82.93,
+          "sharpe": 1.2451,
+          "trades": 343,
+          "win_rate": 44.31,
+          "pf": 0.0,
+          "net_profit": 51040.08
+        },
+        "trades_count": 343
+      },
+      "eq_stop_70": {
+        "metrics": {
+          "cagr_pct": 111.52,
+          "mdd_pct": -82.93,
+          "sharpe": 1.2451,
+          "trades": 343,
+          "win_rate": 44.31,
+          "pf": 0.0,
+          "net_profit": 51040.08
+        },
+        "trades_count": 343,
+        "stop_events": []
+      },
+      "eq_stop_75": {
+        "metrics": {
+          "cagr_pct": 111.52,
+          "mdd_pct": -82.93,
+          "sharpe": 1.2451,
+          "trades": 343,
+          "win_rate": 44.31,
+          "pf": 0.0,
+          "net_profit": 51040.08
+        },
+        "trades_count": 343,
+        "stop_events": []
+      },
+      "eq_stop_80": {
+        "metrics": {
+          "cagr_pct": 111.52,
+          "mdd_pct": -82.93,
+          "sharpe": 1.2451,
+          "trades": 343,
+          "win_rate": 44.31,
+          "pf": 0.0,
+          "net_profit": 51040.08
+        },
+        "trades_count": 343,
         "stop_events": []
       }
     }

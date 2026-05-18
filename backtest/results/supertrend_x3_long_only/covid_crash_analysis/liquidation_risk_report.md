@@ -1,6 +1,6 @@
 # Liquidation Risk Analysis — SupertrendStrategy 4h 3x Long-Only
 
-**분석 기간**: 2019-01-01 ~ 2026-04-30
+**분석 기간**: 2018-01-01 ~ 2026-04-30
 **Liq 임계**: 진입가 대비 −67.17%  (liq_price = entry × 0.3283에서 = entry × 0.6717)
 **레버리지**: 3x isolated (Bybit Perp, maint 0.5%)
 
@@ -9,17 +9,17 @@
 
 ---
 
-## combo_173  ✅ `ZERO_RISK`
+## default  ✅ `ZERO_RISK`
 
-- 전체 long trades: 324건
+- 전체 long trades: 365건
 - Liq 위험 이벤트: **0건** (단 1건이라도 있으면 HAS_RISK)
 
 **분석 결과: 전 구간에서 liq_price에 도달한 캔들 없음 → 완전 안전**
 
 
-## combo_176  ✅ `ZERO_RISK`
+## v2  ✅ `ZERO_RISK`
 
-- 전체 long trades: 316건
+- 전체 long trades: 350건
 - Liq 위험 이벤트: **0건** (단 1건이라도 있으면 HAS_RISK)
 
 **분석 결과: 전 구간에서 liq_price에 도달한 캔들 없음 → 완전 안전**
@@ -27,7 +27,23 @@
 
 ## combo_164  ✅ `ZERO_RISK`
 
-- 전체 long trades: 322건
+- 전체 long trades: 352건
+- Liq 위험 이벤트: **0건** (단 1건이라도 있으면 HAS_RISK)
+
+**분석 결과: 전 구간에서 liq_price에 도달한 캔들 없음 → 완전 안전**
+
+
+## combo_173  ✅ `ZERO_RISK`
+
+- 전체 long trades: 351건
+- Liq 위험 이벤트: **0건** (단 1건이라도 있으면 HAS_RISK)
+
+**분석 결과: 전 구간에서 liq_price에 도달한 캔들 없음 → 완전 안전**
+
+
+## combo_176  ✅ `ZERO_RISK`
+
+- 전체 long trades: 343건
 - Liq 위험 이벤트: **0건** (단 1건이라도 있으면 HAS_RISK)
 
 **분석 결과: 전 구간에서 liq_price에 도달한 캔들 없음 → 완전 안전**
@@ -42,5 +58,5 @@
 → equity stop 안전장치 없이도 이론적으로 청산 위험이 없음.
   (단, Jesse 시뮬레이션은 bar-close 기준이므로 실거래 intrabar 위험은 별도 확인 필요)
 
-*생성: 2026-05-17T23:02:35Z*
+*생성: 2026-05-18T03:41:31Z*
 
