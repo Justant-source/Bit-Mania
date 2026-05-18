@@ -1,0 +1,42 @@
+{
+  "liq_ratio": 0.6716666666666666,
+  "leverage": 3,
+  "maint_margin": 0.005,
+  "analysis_period": "2019-01-01 ~ 2026-04-30",
+  "generated_at": "2026-05-17T23:02:35Z",
+  "results": {
+    "combo_173": {
+      "total_trades": 324,
+      "risks": [],
+      "verdict": "ZERO_RISK",
+      "metrics": {
+        "mdd_pct": -67.79034733577151,
+        "approx_cagr": 122.03,
+        "total": 324,
+        "sharpe": 1.280948764486493
+      }
+    },
+    "combo_176": {
+      "total_trades": 316,
+      "risks": [],
+      "verdict": "ZERO_RISK",
+      "metrics": {
+        "mdd_pct": -69.32037633148222,
+        "approx_cagr": 121.89,
+        "total": 316,
+        "sharpe": 1.282412328759008
+      }
+    },
+    "combo_164": {
+      "total_trades": 322,
+      "risks": [],
+      "verdict": "ZERO_RISK",
+      "metrics": {
+        "mdd_pct": -65.4543224536174,
+        "approx_cagr": 118.0,
+        "total": 322,
+        "sharpe": 1.2719264668008141
+      }
+    }
+  }
+}

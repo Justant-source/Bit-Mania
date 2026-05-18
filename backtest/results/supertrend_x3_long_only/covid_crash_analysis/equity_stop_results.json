@@ -1,0 +1,168 @@
+{
+  "leverage": 3,
+  "maint_margin": 0.005,
+  "liq_ratio": 0.6716666666666666,
+  "analysis_period": "2019-01-01 ~ 2026-04-30",
+  "generated_at": "2026-05-17T23:26:28Z",
+  "results": {
+    "combo_173": {
+      "no_stop": {
+        "metrics": {
+          "cagr_pct": 122.03,
+          "mdd_pct": -67.79,
+          "sharpe": 1.2809,
+          "trades": 324,
+          "win_rate": 45.37,
+          "pf": 0.0,
+          "net_profit": 34411.15
+        },
+        "trades_count": 324
+      },
+      "eq_stop_70": {
+        "metrics": {
+          "cagr_pct": 122.03,
+          "mdd_pct": -67.79,
+          "sharpe": 1.2809,
+          "trades": 324,
+          "win_rate": 45.37,
+          "pf": 0.0,
+          "net_profit": 34411.15
+        },
+        "trades_count": 324,
+        "stop_events": []
+      },
+      "eq_stop_75": {
+        "metrics": {
+          "cagr_pct": 122.03,
+          "mdd_pct": -67.79,
+          "sharpe": 1.2809,
+          "trades": 324,
+          "win_rate": 45.37,
+          "pf": 0.0,
+          "net_profit": 34411.15
+        },
+        "trades_count": 324,
+        "stop_events": []
+      },
+      "eq_stop_80": {
+        "metrics": {
+          "cagr_pct": 122.03,
+          "mdd_pct": -67.79,
+          "sharpe": 1.2809,
+          "trades": 324,
+          "win_rate": 45.37,
+          "pf": 0.0,
+          "net_profit": 34411.15
+        },
+        "trades_count": 324,
+        "stop_events": []
+      }
+    },
+    "combo_176": {
+      "no_stop": {
+        "metrics": {
+          "cagr_pct": 121.89,
+          "mdd_pct": -69.32,
+          "sharpe": 1.2824,
+          "trades": 316,
+          "win_rate": 45.25,
+          "pf": 0.0,
+          "net_profit": 34248.81
+        },
+        "trades_count": 316
+      },
+      "eq_stop_70": {
+        "metrics": {
+          "cagr_pct": 121.89,
+          "mdd_pct": -69.32,
+          "sharpe": 1.2824,
+          "trades": 316,
+          "win_rate": 45.25,
+          "pf": 0.0,
+          "net_profit": 34248.81
+        },
+        "trades_count": 316,
+        "stop_events": []
+      },
+      "eq_stop_75": {
+        "metrics": {
+          "cagr_pct": 121.89,
+          "mdd_pct": -69.32,
+          "sharpe": 1.2824,
+          "trades": 316,
+          "win_rate": 45.25,
+          "pf": 0.0,
+          "net_profit": 34248.81
+        },
+        "trades_count": 316,
+        "stop_events": []
+      },
+      "eq_stop_80": {
+        "metrics": {
+          "cagr_pct": 121.89,
+          "mdd_pct": -69.32,
+          "sharpe": 1.2824,
+          "trades": 316,
+          "win_rate": 45.25,
+          "pf": 0.0,
+          "net_profit": 34248.81
+        },
+        "trades_count": 316,
+        "stop_events": []
+      }
+    },
+    "combo_164": {
+      "no_stop": {
+        "metrics": {
+          "cagr_pct": 118.0,
+          "mdd_pct": -65.45,
+          "sharpe": 1.2719,
+          "trades": 322,
+          "win_rate": 46.27,
+          "pf": 0.0,
+          "net_profit": 30075.52
+        },
+        "trades_count": 322
+      },
+      "eq_stop_70": {
+        "metrics": {
+          "cagr_pct": 118.0,
+          "mdd_pct": -65.45,
+          "sharpe": 1.2719,
+          "trades": 322,
+          "win_rate": 46.27,
+          "pf": 0.0,
+          "net_profit": 30075.52
+        },
+        "trades_count": 322,
+        "stop_events": []
+      },
+      "eq_stop_75": {
+        "metrics": {
+          "cagr_pct": 118.0,
+          "mdd_pct": -65.45,
+          "sharpe": 1.2719,
+          "trades": 322,
+          "win_rate": 46.27,
+          "pf": 0.0,
+          "net_profit": 30075.52
+        },
+        "trades_count": 322,
+        "stop_events": []
+      },
+      "eq_stop_80": {
+        "metrics": {
+          "cagr_pct": 118.0,
+          "mdd_pct": -65.45,
+          "sharpe": 1.2719,
+          "trades": 322,
+          "win_rate": 46.27,
+          "pf": 0.0,
+          "net_profit": 30075.52
+        },
+        "trades_count": 322,
+        "stop_events": []
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "worker_id": "4",
+  "combo_id": "combo_176",
+  "variants": [
+    "eq_stop_75",
+    "eq_stop_80"
+  ],
+  "combo_params": {
+    "st_factor": 2.4,
+    "st_period": 8,
+    "fast_ema_len": 7,
+    "slow_ema_len": 27,
+    "direction_ema_len": 250,
+    "atr_mult": 3.2
+  },
+  "results": {
+    "eq_stop_75": {
+      "metrics": {
+        "cagr_pct": 121.89,
+        "mdd_pct": -69.32,
+        "sharpe": 1.2824,
+        "trades": 316,
+        "win_rate": 45.25,
+        "pf": 0.0,
+        "net_profit": 34248.81
+      },
+      "trades_count": 316,
+      "stop_events": []
+    },
+    "eq_stop_80": {
+      "metrics": {
+        "cagr_pct": 121.89,
+        "mdd_pct": -69.32,
+        "sharpe": 1.2824,
+        "trades": 316,
+        "win_rate": 45.25,
+        "pf": 0.0,
+        "net_profit": 34248.81
+      },
+      "trades_count": 316,
+      "stop_events": []
+    }
+  },
+  "generated_at": "2026-05-17T23:25:07Z"
+}
