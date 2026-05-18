@@ -22,7 +22,8 @@ from pathlib import Path
 import pandas as pd
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+_scripts_candidate = Path(__file__).resolve().parents[2] / 'scripts'
+sys.path.insert(0, str(_scripts_candidate if _scripts_candidate.exists() else Path('/app/scripts')))
 from _paths import DATA_ROOT, RESULTS_ROOT, DASHBOARDS_ROOT
 
 RESULT_DIR          = RESULTS_ROOT / '7-strategies'

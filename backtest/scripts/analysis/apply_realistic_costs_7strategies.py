@@ -47,11 +47,13 @@ import pandas as pd
 import numpy as np
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BT_ROOT = Path(__file__).resolve().parent.parent.parent
-RESULTS_7S = BT_ROOT / "results" / "7-strategies"
-FUNDING_8H_PARQUET = BT_ROOT / "data" / "funding" / "BTCUSDT_8h.parquet"
-OUT_DIR = BT_ROOT / "results" / "adjusted_costs_7strategies"
-OUT_JSON = OUT_DIR / "all_adjusted_results_7s.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _paths import DATA_ROOT, RESULTS_ROOT
+
+RESULTS_7S         = RESULTS_ROOT / "7-strategies"
+FUNDING_8H_PARQUET = DATA_ROOT / "funding" / "BTCUSDT_8h.parquet"
+OUT_DIR            = RESULTS_ROOT / "adjusted_costs_7strategies"
+OUT_JSON           = OUT_DIR / "all_adjusted_results_7s.json"
 
 # ── Cost model constants ───────────────────────────────────────────────────────
 FEE_DELTA_PER_SIDE = (0.055 - 0.020) / 100.0  # 0.00035 (maker→taker delta)

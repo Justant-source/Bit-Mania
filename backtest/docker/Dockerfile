@@ -1,7 +1,7 @@
 FROM salehmir/jesse:latest
 
 # Install additional dependencies for our strategies
-RUN pip install polars==0.20.31 asyncpg scikit-optimize --quiet
+RUN pip install polars==0.20.31 asyncpg scikit-optimize pyarrow psycopg2-binary plotly --quiet
 
 # Copy project structure
 WORKDIR /jesse-project
