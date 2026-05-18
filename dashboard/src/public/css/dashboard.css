@@ -39,6 +39,27 @@
 .cmp-extra    { color: var(--c-warning); font-style: italic; }
 .cmp-matched  { color: var(--c-success); }
 
+/* Table horizontal scroll — override components.css overflow:hidden */
+.tbl-wrap { overflow-x: auto; overflow-y: visible; }
+
+/* Infra gauge grid + indicator grid (replaces inline grid styles) */
+.infra-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+  text-align: center;
+}
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+}
+
+/* Give multi-column tables a minimum width so they scroll rather than squish */
+#compare-table   { min-width: 700px; }
+#positions-table { min-width: 460px; }
+#ks-table        { min-width: 440px; }
+
 /* Modal */
 .modal-overlay {
   position: fixed; inset: 0;
@@ -66,19 +87,78 @@
 }
 .modal-close:hover { border-color: var(--c-danger); color: var(--c-danger); }
 
-/* Responsive */
+/* ── Mobile (≤768px) ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
+
+  /* 사이드바 + 탑바 + 페이지 수직 스택 */
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto 1fr;
-    height: auto; min-height: 100vh;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;        /* 자식이 세로로 늘어날 수 있도록 */
   }
-  .sidebar { grid-row: auto; border-right: none; border-bottom: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; }
-  .nav { flex-direction: row; overflow-x: auto; }
-  .sidebar .brand { border-bottom: none; }
-  .strategy-card { display: none; }
+
+  /* 사이드바: 가로 헤더 형태 */
+  .sidebar {
+    grid-row: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    flex-direction: column;
+  }
+  .sidebar .brand { padding: 12px 16px; border-bottom: none; }
+  .strategy-card  { display: none; }
   .sidebar-footer { display: none; }
-  .topbar { grid-row: auto; }
-  .page { overflow: visible; }
+
+  /* 네비: 가로 스크롤 탭 */
+  .nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 4px 8px 8px;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-section { display: none; }
+  .nav-item    { flex-shrink: 0; white-space: nowrap; }
+
+  /* 탑바: 줄바꿈 허용 */
+  .topbar          { flex-wrap: wrap; gap: var(--s-2); padding: 10px var(--s-3); }
+  .topbar-actions  { margin-left: 0; flex-wrap: wrap; gap: var(--s-2); }
+  .crumbs          { font-size: 11px; }
+
+  /* 페이지 패딩 축소 */
+  .page { overflow: visible; padding: var(--s-3); gap: var(--s-3); }
+
+  /* KPI 2열 */
+  .row-6 { grid-template-columns: repeat(2, 1fr); }
+
+  /* 헬스·포지션+킬스위치 1열 */
+  .row-3 { grid-template-columns: repeat(2, 1fr); }
   .row-2 { grid-template-columns: 1fr; }
+
+  /* 인프라 게이지 + 지표 패널 2열 */
+  .infra-gauge-grid { grid-template-columns: repeat(2, 1fr); }
+  .indicator-grid   { grid-template-columns: repeat(2, 1fr); }
+
+  /* 카드 패딩 축소 */
+  .card { padding: var(--s-3); }
+  .card-head { margin-bottom: var(--s-3); }
+
+  /* 범위 선택 버튼 그룹 줄바꿈 */
+  .btn-group { flex-wrap: wrap; }
+
+  /* 모달 */
+  .modal-box { padding: var(--s-4); }
+}
+
+/* ── 소형 모바일 (≤480px) ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .row-6 { grid-template-columns: repeat(2, 1fr); }
+
+  /* KPI 숫자 크기 축소 */
+  .kpi-value { font-size: 20px; }
+  .kpi { padding: var(--s-3); }
+
+  /* 게이지 크기 축소 */
+  .gauge { width: 80px; height: 80px; }
 }
