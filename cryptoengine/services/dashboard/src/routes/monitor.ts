@@ -85,13 +85,16 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
         ? parseFloat(latest.total_equity) - parseFloat(monthStart.total_equity)
         : null;
 
-      // Running max drawdown over the period
+      // Running max drawdown over the period (window fn must be in subquery)
       const ddRes = await pool.query(`
-        SELECT MIN(
-          (total_equity - MAX(total_equity) OVER (ORDER BY snapshot_at)) / NULLIF(MAX(total_equity) OVER (ORDER BY snapshot_at), 0)
-        ) AS max_drawdown
-        FROM portfolio_snapshots
-        WHERE snapshot_at >= NOW() - $1::int * INTERVAL '1 day'
+        SELECT MIN(drawdown_pct) AS max_drawdown
+        FROM (
+          SELECT
+            (total_equity - MAX(total_equity) OVER (ORDER BY snapshot_at))
+            / NULLIF(MAX(total_equity) OVER (ORDER BY snapshot_at), 0) AS drawdown_pct
+          FROM portfolio_snapshots
+          WHERE snapshot_at >= NOW() - $1::int * INTERVAL '1 day'
+        ) sub
       `, [days]);
 
       return res.json({
@@ -158,8 +161,8 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
 
       const [currentRes, timelineRes, weightsRaw] = await Promise.all([
         pool.query(`
-          SELECT new_regime AS regime, confidence, detected_at, confirmed_at,
-                 indicators->>'adx' AS adx, indicators->>'bb_width' AS bb_width
+          SELECT new_regime AS regime, detected_at, confirmed_at,
+                 transition_type, transition_duration_seconds
           FROM regime_transitions
           WHERE confirmed = true
           ORDER BY confirmed_at DESC

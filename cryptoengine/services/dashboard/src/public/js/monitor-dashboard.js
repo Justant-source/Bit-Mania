@@ -172,11 +172,11 @@ async function updateRegime() {
     panel.innerHTML = `
       <div style="margin-bottom:10px">
         <span style="font-size:18px;font-weight:700;color:${regimeColor}">${regimeName}</span>
-        <span style="font-size:11px;color:#8b949e;margin-left:8px">신뢰도 ${cur ? (parseFloat(cur.confidence) * 100).toFixed(0) : "—"}%</span>
+        ${cur && cur.transition_type ? `<span style="font-size:11px;color:#8b949e;margin-left:8px">${cur.transition_type}</span>` : ""}
       </div>
       <div style="margin-bottom:4px;font-size:11px;color:#484f58;text-transform:uppercase;letter-spacing:.05em">오케스트레이터 가중치</div>
       ${weightRows}
-      ${cur && cur.adx ? `<div style="font-size:11px;color:#8b949e;margin-top:8px">ADX: ${parseFloat(cur.adx).toFixed(1)} · BB폭: ${cur.bb_width ? parseFloat(cur.bb_width).toFixed(3) : "—"}</div>` : ""}
+      ${cur && cur.confirmed_at ? `<div style="font-size:11px;color:#8b949e;margin-top:8px">전환: ${fmtKST(cur.confirmed_at)}</div>` : ""}
     `;
   } catch (err) {
     console.warn("[monitor] regime error:", err);
@@ -222,7 +222,7 @@ async function updateServiceHealth() {
     if (!grid) return;
 
     const staleLabel = (sec) => {
-      if (!isFinite(sec)) return "응답 없음";
+      if (sec === null || sec === undefined || !isFinite(sec)) return "응답 없음";
       if (sec < 60) return `${sec}초 전`;
       if (sec < 3600) return `${Math.round(sec / 60)}분 전`;
       return `${Math.round(sec / 3600)}시간 전`;
