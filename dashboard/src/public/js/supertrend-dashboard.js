@@ -128,6 +128,14 @@ async function updateStatus() {
       setKpi("kpi-nextbar-sub", fmtKST(data.next_bar_ts));
     }
 
+    // Sidebar live status
+    const sbPos = document.getElementById("sb-position");
+    if (sbPos) sbPos.textContent = `포지션: ${pos ? `${pos.side || "LONG"} ${fmtBTC(pos.size)}` : "없음"}`;
+    const sbSig = document.getElementById("sb-signal");
+    if (sbSig && sig) sbSig.textContent = `신호: ${sig.expected_action === "enter" ? "🟢 진입" : sig.expected_action === "exit" ? "🔴 청산" : "⚪ 대기"}`;
+    const sbNext = document.getElementById("sb-nextbar");
+    if (sbNext && data.next_bar_eta_ms !== null) sbNext.textContent = `다음 봉: ${Math.ceil(data.next_bar_eta_ms / 60_000)}분 후`;
+
     document.getElementById("last-updated").textContent =
       `갱신: ${new Date().toLocaleTimeString("ko-KR")}`;
   } catch (err) {

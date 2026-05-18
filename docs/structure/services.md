@@ -518,8 +518,9 @@ sequenceDiagram
 ## Phase별 서비스 활성화
 
 ### Phase 5 (메인넷, 현재 운영 중 — 2026-05-18~)
-- **활성**: postgres, redis, grafana, market-data, execution-engine, supertrend,
-  strategy-orchestrator, telegram-bot, dashboard, log-retention
+- **활성**: postgres, redis, market-data, execution-engine, supertrend,
+  strategy-orchestrator, telegram-bot, log-retention (cryptoengine 스택);
+  dashboard (standalone: `cd dashboard && docker compose up -d`)
   (backtester: backtest/docker/docker-compose.yml --profile backtest 별도 실행)
 - **비활성**: adaptive-dca (weight=0.0), wf-scheduler (제거됨)
 - **메인넷**: `BYBIT_TESTNET=false`

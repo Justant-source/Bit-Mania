@@ -290,36 +290,6 @@ services:
         reservations:
           memory: 32M
 
-  # ── Dashboard & Monitoring ──────────────────────────────────
-  dashboard:
-    build:
-      context: .
-      dockerfile: services/dashboard/Dockerfile
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      <<: *common-env
-      DASHBOARD_INTERNAL_PORT: ${DASHBOARD_INTERNAL_PORT:-3000}
-      DASHBOARD_PUBLIC_PORT: ${DASHBOARD_PUBLIC_PORT:-3001}
-      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-}
-      PROMETHEUS_URL: http://prometheus:9090
-    ports:
-      - "${DASHBOARD_INTERNAL_PORT:-3000}:3000"
-      - "${DASHBOARD_PUBLIC_PORT:-3001}:3001"
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 64M
-
   # ── Observability Stack ─────────────────────────────────────
   node-exporter:
     image: prom/node-exporter:v1.8.0

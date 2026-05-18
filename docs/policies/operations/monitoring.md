@@ -2,23 +2,24 @@
 title: 모니터링 및 알림 설정
 category: policies/operations
 related_code:
-  - cryptoengine/services/dashboard/
+  - dashboard/src/
+  - dashboard/docker-compose.yml
   - cryptoengine/services/telegram-bot/
   - cryptoengine/config/orchestrator.yaml
   - cryptoengine/config/prometheus/
-last_updated: 2026-05-01
+last_updated: 2026-05-18
 when_to_update: |
-  - Grafana 대시보드 추가/변경 시
+  - 대시보드 페이지/라우트 변경 시
   - Telegram 알림 형식/임계값 변경 시
   - Prometheus 메트릭 추가 시
-  - AlertDispatcher 규칙 변경 시
+  - alertEvaluator.ts 규칙 변경 시
 ---
 
 # 모니터링 및 알림 설정
 
 세 가지 계층으로 구성된 통합 모니터링 시스템:
-1. **Grafana**: 시계열 시각화 대시보드 (포트 3002)
-2. **Telegram**: AlertDispatcher 기반 실시간 알림 + 상호작용
+1. **Bit-Mania 대시보드**: 전략 비교 + 시스템 모니터 (포트 3000, standalone Docker)
+2. **Telegram**: alertEvaluator 기반 실시간 알림 + 상호작용
 3. **Prometheus**: 인프라 메트릭 수집 (30일 보존)
 
 ```mermaid
@@ -36,9 +37,7 @@ graph TD
     end
 
     subgraph visualization["시각화"]
-        GF["Grafana :3002\nadmin / ***REMOVED***"]
-        DB_INT["내부 대시보드\n:3000 (상세)"]
-        DB_PUB["공개 대시보드\n:3001 (요약)"]
+        DB["Bit-Mania 대시보드 :3000\n전략 비교 + 시스템 모니터"]
     end
 
     subgraph alerts["알림"]
@@ -48,102 +47,56 @@ graph TD
     SVC -->|"structlog JSON"| PROM
     SYS --> NE --> PROM
     RD --> RE --> PROM
-    PROM --> GF
-    SVC --> DB_INT
-    SVC --> DB_PUB
-    GF -->|"임계값 초과"| TG
+    PROM --> DB
+    SVC --> DB
+    DB -->|"alertEvaluator 60s"| TG
     SVC -->|"30분 하트비트"| TG
-    SVC -->|"08:00/20:00 UTC"| TG
 
     style TG fill:#2196f3,color:#fff
-    style GF fill:#ff9800,color:#fff
+    style DB fill:#1f6feb,color:#fff
 ```
 
 ---
 
-## Grafana 대시보드
+## Bit-Mania 대시보드
+
+### 기동
+
+```bash
+# standalone compose (cryptoengine 메인 스택과 별도)
+cd /home/justant/Data/Bit-Mania/dashboard
+docker compose up -d --build
+
+# 로그 확인
+docker compose logs -f dashboard
+```
 
 ### 접속
 
 ```
-URL: http://localhost:3002
-사용자: admin
-비밀번호: ***REMOVED***
+URL: http://localhost:3000
 ```
 
-### 주요 패널
+### 페이지
 
-#### 1. Portfolio P&L (누적 손익)
+| 경로 | 설명 |
+|------|------|
+| `/` 또는 `/supertrend` | **전략 비교** — 예상 vs 실제 거래 메인 화면 |
+| `/monitor` | **시스템 모니터** — 자산 곡선, Kill Switch, 서비스 헬스, 인프라 |
 
-- **표시**: 시간별 누적 손익 그래프
-- **목표**: +34.87% (연환산 기준 fa80_lev5_r30)
-- **경고**: 음수 추세 → Kill Switch 감지
+### 전략 비교 페이지 주요 정보
 
-#### 2. Daily Drawdown % (일일 낙폭)
+- **KPI**: 현재 포지션 / 신호 상태 / 다음 4h봉 ETA / 체결 일치율 / 평균 슬리피지 / 자본배분
+- **가격 차트**: BTC 4h 캔들 + 예상 진입(파랑 ▲) / 예상 청산(파랑 ▼) vs 실제 체결(초록/오렌지)
+- **자산 곡선**: 백테스트 기준 예상 자산 (파랑 점선) vs 실제 메인넷 자산 (초록 실선)
+- **거래 비교 테이블**: bar_ts별 예상(시각/가격/수량) ↔ 실제(체결가/수량/슬리피지/타이밍) + matched/missed/extra 배지
+- **지표 패널**: ST 방향, EMA 7/27/230, ATR(14) 최신값
 
-- **표시**: 일일 손실률 (%)
-- **정상 범위**: -2% ~ +5%
-- **경고 임계값**: -5% (Level 2 Kill Switch)
-- **기준선**: 0% (손익분기점)
+### alertEvaluator (Grafana 알림 대체)
 
-#### 3. Strategy Status (전략 상태)
+`dashboard/src/alertEvaluator.ts` — 60초마다 9개 규칙을 직접 평가, Redis `ce:alerts:grafana` 채널로 발행 → telegram-bot 수신.
 
-- **funding-arb**: ON/OFF
-- **adaptive-dca**: ON/OFF
-- **Color**: 
-  - 🟢 Green = 운영 중
-  - 🔴 Red = 정지됨 (Kill Switch)
-
-#### 4. Kill Switch Events (발동 이력)
-
-- **표시**: Kill Switch 발동 타임라인
-- **정보**: 발동 시간, 레벨, 사유
-- **목표**: 7일 동안 0회
-
-#### 5. Margin Ratio (마진 안전성)
-
-- **표시**: 
-  - Min 마진비율 (최저값)
-  - Avg 마진비율
-  - Current 마진비율
-- **정상**: > 10x
-- **경고**: 5x ~ 10x
-- **위험**: < 5x
-- **기준선**: 36.5x (fa80_lev5_r30 6년 최악 시나리오)
-
-#### 6. API Response Time (거래소 API 레이턴시)
-
-- **표시**: ms 단위 응답 시간
-- **정상**: < 200ms
-- **경고**: > 1000ms
-- **위험**: API 타임아웃 (30초)
-
-#### 7. Open Orders (미체결 주문)
-
-- **표시**: 현재 미체결 주문 수
-- **정상**: < 10개
-- **경고**: > 30개
-
-#### 8. Funding Rate History (펀딩레이트 추이)
-
-- **표시**: 과거 펀딩레이트 (%)
-- **진입 기준**: > 0.0001 (0.01% per 8h)
-- **청산 기준**: < 0 (음수 반전)
-
-### 대시보드 커스터마이징
-
-자주 보는 패널을 상단에 배치:
-
-1. **Best Practices**:
-   - Portfolio P&L (맨 위)
-   - Daily Drawdown % (2번째)
-   - Margin Ratio (3번째)
-   - Kill Switch Events (4번째)
-
-2. **새 패널 추가**:
-   - Grafana UI → [+] → New Panel
-   - PromQL 쿼리 입력
-   - 저장
+평가 규칙: 펀딩레이트 스파이크, 자산 급락 >3%/15분, OHLCV 갭 >10분, Kill Switch 발동, Max Drawdown >10%, CPU/메모리/디스크/Redis 임계값.
 
 ---
 
@@ -315,28 +268,28 @@ rate(orders_pending_total[5m])
 | 지표 | 정상 범위 | 경고 임계값 | 확인 방법 |
 |------|-----------|------------|---------|
 | Portfolio Equity | > 초기값 | < 95% 초기값 | `/status` |
-| Daily P&L | -2% ~ +5% | < -3% | Grafana |
-| Margin Ratio | > 10x | 5x ~ 10x | Grafana |
-| API Latency | < 200ms | > 1000ms | Grafana |
-| Kill Switch Events | 0회 | 1회 이상 | Grafana |
+| Daily P&L | -2% ~ +5% | < -3% | 대시보드 /monitor |
+| Margin Ratio | > 10x | 5x ~ 10x | 대시보드 /monitor |
+| API Latency | < 200ms | > 1000ms | 대시보드 /monitor |
+| Kill Switch Events | 0회 | 1회 이상 | 대시보드 /monitor |
 | Open Positions | ≤ 5개 | > 5개 | `/positions` |
 
 ### 주간 체크 지표
 
 | 지표 | 정상 범위 | 확인 방법 |
 |------|-----------|---------|
-| Weekly P&L | +1% ~ +3% | Grafana |
-| Sharpe (7일) | > 1.0 | Grafana |
+| Weekly P&L | +1% ~ +3% | 대시보드 /monitor |
+| Sharpe (7일) | > 1.0 | 대시보드 /monitor |
 | Trade Count | ≥ 3회 | Telegram 통계 |
-| API Success Rate | > 99% | Grafana |
+| API Success Rate | > 99% | 대시보드 /monitor |
 
 ### 월간 체크 지표
 
 | 지표 | 정상 범위 | 확인 방법 |
 |------|-----------|---------|
-| Monthly CAGR | +2.9% (annualized +34.87%) | Grafana |
-| Sharpe (30일) | > 2.0 | 계산 필요 |
-| Max Drawdown | < -5% | Grafana |
+| Monthly CAGR | +2.9% (annualized +34.87%) | 대시보드 /monitor |
+| Sharpe (30일) | > 2.0 | 대시보드 /monitor |
+| Max Drawdown | < -5% | 대시보드 /monitor |
 | Win Rate | > 60% | Telegram 통계 |
 
 ---
@@ -428,9 +381,8 @@ docker stats --no-stream
 ```markdown
 매일 아침 확인:
 - [ ] `/status` 실행 (Equity 확인)
-- [ ] Grafana Portfolio P&L (음수 추세 있나?)
-- [ ] Grafana Kill Switch Events (발동 있었나?)
-- [ ] Grafana Margin Ratio (> 10x?)
+- [ ] 대시보드 Portfolio P&L http://localhost:3000/monitor (음수 추세 있나?)
+- [ ] 대시보드 Kill Switch Events (발동 있었나?)
 - [ ] Telegram 알림 수신 (밤새 장애 없었나?)
 
 필요 시 조치:

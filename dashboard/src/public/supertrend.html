@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Supertrend 대시보드 — CryptoEngine</title>
+<title>전략 비교 — Bit-Mania</title>
 <link rel="stylesheet" href="/css/dashboard.css">
-<!-- Plotly loaded from CDN matching 7-strategies dashboard -->
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 </head>
 <body>
@@ -14,21 +13,44 @@
   <!-- ── Sidebar ─────────────────────────────────────────────────── -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="logo">⚡ CryptoEngine</div>
-      <div class="sub">Supertrend 4h · 3x · Long-only</div>
+      <div class="logo">Bit-Mania</div>
+      <div class="sub">BTC 선물 자동매매</div>
     </div>
+
+    <!-- Strategy summary card -->
+    <div style="padding:12px 14px;border-bottom:1px solid #30363d">
+      <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">운영 전략</div>
+      <div style="font-size:12px;font-weight:600;color:#c9d1d9;margin-bottom:6px">supertrend_4h_x3_173</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="badge badge-blue">4H Long-only</span>
+        <span class="badge badge-yellow">3× 레버리지</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px">
+        <div style="color:#8b949e">CAGR</div><div style="color:#3fb950;text-align:right">+128.93%</div>
+        <div style="color:#8b949e">Sharpe</div><div style="color:#c9d1d9;text-align:right">1.30</div>
+        <div style="color:#8b949e">MDD</div><div style="color:#f85149;text-align:right">-86.94%</div>
+        <div style="color:#8b949e">Phase</div><div style="color:#79c0ff;text-align:right">5 · 메인넷</div>
+      </div>
+    </div>
+
+    <!-- Live status (filled by JS) -->
+    <div style="padding:12px 14px;border-bottom:1px solid #30363d">
+      <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">실시간 상태</div>
+      <div style="font-size:12px;color:#c9d1d9;margin-bottom:4px" id="sb-position">포지션: —</div>
+      <div style="font-size:12px;color:#c9d1d9;margin-bottom:4px" id="sb-signal">신호: —</div>
+      <div style="font-size:11px;color:#8b949e" id="sb-nextbar">다음 봉: —</div>
+    </div>
+
     <nav class="nav">
       <a class="nav-item active" href="/supertrend">
         <span class="nav-icon">📊</span> 전략 비교
       </a>
       <a class="nav-item" href="/monitor">
-        <span class="nav-icon">🖥️</span> 시스템 모니터
-      </a>
-      <a class="nav-item" href="/regime">
-        <span class="nav-icon">🌐</span> 레짐 분석
+        <span class="nav-icon">🖥</span> 시스템 모니터
       </a>
     </nav>
-    <div style="padding:10px 14px; border-top:1px solid #30363d; font-size:11px; color:#484f58;" id="last-updated">
+
+    <div style="padding:10px 14px;border-top:1px solid #30363d;font-size:11px;color:#484f58;margin-top:auto" id="last-updated">
       갱신 중…
     </div>
   </aside>
@@ -66,11 +88,11 @@
       <div class="kpi-card">
         <div class="kpi-label">자본 배분</div>
         <div class="kpi-value" id="kpi-capital">—</div>
-        <div class="kpi-sub" id="kpi-capital-sub">레짐 30%</div>
+        <div class="kpi-sub" id="kpi-capital-sub">레짐 가중치</div>
       </div>
     </div>
 
-    <!-- Section: 가격 차트 + 진입·청산 마커 -->
+    <!-- Section: 가격 차트 -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
       <div class="section-hdr-text">가격 차트 · 예상/실제 진입·청산</div>
@@ -91,7 +113,7 @@
       </div>
     </div>
 
-    <!-- Section: 예상 vs 실제 자산 곡선 -->
+    <!-- Section: 자산 곡선 -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
       <div class="section-hdr-text">자산 곡선 비교</div>
@@ -99,13 +121,13 @@
     </div>
 
     <div class="chart-card">
-      <div class="card-title">예상 자산 (파랑) vs 실제 자산 (초록)</div>
+      <div class="card-title">예상 자산 (파랑 점선) vs 실제 자산 (초록 실선)</div>
       <div class="chart-wrap" id="chart-equity" style="min-height:220px">
         <div class="empty-state">데이터 로딩 중…</div>
       </div>
     </div>
 
-    <!-- Section: 예상 vs 실제 거래 비교 테이블 -->
+    <!-- Section: 거래 비교 테이블 -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
       <div class="section-hdr-text">예상 vs 실제 거래 비교</div>
@@ -115,10 +137,10 @@
     <div class="chart-card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div class="card-title" id="compare-title">비교 데이터 로딩 중…</div>
-        <div style="font-size:11px;color:#8b949e">
-          <span class="badge badge-blue">매칭</span>
-          <span class="badge badge-red" style="margin-left:4px">놓침</span>
-          <span class="badge badge-yellow" style="margin-left:4px">초과</span>
+        <div style="display:flex;gap:4px;font-size:11px">
+          <span class="badge badge-blue">✅ 매칭</span>
+          <span class="badge badge-red">❌ 놓침</span>
+          <span class="badge badge-yellow">⚠️ 초과</span>
         </div>
       </div>
       <div class="tbl-wrap">
@@ -143,7 +165,7 @@
       </div>
     </div>
 
-    <!-- Section: 현재 지표 상태 -->
+    <!-- Section: 지표 상태 -->
     <div class="section-hdr">
       <div class="section-hdr-line"></div>
       <div class="section-hdr-text">최근 봉 지표 상태</div>

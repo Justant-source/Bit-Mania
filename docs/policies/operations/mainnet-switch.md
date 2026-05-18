@@ -330,16 +330,16 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
   "SELECT SUM(pnl) as total_pnl, COUNT(*) as trade_count FROM trades WHERE created_at > NOW() - INTERVAL '1 hour';"
 ```
 
-### Grafana 모니터링
+### 대시보드 모니터링
 
-http://localhost:3002 에서 실시간 확인:
+http://localhost:3000 에서 실시간 확인 (`cd dashboard && docker compose up -d`):
 
 ```
 [Phase 5 강화 모니터링]
-- Daily P&L (목표: +$1-3)
-- Margin Ratio (목표: > 10x)
-- Kill Switch Events (목표: 0)
-- API Latency (목표: < 200ms)
+- Daily P&L (목표: +$1-3)       → /monitor
+- Kill Switch Events (목표: 0)  → /monitor
+- 예상 vs 실제 체결 일치율       → /supertrend
+- 슬리피지 / 타이밍 랙           → /supertrend
 ```
 
 ### Telegram 알림

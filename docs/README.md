@@ -37,7 +37,7 @@ last_updated: 2026-05-18
 - 실행: `docker compose --profile backtest run --rm backtester python /app/scripts/<script>.py`
 
 ### 모니터링
-- Grafana 대시보드: http://localhost:3002 (admin / ***REMOVED***)
+- 대시보드: http://localhost:3000 (`cd dashboard && docker compose up -d --build`)
 - Telegram 알림: /status, /positions, /kill, /resume 등
 - 상세 가이드: [policies/operations/monitoring.md](policies/operations/monitoring.md)
 
@@ -133,7 +133,7 @@ docs/
 │   │
 │   ├── operations/
 │   │   ├── runbook.md — 기본 명령, 시작/중지, 장애 대응
-│   │   ├── monitoring.md — Grafana, Telegram, 모니터링 지표
+│   │   ├── monitoring.md — 대시보드(:3000), Telegram, 모니터링 지표
 │   │   ├── pubsub-channels.md — Redis Pub/Sub 채널 카탈로그
 │   │   ├── mainnet-switch.md — 메인넷 전환 9단계 + Phase 5 특수 설정
 │   │   ├── deployment-procedure.md — Docker 배포, 빌드 절차

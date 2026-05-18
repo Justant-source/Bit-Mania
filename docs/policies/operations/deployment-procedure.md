@@ -178,8 +178,8 @@ docker compose logs --tail=20 strategy-orchestrator | grep -E "ERROR|ready"
 # 모든 서비스 정지
 docker compose down
 
-# PostgreSQL + Redis + Grafana 시작 (앱 서비스 제외)
-docker compose up -d postgres redis grafana
+# PostgreSQL + Redis 시작 (앱 서비스 제외)
+docker compose up -d postgres redis
 
 # 헬스 체크 (3-5분 대기)
 sleep 10

@@ -52,6 +52,8 @@ last_updated: 2026-05-18
 
 | 코드 | 문서 |
 |------|------|
+| `dashboard/src/**` (standalone FE+BE) | [policies/operations/monitoring.md](policies/operations/monitoring.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
+| `dashboard/docker-compose.yml` | [policies/operations/monitoring.md](policies/operations/monitoring.md) |
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 
 ## 공유 라이브러리

@@ -1,27 +1,12 @@
-/**
- * CryptoEngine Dashboard Server
- *
- * Runs two Express servers:
- * - Port 3000 (internal): Full access to positions, PnL, strategies, system health
- * - Port 3001 (public):   Delayed performance data (10-minute delay)
- */
-
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
 import { Pool } from "pg";
 import Redis from "ioredis";
 import { createInternalRouter } from "./routes/internal";
-import { createPublicRouter } from "./routes/public";
-import { createRegimeRouter } from "./routes/regime";
-import { createGrafanaWebhookRouter } from "./routes/grafana_webhook";
 import { createSupertrendRouter } from "./routes/supertrend";
 import { createMonitorRouter } from "./routes/monitor";
 import { startAlertEvaluator } from "./alertEvaluator";
-
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
 
 const DB_CONFIG = {
   host: process.env.DB_HOST || "localhost",
@@ -35,14 +20,8 @@ const DB_CONFIG = {
 };
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
-const INTERNAL_PORT = parseInt(process.env.DASHBOARD_INTERNAL_PORT || "3000", 10);
-const PUBLIC_PORT = parseInt(process.env.DASHBOARD_PUBLIC_PORT || "3001", 10);
+const PORT = parseInt(process.env.DASHBOARD_PORT || "3000", 10);
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
-
-// ---------------------------------------------------------------------------
-// Auth middleware (D-4: internal API key guard)
-// Skipped when DASHBOARD_API_KEY is not set (backward-compatible).
-// ---------------------------------------------------------------------------
 
 function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   if (!API_KEY) {
@@ -59,86 +38,47 @@ function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   res.status(401).json({ error: "Unauthorized", message: "Valid X-Api-Key header required" });
 }
 
-// ---------------------------------------------------------------------------
-// Bootstrap
-// ---------------------------------------------------------------------------
-
 async function main(): Promise<void> {
-  console.log("[dashboard] Starting CryptoEngine Dashboard...");
+  console.log("[dashboard] Starting Bit-Mania Dashboard...");
 
-  // Database pool
   const pool = new Pool(DB_CONFIG);
   await pool.query("SELECT 1");
   console.log("[dashboard] PostgreSQL connected");
 
-  // Redis client
   const redis = new Redis(REDIS_URL);
   await redis.ping();
   console.log("[dashboard] Redis connected");
 
-  // --- Internal server (port 3000) ---
-  const internalApp = express();
-  internalApp.use(cors());
-  internalApp.use(express.json());
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
 
-  internalApp.use("/api", apiKeyAuth, createInternalRouter(pool, redis));
+  app.use("/api", apiKeyAuth, createInternalRouter(pool, redis));
+  app.use("/api/internal/supertrend", apiKeyAuth, createSupertrendRouter(pool, redis));
+  app.use("/api/internal/monitor", apiKeyAuth, createMonitorRouter(pool, redis));
 
-  // Grafana webhook — no auth (Docker network internal, trusted source only)
-  internalApp.use("/grafana-webhook", createGrafanaWebhookRouter(redis));
+  app.use(express.static(path.join(__dirname, "../public")));
 
-  // Static files (CSS, JS, images) — no auth
-  internalApp.use(express.static(path.join(__dirname, "../public")));
-
-  // Strategy-specific routes (protected)
-  internalApp.use("/api/internal/regime", apiKeyAuth, createRegimeRouter(pool, redis));
-  internalApp.use("/api/internal/supertrend", apiKeyAuth, createSupertrendRouter(pool, redis));
-  internalApp.use("/api/internal/monitor", apiKeyAuth, createMonitorRouter(pool, redis));
-
-  // Pages — Supertrend expected-vs-actual is the primary landing page
-  internalApp.get("/", (_req, res) => {
+  app.get("/", (_req, res) => {
     res.sendFile(path.join(__dirname, "../public/supertrend.html"));
   });
-  internalApp.get("/supertrend", (_req, res) => {
+  app.get("/supertrend", (_req, res) => {
     res.sendFile(path.join(__dirname, "../public/supertrend.html"));
   });
-  internalApp.get("/monitor", (_req, res) => {
+  app.get("/monitor", (_req, res) => {
     res.sendFile(path.join(__dirname, "../public/monitor.html"));
   });
-  internalApp.get("/regime", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../public/regime.html"));
-  });
-  // Keep old index for backward compat
-  internalApp.get("/index", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../public/index.html"));
+
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", service: "dashboard" });
   });
 
-  internalApp.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "dashboard-internal" });
-  });
-
-  // Start alert evaluator (replaces Grafana alerting rules)
   startAlertEvaluator(pool, redis);
 
-  internalApp.listen(INTERNAL_PORT, () => {
-    console.log(`[dashboard] Internal API listening on port ${INTERNAL_PORT}`);
+  app.listen(PORT, () => {
+    console.log(`[dashboard] Listening on port ${PORT}`);
   });
 
-  // --- Public server (port 3001) ---
-  const publicApp = express();
-  publicApp.use(cors());
-  publicApp.use(express.json());
-
-  publicApp.use("/api", createPublicRouter(pool, redis));
-
-  publicApp.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "dashboard-public" });
-  });
-
-  publicApp.listen(PUBLIC_PORT, () => {
-    console.log(`[dashboard] Public API listening on port ${PUBLIC_PORT}`);
-  });
-
-  // --- Graceful shutdown ---
   const shutdown = async (signal: string) => {
     console.log(`[dashboard] ${signal} received, shutting down...`);
     redis.disconnect();

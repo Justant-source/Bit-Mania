@@ -2,11 +2,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY services/dashboard/package.json services/dashboard/package-lock.json* ./
+COPY package.json package-lock.json* ./
 RUN npm install
 
-COPY services/dashboard/tsconfig.json ./
-COPY services/dashboard/src/ ./src/
+COPY tsconfig.json ./
+COPY src/ ./src/
 
 RUN npm run build
 
@@ -20,6 +20,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/public ./public
 
-EXPOSE 3000 3001
+EXPOSE 3000
 
 CMD ["node", "dist/server.js"]

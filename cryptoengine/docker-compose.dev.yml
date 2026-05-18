@@ -83,25 +83,6 @@ services:
     ports:
       - "5685:5678"   # debugpy
 
-  dashboard:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/dashboard/src:/app/src:ro
-      - ./services/dashboard/public:/app/public:ro
-    ports:
-      - "3000:3000"
-      - "3001:3001"
-      - "5686:5678"   # debugpy
-
-  grafana:
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-
   backtester:
     build:
       target: development
