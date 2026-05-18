@@ -62,7 +62,7 @@ def get_allocated_capital_at(cur, bar_ts_utc) -> float:
     """Approximate allocated capital at bar_ts from orchestrator service_logs."""
     cur.execute(
         """
-        SELECT (context->>'capital')::float
+        SELECT (context->>'capital')::float AS capital
         FROM service_logs
         WHERE event = 'orch_capital_allocated'
           AND context->>'strategy' = 'supertrend'
@@ -73,15 +73,15 @@ def get_allocated_capital_at(cur, bar_ts_utc) -> float:
         (bar_ts_utc,),
     )
     row = cur.fetchone()
-    if row and row[0]:
-        return float(row[0])
+    if row and row.get("capital"):
+        return float(row["capital"])
     # Fallback: latest strategy_states allocation
     cur.execute(
         "SELECT allocated_capital FROM strategy_states WHERE strategy_id = 'supertrend' LIMIT 1"
     )
     row = cur.fetchone()
-    if row and row[0]:
-        return float(row[0])
+    if row and row.get("allocated_capital"):
+        return float(row["allocated_capital"])
     return 60.0  # ranging-regime default if no data
 
 
