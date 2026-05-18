@@ -1,172 +1,207 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>시스템 모니터 — Bit-Mania</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/dashboard.css">
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="/js/theme.js"></script>
 </head>
 <body>
-<div class="app">
 
-  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+<div class="app-shell" data-screen-label="01 Monitor">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────── -->
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">Bit-Mania</div>
-      <div class="sub">BTC 선물 자동매매</div>
+    <div class="brand">
+      <span class="mark-glyph">B</span>
+      <div>
+        <div class="b-name">Bit-Mania</div>
+        <div class="b-sub">BTC 선물 자동매매</div>
+      </div>
     </div>
 
-    <!-- Strategy info (static) -->
-    <div style="padding:12px 14px;border-bottom:1px solid #30363d">
-      <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">운영 전략</div>
-      <div style="font-size:12px;font-weight:600;color:#c9d1d9;margin-bottom:6px">supertrend_4h_x3_173</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <span class="badge badge-blue">4H Long-only</span>
-        <span class="badge badge-yellow">3× 레버리지</span>
+    <div class="strategy-card">
+      <div class="sc-label">운영 전략</div>
+      <div class="sc-code">supertrend_4h_x3_173</div>
+      <div class="sc-tags">
+        <span class="badge info">4H Long-only</span>
+        <span class="badge info">3×</span>
       </div>
     </div>
 
     <nav class="nav">
-      <a class="nav-item" href="/supertrend">
-        <span class="nav-icon">📊</span> 전략 비교
-      </a>
+      <div class="nav-section">운영</div>
       <a class="nav-item active" href="/monitor">
-        <span class="nav-icon">🖥</span> 시스템 모니터
+        <span class="nav-icon">▤</span> 시스템 모니터
+      </a>
+      <a class="nav-item" href="/supertrend">
+        <span class="nav-icon">⌖</span> 전략 비교
       </a>
     </nav>
 
-    <div style="padding:10px 14px;border-top:1px solid #30363d;font-size:11px;color:#484f58;margin-top:auto" id="last-updated">
-      갱신 중…
+    <div class="sidebar-footer">
+      <span class="status-dot green live"></span>
+      <span id="last-updated">갱신 중…</span>
     </div>
   </aside>
 
-  <!-- ── Main ────────────────────────────────────────────────────── -->
-  <main class="main">
+  <!-- ── Topbar ──────────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="crumbs">
+      <span>운영</span><span class="sep">/</span><span class="here">시스템 모니터</span>
+    </div>
+    <div class="topbar-actions">
+      <span class="env-pill">
+        <span class="status-dot" style="background:var(--c-warning);width:6px;height:6px;flex-shrink:0"></span>
+        MAINNET · Phase 5
+      </span>
+      <div class="theme-toggle" role="group" aria-label="테마">
+        <button data-set-theme="light">☀︎</button>
+        <button data-set-theme="dark">☾</button>
+      </div>
+    </div>
+  </header>
 
-    <!-- Portfolio KPIs -->
-    <div class="kpi-grid" id="portfolio-kpis">
-      <div class="kpi-card">
-        <div class="kpi-label">총 자산</div>
-        <div class="kpi-value" id="kpi-equity">—</div>
-        <div class="kpi-sub" id="kpi-equity-sub">—</div>
+  <!-- ── Main ───────────────────────────────────────────────────── -->
+  <main class="page">
+
+    <!-- KPI Row -->
+    <div class="row row-6">
+      <div class="kpi">
+        <span class="kpi-label">총 자산</span>
+        <span class="kpi-value" id="kpi-equity">—</span>
+        <div class="kpi-meta" id="kpi-equity-sub">—</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">일일 PnL</div>
-        <div class="kpi-value" id="kpi-daily-pnl">—</div>
-        <div class="kpi-sub" id="kpi-daily-pnl-sub">오늘 실현</div>
+      <div class="kpi">
+        <span class="kpi-label">일일 PnL</span>
+        <span class="kpi-value" id="kpi-daily-pnl">—</span>
+        <div class="kpi-meta">오늘 실현</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">미실현 PnL</div>
-        <div class="kpi-value" id="kpi-unrealized">—</div>
-        <div class="kpi-sub" id="kpi-unrealized-sub">현재 포지션</div>
+      <div class="kpi">
+        <span class="kpi-label">미실현 PnL</span>
+        <span class="kpi-value" id="kpi-unrealized">—</span>
+        <div class="kpi-meta">현재 포지션</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">MTD PnL</div>
-        <div class="kpi-value" id="kpi-mtd">—</div>
-        <div class="kpi-sub">이번 달 누적</div>
+      <div class="kpi">
+        <span class="kpi-label">MTD PnL</span>
+        <span class="kpi-value" id="kpi-mtd">—</span>
+        <div class="kpi-meta">이번 달 누적</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Max Drawdown</div>
-        <div class="kpi-value" id="kpi-mdd">—</div>
-        <div class="kpi-sub" id="kpi-mdd-sub">최근 30일</div>
+      <div class="kpi">
+        <span class="kpi-label">Max Drawdown</span>
+        <span class="kpi-value" id="kpi-mdd">—</span>
+        <div class="kpi-meta">최근 30일</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Kill Switch</div>
-        <div class="kpi-value" id="kpi-ks">—</div>
-        <div class="kpi-sub" id="kpi-ks-sub">—</div>
+      <div class="kpi">
+        <span class="kpi-label">Kill Switch</span>
+        <span class="kpi-value" id="kpi-ks">—</span>
+        <div class="kpi-meta" id="kpi-ks-sub">—</div>
       </div>
     </div>
 
     <!-- Equity Curve -->
-    <div class="section-hdr">
-      <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">자산 곡선 (30일)</div>
-      <div class="section-hdr-line"></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-wrap" id="chart-equity" style="min-height:200px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">자산 곡선</div>
+          <div class="card-sub">최근 30일</div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="chart-equity" style="min-height:220px">
         <div class="empty-state">데이터 로딩 중…</div>
       </div>
     </div>
 
-    <!-- Positions -->
-    <div class="section-hdr">
-      <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">현재 포지션</div>
-      <div class="section-hdr-line"></div>
-    </div>
-    <div class="chart-card">
-      <div class="tbl-wrap">
-        <table id="positions-table">
-          <thead>
-            <tr>
-              <th>심볼</th><th>사이드</th><th>수량</th>
-              <th>진입가</th><th>미실현 PnL</th><th>청산까지</th>
-            </tr>
-          </thead>
-          <tbody id="positions-tbody">
-            <tr><td colspan="6" style="color:#484f58;text-align:center">포지션 없음</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <!-- Positions + Kill Switch History -->
+    <div class="row row-2">
 
-    <!-- Kill Switch History -->
-    <div class="section-hdr">
-      <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">Kill Switch 이력</div>
-      <div class="section-hdr-line"></div>
-    </div>
-    <div class="chart-card">
-      <div class="tbl-wrap">
-        <table id="ks-table">
-          <thead>
-            <tr><th>발동 시각</th><th>레벨</th><th>사유</th><th>해제 시각</th><th>PnL</th></tr>
-          </thead>
-          <tbody id="ks-tbody">
-            <tr><td colspan="5" style="color:#484f58;text-align:center">이력 없음</td></tr>
-          </tbody>
-        </table>
+      <div class="card" style="padding:0">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div class="card-title">현재 포지션</div>
+            <div class="card-sub">청산까지 거리 = (진입가 − 청산가) / 진입가</div>
+          </div>
+          <span class="badge neutral" id="positions-count">—</span>
+        </div>
+        <div class="tbl-wrap" style="border:none;border-radius:0">
+          <table class="tbl" id="positions-table">
+            <thead>
+              <tr>
+                <th>심볼</th><th>사이드</th>
+                <th class="num">수량</th><th class="num">진입가</th>
+                <th class="num">미실현</th><th class="num">청산까지</th>
+              </tr>
+            </thead>
+            <tbody id="positions-tbody">
+              <tr><td colspan="6" class="muted" style="text-align:center">포지션 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <div class="card" style="padding:0">
+        <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div class="card-title">Kill Switch 이력</div>
+            <div class="card-sub">최근 20건</div>
+          </div>
+        </div>
+        <div class="tbl-wrap" style="border:none;border-radius:0">
+          <table class="tbl" id="ks-table">
+            <thead>
+              <tr><th>발동 시각</th><th>레벨</th><th>사유</th><th>해제</th><th class="num">PnL</th></tr>
+            </thead>
+            <tbody id="ks-tbody">
+              <tr><td colspan="5" class="muted" style="text-align:center">이력 없음</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
     <!-- Service Health -->
-    <div class="section-hdr">
-      <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">서비스 상태</div>
-      <div class="section-hdr-line"></div>
-    </div>
-    <div class="chart-card">
-      <div class="health-grid" id="health-grid">
-        <div style="color:#484f58;font-size:12px">로딩 중…</div>
+    <div>
+      <div class="section-bar" style="margin-bottom:14px">
+        <h3>서비스 상태</h3>
+        <span class="meta" id="health-meta"></span>
+      </div>
+      <div class="row row-3" id="health-grid">
+        <div class="muted" style="font-size:12px">로딩 중…</div>
       </div>
     </div>
 
-    <!-- Infra Metrics -->
-    <div class="section-hdr">
-      <div class="section-hdr-line"></div>
-      <div class="section-hdr-text">인프라 (클릭 시 24시간 추이)</div>
-      <div class="section-hdr-line"></div>
-    </div>
-    <div class="chart-card">
-      <div class="gauge-grid" id="infra-grid">
-        <div style="color:#484f58;font-size:12px">로딩 중…</div>
+    <!-- Infra Gauges -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">인프라</div>
+          <div class="card-sub">클릭하면 24시간 추이 모달</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);text-align:center" id="infra-grid">
+        <div class="muted" style="font-size:12px">로딩 중…</div>
       </div>
     </div>
 
   </main>
 </div>
 
-<!-- ── 24h 추이 모달 ──────────────────────────────────────────────── -->
+<!-- Infra 24h 추이 모달 -->
 <div class="modal-overlay" id="infra-modal" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
       <span id="modal-title">24시간 추이</span>
-      <button class="modal-close" id="modal-close">✕</button>
+      <button class="modal-close" id="modal-close">✕ 닫기</button>
     </div>
     <div id="modal-chart" style="min-height:300px"></div>
-    <div id="modal-last-update" style="font-size:11px;color:#484f58;margin-top:8px;text-align:right"></div>
+    <div id="modal-last-update" class="muted" style="font-size:11px;margin-top:8px;text-align:right"></div>
   </div>
 </div>
 

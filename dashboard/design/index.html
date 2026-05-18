@@ -1,0 +1,1376 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bit-Mania · Dashboard Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   1. DESIGN TOKENS
+   The whole system flows from these CSS variables.
+   Copy this block into dashboard/src/public/css/tokens.css.
+   ========================================================================= */
+
+:root {
+  /* — Brand — */
+  --brand-blue:    #206BC4;
+  --brand-blue-2:  #4299E1;
+  --brand-ink:     #0F172A;
+
+  /* — Semantic status — */
+  --c-success: #2FB344;
+  --c-danger:  #D63939;
+  --c-warning: #F59F00;
+  --c-info:    #4299E1;
+
+  /* — Type — */
+  --font-sans: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, monospace;
+
+  --t-display: 600 28px/1.2  var(--font-sans);
+  --t-h1:      600 22px/1.3  var(--font-sans);
+  --t-h2:      600 16px/1.4  var(--font-sans);
+  --t-h3:      600 13px/1.4  var(--font-sans);
+  --t-body:    400 14px/1.5  var(--font-sans);
+  --t-small:   400 12px/1.4  var(--font-sans);
+  --t-overline:600 11px/1    var(--font-sans);
+  --t-num-xl:  600 28px/1.1  var(--font-mono);
+  --t-num:     500 14px/1.3  var(--font-mono);
+
+  /* — Spacing scale (4-base) — */
+  --s-1: 4px; --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 48px;
+
+  /* — Radius — */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-pill: 999px;
+
+  /* — Light theme surfaces — */
+  --bg:          #F6F8FB;
+  --surface:     #FFFFFF;
+  --surface-2:   #F2F4F8;
+  --surface-3:   #ECEFF3;
+  --border:      #E6E7E9;
+  --border-strong:#D0D5DD;
+  --text:        #1D273B;
+  --text-muted:  #667085;
+  --text-soft:   #98A2B3;
+  --hover:       #F2F6FC;
+  --active:      #E8F0FA;
+
+  /* — Shadows — */
+  --shadow-1: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-2: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06);
+  --shadow-3: 0 8px 24px rgba(15,23,42,.10);
+
+  --primary:        var(--brand-blue);
+  --primary-hover:  #1A5AAB;
+  --primary-soft:   #E8F0FA;
+  --primary-text:   #1A5AAB;
+}
+
+[data-theme="dark"] {
+  --bg:          #0F1623;
+  --surface:     #182232;
+  --surface-2:   #1F2A3D;
+  --surface-3:   #243248;
+  --border:      #2A364D;
+  --border-strong:#3A4866;
+  --text:        #E6EAF2;
+  --text-muted:  #95A0B3;
+  --text-soft:   #6B7895;
+  --hover:       #1E2A3F;
+  --active:      #1C2E4A;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 8px 16px rgba(0,0,0,.25);
+  --shadow-3: 0 12px 32px rgba(0,0,0,.4);
+
+  --primary:        #4B9CE2;
+  --primary-hover:  #69ADE8;
+  --primary-soft:   #1C2E4A;
+  --primary-text:   #93C5FD;
+
+  --c-success: #3BC25A;
+  --c-danger:  #EF4A4A;
+  --c-warning: #FFB22B;
+}
+
+/* =========================================================================
+   2. BASE
+   ========================================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font: var(--t-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; cursor: pointer; }
+mark { background: var(--primary-soft); color: var(--primary-text); padding: 1px 4px; border-radius: 3px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* =========================================================================
+   3. DOC SHELL — used only by this design-system page
+   ========================================================================= */
+.doc { max-width: 1280px; margin: 0 auto; padding: 0 var(--s-7); }
+.doc-header {
+  position: sticky; top: 0; z-index: 50;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.doc-header-inner {
+  max-width: 1280px; margin: 0 auto;
+  display: flex; align-items: center; gap: var(--s-6);
+  padding: var(--s-4) var(--s-7);
+}
+.doc-mark {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  font: var(--t-h2); color: var(--text);
+}
+.doc-mark .mark-glyph {
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-blue-2));
+  display: grid; place-items: center; color: #fff; font: 700 13px/1 var(--font-mono);
+}
+.doc-tag {
+  font: var(--t-small); color: var(--text-muted);
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--r-pill);
+}
+.doc-nav { display: flex; gap: 4px; margin-left: auto; }
+.doc-nav a {
+  font: var(--t-small); color: var(--text-muted);
+  padding: 6px 10px; border-radius: var(--r-sm);
+}
+.doc-nav a:hover { background: var(--hover); color: var(--text); text-decoration: none; }
+.theme-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: var(--r-pill);
+  background: var(--surface); padding: 4px;
+}
+.theme-toggle button {
+  border: none; background: transparent; padding: 4px 10px;
+  border-radius: var(--r-pill); font: 500 12px/1 var(--font-sans);
+  color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px;
+}
+.theme-toggle button.active { background: var(--primary); color: #fff; }
+
+section.doc-section { padding: var(--s-8) 0; border-bottom: 1px solid var(--border); }
+section.doc-section:last-child { border-bottom: none; }
+.section-eyebrow {
+  font: var(--t-overline); letter-spacing: .12em;
+  color: var(--text-soft); text-transform: uppercase;
+}
+.section-title { font: var(--t-display); margin: 6px 0 var(--s-2); letter-spacing: -.01em; }
+.section-lead  { font: var(--t-body); color: var(--text-muted); max-width: 64ch; }
+.section-body { margin-top: var(--s-7); }
+
+/* Grid helpers */
+.row { display: grid; gap: var(--s-4); }
+.row-2 { grid-template-columns: repeat(2, 1fr); }
+.row-3 { grid-template-columns: repeat(3, 1fr); }
+.row-4 { grid-template-columns: repeat(4, 1fr); }
+.row-6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 900px) {
+  .row-3, .row-4, .row-6 { grid-template-columns: repeat(2, 1fr); }
+}
+
+.kbd { font: 500 11px/1 var(--font-mono); padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text-muted); }
+
+/* =========================================================================
+   4. COMPONENTS — production primitives.
+   Anything below this line is the actual library to apply to the dashboard.
+   ========================================================================= */
+
+/* — Buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text); border-radius: var(--r-sm);
+  font: 500 13px/1 var(--font-sans);
+  transition: background .12s, border-color .12s, color .12s;
+}
+.btn:hover { background: var(--hover); }
+.btn.sm  { height: 26px; padding: 0 9px; font-size: 12px; }
+.btn.lg  { height: 38px; padding: 0 16px; font-size: 14px; }
+.btn.primary  { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn.ghost    { background: transparent; border-color: transparent; color: var(--text-muted); }
+.btn.ghost:hover { background: var(--hover); color: var(--text); }
+.btn.danger   { background: var(--c-danger); border-color: var(--c-danger); color: #fff; }
+.btn-group { display: inline-flex; }
+.btn-group .btn { border-radius: 0; }
+.btn-group .btn + .btn { border-left: none; }
+.btn-group .btn:first-child { border-top-left-radius: var(--r-sm); border-bottom-left-radius: var(--r-sm); }
+.btn-group .btn:last-child  { border-top-right-radius: var(--r-sm); border-bottom-right-radius: var(--r-sm); }
+.btn-group .btn.active { background: var(--primary-soft); color: var(--primary-text); border-color: var(--primary); position: relative; z-index: 1; }
+
+/* — Badges — */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--r-pill);
+  font: 600 11px/1.4 var(--font-sans);
+  border: 1px solid transparent;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge.success { background: color-mix(in srgb, var(--c-success) 12%, var(--surface)); color: var(--c-success); border-color: color-mix(in srgb, var(--c-success) 30%, transparent); }
+.badge.danger  { background: color-mix(in srgb, var(--c-danger)  12%, var(--surface)); color: var(--c-danger);  border-color: color-mix(in srgb, var(--c-danger)  30%, transparent); }
+.badge.warning { background: color-mix(in srgb, var(--c-warning) 14%, var(--surface)); color: #B27800; border-color: color-mix(in srgb, var(--c-warning) 35%, transparent); }
+.badge.info    { background: var(--primary-soft); color: var(--primary-text); border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.badge.neutral { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); }
+[data-theme="dark"] .badge.warning { color: var(--c-warning); }
+
+/* — Status dot (for service-health style indicators) — */
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0; position: relative;
+}
+.status-dot.live::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid currentColor; opacity: .35; animation: pulse 1.6s ease-out infinite;
+}
+.status-dot.green  { background: var(--c-success); color: var(--c-success); }
+.status-dot.yellow { background: var(--c-warning); color: var(--c-warning); }
+.status-dot.red    { background: var(--c-danger);  color: var(--c-danger); }
+.status-dot.gray   { background: var(--text-soft); color: var(--text-soft); }
+@keyframes pulse { 0% { transform: scale(.9); opacity: .5; } 100% { transform: scale(1.6); opacity: 0; } }
+
+/* — Cards — */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--s-5);
+  box-shadow: var(--shadow-1);
+}
+.card.flat { box-shadow: none; }
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s-3); margin-bottom: var(--s-4);
+}
+.card-title { font: var(--t-h2); color: var(--text); }
+.card-sub   { font: var(--t-small); color: var(--text-muted); }
+.card-divider { height: 1px; background: var(--border); margin: var(--s-4) calc(-1 * var(--s-5)); }
+
+/* — KPI card — */
+.kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--s-4) var(--s-5);
+  display: flex; flex-direction: column; gap: 6px;
+  box-shadow: var(--shadow-1);
+}
+.kpi-label {
+  font: var(--t-overline); letter-spacing: .08em;
+  color: var(--text-muted); text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+}
+.kpi-value { font: var(--t-num-xl); color: var(--text); letter-spacing: -.01em; }
+.kpi-meta  { display: flex; align-items: center; gap: 6px; font: var(--t-small); color: var(--text-muted); }
+.kpi-delta { font: 600 12px/1 var(--font-mono); display: inline-flex; align-items: center; gap: 3px; }
+.kpi-delta.up   { color: var(--c-success); }
+.kpi-delta.down { color: var(--c-danger);  }
+.kpi-spark { margin-top: 4px; height: 28px; }
+.kpi .kpi-icon {
+  width: 24px; height: 24px; border-radius: var(--r-sm);
+  background: var(--primary-soft); color: var(--primary-text);
+  display: grid; place-items: center;
+}
+
+/* — Tables — */
+.tbl-wrap { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl thead th {
+  font: var(--t-overline); letter-spacing: .06em;
+  color: var(--text-muted); text-transform: uppercase;
+  text-align: left; padding: 10px 16px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.tbl tbody td {
+  padding: 12px 16px; color: var(--text);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover td { background: var(--hover); }
+.tbl .num { font-family: var(--font-mono); font-weight: 500; text-align: right; }
+
+/* — Tabs — */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tab {
+  font: 500 13px/1 var(--font-sans);
+  padding: 10px 14px; color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; cursor: pointer; background: transparent; border-top: none; border-left: none; border-right: none;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+/* — Form inputs (for filters etc.) — */
+.input, .select {
+  height: 32px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text);
+  font: 400 13px/1 var(--font-sans);
+}
+.input:focus, .select:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+
+/* — Gauge (circular) — */
+.gauge {
+  width: 96px; height: 96px; position: relative;
+}
+.gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge .track { fill: none; stroke: var(--surface-3); stroke-width: 8; }
+.gauge .bar   { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+.gauge .label {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font: var(--t-num); color: var(--text);
+}
+
+/* — Sidebar / Topbar / App shell used in screen mockups — */
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: auto 1fr;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-2);
+  min-height: 720px;
+}
+.sidebar {
+  grid-row: 1 / span 2;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.sidebar .brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar .brand .mark-glyph {
+  width: 30px; height: 30px; border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-blue-2));
+  display: grid; place-items: center; color: #fff;
+  font: 700 14px/1 var(--font-mono);
+}
+.sidebar .brand .b-name { font: var(--t-h2); color: var(--text); }
+.sidebar .brand .b-sub  { font: var(--t-small); color: var(--text-muted); }
+.strategy-card {
+  margin: var(--s-3); padding: var(--s-3);
+  background: var(--surface-2); border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+.strategy-card .sc-label { font: var(--t-overline); color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; }
+.strategy-card .sc-code  { font: 600 12px/1.3 var(--font-mono); color: var(--text); margin: 6px 0 8px; }
+.strategy-card .sc-tags  { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav {
+  padding: 6px var(--s-2); display: flex; flex-direction: column; gap: 2px;
+}
+.nav-section { font: var(--t-overline); color: var(--text-soft); text-transform: uppercase; letter-spacing: .08em; padding: 12px 12px 6px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-sm);
+  color: var(--text-muted); font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.nav-item:hover { background: var(--hover); color: var(--text); text-decoration: none; }
+.nav-item.active { background: var(--primary-soft); color: var(--primary-text); font-weight: 600; }
+.nav-icon { width: 18px; height: 18px; display: grid; place-items: center; color: currentColor; opacity: .9; }
+.nav-item .nav-meta { margin-left: auto; font: var(--t-small); color: var(--text-soft); }
+
+.sidebar-footer {
+  margin-top: auto; padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--border); font: var(--t-small); color: var(--text-soft);
+  display: flex; align-items: center; gap: 6px;
+}
+
+.topbar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px var(--s-5);
+  display: flex; align-items: center; gap: var(--s-4);
+}
+.crumbs { display: flex; align-items: center; gap: 6px; font: var(--t-small); color: var(--text-muted); }
+.crumbs .sep { color: var(--text-soft); }
+.crumbs .here { color: var(--text); font-weight: 500; }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
+.topbar .env-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--c-warning) 14%, var(--surface));
+  color: #946200; border: 1px solid color-mix(in srgb, var(--c-warning) 40%, transparent);
+  font: 600 11px/1 var(--font-sans);
+}
+[data-theme="dark"] .topbar .env-pill { color: var(--c-warning); }
+
+.page {
+  padding: var(--s-5);
+  display: flex; flex-direction: column; gap: var(--s-5);
+  overflow: auto;
+}
+.page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
+.page-title { font: var(--t-h1); }
+.page-sub { font: var(--t-small); color: var(--text-muted); margin-top: 4px; }
+
+/* — Section divider used inside pages (replaces the previous line-text-line) — */
+.section-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.section-bar h3 { font: var(--t-h2); }
+.section-bar .meta { font: var(--t-small); color: var(--text-muted); }
+
+/* — Health card grid — */
+.health-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.health-name { font: 500 13px/1.2 var(--font-sans); color: var(--text); }
+.health-meta { font: var(--t-small); color: var(--text-muted); margin-top: 2px; }
+
+/* — Color swatch grid (used in tokens section) — */
+.swatch { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; box-shadow: var(--shadow-1); }
+.swatch-chip { height: 56px; border-radius: var(--r-sm); margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+.swatch-name { font: 600 13px/1 var(--font-sans); }
+.swatch-var  { font: 500 11px/1.4 var(--font-mono); color: var(--text-muted); margin-top: 3px; }
+.swatch-hex  { font: 500 11px/1.4 var(--font-mono); color: var(--text-soft); }
+
+/* — Type specimen — */
+.type-row {
+  display: grid; grid-template-columns: 110px 1fr; align-items: baseline;
+  gap: var(--s-4); padding: 14px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.type-row:last-child { border: none; }
+.type-key { font: 500 11px/1.4 var(--font-mono); color: var(--text-muted); }
+.type-key small { display: block; color: var(--text-soft); margin-top: 4px; font-weight: 400; }
+
+/* — Spec block (key/value list for token reference) — */
+.spec {
+  display: grid; grid-template-columns: 140px 1fr;
+  gap: 4px var(--s-4); padding: 14px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.spec dt { font: 500 12px/1.4 var(--font-mono); color: var(--text-muted); }
+.spec dd { font: var(--t-body); color: var(--text); }
+
+/* — Spark / mini sparkline placeholder — */
+.spark {
+  width: 100%; height: 28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 100%);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 28' preserveAspectRatio='none'><path d='M0 22 L8 18 L16 20 L24 14 L32 16 L40 10 L48 12 L56 8 L64 11 L72 6 L80 9 L88 4 L100 7 L100 28 L0 28 Z' fill='black'/></svg>") no-repeat center / 100% 100%;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 28' preserveAspectRatio='none'><path d='M0 22 L8 18 L16 20 L24 14 L32 16 L40 10 L48 12 L56 8 L64 11 L72 6 L80 9 L88 4 L100 7 L100 28 L0 28 Z' fill='black'/></svg>") no-repeat center / 100% 100%;
+}
+.spark.down { background: linear-gradient(180deg, color-mix(in srgb, var(--c-danger) 22%, transparent) 0%, transparent 100%); }
+.spark.flat { background: linear-gradient(180deg, color-mix(in srgb, var(--text-soft) 22%, transparent) 0%, transparent 100%); }
+
+/* — Chart placeholder (replacement for plotly area in mockups) — */
+.chart-ph {
+  position: relative; height: 280px;
+  background:
+    repeating-linear-gradient(to right, transparent 0, transparent 79px, color-mix(in srgb, var(--border) 60%, transparent) 79px, color-mix(in srgb, var(--border) 60%, transparent) 80px),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 39px, color-mix(in srgb, var(--border) 60%, transparent) 39px, color-mix(in srgb, var(--border) 60%, transparent) 40px),
+    var(--surface);
+  border-radius: var(--r-md); overflow: hidden;
+}
+.chart-ph svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chart-ph .legend {
+  position: absolute; top: 10px; right: 12px; display: flex; gap: 12px; font: var(--t-small); color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface) 80%, transparent); padding: 4px 8px; border-radius: var(--r-sm);
+}
+.legend-key { display: inline-flex; align-items: center; gap: 6px; }
+.legend-key .swatch-line { width: 14px; height: 2px; border-radius: 2px; }
+
+/* —— Utilities —— */
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.gap-1 { gap: var(--s-1); } .gap-2 { gap: var(--s-2); } .gap-3 { gap: var(--s-3); } .gap-4 { gap: var(--s-4); }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.muted { color: var(--text-muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.pos { color: var(--c-success); }
+.neg { color: var(--c-danger);  }
+.warn{ color: var(--c-warning); }
+</style>
+</head>
+<body>
+
+<!-- ===========================================================
+     DOC HEADER
+=========================================================== -->
+<header class="doc-header">
+  <div class="doc-header-inner">
+    <span class="doc-mark"><span class="mark-glyph">B</span> Bit-Mania</span>
+    <span class="doc-tag">Dashboard Design System · v1.0</span>
+    <nav class="doc-nav">
+      <a href="#tokens">Tokens</a>
+      <a href="#components">Components</a>
+      <a href="#monitor">Monitor</a>
+      <a href="#supertrend">Supertrend</a>
+      <a href="#guidelines">Guidelines</a>
+    </nav>
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button id="t-light" class="active" data-theme="light">☀︎ Light</button>
+      <button id="t-dark" data-theme="dark">☾ Dark</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===========================================================
+     INTRO
+=========================================================== -->
+<section class="doc-section">
+  <div class="doc">
+    <div class="section-eyebrow">Bit-Mania · Phase 5</div>
+    <h1 class="section-title">깔끔하고 조용한, 운영 가능한 트레이딩 대시보드</h1>
+    <p class="section-lead">
+      이 문서는 <strong>Bit-Mania 대시보드</strong>의 단일 진실 공급원입니다.
+      모든 색, 타입, 컴포넌트는 아래 <code>:root</code> 토큰에서 파생됩니다.
+      새로운 화면을 추가할 때는 토큰과 컴포넌트만 조합하세요 —
+      절대 임의 색상이나 인라인 스타일을 넣지 않습니다.
+    </p>
+
+    <div class="row row-3 section-body">
+      <div class="card">
+        <div class="card-title">원칙 1 · 조용함</div>
+        <p class="muted" style="font-size:13px;line-height:1.6;margin-top:8px">
+          포지션을 가진 시스템은 시끄러우면 안 됩니다. 그라데이션·드롭쉐도우·이모지를 최소화하고,
+          숫자와 추세에 시선이 가도록 회색–흰색 베이스에 한 가지 블루 액센트만 씁니다.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">원칙 2 · 신호 우선</div>
+        <p class="muted" style="font-size:13px;line-height:1.6;margin-top:8px">
+          색은 의미를 가질 때만 씁니다. 초록=이익/정상, 빨강=손실/경보, 노랑=주의, 파랑=정보.
+          중립 텍스트에 컬러를 쓰지 않습니다.
+        </p>
+      </div>
+      <div class="card">
+        <div class="card-title">원칙 3 · 한 시스템, 두 테마</div>
+        <p class="muted" style="font-size:13px;line-height:1.6;margin-top:8px">
+          라이트는 낮 운영 화면, 다크는 새벽 모니터링용입니다.
+          토큰 한 셋이 두 테마를 모두 만들어내므로, 컴포넌트는 테마를 알 필요가 없습니다.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     TOKENS
+=========================================================== -->
+<section class="doc-section" id="tokens">
+  <div class="doc">
+    <div class="section-eyebrow">01 · Foundation</div>
+    <h2 class="section-title">Design tokens</h2>
+    <p class="section-lead">
+      CSS variables in <code>:root</code> and <code>[data-theme="dark"]</code>.
+      이 변수들이 디자인 시스템의 “계약”입니다.
+    </p>
+
+    <div class="section-body">
+      <div class="section-bar"><h3>Color · Brand</h3><span class="meta">사용처: CTA, 활성 상태, 강조</span></div>
+      <div class="row row-4" style="margin-top:14px">
+        <div class="swatch"><div class="swatch-chip" style="background:var(--brand-blue)"></div><div class="swatch-name">Primary</div><div class="swatch-var">--brand-blue</div><div class="swatch-hex">#206BC4</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--brand-blue-2)"></div><div class="swatch-name">Primary 2</div><div class="swatch-var">--brand-blue-2</div><div class="swatch-hex">#4299E1</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--brand-ink)"></div><div class="swatch-name">Ink</div><div class="swatch-var">--brand-ink</div><div class="swatch-hex">#0F172A</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:linear-gradient(135deg,var(--brand-blue),var(--brand-blue-2))"></div><div class="swatch-name">Logo gradient</div><div class="swatch-var">brand-blue → blue-2</div><div class="swatch-hex">135deg</div></div>
+      </div>
+    </div>
+
+    <div class="section-body">
+      <div class="section-bar"><h3>Color · Semantic</h3><span class="meta">의미를 가질 때만 사용</span></div>
+      <div class="row row-4" style="margin-top:14px">
+        <div class="swatch"><div class="swatch-chip" style="background:var(--c-success)"></div><div class="swatch-name">Success</div><div class="swatch-var">--c-success</div><div class="swatch-hex">이익 / 정상</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--c-danger)"></div><div class="swatch-name">Danger</div><div class="swatch-var">--c-danger</div><div class="swatch-hex">손실 / Kill</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--c-warning)"></div><div class="swatch-name">Warning</div><div class="swatch-var">--c-warning</div><div class="swatch-hex">주의 / 지연</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--c-info)"></div><div class="swatch-name">Info</div><div class="swatch-var">--c-info</div><div class="swatch-hex">참고 / 예상값</div></div>
+      </div>
+    </div>
+
+    <div class="section-body">
+      <div class="section-bar"><h3>Color · Surface</h3><span class="meta">레이어드 표면 (라이트 + 다크 동시)</span></div>
+      <div class="row row-6" style="margin-top:14px">
+        <div class="swatch"><div class="swatch-chip" style="background:var(--bg)"></div><div class="swatch-name">bg</div><div class="swatch-var">--bg</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--surface)"></div><div class="swatch-name">surface</div><div class="swatch-var">--surface</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--surface-2)"></div><div class="swatch-name">surface 2</div><div class="swatch-var">--surface-2</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--surface-3)"></div><div class="swatch-name">surface 3</div><div class="swatch-var">--surface-3</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--border)"></div><div class="swatch-name">border</div><div class="swatch-var">--border</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:var(--text)"></div><div class="swatch-name">text</div><div class="swatch-var">--text</div></div>
+      </div>
+    </div>
+
+    <div class="section-body">
+      <div class="section-bar"><h3>Typography</h3><span class="meta">Inter + JetBrains Mono</span></div>
+      <div class="card" style="margin-top:14px">
+        <div class="type-row"><div class="type-key">--t-display<small>600 · 28/1.2</small></div><div style="font:var(--t-display)">총 자산 $7,210.84</div></div>
+        <div class="type-row"><div class="type-key">--t-h1<small>600 · 22/1.3</small></div><div style="font:var(--t-h1)">시스템 모니터</div></div>
+        <div class="type-row"><div class="type-key">--t-h2<small>600 · 16/1.4</small></div><div style="font:var(--t-h2)">현재 포지션</div></div>
+        <div class="type-row"><div class="type-key">--t-h3<small>600 · 13/1.4</small></div><div style="font:var(--t-h3)">BTC/USDT · 4h Long</div></div>
+        <div class="type-row"><div class="type-key">--t-body<small>400 · 14/1.5</small></div><div style="font:var(--t-body)">기본 본문. 한국어와 영문이 같은 크기에서 잘 읽혀야 합니다 — Inter는 한글에 대해 system fallback 처리.</div></div>
+        <div class="type-row"><div class="type-key">--t-small<small>400 · 12/1.4</small></div><div style="font:var(--t-small)" class="muted">보조 정보, 캡션, 마지막 갱신 시각 등</div></div>
+        <div class="type-row"><div class="type-key">--t-overline<small>600 · 11/1, .08em</small></div><div style="font:var(--t-overline);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)">Daily PnL</div></div>
+        <div class="type-row"><div class="type-key">--t-num-xl<small>600 · 28/1.1 mono</small></div><div style="font:var(--t-num-xl)">+$143.20</div></div>
+        <div class="type-row"><div class="type-key">--t-num<small>500 · 14/1.3 mono</small></div><div style="font:var(--t-num)">68,421.50  ·  +1.42%  ·  03:47</div></div>
+      </div>
+    </div>
+
+    <div class="section-body">
+      <div class="section-bar"><h3>Spacing · Radius · Shadow</h3></div>
+      <div class="row row-3" style="margin-top:14px">
+        <div class="card">
+          <div class="card-title">Spacing (4-base)</div>
+          <dl class="spec" style="margin-top:8px;border:0;padding:0">
+            <dt>--s-1</dt><dd>4px <span class="muted">· tight inline gap</span></dd>
+            <dt>--s-2</dt><dd>8px <span class="muted">· dense rows</span></dd>
+            <dt>--s-3</dt><dd>12px <span class="muted">· card inner</span></dd>
+            <dt>--s-4</dt><dd>16px <span class="muted">· default grid gap</span></dd>
+            <dt>--s-5</dt><dd>20px <span class="muted">· card padding</span></dd>
+            <dt>--s-6</dt><dd>24px <span class="muted">· section gap</span></dd>
+            <dt>--s-7</dt><dd>32px <span class="muted">· page padding</span></dd>
+            <dt>--s-8</dt><dd>48px <span class="muted">· hero / breath</span></dd>
+          </dl>
+        </div>
+        <div class="card">
+          <div class="card-title">Radius</div>
+          <div style="display:flex;gap:14px;align-items:end;margin-top:14px">
+            <div style="text-align:center"><div style="width:60px;height:60px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm)"></div><div class="mono muted" style="font-size:11px;margin-top:6px">--r-sm · 4</div></div>
+            <div style="text-align:center"><div style="width:60px;height:60px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md)"></div><div class="mono muted" style="font-size:11px;margin-top:6px">--r-md · 6</div></div>
+            <div style="text-align:center"><div style="width:60px;height:60px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg)"></div><div class="mono muted" style="font-size:11px;margin-top:6px">--r-lg · 8</div></div>
+            <div style="text-align:center"><div style="width:60px;height:60px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-pill)"></div><div class="mono muted" style="font-size:11px;margin-top:6px">--r-pill</div></div>
+          </div>
+          <p class="muted" style="font-size:12px;margin-top:14px;line-height:1.6">
+            카드/입력 = <code>--r-sm</code>·<code>--r-md</code>, 컨테이너 = <code>--r-lg</code>, 배지 = <code>--r-pill</code>.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-title">Shadow</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);height:60px;box-shadow:var(--shadow-1)"></div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);height:60px;box-shadow:var(--shadow-2)"></div>
+            <div class="mono muted" style="font-size:11px">--shadow-1</div>
+            <div class="mono muted" style="font-size:11px">--shadow-2</div>
+          </div>
+          <p class="muted" style="font-size:12px;margin-top:14px;line-height:1.6">
+            기본 카드는 <code>--shadow-1</code>, 떠 있는 요소(모달·드롭다운)는 <code>--shadow-2</code>·<code>--shadow-3</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     COMPONENTS
+=========================================================== -->
+<section class="doc-section" id="components">
+  <div class="doc">
+    <div class="section-eyebrow">02 · Library</div>
+    <h2 class="section-title">Components</h2>
+    <p class="section-lead">
+      대시보드는 이 8가지 프리미티브를 조합해서 만듭니다.
+      새 화면이 “필요할 것 같은” 새 컴포넌트가 떠오르면, 먼저 여기 패턴을 보세요.
+    </p>
+
+    <!-- Buttons -->
+    <div class="section-body">
+      <div class="section-bar"><h3>Buttons</h3><span class="meta">.btn · .btn.primary · .btn.ghost · .btn.danger · .btn-group</span></div>
+      <div class="card" style="margin-top:14px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary">전략 실행</button>
+          <button class="btn">취소</button>
+          <button class="btn ghost">자세히</button>
+          <button class="btn danger">Kill Switch</button>
+          <button class="btn sm">SM</button>
+          <button class="btn lg primary">LG Primary</button>
+          <div class="btn-group" role="group" aria-label="Range">
+            <button class="btn sm">7D</button>
+            <button class="btn sm active">30D</button>
+            <button class="btn sm">All</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges + status -->
+    <div class="section-body">
+      <div class="section-bar"><h3>Badges &amp; Status</h3><span class="meta">.badge · .status-dot</span></div>
+      <div class="row row-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-sub" style="margin-bottom:10px">Badges</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="badge success"><span class="dot"></span>실행 중</span>
+            <span class="badge danger"><span class="dot"></span>Kill 발동</span>
+            <span class="badge warning"><span class="dot"></span>지연</span>
+            <span class="badge info">4H Long-only</span>
+            <span class="badge info">3× 레버리지</span>
+            <span class="badge neutral">메인넷</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-sub" style="margin-bottom:10px">Status dots (서비스 헬스)</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="flex items-center gap-3"><span class="status-dot green live"></span><span>market-data</span><span class="muted mono" style="margin-left:auto;font-size:12px">2s ago</span></div>
+            <div class="flex items-center gap-3"><span class="status-dot yellow"></span><span>strategy-orchestrator</span><span class="muted mono" style="margin-left:auto;font-size:12px">14s ago</span></div>
+            <div class="flex items-center gap-3"><span class="status-dot red live"></span><span>telegram-bot</span><span class="muted mono" style="margin-left:auto;font-size:12px">stale</span></div>
+            <div class="flex items-center gap-3"><span class="status-dot gray"></span><span>backtest-runner</span><span class="muted mono" style="margin-left:auto;font-size:12px">offline</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="section-body">
+      <div class="section-bar"><h3>KPI cards</h3><span class="meta">대시보드 첫 행의 핵심 컴포넌트</span></div>
+      <div class="row row-4" style="margin-top:14px">
+        <div class="kpi">
+          <span class="kpi-label">총 자산</span>
+          <span class="kpi-value">$7,210.<span style="color:var(--text-muted)">84</span></span>
+          <div class="kpi-meta"><span class="kpi-delta up">▲ +2.14%</span><span>지난 24h</span></div>
+          <div class="spark"></div>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">일일 PnL</span>
+          <span class="kpi-value pos">+$143.<span style="opacity:.6">20</span></span>
+          <div class="kpi-meta"><span class="kpi-delta up">▲ +2.02%</span><span>오늘 실현</span></div>
+          <div class="spark"></div>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">미실현 PnL</span>
+          <span class="kpi-value neg">−$24.<span style="opacity:.6">60</span></span>
+          <div class="kpi-meta"><span class="kpi-delta down">▼ −0.34%</span><span>현재 포지션</span></div>
+          <div class="spark down"></div>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Kill Switch</span>
+          <span class="kpi-value" style="display:flex;align-items:center;gap:10px"><span class="status-dot green live" style="width:12px;height:12px"></span>정상</span>
+          <div class="kpi-meta"><span>L0 · 마지막 발동 14일 전</span></div>
+          <div class="spark flat"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tables -->
+    <div class="section-body">
+      <div class="section-bar"><h3>Table</h3><span class="meta">.tbl · 숫자는 우측 정렬 + tabular-nums</span></div>
+      <div class="tbl-wrap" style="margin-top:14px">
+        <table class="tbl">
+          <thead>
+            <tr><th>심볼</th><th>사이드</th><th class="num">수량</th><th class="num">진입가</th><th class="num">현재가</th><th class="num">미실현 PnL</th><th>상태</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>BTC/USDT</strong> <span class="muted mono" style="font-size:11px">Perp</span></td>
+              <td><span class="badge success">LONG</span></td>
+              <td class="num">0.0420</td>
+              <td class="num">67,810.00</td>
+              <td class="num">68,421.50</td>
+              <td class="num pos">+$25.68</td>
+              <td><span class="badge info">3× 레버리지</span></td>
+            </tr>
+            <tr>
+              <td><strong>BTC/USDT</strong> <span class="muted mono" style="font-size:11px">Perp</span></td>
+              <td><span class="badge danger">SHORT</span></td>
+              <td class="num">0.0100</td>
+              <td class="num">68,200.00</td>
+              <td class="num">68,421.50</td>
+              <td class="num neg">−$2.22</td>
+              <td><span class="badge neutral">hedge</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Gauges + chart -->
+    <div class="section-body">
+      <div class="section-bar"><h3>Gauge · Chart wrap</h3><span class="meta">차트는 항상 .card 안에서, 게이지는 클릭 가능</span></div>
+      <div class="row row-2" style="margin-top:14px">
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">인프라</div><div class="card-sub">클릭 시 24h 추이</div></div>
+            <button class="btn ghost sm">새로고침</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);text-align:center">
+            <div><div class="gauge" id="g1"></div><div style="font:600 12px/1.4 var(--font-sans);margin-top:4px">CPU</div><div class="muted mono" style="font-size:11px">22%</div></div>
+            <div><div class="gauge" id="g2"></div><div style="font:600 12px/1.4 var(--font-sans);margin-top:4px">RAM</div><div class="muted mono" style="font-size:11px">61%</div></div>
+            <div><div class="gauge" id="g3"></div><div style="font:600 12px/1.4 var(--font-sans);margin-top:4px">Disk</div><div class="muted mono" style="font-size:11px">38%</div></div>
+            <div><div class="gauge" id="g4"></div><div style="font:600 12px/1.4 var(--font-sans);margin-top:4px">Net</div><div class="muted mono" style="font-size:11px">84%</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title">자산 곡선</div><div class="card-sub">예상 vs 실제 · 30일</div></div>
+            <div class="btn-group">
+              <button class="btn sm">7D</button>
+              <button class="btn sm active">30D</button>
+              <button class="btn sm">All</button>
+            </div>
+          </div>
+          <div class="chart-ph">
+            <div class="legend">
+              <span class="legend-key"><span class="swatch-line" style="background:var(--c-info);border-top:1px dashed var(--c-info)"></span>예상</span>
+              <span class="legend-key"><span class="swatch-line" style="background:var(--c-success)"></span>실제</span>
+            </div>
+            <svg viewBox="0 0 400 280" preserveAspectRatio="none">
+              <path d="M0,200 L20,190 L40,195 L60,170 L80,180 L100,150 L120,158 L140,140 L160,148 L180,118 L200,128 L220,108 L240,118 L260,90 L280,98 L300,80 L320,88 L340,68 L360,80 L380,58 L400,70" fill="none" stroke="var(--c-info)" stroke-width="1.6" stroke-dasharray="4 4" />
+              <path d="M0,210 L20,200 L40,202 L60,178 L80,184 L100,156 L120,160 L140,138 L160,142 L180,108 L200,116 L220,96 L240,100 L260,76 L280,80 L300,62 L320,68 L340,50 L360,58 L380,38 L400,48"
+                    fill="none" stroke="var(--c-success)" stroke-width="2" />
+              <path d="M0,210 L20,200 L40,202 L60,178 L80,184 L100,156 L120,160 L140,138 L160,142 L180,108 L200,116 L220,96 L240,100 L260,76 L280,80 L300,62 L320,68 L340,50 L360,58 L380,38 L400,48 L400,280 L0,280 Z"
+                    fill="color-mix(in srgb, var(--c-success) 14%, transparent)" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <div class="section-body">
+      <div class="section-bar"><h3>Navigation</h3><span class="meta">사이드바 + 탑바</span></div>
+      <div class="row row-2" style="margin-top:14px">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+            <div class="card-sub">Sidebar (240px)</div>
+          </div>
+          <nav class="nav" style="padding:10px 8px 14px">
+            <div class="nav-section">운영</div>
+            <a class="nav-item active" href="#"><span class="nav-icon">▤</span> 시스템 모니터<span class="nav-meta">●</span></a>
+            <a class="nav-item" href="#"><span class="nav-icon">⌖</span> 전략 비교</a>
+            <a class="nav-item" href="#"><span class="nav-icon">∿</span> 포지션</a>
+            <div class="nav-section">관리</div>
+            <a class="nav-item" href="#"><span class="nav-icon">▦</span> 백테스트</a>
+            <a class="nav-item" href="#"><span class="nav-icon">⚙</span> 설정</a>
+          </nav>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+            <div class="card-sub">Tabs</div>
+          </div>
+          <div style="padding:0 18px">
+            <div class="tabs">
+              <button class="tab active">Overview</button>
+              <button class="tab">Positions</button>
+              <button class="tab">Trades</button>
+              <button class="tab">Logs</button>
+            </div>
+            <div style="padding:14px 0">
+              <p class="muted" style="font-size:13px">탭은 페이지 내부 컨텍스트가 같지만 데이터 슬라이스가 다를 때만 씁니다. 페이지 이동은 사이드바.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     APPLIED · MONITOR
+=========================================================== -->
+<section class="doc-section" id="monitor">
+  <div class="doc">
+    <div class="section-eyebrow">03 · Applied</div>
+    <h2 class="section-title">시스템 모니터 / monitor.html</h2>
+    <p class="section-lead">
+      기존 화면을 토큰·컴포넌트만으로 재구성한 모습입니다. KPI → 자산 곡선 → 포지션 → Kill 이력 → 서비스 헬스 → 인프라 순서.
+    </p>
+
+    <div class="section-body">
+      <div class="app-shell" data-screen-label="01 Monitor">
+        <!-- sidebar -->
+        <aside class="sidebar">
+          <div class="brand">
+            <span class="mark-glyph">B</span>
+            <div>
+              <div class="b-name">Bit-Mania</div>
+              <div class="b-sub">BTC 선물 자동매매</div>
+            </div>
+          </div>
+          <div class="strategy-card">
+            <div class="sc-label">운영 전략</div>
+            <div class="sc-code">supertrend_4h_x3_173</div>
+            <div class="sc-tags">
+              <span class="badge info">4H Long-only</span>
+              <span class="badge info">3×</span>
+            </div>
+          </div>
+          <nav class="nav">
+            <div class="nav-section">운영</div>
+            <a class="nav-item active" href="#"><span class="nav-icon">▤</span> 시스템 모니터</a>
+            <a class="nav-item" href="#"><span class="nav-icon">⌖</span> 전략 비교</a>
+            <div class="nav-section">참고</div>
+            <a class="nav-item" href="#"><span class="nav-icon">▦</span> 백테스트</a>
+            <a class="nav-item" href="#"><span class="nav-icon">⚙</span> 설정</a>
+          </nav>
+          <div class="sidebar-footer">
+            <span class="status-dot green live"></span>
+            <span>2026-05-19 14:38:02 KST</span>
+          </div>
+        </aside>
+
+        <!-- topbar -->
+        <header class="topbar">
+          <div class="crumbs"><span>운영</span><span class="sep">/</span><span class="here">시스템 모니터</span></div>
+          <div class="topbar-actions">
+            <span class="env-pill"><span class="status-dot" style="background:var(--c-warning);width:6px;height:6px"></span> MAINNET · Phase 5</span>
+            <button class="btn ghost sm">↻ 새로고침</button>
+            <button class="btn primary sm">/positions</button>
+          </div>
+        </header>
+
+        <main class="page">
+          <div class="page-head">
+            <div>
+              <div class="page-title">포트폴리오 개요</div>
+              <div class="page-sub">10초마다 자동 갱신 · 마지막 갱신 02초 전</div>
+            </div>
+          </div>
+
+          <!-- KPI row -->
+          <div class="row row-6">
+            <div class="kpi">
+              <span class="kpi-label">총 자산</span>
+              <span class="kpi-value">$7,210<span style="color:var(--text-muted)">.84</span></span>
+              <div class="kpi-meta"><span class="kpi-delta up">▲ +2.14%</span><span>24h</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">일일 PnL</span>
+              <span class="kpi-value pos">+$143.20</span>
+              <div class="kpi-meta"><span>오늘 실현</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">미실현 PnL</span>
+              <span class="kpi-value neg">−$24.60</span>
+              <div class="kpi-meta"><span>현재 포지션</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">MTD PnL</span>
+              <span class="kpi-value pos">+$612.40</span>
+              <div class="kpi-meta"><span>이번 달 누적</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Max Drawdown</span>
+              <span class="kpi-value warn">−4.82%</span>
+              <div class="kpi-meta"><span>최근 30일</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">Kill Switch</span>
+              <span class="kpi-value" style="display:flex;align-items:center;gap:8px;font-size:22px"><span class="status-dot green live" style="width:10px;height:10px"></span>정상</span>
+              <div class="kpi-meta"><span>L0 · 14일째</span></div>
+            </div>
+          </div>
+
+          <!-- Equity curve -->
+          <div class="card">
+            <div class="card-head">
+              <div><div class="card-title">자산 곡선</div><div class="card-sub">최근 30일</div></div>
+              <div class="btn-group">
+                <button class="btn sm">7D</button>
+                <button class="btn sm active">30D</button>
+                <button class="btn sm">All</button>
+              </div>
+            </div>
+            <div class="chart-ph" style="height:240px">
+              <svg viewBox="0 0 400 240" preserveAspectRatio="none">
+                <path d="M0,180 L20,170 L40,175 L60,150 L80,160 L100,130 L120,140 L140,118 L160,128 L180,98 L200,108 L220,88 L240,98 L260,72 L280,82 L300,60 L320,68 L340,48 L360,60 L380,38 L400,48"
+                      fill="none" stroke="var(--c-success)" stroke-width="2" />
+                <path d="M0,180 L20,170 L40,175 L60,150 L80,160 L100,130 L120,140 L140,118 L160,128 L180,98 L200,108 L220,88 L240,98 L260,72 L280,82 L300,60 L320,68 L340,48 L360,60 L380,38 L400,48 L400,240 L0,240 Z"
+                      fill="color-mix(in srgb, var(--c-success) 12%, transparent)" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Positions + Kill log -->
+          <div class="row row-2">
+            <div class="card" style="padding:0">
+              <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:baseline">
+                <div><div class="card-title">현재 포지션</div><div class="card-sub">청산까지 거리 = (현재가 − 청산가) / 현재가</div></div>
+                <span class="badge success"><span class="dot"></span>1 open</span>
+              </div>
+              <table class="tbl">
+                <thead><tr><th>심볼</th><th>사이드</th><th class="num">수량</th><th class="num">진입가</th><th class="num">미실현</th><th class="num">청산까지</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><strong>BTC/USDT</strong></td>
+                    <td><span class="badge success">LONG</span></td>
+                    <td class="num">0.0420</td>
+                    <td class="num">67,810.00</td>
+                    <td class="num pos">+$25.68</td>
+                    <td class="num">28.4%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card" style="padding:0">
+              <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:baseline">
+                <div><div class="card-title">Kill Switch 이력</div><div class="card-sub">최근 30일 · 모두 정상 해제</div></div>
+                <span class="badge neutral">3건</span>
+              </div>
+              <table class="tbl">
+                <thead><tr><th>발동 시각</th><th>레벨</th><th>사유</th><th class="num">PnL</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono" style="font-size:12px">05-12 03:14</td><td><span class="badge warning">L2</span></td><td>daily loss limit</td><td class="num neg">−$36.40</td></tr>
+                  <tr><td class="mono" style="font-size:12px">05-06 11:02</td><td><span class="badge info">L1</span></td><td>price gap</td><td class="num neg">−$8.20</td></tr>
+                  <tr><td class="mono" style="font-size:12px">05-01 22:48</td><td><span class="badge info">L1</span></td><td>signal stale</td><td class="num">$0.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Service health -->
+          <div>
+            <div class="section-bar" style="margin-bottom:14px"><h3>서비스 상태</h3><span class="meta">6개 컨테이너 · 모두 헬시</span></div>
+            <div class="row row-3">
+              <div class="health-card"><span class="status-dot green live"></span><div><div class="health-name">market-data</div><div class="health-meta">2s ago · uptime 14d</div></div></div>
+              <div class="health-card"><span class="status-dot green live"></span><div><div class="health-name">execution-engine</div><div class="health-meta">2s ago · uptime 14d</div></div></div>
+              <div class="health-card"><span class="status-dot green live"></span><div><div class="health-name">supertrend</div><div class="health-meta">3s ago · uptime 14d</div></div></div>
+              <div class="health-card"><span class="status-dot yellow"></span><div><div class="health-name">strategy-orchestrator</div><div class="health-meta">14s ago · 지연</div></div></div>
+              <div class="health-card"><span class="status-dot green live"></span><div><div class="health-name">telegram-bot</div><div class="health-meta">4s ago · uptime 14d</div></div></div>
+              <div class="health-card"><span class="status-dot green live"></span><div><div class="health-name">redis</div><div class="health-meta">1s ago · uptime 14d</div></div></div>
+            </div>
+          </div>
+
+          <!-- Infra gauges -->
+          <div class="card">
+            <div class="card-head">
+              <div><div class="card-title">인프라</div><div class="card-sub">클릭하면 24시간 추이 모달</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:var(--s-4);text-align:center">
+              <div><div class="gauge" id="m-g1"></div><div style="font:600 12px;margin-top:4px">CPU</div><div class="muted mono" style="font-size:11px">22%</div></div>
+              <div><div class="gauge" id="m-g2"></div><div style="font:600 12px;margin-top:4px">RAM</div><div class="muted mono" style="font-size:11px">61%</div></div>
+              <div><div class="gauge" id="m-g3"></div><div style="font:600 12px;margin-top:4px">Disk</div><div class="muted mono" style="font-size:11px">38%</div></div>
+              <div><div class="gauge" id="m-g4"></div><div style="font:600 12px;margin-top:4px">Net In</div><div class="muted mono" style="font-size:11px">12%</div></div>
+              <div><div class="gauge" id="m-g5"></div><div style="font:600 12px;margin-top:4px">Net Out</div><div class="muted mono" style="font-size:11px">9%</div></div>
+              <div><div class="gauge" id="m-g6"></div><div style="font:600 12px;margin-top:4px">DB Conn</div><div class="muted mono" style="font-size:11px">3 / 20</div></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     APPLIED · SUPERTREND
+=========================================================== -->
+<section class="doc-section" id="supertrend">
+  <div class="doc">
+    <div class="section-eyebrow">03 · Applied</div>
+    <h2 class="section-title">전략 비교 / supertrend.html</h2>
+    <p class="section-lead">예상값과 실제 체결의 차이를 한 화면에 — 같은 토큰, 같은 컴포넌트, 다른 구성.</p>
+
+    <div class="section-body">
+      <div class="app-shell" data-screen-label="02 Supertrend">
+        <aside class="sidebar">
+          <div class="brand">
+            <span class="mark-glyph">B</span>
+            <div>
+              <div class="b-name">Bit-Mania</div>
+              <div class="b-sub">BTC 선물 자동매매</div>
+            </div>
+          </div>
+          <div class="strategy-card">
+            <div class="sc-label">운영 전략</div>
+            <div class="sc-code">supertrend_4h_x3_173</div>
+            <div class="sc-tags">
+              <span class="badge info">4H Long-only</span>
+              <span class="badge info">3×</span>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);font:var(--t-small);color:var(--text-muted);display:flex;flex-direction:column;gap:4px">
+              <div class="flex justify-between"><span>포지션</span><span class="pos mono">LONG · 0.042</span></div>
+              <div class="flex justify-between"><span>신호</span><span class="mono">HOLD</span></div>
+              <div class="flex justify-between"><span>다음 봉</span><span class="mono">03:47</span></div>
+            </div>
+          </div>
+          <nav class="nav">
+            <div class="nav-section">운영</div>
+            <a class="nav-item" href="#"><span class="nav-icon">▤</span> 시스템 모니터</a>
+            <a class="nav-item active" href="#"><span class="nav-icon">⌖</span> 전략 비교</a>
+            <div class="nav-section">참고</div>
+            <a class="nav-item" href="#"><span class="nav-icon">▦</span> 백테스트</a>
+            <a class="nav-item" href="#"><span class="nav-icon">⚙</span> 설정</a>
+          </nav>
+          <div class="sidebar-footer">
+            <span class="status-dot green live"></span>
+            <span>2026-05-19 14:38:02 KST</span>
+          </div>
+        </aside>
+
+        <header class="topbar">
+          <div class="crumbs"><span>운영</span><span class="sep">/</span><span class="here">전략 비교</span></div>
+          <div class="topbar-actions">
+            <span class="env-pill"><span class="status-dot" style="background:var(--c-warning);width:6px;height:6px"></span> MAINNET · Phase 5</span>
+            <div class="btn-group">
+              <button class="btn sm">7D</button>
+              <button class="btn sm">30D</button>
+              <button class="btn sm active">운영 시작</button>
+            </div>
+          </div>
+        </header>
+
+        <main class="page">
+          <!-- KPI row -->
+          <div class="row row-6">
+            <div class="kpi">
+              <span class="kpi-label">현재 포지션</span>
+              <span class="kpi-value pos" style="font-size:22px">LONG</span>
+              <div class="kpi-meta"><span class="mono">0.042 BTC · 67,810</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">신호 상태</span>
+              <span class="kpi-value" style="font-size:22px">HOLD</span>
+              <div class="kpi-meta"><span>최근 4h 봉</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">다음 4h 봉</span>
+              <span class="kpi-value mono" style="font-size:22px">03 : 47</span>
+              <div class="kpi-meta"><span>다음 신호 기회</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">체결 일치율</span>
+              <span class="kpi-value">96.2%</span>
+              <div class="kpi-meta"><span>예상 vs 실제</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">평균 슬리피지</span>
+              <span class="kpi-value warn">+8.4<span style="color:var(--text-muted)">bp</span></span>
+              <div class="kpi-meta"><span>진입가 기준</span></div>
+            </div>
+            <div class="kpi">
+              <span class="kpi-label">자본 배분</span>
+              <span class="kpi-value">95<span style="color:var(--text-muted)">%</span></span>
+              <div class="kpi-meta"><span>현금 × 3×</span></div>
+            </div>
+          </div>
+
+          <!-- Price chart -->
+          <div class="card">
+            <div class="card-head">
+              <div><div class="card-title">BTC/USDT · 4h</div><div class="card-sub">예상 진입 (파랑) · 실제 체결 (초록)</div></div>
+              <div class="flex gap-2 items-center">
+                <span class="badge info">예상</span>
+                <span class="badge success">실제</span>
+                <span class="badge warning">놓침</span>
+              </div>
+            </div>
+            <div class="chart-ph" style="height:320px">
+              <svg viewBox="0 0 400 320" preserveAspectRatio="none">
+                <!-- candle-like vertical strokes (placeholder candles) -->
+                <g stroke="color-mix(in srgb, var(--text) 25%, transparent)" stroke-width="1">
+                  <line x1="20" y1="120" x2="20" y2="170" /><line x1="40" y1="100" x2="40" y2="160" />
+                  <line x1="60" y1="110" x2="60" y2="180" /><line x1="80" y1="90"  x2="80" y2="150" />
+                  <line x1="100" y1="80" x2="100" y2="160" /><line x1="120" y1="70" x2="120" y2="140" />
+                  <line x1="140" y1="60" x2="140" y2="130" /><line x1="160" y1="50" x2="160" y2="120" />
+                  <line x1="180" y1="40" x2="180" y2="110" /><line x1="200" y1="60" x2="200" y2="130" />
+                  <line x1="220" y1="80" x2="220" y2="150" /><line x1="240" y1="70" x2="240" y2="140" />
+                  <line x1="260" y1="60" x2="260" y2="120" /><line x1="280" y1="50" x2="280" y2="110" />
+                  <line x1="300" y1="40" x2="300" y2="100" /><line x1="320" y1="30" x2="320" y2="90" />
+                  <line x1="340" y1="40" x2="340" y2="100" /><line x1="360" y1="50" x2="360" y2="110" />
+                  <line x1="380" y1="40" x2="380" y2="90" />
+                </g>
+                <!-- supertrend line (green when long) -->
+                <path d="M20,200 L80,190 L80,140 L180,120 L180,160 L260,100 L260,130 L380,80"
+                      fill="none" stroke="var(--c-success)" stroke-width="2" />
+                <!-- expected entries / exits -->
+                <g>
+                  <circle cx="80"  cy="140" r="4" fill="var(--c-info)" />
+                  <circle cx="180" cy="120" r="4" fill="var(--c-info)" />
+                  <circle cx="260" cy="100" r="4" fill="var(--c-info)" />
+                </g>
+                <!-- actual fills -->
+                <g>
+                  <rect x="82" y="142" width="6" height="6" fill="var(--c-success)" transform="rotate(45 85 145)" />
+                  <rect x="182" y="124" width="6" height="6" fill="var(--c-success)" transform="rotate(45 185 127)" />
+                  <rect x="262" y="106" width="6" height="6" fill="var(--c-success)" transform="rotate(45 265 109)" />
+                </g>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Compare table -->
+          <div class="card" style="padding:0">
+            <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:baseline">
+              <div><div class="card-title">예상 vs 실제 거래</div><div class="card-sub">슬리피지 = (실제 − 예상) / 예상</div></div>
+              <div class="flex gap-2 items-center">
+                <span class="badge success">매칭 18</span>
+                <span class="badge warning">초과 2</span>
+                <span class="badge danger">놓침 1</span>
+              </div>
+            </div>
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>봉 시각 (KST)</th><th>구분</th>
+                  <th class="num">예상 가격</th><th class="num">예상 수량</th>
+                  <th class="num">실제 체결가</th><th class="num">실제 수량</th>
+                  <th class="num">슬리피지</th><th>상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="font-size:12px">05-18 12:00</td>
+                  <td><span class="badge success">ENTRY</span></td>
+                  <td class="num">67,810.00</td><td class="num">0.0420</td>
+                  <td class="num">67,824.50</td><td class="num">0.0420</td>
+                  <td class="num warn">+2.1bp</td>
+                  <td><span class="badge success">매칭</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size:12px">05-17 16:00</td>
+                  <td><span class="badge danger">EXIT</span></td>
+                  <td class="num">68,420.00</td><td class="num">0.0410</td>
+                  <td class="num">68,388.00</td><td class="num">0.0410</td>
+                  <td class="num pos">−4.7bp</td>
+                  <td><span class="badge success">매칭</span></td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-size:12px">05-17 08:00</td>
+                  <td><span class="badge success">ENTRY</span></td>
+                  <td class="num">68,100.00</td><td class="num">0.0408</td>
+                  <td class="num muted">—</td><td class="num muted">—</td>
+                  <td class="num muted">—</td>
+                  <td><span class="badge danger">놓침</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Indicator panel -->
+          <div class="card">
+            <div class="card-head">
+              <div><div class="card-title">최근 봉 지표</div><div class="card-sub">Supertrend · EMA · ATR</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4)">
+              <div style="padding:14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)">
+                <div class="kpi-label">Supertrend</div>
+                <div class="mono" style="font-size:20px;font-weight:600;color:var(--c-success);margin-top:4px">66,920.40</div>
+                <div class="muted" style="font-size:12px;margin-top:2px">LONG · 14 봉째 유지</div>
+              </div>
+              <div style="padding:14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)">
+                <div class="kpi-label">EMA-50</div>
+                <div class="mono" style="font-size:20px;font-weight:600;margin-top:4px">67,210.10</div>
+                <div class="muted" style="font-size:12px;margin-top:2px">가격 &gt; EMA · 우상향</div>
+              </div>
+              <div style="padding:14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)">
+                <div class="kpi-label">ATR-14</div>
+                <div class="mono" style="font-size:20px;font-weight:600;margin-top:4px">412.80</div>
+                <div class="muted" style="font-size:12px;margin-top:2px">평균 대비 1.08×</div>
+              </div>
+              <div style="padding:14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2)">
+                <div class="kpi-label">변동성</div>
+                <div class="mono" style="font-size:20px;font-weight:600;color:var(--c-warning);margin-top:4px">중간</div>
+                <div class="muted" style="font-size:12px;margin-top:2px">σ_4h = 0.62%</div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     GUIDELINES
+=========================================================== -->
+<section class="doc-section" id="guidelines">
+  <div class="doc">
+    <div class="section-eyebrow">04 · How to use</div>
+    <h2 class="section-title">새 화면을 만들 때</h2>
+    <p class="section-lead">새 페이지가 필요해질 때 따라야 할 5가지 체크리스트.</p>
+
+    <div class="row row-2 section-body">
+      <div class="card">
+        <div class="card-title">DO</div>
+        <ul class="muted" style="font-size:13px;line-height:1.9;margin:8px 0 0 18px">
+          <li>모든 색은 토큰 변수에서 가져온다 (<code>var(--text-muted)</code> 등).</li>
+          <li>레이아웃은 <code>app-shell</code> + <code>sidebar</code> + <code>topbar</code> + <code>page</code> 구조.</li>
+          <li>숫자는 <code>.mono</code> + <code>font-variant-numeric: tabular-nums</code>.</li>
+          <li>상태 색은 <code>.pos / .neg / .warn</code> 또는 <code>badge</code> 컴포넌트로만.</li>
+          <li>새 컴포넌트가 필요하면 먼저 이 페이지에 추가한다 (단일 진실 공급원).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">DON'T</div>
+        <ul class="muted" style="font-size:13px;line-height:1.9;margin:8px 0 0 18px">
+          <li>인라인 <code>style=&quot;color:#xxx&quot;</code> 으로 하드코딩하지 않는다.</li>
+          <li>이모지를 정보 표현에 쓰지 않는다 (배지·아이콘으로 대체).</li>
+          <li>그라데이션은 로고 외에 쓰지 않는다.</li>
+          <li>그림자를 두 단계 이상 쌓지 않는다 — 시각적 노이즈.</li>
+          <li>같은 정보를 두 가지 색/스타일로 동시에 표현하지 않는다.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card section-body">
+      <div class="card-title">파일 구조 제안</div>
+      <pre class="mono" style="font-size:12px;line-height:1.7;color:var(--text-muted);margin-top:10px;background:var(--surface-2);padding:14px;border-radius:var(--r-md);overflow:auto"><span style="color:var(--text)">dashboard/</span>
+├── design/
+│   ├── index.html              <span style="color:var(--text-soft)"># 이 문서 — 디자인 시스템 단일 진실 공급원</span>
+│   └── README.md               <span style="color:var(--text-soft)"># 토큰 사용 가이드 + 기여 방법</span>
+└── src/public/
+    └── css/
+        ├── tokens.css          <span style="color:var(--text-soft)"># :root + [data-theme="dark"] 변수만</span>
+        ├── components.css      <span style="color:var(--text-soft)"># .btn .badge .kpi .tbl .card 등</span>
+        └── dashboard.css       <span style="color:var(--text-soft)"># 페이지-특수 레이아웃 (얇게)</span></pre>
+      <p class="muted" style="font-size:13px;line-height:1.7;margin-top:12px">
+        이 <code>index.html</code>의 <code>&lt;style&gt;</code> 블록 첫 두 부분 (TOKENS, COMPONENTS)을
+        그대로 <code>tokens.css</code> + <code>components.css</code>로 분리하면 됩니다.
+        새 화면은 이 두 파일만 import 하고 페이지별 클래스만 추가하세요.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer style="padding: var(--s-7); text-align: center; color: var(--text-soft); font: var(--t-small);">
+  Bit-Mania Design System · v1.0 · last updated 2026-05-19
+</footer>
+
+<script>
+  // — Theme toggle —
+  const tLight = document.getElementById('t-light');
+  const tDark  = document.getElementById('t-dark');
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    tLight.classList.toggle('active', t === 'light');
+    tDark .classList.toggle('active', t === 'dark');
+    try { localStorage.setItem('bm-ds-theme', t); } catch (e) {}
+  }
+  tLight.addEventListener('click', () => setTheme('light'));
+  tDark .addEventListener('click', () => setTheme('dark'));
+  try { const saved = localStorage.getItem('bm-ds-theme'); if (saved) setTheme(saved); } catch (e) {}
+
+  // — Gauges (circular progress) —
+  function drawGauge(el, pct, color) {
+    const r = 38, c = 2 * Math.PI * r;
+    const offset = c * (1 - pct / 100);
+    el.innerHTML = `
+      <svg viewBox="0 0 96 96">
+        <circle class="track" cx="48" cy="48" r="${r}"/>
+        <circle class="bar"   cx="48" cy="48" r="${r}" stroke="${color}"
+                stroke-dasharray="${c}" stroke-dashoffset="${offset}"/>
+      </svg>
+      <div class="label">${pct}%</div>
+    `;
+  }
+  const tierColor = (pct) => pct < 40 ? 'var(--c-success)' : pct < 75 ? 'var(--c-warning)' : 'var(--c-danger)';
+  const gauges = {
+    g1: 22, g2: 61, g3: 38, g4: 84,
+    'm-g1': 22, 'm-g2': 61, 'm-g3': 38, 'm-g4': 12, 'm-g5': 9, 'm-g6': 15
+  };
+  Object.entries(gauges).forEach(([id, pct]) => {
+    const el = document.getElementById(id);
+    if (el) drawGauge(el, pct, tierColor(pct));
+  });
+</script>
+</body>
+</html>

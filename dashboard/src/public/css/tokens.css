@@ -1,0 +1,108 @@
+/* =========================================================================
+   1. DESIGN TOKENS — extracted from dashboard/design/index.html (SSOT)
+   ========================================================================= */
+
+:root {
+  /* — Brand — */
+  --brand-blue:    #206BC4;
+  --brand-blue-2:  #4299E1;
+  --brand-ink:     #0F172A;
+
+  /* — Semantic status — */
+  --c-success: #2FB344;
+  --c-danger:  #D63939;
+  --c-warning: #F59F00;
+  --c-info:    #4299E1;
+
+  /* — Type — */
+  --font-sans: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, monospace;
+
+  --t-display: 600 28px/1.2  var(--font-sans);
+  --t-h1:      600 22px/1.3  var(--font-sans);
+  --t-h2:      600 16px/1.4  var(--font-sans);
+  --t-h3:      600 13px/1.4  var(--font-sans);
+  --t-body:    400 14px/1.5  var(--font-sans);
+  --t-small:   400 12px/1.4  var(--font-sans);
+  --t-overline:600 11px/1    var(--font-sans);
+  --t-num-xl:  600 28px/1.1  var(--font-mono);
+  --t-num:     500 14px/1.3  var(--font-mono);
+
+  /* — Spacing scale (4-base) — */
+  --s-1: 4px; --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px; --s-8: 48px;
+
+  /* — Radius — */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-pill: 999px;
+
+  /* — Light theme surfaces — */
+  --bg:          #F6F8FB;
+  --surface:     #FFFFFF;
+  --surface-2:   #F2F4F8;
+  --surface-3:   #ECEFF3;
+  --border:      #E6E7E9;
+  --border-strong:#D0D5DD;
+  --text:        #1D273B;
+  --text-muted:  #667085;
+  --text-soft:   #98A2B3;
+  --hover:       #F2F6FC;
+  --active:      #E8F0FA;
+
+  /* — Shadows — */
+  --shadow-1: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-2: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06);
+  --shadow-3: 0 8px 24px rgba(15,23,42,.10);
+
+  --primary:        var(--brand-blue);
+  --primary-hover:  #1A5AAB;
+  --primary-soft:   #E8F0FA;
+  --primary-text:   #1A5AAB;
+}
+
+[data-theme="dark"] {
+  --bg:          #0F1623;
+  --surface:     #182232;
+  --surface-2:   #1F2A3D;
+  --surface-3:   #243248;
+  --border:      #2A364D;
+  --border-strong:#3A4866;
+  --text:        #E6EAF2;
+  --text-muted:  #95A0B3;
+  --text-soft:   #6B7895;
+  --hover:       #1E2A3F;
+  --active:      #1C2E4A;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-2: 0 1px 2px rgba(0,0,0,.3), 0 8px 16px rgba(0,0,0,.25);
+  --shadow-3: 0 12px 32px rgba(0,0,0,.4);
+
+  --primary:        #4B9CE2;
+  --primary-hover:  #69ADE8;
+  --primary-soft:   #1C2E4A;
+  --primary-text:   #93C5FD;
+
+  --c-success: #3BC25A;
+  --c-danger:  #EF4A4A;
+  --c-warning: #FFB22B;
+}
+
+/* =========================================================================
+   2. BASE
+   ========================================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font: var(--t-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; cursor: pointer; }
+mark { background: var(--primary-soft); color: var(--primary-text); padding: 1px 4px; border-radius: 3px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }

@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-18
+last_updated: 2026-05-19
 ---
 
 # Code → Docs 역인덱스
@@ -53,7 +53,16 @@ last_updated: 2026-05-18
 | 코드 | 문서 |
 |------|------|
 | `dashboard/src/**` (standalone FE+BE) | [policies/operations/monitoring.md](policies/operations/monitoring.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
+| `dashboard/src/public/css/tokens.css` | SSOT 디자인 토큰 — `dashboard/design/index.html` 에서 추출 |
+| `dashboard/src/public/css/components.css` | SSOT 컴포넌트 라이브러리 — `dashboard/design/index.html` 에서 추출 |
+| `dashboard/src/public/css/dashboard.css` | 페이지 특수 오버라이드 (app-shell 전체화면, 모달, 인프라 게이지 등) |
+| `dashboard/src/public/js/theme.js` | 라이트/다크 토글 + localStorage — `bm:themechange` 이벤트 발행 |
+| `dashboard/src/public/js/monitor-dashboard.js` | 시스템 모니터 프론트엔드 — palette() 기반 Plotly 토큰 연동 |
+| `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — palette() 기반 Plotly 토큰 연동 |
+| `dashboard/src/public/monitor.html` | 시스템 모니터 페이지 — app-shell + 새 디자인 시스템 |
+| `dashboard/src/public/supertrend.html` | 전략 비교 페이지 — app-shell + 새 디자인 시스템 |
 | `dashboard/docker-compose.yml` | [policies/operations/monitoring.md](policies/operations/monitoring.md) |
+| `dashboard/design/index.html` | 디자인 SSOT — 토큰·컴포넌트·적용 예시 |
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 
 ## 공유 라이브러리

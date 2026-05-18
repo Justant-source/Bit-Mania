@@ -1,33 +1,39 @@
 "use strict";
 
-// ── Theme constants (from 7-strategies dashboard) ─────────────────────────
-const BG      = "#0d1117";
-const CARD_BG = "#161b22";
-const GRID    = "#21262d";
-const TEXT    = "#c9d1d9";
-const PROFIT  = "#3fb950";
-const LOSS    = "#f85149";
-const PRIMARY = "#1f6feb";
-const BTC_CLR = "#f7931a";
-const EXP_CLR = "#58a6ff";  // expected: blue
-const ACT_CLR = "#3fb950";  // actual:   green
+// ── Design token helpers ──────────────────────────────────────────────────
 
-function darkLayout(extra) {
+const T = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const palette = () => ({
+  success: T('--c-success'),
+  danger:  T('--c-danger'),
+  warning: T('--c-warning'),
+  info:    T('--c-info'),
+  text:    T('--text'),
+  muted:   T('--text-muted'),
+  border:  T('--border'),
+  surface: T('--surface'),
+  bg:      T('--bg'),
+});
+
+const plotlyLayout = (extra) => {
+  const p = palette();
   return Object.assign({
-    paper_bgcolor: CARD_BG,
-    plot_bgcolor:  BG,
-    font:   { color: TEXT, size: 11 },
-    xaxis:  { gridcolor: GRID, zerolinecolor: GRID, color: TEXT },
-    yaxis:  { gridcolor: GRID, zerolinecolor: GRID, color: TEXT },
-    legend: { bgcolor: "rgba(0,0,0,0)", bordercolor: GRID, borderwidth: 1, orientation: "h", y: 1.08 },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor:  'transparent',
+    font: { family: "'Inter', system-ui, sans-serif", color: p.text, size: 11 },
+    xaxis: { gridcolor: p.border, linecolor: p.border, tickcolor: p.border, zerolinecolor: p.border, color: p.muted },
+    yaxis: { gridcolor: p.border, linecolor: p.border, tickcolor: p.border, zerolinecolor: p.border, color: p.muted },
+    legend: { bgcolor: 'transparent', font: { color: p.muted, size: 11 }, orientation: 'h', y: 1.08 },
     margin: { l: 55, r: 20, t: 30, b: 40 },
     autosize: true,
-    hovermode: "x unified",
+    hovermode: 'x unified',
   }, extra);
-}
+};
 
 // ── State ─────────────────────────────────────────────────────────────────
-let currentFrom = "2026-05-15";  // 운영 시작일 고정 기본값
+
+let currentFrom = '2026-05-15';
 let compareData = [];
 
 function fromToDays(from) {
@@ -39,7 +45,7 @@ function fromToDays(from) {
   return m ? parseInt(m[1]) : 30;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────────────────────────
 
 async function apiFetch(path) {
   const r = await fetch(path);
@@ -48,32 +54,32 @@ async function apiFetch(path) {
 }
 
 function fmtKST(isoStr) {
-  if (!isoStr) return "—";
-  return new Date(isoStr).toLocaleString("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
+  if (!isoStr) return '—';
+  return new Date(isoStr).toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
   });
 }
 
 function fmtMs(ms) {
-  if (ms === null || ms === undefined) return "—";
+  if (ms === null || ms === undefined) return '—';
   if (ms < 60_000) return `${Math.round(ms / 1000)}초`;
   return `${Math.round(ms / 60_000)}분`;
 }
 
 function fmtPct(val, digits = 2) {
-  if (val === null || val === undefined) return "—";
+  if (val === null || val === undefined) return '—';
   return `${Number(val).toFixed(digits)}%`;
 }
 
 function fmtUSD(val) {
-  if (val === null || val === undefined) return "—";
+  if (val === null || val === undefined) return '—';
   return `$${Number(val).toFixed(2)}`;
 }
 
 function fmtBTC(val) {
-  if (val === null || val === undefined) return "—";
+  if (val === null || val === undefined) return '—';
   return `${Number(val).toFixed(5)} BTC`;
 }
 
@@ -82,12 +88,12 @@ function setKpi(id, val) {
   if (el) el.textContent = val;
 }
 
-// ── Day-range selector ────────────────────────────────────────────────────
+// ── Range selector ────────────────────────────────────────────────────────
 
-document.querySelectorAll(".day-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".day-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
+document.querySelectorAll('[data-from]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-from]').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
     currentFrom = btn.dataset.from;
     loadCharts();
     updateCompare();
@@ -98,76 +104,84 @@ document.querySelectorAll(".day-btn").forEach((btn) => {
 
 async function updateStatus() {
   try {
-    const data = await apiFetch("/api/internal/supertrend/status");
+    const data = await apiFetch('/api/internal/supertrend/status');
 
-    // Position
     const pos = data.live_position;
     if (pos) {
-      const side = pos.side || "LONG";
+      const side = pos.side || 'LONG';
       const upnl = pos.unrealized_pnl;
-      setKpi("kpi-position", `${side} ${fmtBTC(pos.size)}`);
-      const upnlEl = document.getElementById("kpi-position-sub");
+      const posEl = document.getElementById('kpi-position');
+      if (posEl) {
+        posEl.textContent = `${side} ${fmtBTC(pos.size)}`;
+        posEl.className = 'kpi-value ' + (side === 'LONG' ? 'pos' : 'neg');
+      }
+      const upnlEl = document.getElementById('kpi-position-sub');
       if (upnlEl) {
         upnlEl.textContent = `미실현 ${fmtUSD(upnl)}`;
-        upnlEl.className = `kpi-sub ${upnl >= 0 ? "pos" : "neg"}`;
+        upnlEl.className = `kpi-meta ${upnl >= 0 ? 'pos' : 'neg'}`;
       }
     } else {
-      setKpi("kpi-position", "없음");
-      setKpi("kpi-position-sub", "포지션 없음");
+      setKpi('kpi-position', '없음');
+      setKpi('kpi-position-sub', '포지션 없음');
     }
 
-    // Signal
     const sig = data.latest_signal;
     if (sig) {
-      const signalText = sig.expected_action === "enter" ? "🟢 진입 신호" :
-                         sig.expected_action === "exit"  ? "🔴 종료 신호" : "⚪ 대기";
-      setKpi("kpi-signal", signalText);
-      setKpi("kpi-signal-sub", `ST${sig.st_dir > 0 ? "↑" : "↓"} 가격 ${Number(sig.price).toLocaleString()}`);
-
-      // Capital
-      setKpi("kpi-capital", fmtUSD(sig.allocated_capital));
-
-      // Indicators panel
+      const signalEl = document.getElementById('kpi-signal');
+      if (signalEl) {
+        if (sig.expected_action === 'enter') {
+          signalEl.textContent = '진입';
+          signalEl.className = 'kpi-value pos';
+        } else if (sig.expected_action === 'exit') {
+          signalEl.textContent = '종료';
+          signalEl.className = 'kpi-value neg';
+        } else {
+          signalEl.textContent = '대기';
+          signalEl.className = 'kpi-value';
+        }
+      }
+      setKpi('kpi-capital', fmtUSD(sig.allocated_capital));
       renderIndicators(sig);
     }
 
-    // Next bar
     if (data.next_bar_eta_ms !== null) {
       const mins = Math.ceil(data.next_bar_eta_ms / 60_000);
-      setKpi("kpi-nextbar", `${mins}분 후`);
-      setKpi("kpi-nextbar-sub", fmtKST(data.next_bar_ts));
+      setKpi('kpi-nextbar', `${mins}분 후`);
+      setKpi('kpi-nextbar-sub', fmtKST(data.next_bar_ts));
     }
 
-    // Sidebar live status
-    const sbPos = document.getElementById("sb-position");
-    if (sbPos) sbPos.textContent = `포지션: ${pos ? `${pos.side || "LONG"} ${fmtBTC(pos.size)}` : "없음"}`;
-    const sbSig = document.getElementById("sb-signal");
-    if (sbSig && sig) sbSig.textContent = `신호: ${sig.expected_action === "enter" ? "🟢 진입" : sig.expected_action === "exit" ? "🔴 종료" : "⚪ 대기"}`;
-    const sbNext = document.getElementById("sb-nextbar");
-    if (sbNext && data.next_bar_eta_ms !== null) sbNext.textContent = `다음 봉: ${Math.ceil(data.next_bar_eta_ms / 60_000)}분 후`;
+    // Sidebar
+    const sbPos = document.getElementById('sb-position');
+    if (sbPos) sbPos.textContent = pos ? `${pos.side || 'LONG'} ${fmtBTC(pos.size)}` : '없음';
+    const sbSig = document.getElementById('sb-signal');
+    if (sbSig && sig) sbSig.textContent = sig.expected_action === 'enter' ? '진입' : sig.expected_action === 'exit' ? '종료' : '대기';
+    const sbNext = document.getElementById('sb-nextbar');
+    if (sbNext && data.next_bar_eta_ms !== null) sbNext.textContent = `${Math.ceil(data.next_bar_eta_ms / 60_000)}분 후`;
 
-    document.getElementById("last-updated").textContent =
-      `갱신: ${new Date().toLocaleTimeString("ko-KR")}`;
+    setKpi('last-updated', `갱신: ${new Date().toLocaleTimeString('ko-KR')}`);
   } catch (err) {
-    console.warn("[supertrend] status error:", err);
+    console.warn('[supertrend] status error:', err);
   }
 }
 
 function renderIndicators(sig) {
-  const panel = document.getElementById("indicator-panel");
+  const panel = document.getElementById('indicator-panel');
   if (!panel) return;
   const items = [
-    { label: "ST 방향",    val: sig.st_dir > 0 ? "🟢 상승" : "🔴 하락",  raw: null },
-    { label: "EMA(7)",     val: Number(sig.fast_ema).toLocaleString(),   raw: null },
-    { label: "EMA(27)",    val: Number(sig.slow_ema).toLocaleString(),   raw: null },
-    { label: "EMA(230)",   val: Number(sig.dir_ema).toLocaleString(),    raw: null },
-    { label: "BTC 가격",   val: `$${Number(sig.price).toLocaleString()}`, raw: null },
-    { label: "ATR(14)",    val: Number(sig.atr_14).toLocaleString(),     raw: null },
-    { label: "예상 진입가", val: sig.expected_stop_loss ? `SL $${Number(sig.expected_stop_loss).toLocaleString()}` : "—", raw: null },
+    { label: 'ST 방향',    val: sig.st_dir > 0 ? '상승' : '하락',       cls: sig.st_dir > 0 ? 'pos' : 'neg' },
+    { label: 'EMA(7)',     val: Number(sig.fast_ema).toLocaleString(),   cls: '' },
+    { label: 'EMA(27)',    val: Number(sig.slow_ema).toLocaleString(),   cls: '' },
+    { label: 'EMA(230)',   val: Number(sig.dir_ema).toLocaleString(),    cls: '' },
+    { label: 'BTC 가격',   val: `$${Number(sig.price).toLocaleString()}`, cls: '' },
+    { label: 'ATR(14)',    val: Number(sig.atr_14).toLocaleString(),     cls: '' },
+    { label: 'Stop Loss',  val: sig.expected_stop_loss ? `$${Number(sig.expected_stop_loss).toLocaleString()}` : '—', cls: 'warn' },
   ];
-  panel.innerHTML = items.map(({ label, val }) =>
-    `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value" style="font-size:16px">${val}</div></div>`
-  ).join("");
+  panel.innerHTML = items.map(({ label, val, cls }) =>
+    `<div class="kpi">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value ${cls}" style="font-size:16px">${val}</div>
+    </div>`
+  ).join('');
 }
 
 // ── Compare (10s poll) ────────────────────────────────────────────────────
@@ -179,46 +193,58 @@ async function updateCompare() {
 
     const stats = data.stats || {};
     const matchPct = stats.total > 0 ? Math.round((stats.matched / stats.total) * 100) : 0;
-    setKpi("kpi-match", `${matchPct}%`);
-    setKpi("kpi-match-sub", `${stats.matched}/${stats.total} 매칭`);
-    setKpi("kpi-slippage", stats.avg_slippage_pct !== undefined ? fmtPct(stats.avg_slippage_pct, 3) : "—");
-    document.getElementById("compare-title").textContent =
-      `총 ${stats.total}건 · 매칭 ${stats.matched} · 놓침 ${stats.missed} · 초과 ${stats.extra}`;
+    setKpi('kpi-match', `${matchPct}%`);
+    setKpi('kpi-match-sub', `${stats.matched}/${stats.total} 매칭`);
+    setKpi('kpi-slippage', stats.avg_slippage_pct !== undefined ? fmtPct(stats.avg_slippage_pct, 3) : '—');
+
+    const titleEl = document.getElementById('compare-title');
+    if (titleEl) titleEl.textContent = `총 ${stats.total}건 · 매칭 ${stats.matched} · 놓침 ${stats.missed} · 초과 ${stats.extra}`;
+
+    const matchedBadge = document.getElementById('badge-matched');
+    const extraBadge   = document.getElementById('badge-extra');
+    const missedBadge  = document.getElementById('badge-missed');
+    if (matchedBadge) matchedBadge.textContent = `매칭 ${stats.matched || 0}`;
+    if (extraBadge)   extraBadge.textContent   = `초과 ${stats.extra || 0}`;
+    if (missedBadge)  missedBadge.textContent  = `놓침 ${stats.missed || 0}`;
 
     renderCompareTable(compareData);
   } catch (err) {
-    console.warn("[supertrend] compare error:", err);
+    console.warn('[supertrend] compare error:', err);
   }
 }
 
 function renderCompareTable(rows) {
-  const tbody = document.getElementById("compare-tbody");
+  const tbody = document.getElementById('compare-tbody');
   if (!tbody) return;
   if (!rows || rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="color:#484f58;text-align:center">비교 데이터 없음 (신호 기록 누적 중)</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="muted" style="text-align:center">비교 데이터 없음 (신호 기록 누적 중)</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map((r) => {
-    const statusClass = r.status === "matched" ? "cmp-matched" :
-                        r.status === "missed"  ? "cmp-miss" : "cmp-extra";
-    const statusLabel = r.status === "matched" ? "✅ 매칭" :
-                        r.status === "missed"  ? "❌ 놓침" : "⚠️ 초과";
-    const actionLabel = r.expected_action === "enter" ? "🟢 진입" : "🔴 종료";
-    const slipColor = r.slippage_pct !== null && Math.abs(r.slippage_pct) > 0.1 ? LOSS : TEXT;
+    const statusBadge = r.status === 'matched'
+      ? '<span class="badge success">매칭</span>'
+      : r.status === 'missed'
+        ? '<span class="badge danger">놓침</span>'
+        : '<span class="badge warning">초과</span>';
+    const actionBadge = r.expected_action === 'enter'
+      ? '<span class="badge success">진입</span>'
+      : '<span class="badge danger">종료</span>';
+    const slipAbs = r.slippage_pct !== null ? Math.abs(r.slippage_pct) : null;
+    const slipClass = slipAbs !== null && slipAbs > 0.1 ? 'neg' : '';
 
-    return `<tr class="${r.status === "matched" ? "" : ""}">
-      <td>${fmtKST(r.bar_ts)}</td>
-      <td>${actionLabel}</td>
-      <td class="cmp-expected">${r.expected_price ? fmtUSD(r.expected_price) : "—"}</td>
-      <td class="cmp-expected">${r.expected_qty ? fmtBTC(r.expected_qty) : "—"}</td>
-      <td class="cmp-actual">${r.actual_price ? fmtUSD(r.actual_price) : "—"}</td>
-      <td class="cmp-actual">${r.actual_qty ? fmtBTC(r.actual_qty) : "—"}</td>
-      <td class="cmp-diff">${fmtMs(r.timing_lag_ms)}</td>
-      <td style="color:${slipColor}">${r.slippage_pct !== null ? fmtPct(r.slippage_pct, 3) : "—"}</td>
-      <td class="${statusClass}">${statusLabel}</td>
+    return `<tr>
+      <td class="mono" style="font-size:12px">${fmtKST(r.bar_ts)}</td>
+      <td>${actionBadge}</td>
+      <td class="num cmp-expected">${r.expected_price ? fmtUSD(r.expected_price) : '—'}</td>
+      <td class="num cmp-expected">${r.expected_qty ? fmtBTC(r.expected_qty) : '—'}</td>
+      <td class="num cmp-actual">${r.actual_price ? fmtUSD(r.actual_price) : '—'}</td>
+      <td class="num cmp-actual">${r.actual_qty ? fmtBTC(r.actual_qty) : '—'}</td>
+      <td class="num cmp-diff">${fmtMs(r.timing_lag_ms)}</td>
+      <td class="num ${slipClass}">${r.slippage_pct !== null ? fmtPct(r.slippage_pct, 3) : '—'}</td>
+      <td>${statusBadge}</td>
     </tr>`;
-  }).join("");
+  }).join('');
 }
 
 // ── Charts (5 min refresh) ────────────────────────────────────────────────
@@ -228,19 +254,20 @@ async function loadCharts() {
 }
 
 async function renderPriceChart() {
-  const div = document.getElementById("chart-price");
+  const div = document.getElementById('chart-price');
   if (!div) return;
 
   try {
+    const p = palette();
     const [candlesData, expData, actData] = await Promise.all([
       apiFetch(`/api/internal/supertrend/candles?days=${fromToDays(currentFrom)}`),
       apiFetch(`/api/internal/supertrend/expected?from=${currentFrom}`),
       apiFetch(`/api/internal/supertrend/actual?from=${currentFrom}`),
     ]);
 
-    const candles = candlesData.candles || [];
-    const expected = (expData.signals || []).filter((s) => s.expected_action !== "hold");
-    const actual = actData.trades || [];
+    const candles  = candlesData.candles || [];
+    const expected = (expData.signals || []).filter((s) => s.expected_action !== 'hold');
+    const actual   = actData.trades || [];
 
     if (candles.length === 0) {
       div.innerHTML = `<div class="empty-state">OHLCV 데이터 없음</div>`;
@@ -248,98 +275,91 @@ async function renderPriceChart() {
     }
 
     const ts = candles.map((c) => new Date(c.ts));
-
     const traces = [
-      // Candlestick
       {
-        type: "candlestick",
+        type: 'candlestick',
         x: ts,
-        open: candles.map((c) => c.open),
-        high: candles.map((c) => c.high),
-        low: candles.map((c) => c.low),
+        open:  candles.map((c) => c.open),
+        high:  candles.map((c) => c.high),
+        low:   candles.map((c) => c.low),
         close: candles.map((c) => c.close),
-        name: "BTC 4h",
-        increasing: { line: { color: PROFIT } },
-        decreasing: { line: { color: LOSS } },
+        name: 'BTC 4h',
+        increasing: { line: { color: p.success } },
+        decreasing: { line: { color: p.danger } },
         showlegend: false,
-        hoverinfo: "x+y",
+        hoverinfo: 'x+y',
       },
     ];
 
-    // Expected entries (blue ▲)
-    const expEntries = expected.filter((s) => s.expected_action === "enter");
+    const expEntries = expected.filter((s) => s.expected_action === 'enter');
     if (expEntries.length) {
       traces.push({
-        type: "scatter", mode: "markers",
+        type: 'scatter', mode: 'markers',
         x: expEntries.map((s) => new Date(s.bar_ts)),
         y: expEntries.map((s) => parseFloat(s.price) * 0.997),
-        name: "예상 진입",
-        marker: { color: EXP_CLR, symbol: "triangle-up", size: 10 },
-        hovertemplate: "예상 진입 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>",
+        name: '예상 진입',
+        marker: { color: p.info, symbol: 'triangle-up', size: 10 },
+        hovertemplate: '예상 진입 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>',
       });
     }
 
-    // Expected exits (blue ▼)
-    const expExits = expected.filter((s) => s.expected_action === "exit");
+    const expExits = expected.filter((s) => s.expected_action === 'exit');
     if (expExits.length) {
       traces.push({
-        type: "scatter", mode: "markers",
+        type: 'scatter', mode: 'markers',
         x: expExits.map((s) => new Date(s.bar_ts)),
         y: expExits.map((s) => parseFloat(s.price) * 1.003),
-        name: "예상 종료",
-        marker: { color: EXP_CLR, symbol: "triangle-down", size: 10 },
-        hovertemplate: "예상 종료 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>",
+        name: '예상 종료',
+        marker: { color: p.info, symbol: 'triangle-down', size: 10 },
+        hovertemplate: '예상 종료 %{x|%m/%d %H:%M}<br>가격 %{y:$,.0f}<extra></extra>',
       });
     }
 
-    // Actual entries (green ▲)
     const actEntries = actual.filter((t) => t.entry_price);
     if (actEntries.length) {
       traces.push({
-        type: "scatter", mode: "markers",
+        type: 'scatter', mode: 'markers',
         x: actEntries.map((t) => new Date(t.entry_fill_time || t.entry_time)),
         y: actEntries.map((t) => t.entry_price * 0.994),
-        name: "실제 체결(진입)",
-        marker: { color: ACT_CLR, symbol: "triangle-up-open", size: 12, line: { width: 2, color: ACT_CLR } },
-        hovertemplate: "실제 진입 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>",
+        name: '실제 체결(진입)',
+        marker: { color: p.success, symbol: 'triangle-up-open', size: 12, line: { width: 2, color: p.success } },
+        hovertemplate: '실제 진입 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>',
       });
     }
 
-    // Actual exits (orange ▼)
     const actExits = actual.filter((t) => t.exit_price);
     if (actExits.length) {
       traces.push({
-        type: "scatter", mode: "markers",
+        type: 'scatter', mode: 'markers',
         x: actExits.map((t) => new Date(t.exit_fill_time || t.exit_time)),
         y: actExits.map((t) => t.exit_price * 1.006),
-        name: "실제 체결(종료)",
-        marker: { color: BTC_CLR, symbol: "triangle-down-open", size: 12, line: { width: 2, color: BTC_CLR } },
-        hovertemplate: "실제 종료 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>",
+        name: '실제 체결(종료)',
+        marker: { color: p.warning, symbol: 'triangle-down-open', size: 12, line: { width: 2, color: p.warning } },
+        hovertemplate: '실제 종료 %{x|%m/%d %H:%M}<br>체결가 %{y:$,.0f}<extra></extra>',
       });
     }
 
-    const layout = darkLayout({
+    Plotly.react(div, traces, plotlyLayout({
       height: 340,
-      xaxis: { type: "date", rangeslider: { visible: false } },
-      yaxis: { title: "BTC (USDT)", tickformat: "$,.0f" },
-    });
-
-    Plotly.react(div, traces, layout, { responsive: true, displayModeBar: false });
-    div.querySelector(".empty-state")?.remove();
+      xaxis: { type: 'date', rangeslider: { visible: false } },
+      yaxis: { title: 'BTC (USDT)', tickformat: '$,.0f' },
+    }), { responsive: true, displayModeBar: false });
+    div.querySelector('.empty-state')?.remove();
   } catch (err) {
-    console.error("[supertrend] price chart error:", err);
+    console.error('[supertrend] price chart error:', err);
     div.innerHTML = `<div class="empty-state">차트 로딩 실패</div>`;
   }
 }
 
 async function renderEquityChart() {
-  const div = document.getElementById("chart-equity");
+  const div = document.getElementById('chart-equity');
   if (!div) return;
 
   try {
     const data = await apiFetch(`/api/internal/supertrend/equity?days=${fromToDays(currentFrom)}`);
     const exp = data.expected || [];
-    const act = data.actual || [];
+    const act = data.actual   || [];
+    const p   = palette();
 
     if (exp.length === 0 && act.length === 0) {
       div.innerHTML = `<div class="empty-state">자산 데이터 없음</div>`;
@@ -347,39 +367,37 @@ async function renderEquityChart() {
     }
 
     const traces = [];
-
     if (exp.length > 0) {
       traces.push({
-        type: "scatter", mode: "lines",
+        type: 'scatter', mode: 'lines',
         x: exp.map((d) => new Date(d.ts)),
         y: exp.map((d) => d.equity),
-        name: "예상 자산",
-        line: { color: EXP_CLR, width: 2, dash: "dot" },
-        hovertemplate: "예상 %{y:$,.2f}<extra></extra>",
+        name: '예상 자산',
+        line: { color: p.info, width: 2, dash: 'dot' },
+        hovertemplate: '예상 %{y:$,.2f}<extra></extra>',
       });
     }
-
     if (act.length > 0) {
       traces.push({
-        type: "scatter", mode: "lines",
+        type: 'scatter', mode: 'lines',
         x: act.map((d) => new Date(d.ts)),
         y: act.map((d) => d.equity),
-        name: "실제 자산",
-        line: { color: ACT_CLR, width: 2 },
-        hovertemplate: "실제 %{y:$,.2f}<extra></extra>",
+        name: '실제 자산',
+        line: { color: p.success, width: 2 },
+        fill: 'tozeroy',
+        fillcolor: p.success + '18',
+        hovertemplate: '실제 %{y:$,.2f}<extra></extra>',
       });
     }
 
-    const layout = darkLayout({
+    Plotly.react(div, traces, plotlyLayout({
       height: 230,
-      yaxis: { title: "자산 (USD)", tickformat: "$,.0f" },
-      xaxis: { type: "date" },
-    });
-
-    Plotly.react(div, traces, layout, { responsive: true, displayModeBar: false });
-    div.querySelector(".empty-state")?.remove();
+      yaxis: { title: '자산 (USD)', tickformat: '$,.0f' },
+      xaxis: { type: 'date' },
+    }), { responsive: true, displayModeBar: false });
+    div.querySelector('.empty-state')?.remove();
   } catch (err) {
-    console.error("[supertrend] equity chart error:", err);
+    console.error('[supertrend] equity chart error:', err);
     div.innerHTML = `<div class="empty-state">차트 로딩 실패</div>`;
   }
 }
@@ -391,9 +409,8 @@ async function init() {
 }
 
 init();
-
-// 10s: status + compare table
 setInterval(() => { updateStatus(); updateCompare(); }, 10_000);
-
-// 5min: charts
 setInterval(loadCharts, 5 * 60_000);
+
+// Re-render charts when theme changes
+window.addEventListener('bm:themechange', loadCharts);
