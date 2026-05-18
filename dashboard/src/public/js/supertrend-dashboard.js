@@ -259,10 +259,13 @@ async function renderPriceChart() {
 
   try {
     const p = palette();
+    // Candles always from Jan 1 for broad context; markers from strategy live date
+    const CANDLES_FROM  = '2026-01-01';
+    const MARKERS_FROM  = '2026-05-18';
     const [candlesData, expData, actData] = await Promise.all([
-      apiFetch(`/api/internal/supertrend/candles?days=${fromToDays(currentFrom)}`),
-      apiFetch(`/api/internal/supertrend/expected?from=${currentFrom}`),
-      apiFetch(`/api/internal/supertrend/actual?from=${currentFrom}`),
+      apiFetch(`/api/internal/supertrend/candles?from=${CANDLES_FROM}`),
+      apiFetch(`/api/internal/supertrend/expected?from=${MARKERS_FROM}`),
+      apiFetch(`/api/internal/supertrend/actual?from=${MARKERS_FROM}`),
     ]);
 
     const candles  = candlesData.candles || [];
@@ -356,7 +359,8 @@ async function renderEquityChart() {
   if (!div) return;
 
   try {
-    const data = await apiFetch(`/api/internal/supertrend/equity?days=${fromToDays(currentFrom)}`);
+    // Always from strategy live date ($200 baseline), not affected by range buttons
+    const data = await apiFetch(`/api/internal/supertrend/equity?from=2026-05-18`);
     const exp = data.expected || [];
     const act = data.actual   || [];
     const p   = palette();

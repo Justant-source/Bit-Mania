@@ -304,25 +304,43 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
 
   router.get("/equity", async (req: Request, res: Response) => {
     try {
-      const days = Math.min(Math.max(1, parseInt((req.query.days as string) || "90", 10)), 365);
+      const fromP  = parseTimeParam(req.query.from as string || req.query.days as string, 90);
+      const fromTs = "ts" in fromP ? fromP.ts : null;
+      const days   = "days" in fromP ? fromP.days : 90;
 
       const [sigRes, snapRes] = await Promise.all([
-        pool.query(`
-          SELECT bar_ts, expected_action, expected_qty, price, allocated_capital
-          FROM supertrend_signals
-          WHERE bar_ts >= NOW() - $1::int * INTERVAL '1 day'
-          ORDER BY bar_ts ASC
-        `, [days]),
-        pool.query(`
-          SELECT snapshot_at, total_equity
-          FROM portfolio_snapshots
-          WHERE snapshot_at >= NOW() - $1::int * INTERVAL '1 day'
-          ORDER BY snapshot_at ASC
-        `, [days]),
+        fromTs
+          ? pool.query(`
+              SELECT bar_ts, expected_action, expected_qty, price, allocated_capital
+              FROM supertrend_signals
+              WHERE bar_ts >= $1::timestamptz
+              ORDER BY bar_ts ASC
+            `, [fromTs])
+          : pool.query(`
+              SELECT bar_ts, expected_action, expected_qty, price, allocated_capital
+              FROM supertrend_signals
+              WHERE bar_ts >= NOW() - $1::int * INTERVAL '1 day'
+              ORDER BY bar_ts ASC
+            `, [days]),
+        fromTs
+          ? pool.query(`
+              SELECT snapshot_at, total_equity
+              FROM portfolio_snapshots
+              WHERE snapshot_at >= $1::timestamptz
+              ORDER BY snapshot_at ASC
+            `, [fromTs])
+          : pool.query(`
+              SELECT snapshot_at, total_equity
+              FROM portfolio_snapshots
+              WHERE snapshot_at >= NOW() - $1::int * INTERVAL '1 day'
+              ORDER BY snapshot_at ASC
+            `, [days]),
       ]);
 
       const signals = sigRes.rows;
-      let expectedEquity = signals[0]?.allocated_capital ?? 60;
+      // Phase 5: $200 USDT initial capital (2026-05-18 live start)
+      const INITIAL_EQUITY = 200;
+      let expectedEquity = INITIAL_EQUITY;
       let inPosition = false;
       let entryPrice = 0;
       let posQty     = 0;
@@ -408,19 +426,35 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
 
   router.get("/candles", async (req: Request, res: Response) => {
     try {
-      const days = Math.min(Math.max(1, parseInt((req.query.days as string) || "90", 10)), 365);
-      const result = await pool.query(`
-        SELECT timestamp AS ts,
-          round(open::numeric,2)   AS open,  round(high::numeric,2)   AS high,
-          round(low::numeric,2)    AS low,   round(close::numeric,2)  AS close,
-          round(volume::numeric,4) AS volume
-        FROM ohlcv_history
-        WHERE exchange = 'bybit'
-          AND symbol = 'BTCUSDT'
-          AND timeframe = '4h'
-          AND timestamp >= NOW() - $1::int * INTERVAL '1 day'
-        ORDER BY timestamp ASC
-      `, [days]);
+      const fromP  = parseTimeParam(req.query.from as string || req.query.days as string, 90);
+      const fromTs = "ts" in fromP ? fromP.ts : null;
+      const days   = "days" in fromP ? fromP.days : 90;
+
+      const result = fromTs
+        ? await pool.query(`
+            SELECT timestamp AS ts,
+              round(open::numeric,2)   AS open,  round(high::numeric,2)   AS high,
+              round(low::numeric,2)    AS low,   round(close::numeric,2)  AS close,
+              round(volume::numeric,4) AS volume
+            FROM ohlcv_history
+            WHERE exchange = 'bybit'
+              AND symbol = 'BTCUSDT'
+              AND timeframe = '4h'
+              AND timestamp >= $1::timestamptz
+            ORDER BY timestamp ASC
+          `, [fromTs])
+        : await pool.query(`
+            SELECT timestamp AS ts,
+              round(open::numeric,2)   AS open,  round(high::numeric,2)   AS high,
+              round(low::numeric,2)    AS low,   round(close::numeric,2)  AS close,
+              round(volume::numeric,4) AS volume
+            FROM ohlcv_history
+            WHERE exchange = 'bybit'
+              AND symbol = 'BTCUSDT'
+              AND timeframe = '4h'
+              AND timestamp >= NOW() - $1::int * INTERVAL '1 day'
+            ORDER BY timestamp ASC
+          `, [days]);
 
       return res.json({ candles: result.rows, count: result.rowCount });
     } catch (err) {
