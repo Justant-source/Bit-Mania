@@ -40,7 +40,7 @@ START_MS = int(datetime(2021, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
 END_MS   = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 
 TIMEFRAMES = ['1h', '4h', '1D']
-STRATEGIES = ['stoch', 'momentum_ma', 'supertrend',
+STRATEGIES = ['stoch', 'supertrend',
               'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce']
 VARIANTS   = ['bidirectional', 'long_only',
               'bidirectional_x2', 'long_only_x2',
@@ -462,7 +462,7 @@ def check_1f_reproduce(audit: Audit, target: str) -> None:
         items = [(s, tf, v, RESULT_DIR / s / tf / v)]
 
     cls_map = {
-        'stoch': 'StochStrategy', 'momentum_ma': 'MomentumMAStrategy',
+        'stoch': 'StochStrategy',
         'supertrend': 'SupertrendStrategy', 'tradeiq_psar_ha': 'TradeIQPsarHaStrategy',
         'trendtype': 'TrendTypeStrategy',
         'supertrend_trendtype': 'SupertrendTrendTypeStrategy',

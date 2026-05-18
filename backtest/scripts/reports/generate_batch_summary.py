@@ -21,8 +21,8 @@ BATCH_META = {
     },
     2: {
         'title': 'Batch 2 — Trend Following 종합',
-        'strategies': ['momentum_ma', 'supertrend', 'tradeiq_psar_ha'],
-        'names': ['MomentumMA', 'Supertrend', 'TradeIQ PSAR-HA'],
+        'strategies': ['supertrend', 'tradeiq_psar_ha'],
+        'names': ['Supertrend', 'TradeIQ PSAR-HA'],
         'category': 'Trend Following',
         'prior_note': 'CryptoEngine 004 trend following은 -1.84% (수수료 > alpha)로 폐기됨',
     },

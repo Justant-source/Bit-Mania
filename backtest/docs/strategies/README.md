@@ -22,8 +22,14 @@
 | 013 | [013_intraday_seasonality.md](013_intraday_seasonality.md) | 일중 시즈널리티 | ❌ FAIL | ARCHIVED |
 | 014 | [014_macro_event.md](014_macro_event.md) | FOMC/CPI 매크로 이벤트 | ❌ FAIL | ARCHIVED |
 | 015 | [015_contrarian_sentiment.md](015_contrarian_sentiment.md) | 역행 센티먼트 (F&G) | ❌ FAIL | ARCHIVED |
+| 016 | [016_stoch.md](016_stoch.md) | Stochastic + EMA | ❌ FAIL | ARCHIVED |
+| 017 | [017_supertrend.md](017_supertrend.md) | Supertrend Triple Confirmation | ✅ PASS | **ACTIVE (live)** |
+| 018 | [018_tradeiq_psar_ha.md](018_tradeiq_psar_ha.md) | TradeIQ PSAR-HA (4-Factor) | ✅ PASS (1D) | CANDIDATE |
+| 019 | [019_trendtype.md](019_trendtype.md) | TrendType ADX/DMI | ✅ PASS (1D) | CANDIDATE |
+| 020 | [020_supertrend_trendtype.md](020_supertrend_trendtype.md) | Supertrend + TrendType 하이브리드 | ✅ PASS (4h+1D) | CANDIDATE |
+| 021 | [021_tradeiq_cci_ce.md](021_tradeiq_cci_ce.md) | TradeIQ CCI + Chandelier Exit | ❌ FAIL | ARCHIVED |
 
-**요약**: 15개 전략 중 1개(FA) PASS, 14개 FAIL/ARCHIVED
+**요약**: 21개 전략 중 2개(FA, Supertrend) PASS/ACTIVE, 3개 CANDIDATE (1D 조건부), 16개 FAIL/ARCHIVED
 
 ---
 
@@ -61,6 +67,15 @@ Phase 7+8 / backtest_v5 (2026-04-12, Jesse 엔진)
 
 Phase 5 실운영 (2026-04-07 ~ 2026-05-01)
   └─ 001 FA 실운영 24일 — 거래 0건 (임계값 25% APR → 8% APR 조정 중)
+
+Phase 5 → 전략 교체 (2026-05-12)
+  └─ 016 Stochastic — FAIL (MDD -60~-84%, v2/v3 40 combo 전부 -999)
+  └─ 017 Supertrend Triple Confirmation — PASS 4h long_only CAGR 44.69% ✅ ACTIVE
+  └─ 018 TradeIQ PSAR-HA — PASS 1D long_only CAGR 22.43% (CANDIDATE)
+  └─ 019 TrendType ADX/DMI — PASS 1D long_only CAGR 21.54% (CANDIDATE)
+  └─ 020 Supertrend+TrendType 하이브리드 — PASS 4h+1D (CANDIDATE)
+  └─ 021 TradeIQ CCI-CE — FAIL (거래수 부족, CAGR 미달)
+  └─ FA 폐기 → Supertrend 4h 3x combo #173 메인넷 전환 (2026-05-18)
 ```
 
 ---

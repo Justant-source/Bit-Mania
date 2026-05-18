@@ -4,7 +4,6 @@ param_sweep_v3.py — 7 strategies × 24 new combos × 2 TF × 2 variants × 4 p
 
 Key changes from v2:
   - stoch : use_direction_ema=True  (v2 was False → caused all FAIL results)
-  - momentum_ma : val_ma_len added as 3rd sweep param (50/100/200)
   - TF default : 4h + 1D only  (1h excluded per design)
   - 24 new combos per strategy — fine grid around v2 champion + community-optimal params
   - Output : /result/param_sweep_v3/  (separate namespace from v2)
@@ -84,7 +83,6 @@ PERIODS = {
 # ── Sweep specs (24 new combos per strategy) ───────────────────────────────────
 # All combos are NEW — output goes to /result/param_sweep_v3/ (separate from v2)
 # stoch: use_direction_ema=True  (v2 had False — structural bug fixed here)
-# momentum_ma: param_keys has 3 entries; combos are 3-tuples
 SWEEP_SPECS_V3: dict[str, dict] = {
     'supertrend': {
         'cls': 'SupertrendStrategy',
@@ -200,25 +198,6 @@ SWEEP_SPECS_V3: dict[str, dict] = {
             (10, 5.0), ( 7, 5.0), ( 5, 6.0), ( 9, 5.0),   # 13-16: various K × wide stop
             ( 5, 7.0), (14, 7.0), (21, 6.0), (21, 7.0),   # 17-20: extreme wide stops
             (10, 6.0), (18, 6.0), (10, 7.0), (18, 7.0),   # 21-24: K 10/18 wide stops
-        ],
-    },
-    'momentum_ma': {
-        'cls': 'MomentumMAStrategy',
-        'base_hp': {
-            'lin_len': 20, 'val_ma_len': 100, 'atr_mult': 3.0,
-        },
-        'param_keys': ['lin_len', 'atr_mult', 'val_ma_len'],  # 3rd param added
-        # v2 ALL FAILED (val_ma_len=100 fixed, too noisy).
-        # v3: sweep val_ma_len — hypothesis: val_ma_len=200 is more conservative filter → better MDD
-        'combos': [
-            (14, 3.0, 200), (20, 3.0, 200), (30, 3.0, 200),   # 1-3: baseline × val_ma=200
-            (14, 4.0, 200), (20, 4.0, 200), (30, 4.0, 200),   # 4-6: wider stop × val_ma=200
-            (14, 5.0, 200), (20, 5.0, 200), (30, 5.0, 200),   # 7-9: wide stop × val_ma=200
-            (14, 3.0,  50), (20, 3.0,  50), (30, 3.0,  50),   # 10-12: baseline × val_ma=50
-            (14, 4.0,  50), (20, 4.0,  50), (30, 4.0,  50),   # 13-15: wider × val_ma=50
-            (10, 3.0, 200), (40, 3.0, 200), (25, 3.0, 200),   # 16-18: lin_len extremes
-            (10, 4.0, 200), (40, 4.0, 200), (25, 4.0, 200),   # 19-21: lin_len extremes wider
-            (20, 6.0, 200), (30, 6.0, 200), (14, 6.0, 200),   # 22-24: extreme wide stop
         ],
     },
 }
@@ -480,7 +459,7 @@ def generate_report(strats: list, tfs: list, variants: list) -> None:
         f'**생성**: {ts}',
         '**평가 기간**: P1=2021-04~2026-04 / P2=2022-12~2026-04 / P3=2021-04~2025-09 / P4=2022-12~2025-09',
         '**점수식**: mean(P1~P4 CAGR)  if ALL MDD≥-35% AND trades≥5  else -999',
-        '**변경사항**: stoch use_direction_ema=True (v2: False) / momentum_ma val_ma_len 3rd param',
+        '**변경사항**: stoch use_direction_ema=True (v2: False)',
         '',
         '---',
         '',

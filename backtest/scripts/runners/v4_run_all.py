@@ -33,7 +33,6 @@ TIMEFRAMES = ['1h', '4h', '1D']
 
 STRATEGIES = [
     ('StochStrategy',              'stoch'),
-    ('MomentumMAStrategy',         'momentum_ma'),
     ('SupertrendStrategy',         'supertrend'),
     ('TradeIQPsarHaStrategy',      'tradeiq_psar_ha'),
     ('TrendTypeStrategy',          'trendtype'),

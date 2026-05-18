@@ -84,7 +84,7 @@ PERIODS_FULL: dict[str, tuple[str, str]] = {
 }
 
 STRATEGIES_ALL = [
-    'stoch', 'momentum_ma', 'supertrend', 'tradeiq_psar_ha',
+    'stoch', 'supertrend', 'tradeiq_psar_ha',
     'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce',
 ]
 VARIANTS        = ['bidirectional', 'long_only']

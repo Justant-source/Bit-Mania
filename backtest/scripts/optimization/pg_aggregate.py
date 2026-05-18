@@ -302,19 +302,39 @@ def apply_plateau(conn, results: list[dict], sweep_id: str) -> None:
         r['plateau_score'] = score
 
 
-def apply_sweet_spot_score(results: list[dict]) -> None:
-    """Compute sweet_spot_score = 0.4*safety + 0.4*plateau + 0.2*cagr."""
+def apply_sweet_spot_score(results: list[dict],
+                           combo_window_results: dict[int, list[dict]]) -> None:
+    """Compute sweet_spot_score = log10(compound_ratio) across all 8 windows.
+
+    compound_ratio = PRODUCT(finishing_balance / 10000) for each completed window.
+    Simulates continuous reinvestment across all windows. Stored as log10 so the
+    value fits a compact linear scale (range ~-3 to +5 for realistic combos).
+    Requires all 8 windows to be complete; otherwise None.
+    Also stores raw compound_ratio in r['compound_ratio'] for summary output.
+    """
+    import math
+
     for r in results:
-        if r['safety_score'] is None or r['mean_cagr'] is None:
+        combo_pk = r['combo_pk']
+        window_results = combo_window_results.get(combo_pk, [])
+
+        complete = [
+            wr for wr in window_results
+            if wr['complete'] and wr['finishing_balance'] is not None
+            and wr['finishing_balance'] > 0
+        ]
+
+        if len(complete) < 8:
             r['sweet_spot_score'] = None
+            r['compound_ratio'] = None
             continue
 
-        r['sweet_spot_score'] = round(
-            (r['safety_score'] or 0.0) * 0.4
-            + (r['plateau_score'] or 0.0) * 0.4
-            + (r['mean_cagr'] / 200.0 * 100.0) * 0.2,
-            2
-        )
+        compound = 1.0
+        for wr in complete:
+            compound *= wr['finishing_balance'] / 10000.0
+
+        r['compound_ratio'] = round(compound, 2)
+        r['sweet_spot_score'] = round(math.log10(max(compound, 1e-6)), 4)
 
 
 def update_st_combos(conn, results: list[dict]) -> None:
@@ -388,10 +408,12 @@ def print_summary(results: list[dict]) -> None:
     valid = [r for r in results if r['sweet_spot_score'] is not None]
     if valid:
         top_5 = sorted(valid, key=lambda r: r['sweet_spot_score'], reverse=True)[:5]
-        print(f'\n  Top 5 by sweet_spot_score:')
+        print(f'\n  Top 5 by compound_ratio (sweet_spot_score = log10):')
         for i, r in enumerate(top_5, 1):
-            print(f'    {i}. combo_pk={r["combo_pk"]} score={r["sweet_spot_score"]} '
-                  f'mean_cagr={r["mean_cagr"]:.1f}% plateau={r["plateau_quality"]}')
+            raw = r.get('compound_ratio') or 0.0
+            print(f'    {i}. combo_pk={r["combo_pk"]} compound={raw:.0f}x '
+                  f'log10={r["sweet_spot_score"]:.4f} mean_cagr={r["mean_cagr"]:.1f}% '
+                  f'plateau={r["plateau_quality"]}')
 
 
 def main():
@@ -420,8 +442,8 @@ def main():
         print('Computing plateau quality...')
         apply_plateau(conn, results, sweep_id)
 
-        print('Computing sweet spot scores...')
-        apply_sweet_spot_score(results)
+        print('Computing sweet spot scores (compound_ratio)...')
+        apply_sweet_spot_score(results, combo_window_results)
 
         print('Updating st_combos...')
         update_st_combos(conn, results)

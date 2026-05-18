@@ -67,21 +67,6 @@ SWEEP_SPECS: dict[str, dict] = {
             (10, 2.0),   # 6: 둘 다 낮춤
         ],
     },
-    'momentum_ma': {
-        'cls': 'MomentumMAStrategy',
-        'base_hp': {
-            'lin_len': 20, 'val_ma_len': 100, 'atr_mult': 3.0,
-        },
-        'param_keys': ['lin_len', 'atr_mult'],
-        'combos': [
-            (14, 3.0),   # 1: lin_len 낮춤
-            (20, 3.0),   # 2: baseline
-            (30, 3.0),   # 3: lin_len 높임
-            (20, 2.0),   # 4: atr_mult 낮춤
-            (20, 4.0),   # 5: atr_mult 높임
-            (14, 2.0),   # 6: 둘 다 낮춤
-        ],
-    },
     'supertrend': {
         'cls': 'SupertrendStrategy',
         'base_hp': {

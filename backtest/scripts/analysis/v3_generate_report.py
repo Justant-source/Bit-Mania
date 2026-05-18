@@ -20,7 +20,7 @@ BASE = Path('/result/v3')
 
 EXPECTED = {
     'batch_1': ['bbpb', 'bbwp', 'stoch'],
-    'batch_2': ['momentum_ma', 'supertrend', 'tradeiq_psar_ha'],
+    'batch_2': ['supertrend', 'tradeiq_psar_ha'],
     'batch_3': ['trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce'],
 }
 VARIANTS = ['bidirectional', 'long_only']

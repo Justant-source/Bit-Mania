@@ -15,7 +15,6 @@ ALL_STRATEGIES = [
     (1, 'bbpb',               'BBPB',                'Mean Reversion'),
     (1, 'bbwp',               'BBWP',                'Mean Reversion'),
     (1, 'stoch',              'Stoch',               'Mean Reversion'),
-    (2, 'momentum_ma',        'MomentumMA',          'Trend Following'),
     (2, 'supertrend',         'Supertrend',          'Trend Following'),
     (2, 'tradeiq_psar_ha',     'TradeIQ PSAR-HA',        'Trend Following'),
     (3, 'trendtype',          'TrendType',           'Hybrid/Regime'),

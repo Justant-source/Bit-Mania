@@ -3,7 +3,6 @@
 **생성**: 2026-05-12 01:08 UTC
 **평가 기간**: P1=2021-04~2026-04 / P2=2022-12~2026-04 / P3=2021-04~2025-09 / P4=2022-12~2025-09
 **점수식**: mean(P1~P4 CAGR)  if ALL MDD≥-35% AND trades≥5  else -999
-**변경사항**: stoch use_direction_ema=True (v2: False) / momentum_ma val_ma_len 3rd param
 
 ---
 

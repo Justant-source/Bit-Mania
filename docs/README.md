@@ -140,11 +140,15 @@ docs/
 │   │   └── README.md — 운영 매뉴얼 인덱스
 │   │
 │   ├── strategies/
-│   │   ├── funding-arb.md — 펀딩비 차익거래 (핵심 전략)
+│   │   ├── supertrend.md — Supertrend 4h 3x (현재 live 전략 사양)
+│   │   ├── funding-arb.md — 펀딩비 차익거래 (archived)
 │   │   ├── adaptive-dca.md — Fear&Greed 기반 DCA (보조)
 │   │   └── README.md — 전략 인덱스
 │   │
 │   └── README.md — 정책 인덱스
+│
+├── strategies/
+│   └── 016_supertrend.md — Supertrend 4h 3x (현재 live 전략 백테스트 사양)
 │
 ├── structure/
 │   ├── services.md — 19개 서비스 상세
@@ -162,18 +166,9 @@ docs/
     │   └── live-postmortem-template.md — 거래 분석 템플릿
     │
     ├── strategies/
-    │   ├── 001_funding_arb.md ~ 015_contrarian_sentiment.md — 15개 전략 사양
+    │   ├── 001_funding_arb.md ~ 015_contrarian_sentiment.md — 15개 전략 (이전 단계)
+    │   ├── 016_stoch.md ~ 021_tradeiq_cci_ce.md — 6개 전략 (Phase 5 후보군)
     │   └── README.md
-    │
-    ├── runs/
-    │   └── *.md — 7개 전략별 실험 ledger (supertrend, stoch 등)
-    │
-    ├── optimization/
-    │   ├── param_sweep_v2.md — v2 파라미터 스윕 (2,688 backtests, 완료)
-    │   ├── param_sweep_v2_results.md — v2 실행 리포트
-    │   ├── param_sweep_v3.md — v3 세밀 격자 스윕 (supertrend 96 combo, 완료)
-    │   ├── rolling_window_test.md — 롤링 윈도우 방법론
-    │   └── rolling_window_results_v2.md — v2 champion 기준 롤링 결과
     │
     └── phase4-checklist.md — Phase 4 완료 기준
 ```

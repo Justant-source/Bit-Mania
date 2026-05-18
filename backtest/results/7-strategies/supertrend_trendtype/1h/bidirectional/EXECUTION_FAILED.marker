@@ -1,14 +1,20 @@
 status: FAILED
-reason: [Errno 2] No such file or directory: '/app/scripts/strategies/external/SupertrendTrendTypeStrategy.py'
-tb: Traceback (most recent call last):
-  File "/app/scripts/sweep/param_sweep_v3.py", line 605, in run_champion_backtests
-    strategy_cls = _load_strategy_cls(strat, variant)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scripts/sweep/param_sweep_v3.py", line 287, in _load_strategy_cls
-    spec_mod.loader.exec_module(mod)
-  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
-  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
-  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
-FileNotFoundError: [Errno 2] No such file or directory: '/app/scripts/strategies/external/SupertrendTrendTypeStrategy.py'
+reason: invalid literal for int() with base 10: '1.0'
+executed_at: 2026-05-17T11:32:42.170330+00:00
+traceback:
+Traceback (most recent call last):
+  File "/app/scripts/runners/run_intrabar_backtest.py", line 799, in <module>
+    verdict, metrics = run(args)
+                       ^^^^^^^^^
+  File "/app/scripts/runners/run_intrabar_backtest.py", line 695, in run
+    strategy_cls = _load_strategy(strategy_name)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scripts/runners/run_intrabar_backtest.py", line 285, in _load_strategy
+    spec.loader.exec_module(mod)
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/strategies/external/SupertrendTrendTypeStrategy.py", line 17, in <module>
+    LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: '1.0'
 
-executed_at: 2026-05-12T09:58:51.685532+00:00

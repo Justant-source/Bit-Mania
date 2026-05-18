@@ -140,7 +140,7 @@
     <div class="legend-item"><div class="legend-swatch" style="background:#1976d2"></div>PLATEAU (안정 영역)</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#ff9800"></div>MIXED</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#999"></div>FAIL (Tier 1-4 불통)</div>
-    <div class="legend-item" style="margin-left:auto;color:#666;font-size:11px">투명도 = sweet_spot_score (높을수록 진함)</div>
+    <div class="legend-item" style="margin-left:auto;color:#666;font-size:11px">투명도 = compound_ratio log10 (높을수록 진함)</div>
   </div>
   <canvas id="pc-canvas" width="1200" height="400"></canvas>
   
@@ -200,12 +200,12 @@
   <div class="panel">
     <h2 style="margin-top:0">Sweet Spot Score vs Worst MDD Recent</h2>
     <canvas id="ss-vs-recent-canvas" width="600" height="380"></canvas>
-    <div class="info-box">우상단 (높은 sweet_score + 덜 음수 recent_mdd) = 통합 최적. 운영 결정의 진짜 frontier.</div>
+    <div class="info-box">우상단 (높은 compound_ratio + 덜 음수 recent_mdd) = 통합 최적. 운영 결정의 진짜 frontier.</div>
   </div>
 </div>
 
 <div class="panel">
-  <h2 style="margin-top:0">필터된 combo 표 (sweet_spot_score 기준 Top 100)</h2>
+  <h2 style="margin-top:0">필터된 combo 표 (compound_ratio 기준 Top 100)</h2>
   
   <!-- 표 내부 multi-select 필터 (요청 8) -->
   <div class="pc-param-filters" id="table-param-filters" style="margin-bottom:12px">
@@ -228,7 +228,7 @@
         <th data-sort="ww">worst_window%</th>
         <th data-sort="pq">plateau</th>
         <th data-sort="tp">tier_pass</th>
-        <th data-sort="ss">sweet_score</th>
+        <th data-sort="ss">compound_ratio</th>
       </tr></thead>
       <tbody id="table-body"></tbody>
     </table>
@@ -270,13 +270,19 @@ const HELP_TEXTS = {
     <strong>ISLAND</strong>: 인근 평균이 50% 미만으로 떨어짐. <code>고립된 점, overfitting 의심</code>.<br><br>
     <strong>EDGE</strong>: grid 경계에 위치, 인근 4개 미만.<br><br>
     v5_2 결과: PLATEAU 159개 (12.3%), MIXED 1,137개. v5에서는 PLATEAU 0개였는데 dense grid 덕분에 발견됨.`,
-  
+
   tier: `<strong>Tier 1-4 시스템</strong> — 운영 안정성 통과 게이트.<br><br>
     <strong>Tier 1 (청산 없음)</strong>: 8 windows 모두에서 single-trade margin ≤ -100% 없음. ATR stop 작동.<br><br>
     <strong>Tier 2 (모든 구간 양수)</strong>: 8 windows 모두 CAGR > 0. 시장 국면 무관 수익.<br><br>
     <strong>Tier 3 (수익 충분)</strong>: mean_CAGR > v4 combo_18 baseline (<code>144.99%</code>).<br><br>
     <strong>Tier 4 (분산 작음)</strong>: std_CAGR < baseline std × 1.2 (<code>179.0</code>). 운영 stress 작음.<br><br>
     <strong>tier_pass</strong>: 위 4단계 모두 통과. v5_2 ROBUST 476개 / 1,296 (36.7%).`,
+
+  sweet_spot_score: `<strong>Compound Ratio</strong> — 8개 rolling window를 연속 복리 재투자했을 때의 누적 배율.<br><br>
+    <strong>계산식</strong>: <code>PRODUCT(finishing_balance / $10k)</code> for 8 windows<br><br>
+    각 창의 마지막 잔고를 다음 창에 $10k 기준으로 재투자한다고 가정한 시뮬레이션. <br><br>
+    <strong>예시</strong>: W1에서 $10k→$30k(3x), W2에서 $10k→$15k(1.5x) → compound_ratio = 3.0 × 1.5 = 4.5x<br><br>
+    <strong>해석</strong>: 값이 클수록 전체 기간 복리 수익이 높음. sweet_spot_score(강건성 지표)와 달리 실제 수익 극대화 지표.`,
 };
 
 document.querySelectorAll('.help').forEach(el => {
@@ -487,7 +493,7 @@ const PC_DIMS = [
   {key: 'mc', label: 'CAGR %', isNum: true, min: -50, max: 300},
   {key: 'wm', label: 'worst_MDD %', isNum: true, min: -110, max: 0},
   {key: 'wmr', label: 'recent_MDD %', isNum: true, min: -80, max: 0},
-  {key: 'ss', label: 'sweet_score', isNum: true, min: 50, max: 100},
+  {key: 'ss', label: 'compound (log10)', isNum: true, min: -2, max: 5},
 ];
 
 function drawPC(filtered) {
@@ -550,8 +556,8 @@ function drawPC(filtered) {
   sorted.forEach(r => {
     let color, alpha;
     if (r.tp === 0) { color = '180, 180, 180'; alpha = 0.06; }
-    else if (r.pq === 'P') { color = '25, 118, 210'; alpha = 0.25 + (r.ss - 70) / 100; }
-    else { color = '255, 152, 0'; alpha = 0.15 + (r.ss - 70) / 200; }
+    else if (r.pq === 'P') { color = '25, 118, 210'; alpha = 0.1 + Math.min(Math.max((r.ss || 0) + 2, 0) / 7, 1) * 0.7; }
+    else { color = '255, 152, 0'; alpha = 0.05 + Math.min(Math.max((r.ss || 0) + 2, 0) / 7, 1) * 0.45; }
     
     ctx.strokeStyle = `rgba(${color}, ${Math.min(1, alpha)})`;
     ctx.lineWidth = 1;
@@ -605,7 +611,7 @@ pcCanvas.addEventListener('mousemove', e => {
     tooltip.innerHTML = `<strong>combo #${nearest.i}</strong>` +
       `<br>params: ${nearest.sf}/${nearest.sp}/${nearest.fe}/${nearest.se}/${nearest.de}/${nearest.at}` +
       `<br>CAGR: ${nearest.mc.toFixed(1)}% | worst_MDD: ${nearest.wm.toFixed(1)}%` +
-      `<br>recent_MDD: ${nearest.wmr.toFixed(1)}% | sweet_score: ${nearest.ss.toFixed(1)}` +
+      `<br>recent_MDD: ${nearest.wmr.toFixed(1)}% | compound_ratio: ${nearest.ss != null ? Math.round(Math.pow(10, nearest.ss)) + 'x' : '—'}` +
       `<br>plateau: ${{'P':'PLATEAU','M':'MIXED','I':'ISLAND','E':'EDGE'}[nearest.pq]} | tier_pass: ${nearest.tp ? '✓' : '✗'}`;
     tooltip.style.opacity = 1;
     tooltip.style.left = (e.pageX + 12) + 'px';
@@ -993,29 +999,31 @@ function drawSSvsRecent(filtered) {
   
   ctx.clearRect(0, 0, W, H);
   
-  const xMin = 50, xMax = 100;   // sweet_score
+  const xMin = -2, xMax = 5;    // compound_ratio (log10)
   const yMin = -80, yMax = 0;    // recent MDD
   const sx = v => pad.left + ((v - xMin) / (xMax - xMin)) * plotW;
   const sy = v => pad.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
   
   ctx.strokeStyle = '#f0f0f0'; ctx.lineWidth = 1;
-  for (let v = xMin; v <= xMax; v += 10) {
+  for (let v = xMin; v <= xMax; v += 1) {
     ctx.beginPath(); ctx.moveTo(sx(v), pad.top); ctx.lineTo(sx(v), pad.top + plotH); ctx.stroke();
   }
   for (let v = yMin; v <= yMax; v += 10) {
     ctx.beginPath(); ctx.moveTo(pad.left, sy(v)); ctx.lineTo(pad.left + plotW, sy(v)); ctx.stroke();
   }
-  
+
   ctx.fillStyle = '#1a1a1a'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
-  for (let v = xMin; v <= xMax; v += 10) {
-    ctx.fillText(v.toString(), sx(v), pad.top + plotH + 14);
+  // Show x-axis labels as 10^v → actual multiplier
+  for (let v = xMin; v <= xMax; v += 1) {
+    const label = v < 0 ? '0' : Math.round(Math.pow(10, v)) + 'x';
+    ctx.fillText(label, sx(v), pad.top + plotH + 14);
   }
   ctx.textAlign = 'right';
   for (let v = yMin; v <= yMax; v += 10) {
     ctx.fillText(v.toString(), pad.left - 4, sy(v) + 3);
   }
   ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('sweet_spot_score', pad.left + plotW/2, H - 4);
+  ctx.fillText('compound_ratio (log10)', pad.left + plotW/2, H - 4);
   ctx.save(); ctx.translate(14, pad.top + plotH/2); ctx.rotate(-Math.PI/2);
   ctx.fillText('Recent MDD %', 0, 0); ctx.restore();
   
@@ -1073,7 +1081,7 @@ function renderTable() {
       <td class="num ${r.ww >= 0 ? 'pos' : 'neg'}">${r.ww.toFixed(1)}</td>
       <td><span class="plateau-${r.pq}">${{'P':'PLATEAU','M':'MIXED','I':'ISLAND','E':'EDGE'}[r.pq]}</span></td>
       <td>${r.tp ? '<span class="tier-pass">PASS</span>' : '—'}</td>
-      <td class="num">${r.ss.toFixed(1)}</td>
+      <td class="num">${r.ss != null ? Math.round(Math.pow(10, r.ss)) + 'x' : '—'}</td>
     </tr>`;
   }).join('');
   

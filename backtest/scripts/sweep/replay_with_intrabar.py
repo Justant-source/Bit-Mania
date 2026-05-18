@@ -12,7 +12,7 @@ intra-bar wick 기반 MDD를 측정한다.
 사용 방법 (Docker내부):
     python3 /app/scripts/sweep/replay_with_intrabar.py --workers 6
     python3 /app/scripts/sweep/replay_with_intrabar.py --dry-run
-    python3 /app/scripts/sweep/replay_with_intrabar.py --strategies supertrend momentum_ma
+    python3 /app/scripts/sweep/replay_with_intrabar.py --strategies supertrend
 
 출력:
     /result/intrabar/{strat}/{tf}/{variant}/combo_{i}/{period}/stats.json
@@ -98,7 +98,6 @@ def get_strategy_class_name(strat: str) -> str:
         'tradeiq_cci_ce': 'TradeIQCciCeStrategy',
         'trendtype': 'TrendTypeStrategy',
         'stoch': 'StochStrategy',
-        'momentum_ma': 'MomentumMAStrategy',
     }
 
     return CLASS_NAMES.get(strat, 'SupertrendStrategy')

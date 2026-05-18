@@ -95,22 +95,6 @@ SWEEP_SPECS: dict[str, dict] = {
             (14, 1.5),                           # 16: ultra-tight stop
         ],
     },
-    'momentum_ma': {
-        'cls': 'MomentumMAStrategy',
-        'base_hp': {
-            'lin_len': 20, 'val_ma_len': 100, 'atr_mult': 3.0,
-        },
-        'param_keys': ['lin_len', 'atr_mult'],
-        'combos': [
-            (14, 3.0), (20, 3.0), (30, 3.0),
-            (20, 2.0), (20, 4.0), (14, 2.0),
-            (30, 2.0), (30, 4.0), (14, 4.0),
-            (10, 3.0), (40, 3.0),
-            (10, 2.0), (40, 2.0),
-            (10, 4.0), (40, 4.0),
-            (25, 2.5),
-        ],
-    },
     'supertrend': {
         'cls': 'SupertrendStrategy',
         'base_hp': {

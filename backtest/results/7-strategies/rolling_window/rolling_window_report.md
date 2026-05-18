@@ -35,7 +35,6 @@
 | 3 | `supertrend_trendtype` | 🟢 KEEP | 27.2% █████ | |
 | 4 | `tradeiq_psar_ha` | 🟢 KEEP | 30.8% ██████ | |
 | 5 | `stoch` | 🟢 KEEP | 35.4% ███████ | |
-| 6 | `momentum_ma` | 🟢 KEEP | 43.0% ████████ | |
 | 7 | `tradeiq_cci_ce` | 🟢 KEEP | 58.7% ███████████ | |
 
 ---
@@ -117,7 +116,6 @@
 | bidirectional | 4h | 30.7% | ✅ | $+3,361 | 2024-04~N/A | $-5,694 |
 | bidirectional | 1D | 38.5% | ✅ | $+6,221 | 2024-04~N/A | $-6,011 |
 
-### 🟢 `momentum_ma` (MomentumMAStrategy)
 
 **판정**: KEEP  |  **평균 fail_strict**: 43.0%  |  **전체기간 평균 PnL**: $+0
 
@@ -160,7 +158,6 @@
 | `supertrend_trendtype` | 60% | 36% | 21% | 9% | 4% | 12% |
 | `tradeiq_psar_ha` | 55% | 33% | 26% | 11% | 17% | 25% |
 | `stoch` | 55% | 44% | 36% | 21% | 15% | 12% |
-| `momentum_ma` | 58% | 47% | 41% | 36% | 31% | 62% |
 | `tradeiq_cci_ce` | 70% | 56% | 56% | 55% | 56% | 62% |
 
 ---
@@ -176,7 +173,6 @@
 | `supertrend_trendtype` | $+2,836 | $+1,139 | $+3,937 | $+867 | $-1,616 |
 | `tradeiq_psar_ha` | $+1,488 | $-156 | $+2,906 | $+1,415 | $-551 |
 | `stoch` | $-315 | $+867 | $+7,150 | $+2,476 | $-993 |
-| `momentum_ma` | $-2,211 | $+750 | $+4,626 | $+2,748 | $-1,477 |
 | `tradeiq_cci_ce` | $+825 | $-254 | $-184 | $-160 | $+688 |
 
 ---
@@ -185,18 +181,6 @@
 
 | 순위 | 전략 | variant | TF | 창 크기 | 기간 | net_pnl | 청산 |
 |------|------|---------|----|---------|----|---------|------|
-| 1 | `momentum_ma` | bidirectional | 2h | 60m | 2021-01~2025-12 | $-8,457 |  |
-| 2 | `momentum_ma` | bidirectional | 2h | 63m | 2021-01~2026-03 | $-8,339 |  |
-| 3 | `momentum_ma` | bidirectional | 2h | 57m | 2021-01~2025-09 | $-8,250 |  |
-| 4 | `momentum_ma` | bidirectional | 2h | 54m | 2021-01~2025-06 | $-8,087 |  |
-| 5 | `momentum_ma` | bidirectional | 2h | 21m | 2021-01~2022-09 | $-8,024 |  |
-| 6 | `momentum_ma` | bidirectional | 2h | 42m | 2021-01~2024-06 | $-7,946 |  |
-| 7 | `momentum_ma` | bidirectional | 2h | 24m | 2021-01~2022-12 | $-7,922 |  |
-| 8 | `momentum_ma` | bidirectional | 2h | 39m | 2021-01~2024-03 | $-7,887 |  |
-| 9 | `momentum_ma` | bidirectional | 2h | 51m | 2021-01~2025-03 | $-7,836 |  |
-| 10 | `momentum_ma` | bidirectional | 2h | 18m | 2021-01~2022-06 | $-7,815 |  |
-| 11 | `momentum_ma` | bidirectional | 2h | 45m | 2021-01~2024-09 | $-7,688 |  |
-| 12 | `momentum_ma` | bidirectional | 2h | 48m | 2021-01~2024-12 | $-7,628 |  |
 | 13 | `stoch` | bidirectional | 2h | 63m | 2021-01~2026-03 | $-7,540 |  |
 | 14 | `stoch` | bidirectional | 2h | 54m | 2021-01~2025-06 | $-7,532 |  |
 | 15 | `stoch` | bidirectional | 2h | 51m | 2021-01~2025-03 | $-7,477 |  |
@@ -204,12 +188,8 @@
 | 17 | `stoch` | bidirectional | 2h | 33m | 2021-01~2023-09 | $-7,418 |  |
 | 18 | `stoch` | bidirectional | 2h | 42m | 2021-01~2024-06 | $-7,415 |  |
 | 19 | `stoch` | bidirectional | 2h | 60m | 2021-01~2025-12 | $-7,384 |  |
-| 20 | `momentum_ma` | bidirectional | 2h | 9m | 2021-01~2021-09 | $-7,348 |  |
 | 21 | `stoch` | long_only | 1D | 21m | 2021-04~2022-12 | $-7,334 |  |
 | 22 | `stoch` | bidirectional | 2h | 36m | 2021-01~2023-12 | $-7,297 |  |
-| 23 | `momentum_ma` | bidirectional | 2h | 33m | 2021-01~2023-09 | $-7,264 |  |
-| 24 | `momentum_ma` | bidirectional | 4h | 12m | 2021-01~2021-12 | $-7,220 |  |
-| 25 | `momentum_ma` | long_only | 2h | 21m | 2021-04~2022-12 | $-7,208 |  |
 
 ---
 
@@ -224,7 +204,6 @@
 | `supertrend_trendtype` | 168 | 100 | 59.5% |
 | `tradeiq_psar_ha` | 168 | 92 | 54.8% |
 | `stoch` | 168 | 92 | 54.8% |
-| `momentum_ma` | 168 | 97 | 57.7% |
 | `tradeiq_cci_ce` | 168 | 118 | 70.2% |
 
 ---
@@ -246,7 +225,6 @@
 | `tradeiq_psar_ha` | long_only | 1D | $+22,066 |  |
 | `trendtype` | long_only | 1D | $+21,749 |  |
 | `supertrend` | bidirectional | 1D | $+15,708 |  |
-| `momentum_ma` | long_only | 1h | $+14,359 |  |
 | `supertrend` | long_only | 2h | $+14,150 |  |
 | `stoch` | long_only | 4h | $+12,774 |  |
 | `tradeiq_psar_ha` | long_only | 1h | $+12,649 |  |
@@ -273,24 +251,17 @@
 | `stoch` | bidirectional | 4h | $+3,674 |  |
 | `supertrend` | bidirectional | 2h | $+3,145 |  |
 | `tradeiq_cci_ce` | bidirectional | 1h | $+2,257 |  |
-| `momentum_ma` | long_only | 4h | $+1,992 |  |
-| `momentum_ma` | long_only | 1D | $+1,139 |  |
 | `trendtype` | bidirectional | 4h | $+555 |  |
 | `tradeiq_cci_ce` | bidirectional | 2h | $-647 |  |
-| `momentum_ma` | bidirectional | 4h | $-953 |  |
-| `momentum_ma` | long_only | 2h | $-961 |  |
 | `tradeiq_psar_ha` | bidirectional | 2h | $-1,139 |  |
-| `momentum_ma` | bidirectional | 1h | $-1,388 |  |
 | `tradeiq_psar_ha` | bidirectional | 4h | $-1,612 |  |
 | `tradeiq_cci_ce` | long_only | 1h | $-1,734 |  |
 | `tradeiq_cci_ce` | long_only | 2h | $-2,297 |  |
 | `supertrend_trendtype` | bidirectional | 2h | $-2,743 |  |
-| `momentum_ma` | bidirectional | 1D | $-4,476 |  |
 | `tradeiq_cci_ce` | long_only | 1D | $-4,955 |  |
 | `tradeiq_cci_ce` | bidirectional | 1D | $-5,301 |  |
 | `trendtype` | bidirectional | 2h | $-6,250 |  |
 | `stoch` | bidirectional | 2h | $-7,540 |  |
-| `momentum_ma` | bidirectional | 2h | $-8,339 |  |
 
 ---
 

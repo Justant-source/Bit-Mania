@@ -14,8 +14,6 @@
 | v3/batch_1/bbwp/long_only | ✓ | ✓ | ✓ | 2331B | 07:27:14 |
 | v3/batch_1/stoch/bidirectional | ✓ | ✓ | ✓ | 2408B | 07:27:19 |
 | v3/batch_1/stoch/long_only | ✓ | ✓ | ✓ | 2377B | 07:27:24 |
-| v3/batch_2/momentum_ma/bidirectional | ✓ | ✓ | ✓ | 2433B | 07:27:12 |
-| v3/batch_2/momentum_ma/long_only | ✓ | ✓ | ✓ | 2340B | 07:27:20 |
 | v3/batch_2/supertrend/bidirectional | ✓ | ✓ | ✓ | 2358B | 07:27:29 |
 | v3/batch_2/supertrend/long_only | ✓ | ✓ | ✓ | 2356B | 07:27:37 |
 | v3/batch_2/tradeiq_psar_ha/bidirectional | ✓ | ✓ | ✓ | 2411B | 07:27:46 |

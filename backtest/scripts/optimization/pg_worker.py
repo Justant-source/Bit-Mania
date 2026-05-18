@@ -36,7 +36,7 @@ WINDOWS_DICT = {
 }
 
 BACKTEST_TIMEOUT = 600  # 10 minutes per window
-STRATEGY = 'SupertrendStrategyWithSL'
+STRATEGY = 'SupertrendStrategy'
 TIMEFRAME = '4h'
 VARIANT = 'long_only'
 LEVERAGE = 3
@@ -141,7 +141,6 @@ def build_hp_json(job: dict) -> str:
         'slow_ema_len': int(job['slow_ema_len']),
         'direction_ema_len': int(job['direction_ema_len']),
         'atr_mult': float(job['atr_mult']),
-        'sl_margin_pct': 0.0,
     }
     return json.dumps(hp)
 
@@ -284,8 +283,14 @@ def main():
 
     processed = 0
     t_start = time.time()
+    stop_file = Path(f'/tmp/pg_stop_worker_{worker_id}')
 
     while True:
+        # Check for graceful stop signal from supervisor
+        if stop_file.exists():
+            print(f'Worker {worker_id}: stop signal received, exiting after {processed} jobs.', flush=True)
+            break
+
         # Fresh connection for each claim
         conn = connect()
         conn.autocommit = False

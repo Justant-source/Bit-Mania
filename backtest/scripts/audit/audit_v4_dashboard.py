@@ -437,7 +437,7 @@ def check_2c_bnh_slice_ground_truth(audit: Audit, V4: dict, btc: list[dict]) -> 
 def check_2d_table_slice_sum(audit: Audit, V4: dict) -> None:
     """Strict filter sum check — sample 5 strategies × 2 slices."""
     samples = []
-    for strat in ('supertrend', 'tradeiq_psar_ha', 'momentum_ma', 'trendtype', 'stoch'):
+    for strat in ('supertrend', 'tradeiq_psar_ha', 'trendtype', 'stoch'):
         for r in V4['groups'].get(strat, []):
             if r['tf'] == '1D' and r['variant'] in ('long_only', 'bidirectional'):
                 samples.append(r)
@@ -498,7 +498,7 @@ def check_2e_equity_endpoints(audit: Audit, V4: dict) -> None:
 def check_2f_marker_count(audit: Audit, V4: dict) -> None:
     """Sample: marker count (= strict in-slice trades) for 5 strategies."""
     samples = []
-    for strat in ('supertrend', 'tradeiq_cci_ce', 'momentum_ma', 'trendtype', 'stoch'):
+    for strat in ('supertrend', 'tradeiq_cci_ce', 'trendtype', 'stoch'):
         for r in V4['groups'].get(strat, []):
             if r['tf'] == '1D' and r['variant'] == 'long_only':
                 samples.append(r)

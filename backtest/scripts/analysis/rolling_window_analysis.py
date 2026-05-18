@@ -33,7 +33,7 @@ OUT_DIR    = RESULT_DIR / 'rolling_window'
 # ─── Parameters ───────────────────────────────────────────────────────────────
 TIMEFRAMES  = ['1h', '4h', '1D']
 STRATEGIES  = [
-    'stoch', 'momentum_ma', 'supertrend',
+    'stoch', 'supertrend',
     'tradeiq_psar_ha', 'trendtype', 'supertrend_trendtype', 'tradeiq_cci_ce',
 ]
 VARIANTS_1X = ['bidirectional', 'long_only']

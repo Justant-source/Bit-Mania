@@ -20,8 +20,6 @@
 | batch_1 | bbwp | long_only | SUCCESS | -1.74% | 0.087 | -60.53% | 10 | 60.0% | 0.90 | **C** |
 | batch_1 | stoch | bidirectional | SUCCESS | 58.45% | 0.925 | -59.16% | 29 | 79.3% | 2.88 | **C** |
 | batch_1 | stoch | long_only | SUCCESS | 46.89% | 0.839 | -72.66% | 26 | 73.1% | 1.91 | **C** |
-| batch_2 | momentum_ma | bidirectional | SUCCESS | 25.26% | 0.605 | -63.85% | 61 | 47.5% | 1.13 | **C** |
-| batch_2 | momentum_ma | long_only | SUCCESS | 58.55% | 0.944 | -64.40% | 32 | 62.5% | 1.71 | **C** |
 | batch_2 | supertrend | bidirectional | SUCCESS | 8.07% | 0.353 | -50.32% | 25 | 48.0% | 1.39 | **C** |
 | batch_2 | supertrend | long_only | SUCCESS | 13.04% | 0.482 | -26.36% | 17 | 47.1% | 2.10 | **C** |
 | batch_2 | tradeiq_psar_ha | bidirectional | SUCCESS | -4.83% | 0.035 | -65.37% | 47 | 31.9% | 0.84 | **C** |

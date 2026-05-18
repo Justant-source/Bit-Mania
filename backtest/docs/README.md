@@ -42,7 +42,7 @@ last_updated: 2026-05-12
 
 ### 실험 레저 (runs/)
 각 전략별 실행 결과 기록:
-- supertrend.md, momentum_ma.md, stoch.md 등 (외부 전략)
+- supertrend.md, stoch.md 등 (외부 전략)
 
 ### 최적화 탐색 (optimization/)
 - param_sweep_v2.md, param_sweep_v3.md — 매개변수 최적화 과정

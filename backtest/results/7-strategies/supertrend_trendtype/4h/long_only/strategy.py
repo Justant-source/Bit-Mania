@@ -14,7 +14,8 @@ import jesse.indicators as ta
 from external._helpers import IncrementalTrendType
 import os
 
-LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
+LEVERAGE = float(os.environ.get('STRATEGY_LEVERAGE', '1'))
+_4H_MS = 4 * 3600 * 1000
 
 
 class SupertrendTrendTypeStrategy(Strategy):
@@ -40,6 +41,8 @@ class SupertrendTrendTypeStrategy(Strategy):
         super().__init__()
         self._tt = None
         self._last_entry = 0.0
+        self._last_liquidation_ts: int = 0
+        self._atr_exit_ts: int = 0
 
     def _trend_type(self) -> float:
         if self._tt is None:
@@ -74,6 +77,10 @@ class SupertrendTrendTypeStrategy(Strategy):
         return self.st_direction == 1
 
     def should_long(self) -> bool:
+        if self.candles[-1][0] <= self._last_liquidation_ts:
+            return False
+        if self.candles[-1][0] <= self._atr_exit_ts + _4H_MS:
+            return False
         tt = self._trend_type()
         if np.isnan(tt) or tt != 2.0:
             return False
@@ -83,6 +90,10 @@ class SupertrendTrendTypeStrategy(Strategy):
         return self._st_uptrend and fast > slow and self.price > dema
 
     def should_short(self) -> bool:
+        if self.candles[-1][0] <= self._last_liquidation_ts:
+            return False
+        if self.candles[-1][0] <= self._atr_exit_ts + _4H_MS:
+            return False
         tt = self._trend_type()
         if np.isnan(tt) or tt != -2.0:
             return False
@@ -111,14 +122,20 @@ class SupertrendTrendTypeStrategy(Strategy):
 
         if self.is_long:
             if fast < slow:
+                self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
             if (self.price <= self._last_entry - atr_stop
                     or self.price >= self._last_entry + atr_stop):
+                self._last_liquidation_ts = self.candles[-1][0]
+                self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return
 
         if self.is_short:
             if fast > slow:
+                self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
             if (self.price <= self._last_entry - atr_stop
                     or self.price >= self._last_entry + atr_stop):
+                self._last_liquidation_ts = self.candles[-1][0]
+                self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return

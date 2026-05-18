@@ -20,7 +20,6 @@ START_BAL  = 10_000.0
 
 STRATEGIES = [
     ('StochStrategy',               'stoch'),
-    ('MomentumMAStrategy',          'momentum_ma'),
     ('SupertrendStrategy',          'supertrend'),
     ('TradeIQPsarHaStrategy',       'tradeiq_psar_ha'),
     ('TrendTypeStrategy',           'trendtype'),

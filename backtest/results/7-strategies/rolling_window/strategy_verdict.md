@@ -10,7 +10,6 @@
 | Strategy | 판정 | 조합 수 | 양수 구간 有 | 양수 구간 無 | avg fail% | 최악 조합 | 최선 조합 |
 |---|---|---|---|---|---|---|---|
 | `stoch` | ✅ KEEP | 6 | 6 | 0 | 28.9% | bidirectional/1D | bidirectional/1h |
-| `momentum_ma` | ✅ KEEP | 6 | 6 | 0 | 37.1% | bidirectional/1D | long_only/1h |
 | `supertrend` | ✅ KEEP | 6 | 6 | 0 | 22.8% | bidirectional/1h | long_only/4h |
 | `tradeiq_psar_ha` | ✅ KEEP | 6 | 6 | 0 | 44.7% | bidirectional/1h | long_only/1D |
 | `trendtype` | ✅ KEEP | 6 | 6 | 0 | 23.2% | bidirectional/1h | long_only/1D |
@@ -23,7 +22,6 @@
 
 | Strategy | bidirectional/1D | bidirectional/1h | bidirectional/4h | long_only/1D | long_only/1h | long_only/4h |
 |---|---|---|---|---|---|---|
-| `momentum_ma` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `stoch` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `supertrend` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `supertrend_trendtype` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -35,12 +33,6 @@
 
 | Strategy | Variant | TF | Fail% | Meaningful fail% | 최악 구간 | 최악 PnL | 최선 PnL | 전체기간 PnL |
 |---|---|---|---|---|---|---|---|---|
-| `momentum_ma` | bidirectional | 1D | 63.6% | 61.0% | 2021-01(36m) | $-6,083 | $9,988 | $-4,436 |
-| `momentum_ma` | bidirectional | 1h | 48.5% | 44.2% | 2021-04(9m) | $-5,465 | $10,871 | $-1,388 |
-| `momentum_ma` | long_only | 4h | 32.5% | 31.2% | 2021-04(21m) | $-7,010 | $32,304 | $2,220 |
-| `momentum_ma` | long_only | 1D | 32.5% | 31.6% | 2021-04(21m) | $-6,480 | $29,165 | $1,255 |
-| `momentum_ma` | bidirectional | 4h | 25.5% | 25.1% | 2021-01(12m) | $-7,220 | $39,334 | $-881 |
-| `momentum_ma` | long_only | 1h | 19.9% | 15.2% | 2025-07(9m) | $-3,615 | $36,920 | $14,359 |
 | `stoch` | bidirectional | 1D | 38.5% | 36.4% | 2024-04(6m) | $-6,011 | $24,670 | $6,221 |
 | `stoch` | long_only | 1h | 31.2% | 22.5% | 2021-10(15m) | $-6,723 | $49,858 | $7,635 |
 | `stoch` | bidirectional | 4h | 30.7% | 30.3% | 2024-04(24m) | $-5,694 | $23,117 | $3,361 |

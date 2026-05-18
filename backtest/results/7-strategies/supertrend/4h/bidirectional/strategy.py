@@ -12,7 +12,8 @@ from jesse.strategies import Strategy
 import jesse.indicators as ta
 import os
 
-LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
+LEVERAGE = float(os.environ.get('STRATEGY_LEVERAGE', '1'))
+_4H_MS = 4 * 3600 * 1000
 
 
 class SupertrendStrategy(Strategy):
@@ -30,6 +31,8 @@ class SupertrendStrategy(Strategy):
     def __init__(self):
         super().__init__()
         self._last_entry = 0.0
+        self._last_liquidation_ts: int = 0
+        self._atr_exit_ts: int = 0
 
     @property
     def st_direction(self) -> int:
@@ -55,12 +58,20 @@ class SupertrendStrategy(Strategy):
         return self.st_direction == 1
 
     def should_long(self) -> bool:
+        if self.candles[-1][0] <= self._last_liquidation_ts:
+            return False
+        if self.candles[-1][0] <= self._atr_exit_ts + _4H_MS:
+            return False
         fast = ta.ema(self.candles, period=self.hp['fast_ema_len'],      sequential=False)
         slow = ta.ema(self.candles, period=self.hp['slow_ema_len'],      sequential=False)
         dema = ta.ema(self.candles, period=self.hp['direction_ema_len'], sequential=False)
         return self._st_is_uptrend and fast > slow and self.price > dema
 
     def should_short(self) -> bool:
+        if self.candles[-1][0] <= self._last_liquidation_ts:
+            return False
+        if self.candles[-1][0] <= self._atr_exit_ts + _4H_MS:
+            return False
         fast = ta.ema(self.candles, period=self.hp['fast_ema_len'],      sequential=False)
         slow = ta.ema(self.candles, period=self.hp['slow_ema_len'],      sequential=False)
         dema = ta.ema(self.candles, period=self.hp['direction_ema_len'], sequential=False)
@@ -86,14 +97,20 @@ class SupertrendStrategy(Strategy):
 
         if self.is_long:
             if fast < slow:
+                self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
             if (self.price <= self._last_entry - atr_stop
                     or self.price >= self._last_entry + atr_stop):
+                self._last_liquidation_ts = self.candles[-1][0]
+                self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return
 
         if self.is_short:
             if fast > slow:
+                self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
             if (self.price <= self._last_entry - atr_stop
                     or self.price >= self._last_entry + atr_stop):
+                self._last_liquidation_ts = self.candles[-1][0]
+                self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return
