@@ -65,27 +65,11 @@
     </div>
   </aside>
 
-  <!-- ── Topbar ──────────────────────────────────────────────────── -->
-  <header class="topbar">
-    <div class="crumbs">
-      <span>운영</span><span class="sep">/</span><span class="here">전략 비교</span>
-    </div>
-    <div class="topbar-actions">
-      <span class="env-pill">
-        <span class="status-dot" style="background:var(--c-warning);width:6px;height:6px;flex-shrink:0"></span>
-        MAINNET · Phase 5
-      </span>
-      <div class="btn-group" role="group" aria-label="조회 범위">
-        <button class="btn sm active" data-from="2026-05-15">운영 시작</button>
-        <button class="btn sm" data-from="30">30일</button>
-        <button class="btn sm" data-from="7">7일</button>
-      </div>
-      <div class="theme-toggle" role="group" aria-label="테마">
-        <button data-set-theme="light">☀︎</button>
-        <button data-set-theme="dark">☾</button>
-      </div>
-    </div>
-  </header>
+  <!-- ── Theme toggle (fixed top-right) ──────────────────────────── -->
+  <div class="theme-toggle theme-toggle-fixed" role="group" aria-label="테마">
+    <button data-set-theme="light">☀︎</button>
+    <button data-set-theme="dark">☾</button>
+  </div>
 
   <!-- ── Main ───────────────────────────────────────────────────── -->
   <main class="page">
@@ -129,7 +113,7 @@
       <div class="card-head">
         <div>
           <div class="card-title">BTC/USDT · 4h</div>
-          <div class="card-sub">ST(8, 2.4) · EMA 7/27/230 · ATR(14)×3.2 | △▽ 예상 신호 · ▲▼ 체결 완료</div>
+          <div class="card-sub">ST(8, 2.4) · EMA 7/27/230 | ▲ 진입 ▼ 종료 (진한색=체결)</div>
         </div>
         <div class="flex gap-2 items-center">
           <span class="badge neutral">△ 예상</span>
@@ -216,7 +200,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="/js/supertrend-dashboard.js"></script>
 </body>
 </html>

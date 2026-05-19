@@ -16,21 +16,6 @@ const palette = () => ({
   bg:      T('--bg'),
 });
 
-const plotlyLayout = (extra) => {
-  const p = palette();
-  return Object.assign({
-    paper_bgcolor: 'transparent',
-    plot_bgcolor:  'transparent',
-    font: { family: "'Inter', system-ui, sans-serif", color: p.text, size: 11 },
-    xaxis: { gridcolor: p.border, linecolor: p.border, tickcolor: p.border, zerolinecolor: p.border, color: p.muted },
-    yaxis: { gridcolor: p.border, linecolor: p.border, tickcolor: p.border, zerolinecolor: p.border, color: p.muted },
-    legend: { bgcolor: 'transparent', font: { color: p.muted, size: 10 }, orientation: 'h', y: 1.06, x: 0 },
-    margin: { l: 55, r: 20, t: 30, b: 40 },
-    autosize: true,
-    hovermode: 'x unified',
-  }, extra);
-};
-
 // ── Strategy params (SSOT: cryptoengine/config/strategies/supertrend.yaml) ──
 
 // st_factor=2.4 st_period=8 | EMA 7/27/230 | atr_mult=3.2 (ATR(14) exit distance)
@@ -141,6 +126,8 @@ let currentFrom = '2026-05-15';
 let compareData = [];
 let _signalMap  = new Map();
 let _compareMap = new Map();
+let _priceChart  = null;
+let _equityChart = null;
 
 function fromToDays(from) {
   if (/^\d{4}/.test(from)) {
@@ -353,11 +340,48 @@ function renderCompareTable(rows) {
   }).join('');
 }
 
-// ── Price chart (Supertrend band + EMA 3선 + 마커 + 청산선) ─────────────
+// ── LWC theme helper ──────────────────────────────────────────────────────
+
+function lwcThemeOpts() {
+  const p          = palette();
+  const bg         = T('--surface') || '#ffffff';
+  const gridColor  = T('--border')  || '#e6e7e9';
+  const textColor  = T('--text-muted') || '#667085';
+  return {
+    layout: {
+      background: { type: 'solid', color: bg },
+      textColor,
+      fontFamily: "'Inter', system-ui, sans-serif",
+      fontSize: 11,
+    },
+    grid: {
+      vertLines: { color: gridColor },
+      horzLines: { color: gridColor },
+    },
+    rightPriceScale: { borderColor: gridColor },
+    timeScale:       { borderColor: gridColor, timeVisible: true, secondsVisible: false,
+      tickMarkFormatter: (t) => new Date(t * 1000).toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
+      }),
+    },
+    localization: {
+      timeFormatter: (t) => new Date(t * 1000).toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      }),
+    },
+    handleScale: true,
+    handleScroll: true,
+  };
+}
+
+// ── Price chart (TradingView Lightweight Charts) ──────────────────────────
 
 async function renderPriceChart() {
   const div = document.getElementById('chart-price');
   if (!div) return;
+
+  if (_priceChart) { _priceChart.remove(); _priceChart = null; }
 
   try {
     const p = palette();
@@ -379,219 +403,120 @@ async function renderPriceChart() {
       return;
     }
 
-    // Store for click handler
+    // Store for click handler (keyed by ms)
     _signalMap  = new Map(signals.map(s => [new Date(s.bar_ts).getTime(), s]));
     _compareMap = new Map(cmpRows.map(r => [new Date(r.bar_ts).getTime(), r]));
 
     // ── Compute indicators ─────────────────────────────────────────
     const closes = candles.map(c => parseFloat(c.close));
-    const highs  = candles.map(c => parseFloat(c.high));
-    const lows   = candles.map(c => parseFloat(c.low));
-    const ts     = candles.map(c => new Date(c.ts));
+    const unixTs = candles.map(c => Math.floor(new Date(c.ts).getTime() / 1000));
 
     const ema7   = computeEma(closes, ST.fastEma);
     const ema27  = computeEma(closes, ST.slowEma);
     const ema230 = computeEma(closes, ST.dirEma);
     const stData = computeSupertrend(candles, ST.factor, ST.period);
 
-    // Supertrend band: two series (null where trend is the other type → connectgaps:false)
+    // Supertrend band: null where trend is the other type → whitespace gap in LWC
     const stUpBand = stData.map(s => s.trend ===  1 ? s.band : null);
     const stDnBand = stData.map(s => s.trend === -1 ? s.band : null);
 
-    // ── ATR exit condition lines (while had_position=true) ─────────
-    const atrUpTs = [], atrUpY = [];
-    const atrDnTs = [], atrDnY = [];
-    let entryPx = null, wasPos = false;
-
-    for (const s of signals) {
-      const t = new Date(s.bar_ts);
-      if (s.expected_action === 'enter') entryPx = parseFloat(s.price);
-      if (s.had_position && entryPx !== null) {
-        const dist = parseFloat(s.atr_14) * ST.atrMult;
-        atrUpTs.push(t); atrUpY.push(+(entryPx + dist).toFixed(2));
-        atrDnTs.push(t); atrDnY.push(+(entryPx - dist).toFixed(2));
-        wasPos = true;
-      } else if (wasPos && !s.had_position) {
-        atrUpTs.push(null); atrUpY.push(null);
-        atrDnTs.push(null); atrDnY.push(null);
-        wasPos = false; entryPx = null;
-      }
-    }
-
     // ── Build signal markers ───────────────────────────────────────
-    const mxs = [], mys = [], msym = [], mcol = [], mdata = [], msz = [];
+    const markers = [];
     for (const s of signals) {
       if (s.expected_action !== 'enter' && s.expected_action !== 'exit') continue;
-      const key    = new Date(s.bar_ts).getTime();
-      const cmp    = _compareMap.get(key);
-      const status = cmp ? cmp.status : 'missed';
-      const enter  = s.expected_action === 'enter';
-      const filled = status === 'matched';
-      const base   = enter ? 'triangle-up' : 'triangle-down';
-      mxs.push(new Date(s.bar_ts));
-      mys.push(parseFloat(s.price) * (enter ? 0.997 : 1.003));
-      msym.push(filled ? base : `${base}-open`);
-      mcol.push(enter ? p.success : p.danger);
-      mdata.push(s.bar_ts);
-      msz.push(filled ? 14 : 12);
+      const key     = new Date(s.bar_ts).getTime();
+      const cmp     = _compareMap.get(key);
+      const matched = cmp ? cmp.status === 'matched' : false;
+      const enter   = s.expected_action === 'enter';
+      markers.push({
+        time:     Math.floor(key / 1000),
+        position: enter ? 'belowBar' : 'aboveBar',
+        color:    matched ? (enter ? p.success : p.danger) : p.muted,
+        shape:    enter ? 'arrowUp' : 'arrowDown',
+        text:     matched ? '체결' : '예상',
+      });
     }
-
     // Extra actual fills (no matching expected signal)
-    const extras = cmpRows.filter(r => r.status === 'extra');
-
-    // ── Assemble traces ────────────────────────────────────────────
-    const traces = [];
-
-    // 1. Candlestick
-    traces.push({
-      type: 'candlestick', x: ts,
-      open:  candles.map(c => parseFloat(c.open)),
-      high:  highs, low: lows, close: closes,
-      name: 'BTC 4h',
-      increasing: { line: { color: p.success } },
-      decreasing: { line: { color: p.danger } },
-      showlegend: false, hoverinfo: 'x+y',
-    });
-
-    // 2. EMA 230 (장기 방향, orange-ish via gauge token)
-    traces.push({
-      type: 'scatter', mode: 'lines', x: ts, y: ema230, name: 'EMA 230',
-      line: { color: T('--c-gauge-orange'), width: 1 },
-      hovertemplate: 'EMA230 %{y:$,.0f}<extra></extra>',
-    });
-
-    // 3. EMA 27 (중기)
-    traces.push({
-      type: 'scatter', mode: 'lines', x: ts, y: ema27, name: 'EMA 27',
-      line: { color: p.info, width: 1 },
-      hovertemplate: 'EMA27 %{y:$,.0f}<extra></extra>',
-    });
-
-    // 4. EMA 7 (단기)
-    traces.push({
-      type: 'scatter', mode: 'lines', x: ts, y: ema7, name: 'EMA 7',
-      line: { color: p.muted, width: 1 },
-      hovertemplate: 'EMA7 %{y:$,.0f}<extra></extra>',
-    });
-
-    // 5. Supertrend 상승 (green, below price)
-    traces.push({
-      type: 'scatter', mode: 'lines', x: ts, y: stUpBand, name: 'ST 상승',
-      line: { color: p.success, width: 2 },
-      connectgaps: false,
-      hovertemplate: 'ST 상승 %{y:$,.0f}<extra></extra>',
-    });
-
-    // 6. Supertrend 하락 (red, above price)
-    traces.push({
-      type: 'scatter', mode: 'lines', x: ts, y: stDnBand, name: 'ST 하락',
-      line: { color: p.danger, width: 2 },
-      connectgaps: false,
-      hovertemplate: 'ST 하락 %{y:$,.0f}<extra></extra>',
-    });
-
-    // 7. ATR exit upper (익절, while in position)
-    if (atrUpTs.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'lines', x: atrUpTs, y: atrUpY, name: 'ATR 익절',
-        line: { color: T('--c-purple'), width: 1.5 },
-        connectgaps: false,
-        hovertemplate: 'ATR 익절↑ %{y:$,.0f}<extra></extra>',
+    for (const r of cmpRows.filter(x => x.status === 'extra')) {
+      markers.push({
+        time:     Math.floor(new Date(r.actual_fill_time || r.bar_ts).getTime() / 1000),
+        position: 'aboveBar',
+        color:    p.warning,
+        shape:    'circle',
+        text:     '초과',
       });
     }
+    markers.sort((a, b) => a.time - b.time);
 
-    // 8. ATR exit lower (손절, no legend duplication)
-    if (atrDnTs.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'lines', x: atrDnTs, y: atrDnY,
-        line: { color: T('--c-purple'), width: 1.5 },
-        connectgaps: false, showlegend: false,
-        hovertemplate: 'ATR 손절↓ %{y:$,.0f}<extra></extra>',
-      });
-    }
-
-    // 10. Signal markers
-    if (mxs.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'markers',
-        x: mxs, y: mys, name: '신호 (클릭)',
-        marker: {
-          symbol: msym, color: mcol, size: msz,
-          line: { width: 2, color: mcol },
-        },
-        customdata: mdata,
-        hovertemplate: '신호 %{x|%m/%d %H:%M} %{y:$,.0f}<extra></extra>',
-      });
-    }
-
-    // 11. Extra fills (actual with no expected signal)
-    if (extras.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'markers',
-        x: extras.map(r => new Date(r.actual_fill_time || r.bar_ts)),
-        y: extras.map(r => parseFloat(r.actual_price || 0)),
-        name: '초과 체결',
-        marker: { symbol: 'diamond-open', color: p.warning, size: 10, line: { width: 2, color: p.warning } },
-        customdata: extras.map(r => r.bar_ts),
-        hovertemplate: '초과 체결 %{x|%m/%d %H:%M} %{y:$,.0f}<extra></extra>',
-      });
-    }
-
-    // Initial visible window: last ~30 days (180 4h bars), pan left for history
-    const WINDOW = 180;
-    const initX0 = ts.length > WINDOW ? ts[ts.length - WINDOW] : ts[0];
-    const initX1 = ts[ts.length - 1];
-
-    // y-axis auto-follow for visible x window (TradingView-style pan)
-    function fitYToVisible() {
-      if (div._yFitting) return;
-      const layout = div._fullLayout;
-      if (!layout) return;
-      const xrange = layout.xaxis.range;
-      if (!xrange || xrange.length < 2) return;
-      const x0 = new Date(xrange[0]).getTime();
-      const x1 = new Date(xrange[1]).getTime();
-      let lo = Infinity, hi = -Infinity;
-      for (let i = 0; i < ts.length; i++) {
-        const t = ts[i].getTime();
-        if (t < x0 || t > x1) continue;
-        if (lows[i]  < lo) lo = lows[i];
-        if (highs[i] > hi) hi = highs[i];
-        if (ema230[i] != null) { if (ema230[i] < lo) lo = ema230[i]; if (ema230[i] > hi) hi = ema230[i]; }
-      }
-      // Include ATR 익절/손절 lines so they're never clipped off-screen
-      for (let i = 0; i < atrUpTs.length; i++) {
-        if (!atrUpTs[i]) continue;
-        const t = atrUpTs[i].getTime();
-        if (t < x0 || t > x1) continue;
-        if (atrUpY[i] != null && atrUpY[i] > hi) hi = atrUpY[i];
-        if (atrDnY[i] != null && atrDnY[i] < lo) lo = atrDnY[i];
-      }
-      if (!isFinite(lo) || !isFinite(hi)) return;
-      const pad = (hi - lo) * 0.04;
-      div._yFitting = true;
-      Plotly.relayout(div, { 'yaxis.range': [lo - pad, hi + pad] });
-      div._yFitting = false;
-    }
-
-    Plotly.react(div, traces, plotlyLayout({
-      height: 480,
-      dragmode: 'pan',
-      xaxis: { type: 'date', rangeslider: { visible: false }, fixedrange: false, range: [initX0, initX1] },
-      yaxis: { title: 'BTC (USDT)', tickformat: '$,.0f', fixedrange: true, autorange: false },
-    }), { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
-    div.querySelector('.empty-state')?.remove();
-
-    // Attach handlers (remove previous to avoid doubles)
-    div.removeAllListeners?.('plotly_click');
-    div.removeAllListeners?.('plotly_relayout');
-    div.on('plotly_click', onMarkerClick);
-    div.on('plotly_relayout', (e) => {
-      if (e['xaxis.range[0]'] !== undefined || e['xaxis.range'] !== undefined || e['xaxis.autorange'] !== undefined) {
-        fitYToVisible();
-      }
+    // ── Create chart ───────────────────────────────────────────────
+    div.innerHTML = '';
+    div.style.minHeight = '460px';
+    _priceChart = LightweightCharts.createChart(div, {
+      ...lwcThemeOpts(),
+      autoSize: true,
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     });
-    fitYToVisible();
+
+    // Candlestick
+    const priceSeries = _priceChart.addCandlestickSeries({
+      upColor:      p.success, downColor:     p.danger,
+      borderVisible: false,
+      wickUpColor:  p.success, wickDownColor: p.danger,
+    });
+    priceSeries.setData(candles.map((c, i) => ({
+      time:  unixTs[i],
+      open:  parseFloat(c.open),
+      high:  parseFloat(c.high),
+      low:   parseFloat(c.low),
+      close: parseFloat(c.close),
+    })));
+
+    // EMA lines (width:1, null → whitespace)
+    function addEmaLine(values, color, title) {
+      const s = _priceChart.addLineSeries({
+        color, lineWidth: 1, title,
+        priceLineVisible: false, lastValueVisible: true,
+      });
+      s.setData(unixTs.map((t, i) =>
+        values[i] != null ? { time: t, value: values[i] } : { time: t }));
+    }
+    addEmaLine(ema230, T('--c-gauge-orange') || '#E87722', 'EMA230');
+    addEmaLine(ema27,  p.info,  'EMA27');
+    addEmaLine(ema7,   p.muted, 'EMA7');
+
+    // Supertrend bands (null → whitespace → one line per point)
+    const stUpSeries = _priceChart.addLineSeries({
+      color: p.success, lineWidth: 2,
+      title: 'ST↑', priceLineVisible: false, lastValueVisible: false,
+    });
+    stUpSeries.setData(unixTs.map((t, i) =>
+      stUpBand[i] != null ? { time: t, value: stUpBand[i] } : { time: t }));
+
+    const stDnSeries = _priceChart.addLineSeries({
+      color: p.danger, lineWidth: 2,
+      title: 'ST↓', priceLineVisible: false, lastValueVisible: false,
+    });
+    stDnSeries.setData(unixTs.map((t, i) =>
+      stDnBand[i] != null ? { time: t, value: stDnBand[i] } : { time: t }));
+
+    // Markers on price series
+    priceSeries.setMarkers(markers);
+
+    // Initial window: last ~180 4h bars (~30 days), pan left for history
+    const len = unixTs.length;
+    if (len > 1) {
+      const from = Math.max(0, len - 180);
+      _priceChart.timeScale().setVisibleLogicalRange({ from, to: len - 1 });
+    }
+
+    // Click → open signal modal
+    _priceChart.subscribeClick((param) => {
+      if (!param.time) return;
+      const k   = param.time * 1000;
+      const sig = _signalMap.get(k);
+      const cmp = _compareMap.get(k);
+      if (sig) openSignalModal(sig, cmp);
+    });
 
   } catch (err) {
     console.error('[supertrend] price chart error:', err);
@@ -599,14 +524,15 @@ async function renderPriceChart() {
   }
 }
 
-// ── Equity chart ──────────────────────────────────────────────────────────
+// ── Equity chart (TradingView Lightweight Charts) ─────────────────────────
 
 async function renderEquityChart() {
   const div = document.getElementById('chart-equity');
   if (!div) return;
 
+  if (_equityChart) { _equityChart.remove(); _equityChart = null; }
+
   try {
-    // Always from strategy live date ($200 baseline), not affected by range buttons
     const data = await apiFetch(`/api/internal/supertrend/equity?from=2026-05-18`);
     const exp = data.expected || [];
     const act = data.actual   || [];
@@ -617,36 +543,44 @@ async function renderEquityChart() {
       return;
     }
 
-    const traces = [];
-    if (exp.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'lines',
-        x: exp.map((d) => new Date(d.ts)),
-        y: exp.map((d) => d.equity),
-        name: '예상 자산',
-        line: { color: p.info, width: 2 },
-        hovertemplate: '예상 %{y:$,.2f}<extra></extra>',
-      });
-    }
+    div.innerHTML = '';
+    div.style.minHeight = '220px';
+    _equityChart = LightweightCharts.createChart(div, {
+      ...lwcThemeOpts(),
+      autoSize: true,
+    });
+
+    // Actual equity (area fill)
     if (act.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'lines',
-        x: act.map((d) => new Date(d.ts)),
-        y: act.map((d) => d.equity),
-        name: '실제 자산',
-        line: { color: p.success, width: 2 },
-        fill: 'tozeroy',
-        fillcolor: p.success + '18',
-        hovertemplate: '실제 %{y:$,.2f}<extra></extra>',
+      const actSeries = _equityChart.addAreaSeries({
+        lineColor:   p.success,
+        topColor:    p.success + '30',
+        bottomColor: 'transparent',
+        lineWidth: 2,
+        title: '실제 자산',
+        priceLineVisible: false,
       });
+      actSeries.setData(act.map(d => ({
+        time:  Math.floor(new Date(d.ts).getTime() / 1000),
+        value: d.equity,
+      })));
     }
 
-    Plotly.react(div, traces, plotlyLayout({
-      height: 230,
-      yaxis: { title: '자산 (USD)', tickformat: '$,.0f' },
-      xaxis: { type: 'date' },
-    }), { responsive: true, displayModeBar: false });
-    div.querySelector('.empty-state')?.remove();
+    // Expected equity (line)
+    if (exp.length > 0) {
+      const expSeries = _equityChart.addLineSeries({
+        color: p.info, lineWidth: 2,
+        title: '예상 자산',
+        priceLineVisible: false,
+      });
+      expSeries.setData(exp.map(d => ({
+        time:  Math.floor(new Date(d.ts).getTime() / 1000),
+        value: d.equity,
+      })));
+    }
+
+    _equityChart.timeScale().fitContent();
+
   } catch (err) {
     console.error('[supertrend] equity chart error:', err);
     div.innerHTML = `<div class="empty-state">차트 로딩 실패</div>`;
@@ -654,18 +588,6 @@ async function renderEquityChart() {
 }
 
 // ── Signal click → condition explanation modal ────────────────────────────
-
-function onMarkerClick(ev) {
-  if (!ev.points || ev.points.length === 0) return;
-  const pt    = ev.points[0];
-  const barTs = pt.customdata;
-  if (!barTs) return;
-  const key = new Date(barTs).getTime();
-  const sig = _signalMap.get(key);
-  const cmp = _compareMap.get(key);
-  if (!sig) return;
-  openSignalModal(sig, cmp);
-}
 
 function openSignalModal(sig, cmp) {
   const overlay = document.getElementById('signal-modal');
@@ -799,5 +721,5 @@ init();
 setInterval(() => { updateStatus(); updateCompare(); }, 10_000);
 setInterval(loadCharts, 5 * 60_000);
 
-// Re-render charts when theme changes
+// Re-render charts when theme changes (chart instances are destroyed and recreated)
 window.addEventListener('bm:themechange', loadCharts);
