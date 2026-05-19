@@ -98,18 +98,22 @@ function computeSupertrend(candles, factor, period) {
     const bub = hl2 + factor * atr[i];
     const blb = hl2 - factor * atr[i];
 
-    // Upper band: ratchet downward (keep the lower value)
+    // Upper band: tighten (lower) OR reset when previous close was above it (Pine Script rule)
     if (i === seedIdx || final_ub[i - 1] === null) {
       final_ub[i] = bub;
+    } else if (bub < final_ub[i - 1] || close[i - 1] > final_ub[i - 1]) {
+      final_ub[i] = bub;
     } else {
-      final_ub[i] = bub >= final_ub[i - 1] ? final_ub[i - 1] : bub;
+      final_ub[i] = final_ub[i - 1];
     }
 
-    // Lower band: ratchet upward (keep the higher value)
+    // Lower band: tighten (raise) OR reset when previous close was below it (Pine Script rule)
     if (i === seedIdx || final_lb[i - 1] === null) {
       final_lb[i] = blb;
+    } else if (blb > final_lb[i - 1] || close[i - 1] < final_lb[i - 1]) {
+      final_lb[i] = blb;
     } else {
-      final_lb[i] = blb <= final_lb[i - 1] ? final_lb[i - 1] : blb;
+      final_lb[i] = final_lb[i - 1];
     }
 
     // Trend: sticky — only flips when close clearly breaks the opposite band
