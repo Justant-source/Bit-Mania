@@ -559,6 +559,14 @@ async function renderPriceChart() {
         if (highs[i] > hi) hi = highs[i];
         if (ema230[i] != null) { if (ema230[i] < lo) lo = ema230[i]; if (ema230[i] > hi) hi = ema230[i]; }
       }
+      // Include ATR 익절/손절 lines so they're never clipped off-screen
+      for (let i = 0; i < atrUpTs.length; i++) {
+        if (!atrUpTs[i]) continue;
+        const t = atrUpTs[i].getTime();
+        if (t < x0 || t > x1) continue;
+        if (atrUpY[i] != null && atrUpY[i] > hi) hi = atrUpY[i];
+        if (atrDnY[i] != null && atrDnY[i] < lo) lo = atrDnY[i];
+      }
       if (!isFinite(lo) || !isFinite(hi)) return;
       const pad = (hi - lo) * 0.04;
       div._yFitting = true;
@@ -571,7 +579,7 @@ async function renderPriceChart() {
       dragmode: 'pan',
       xaxis: { type: 'date', rangeslider: { visible: false }, fixedrange: false, range: [initX0, initX1] },
       yaxis: { title: 'BTC (USDT)', tickformat: '$,.0f', fixedrange: true, autorange: false },
-    }), { responsive: true, displayModeBar: false, scrollZoom: false, doubleClick: false });
+    }), { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
     div.querySelector('.empty-state')?.remove();
 
     // Attach handlers (remove previous to avoid doubles)
