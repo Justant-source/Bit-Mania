@@ -397,26 +397,20 @@ async function renderPriceChart() {
     // ── ATR exit condition lines (while had_position=true) ─────────
     const atrUpTs = [], atrUpY = [];
     const atrDnTs = [], atrDnY = [];
-    const slTs    = [], slY    = [];
-    let entryPx = null, entrySL = null, wasPos = false;
+    let entryPx = null, wasPos = false;
 
     for (const s of signals) {
       const t = new Date(s.bar_ts);
-      if (s.expected_action === 'enter') {
-        entryPx = parseFloat(s.price);
-        entrySL = s.expected_stop_loss ? parseFloat(s.expected_stop_loss) : null;
-      }
+      if (s.expected_action === 'enter') entryPx = parseFloat(s.price);
       if (s.had_position && entryPx !== null) {
         const dist = parseFloat(s.atr_14) * ST.atrMult;
         atrUpTs.push(t); atrUpY.push(+(entryPx + dist).toFixed(2));
         atrDnTs.push(t); atrDnY.push(+(entryPx - dist).toFixed(2));
-        if (entrySL !== null) { slTs.push(t); slY.push(entrySL); }
         wasPos = true;
       } else if (wasPos && !s.had_position) {
         atrUpTs.push(null); atrUpY.push(null);
         atrDnTs.push(null); atrDnY.push(null);
-        slTs.push(null);    slY.push(null);
-        wasPos = false; entryPx = null; entrySL = null;
+        wasPos = false; entryPx = null;
       }
     }
 
@@ -458,14 +452,14 @@ async function renderPriceChart() {
     // 2. EMA 230 (장기 방향, orange-ish via gauge token)
     traces.push({
       type: 'scatter', mode: 'lines', x: ts, y: ema230, name: 'EMA 230',
-      line: { color: T('--c-gauge-orange'), width: 2 },
+      line: { color: T('--c-gauge-orange'), width: 1 },
       hovertemplate: 'EMA230 %{y:$,.0f}<extra></extra>',
     });
 
     // 3. EMA 27 (중기)
     traces.push({
       type: 'scatter', mode: 'lines', x: ts, y: ema27, name: 'EMA 27',
-      line: { color: p.info, width: 1.5 },
+      line: { color: p.info, width: 1 },
       hovertemplate: 'EMA27 %{y:$,.0f}<extra></extra>',
     });
 
@@ -492,33 +486,23 @@ async function renderPriceChart() {
       hovertemplate: 'ST 하락 %{y:$,.0f}<extra></extra>',
     });
 
-    // 7. ATR exit upper (while in position)
+    // 7. ATR exit upper (익절, while in position)
     if (atrUpTs.length > 0) {
       traces.push({
-        type: 'scatter', mode: 'lines', x: atrUpTs, y: atrUpY, name: 'ATR 청산',
-        line: { color: p.warning, width: 1.5 },
+        type: 'scatter', mode: 'lines', x: atrUpTs, y: atrUpY, name: 'ATR 익절',
+        line: { color: T('--c-purple'), width: 1.5 },
         connectgaps: false,
-        hovertemplate: 'ATR 청산↑ %{y:$,.0f}<extra></extra>',
+        hovertemplate: 'ATR 익절↑ %{y:$,.0f}<extra></extra>',
       });
     }
 
-    // 8. ATR exit lower (no legend duplication)
+    // 8. ATR exit lower (손절, no legend duplication)
     if (atrDnTs.length > 0) {
       traces.push({
         type: 'scatter', mode: 'lines', x: atrDnTs, y: atrDnY,
-        line: { color: p.warning, width: 1.5 },
+        line: { color: T('--c-purple'), width: 1.5 },
         connectgaps: false, showlegend: false,
-        hovertemplate: 'ATR 청산↓ %{y:$,.0f}<extra></extra>',
-      });
-    }
-
-    // 9. Stop loss (catastrophic backstop)
-    if (slTs.length > 0) {
-      traces.push({
-        type: 'scatter', mode: 'lines', x: slTs, y: slY, name: '스톱로스',
-        line: { color: p.danger, width: 1.5 },
-        connectgaps: false,
-        hovertemplate: '스톱 %{y:$,.0f}<extra></extra>',
+        hovertemplate: 'ATR 손절↓ %{y:$,.0f}<extra></extra>',
       });
     }
 
@@ -549,16 +533,53 @@ async function renderPriceChart() {
       });
     }
 
+    // Initial visible window: last ~30 days (180 4h bars), pan left for history
+    const WINDOW = 180;
+    const initX0 = ts.length > WINDOW ? ts[ts.length - WINDOW] : ts[0];
+    const initX1 = ts[ts.length - 1];
+
+    // y-axis auto-follow for visible x window (TradingView-style pan)
+    function fitYToVisible() {
+      if (div._yFitting) return;
+      const layout = div._fullLayout;
+      if (!layout) return;
+      const xrange = layout.xaxis.range;
+      if (!xrange || xrange.length < 2) return;
+      const x0 = new Date(xrange[0]).getTime();
+      const x1 = new Date(xrange[1]).getTime();
+      let lo = Infinity, hi = -Infinity;
+      for (let i = 0; i < ts.length; i++) {
+        const t = ts[i].getTime();
+        if (t < x0 || t > x1) continue;
+        if (lows[i]  < lo) lo = lows[i];
+        if (highs[i] > hi) hi = highs[i];
+        if (ema230[i] != null) { if (ema230[i] < lo) lo = ema230[i]; if (ema230[i] > hi) hi = ema230[i]; }
+      }
+      if (!isFinite(lo) || !isFinite(hi)) return;
+      const pad = (hi - lo) * 0.04;
+      div._yFitting = true;
+      Plotly.relayout(div, { 'yaxis.range': [lo - pad, hi + pad] });
+      div._yFitting = false;
+    }
+
     Plotly.react(div, traces, plotlyLayout({
       height: 480,
-      xaxis: { type: 'date', rangeslider: { visible: false } },
-      yaxis: { title: 'BTC (USDT)', tickformat: '$,.0f' },
-    }), { responsive: true, displayModeBar: false });
+      dragmode: 'pan',
+      xaxis: { type: 'date', rangeslider: { visible: false }, fixedrange: false, range: [initX0, initX1] },
+      yaxis: { title: 'BTC (USDT)', tickformat: '$,.0f', fixedrange: true, autorange: false },
+    }), { responsive: true, displayModeBar: false, scrollZoom: false, doubleClick: false });
     div.querySelector('.empty-state')?.remove();
 
-    // Attach click handler (remove previous to avoid doubles)
+    // Attach handlers (remove previous to avoid doubles)
     div.removeAllListeners?.('plotly_click');
+    div.removeAllListeners?.('plotly_relayout');
     div.on('plotly_click', onMarkerClick);
+    div.on('plotly_relayout', (e) => {
+      if (e['xaxis.range[0]'] !== undefined || e['xaxis.range'] !== undefined || e['xaxis.autorange'] !== undefined) {
+        fitYToVisible();
+      }
+    });
+    fitYToVisible();
 
   } catch (err) {
     console.error('[supertrend] price chart error:', err);

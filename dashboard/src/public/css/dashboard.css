@@ -1,17 +1,19 @@
 /* Page-specific overrides — loads after tokens.css + components.css */
 
 /* Token extension: gauge orange tier (between warning and danger) */
-:root { --c-gauge-orange: #E87722; }
-[data-theme="dark"] { --c-gauge-orange: #F0943A; }
+:root { --c-gauge-orange: #E87722; --c-purple: #7C3AED; }
+[data-theme="dark"] { --c-gauge-orange: #F0943A; --c-purple: #A78BFA; }
 
-/* Override app-shell for full-screen use (SSOT has doc-preview sizing) */
+/* Override app-shell for full-screen use (topbar removed; sidebar spans full height) */
 .app-shell {
   height: 100vh;
   min-height: 0;
   border: none;
   border-radius: 0;
   box-shadow: none;
+  grid-template-rows: 1fr;
 }
+.app-shell .sidebar { grid-row: 1; }
 
 /* Chart containers */
 .chart-wrap { position: relative; }
@@ -86,6 +88,14 @@
   cursor: pointer; padding: 3px 10px; font-size: 13px; line-height: 1.4;
 }
 .modal-close:hover { border-color: var(--c-danger); color: var(--c-danger); }
+
+/* Fixed top-right theme toggle (replaces topbar placement) */
+.theme-toggle-fixed {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 200;
+}
 
 /* ── Mobile (≤768px) ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
