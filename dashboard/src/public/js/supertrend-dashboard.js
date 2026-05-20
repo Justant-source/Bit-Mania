@@ -386,7 +386,7 @@ async function renderPriceChart() {
   try {
     const p = palette();
     const CANDLES_FROM = '2026-01-01';
-    const SIGNALS_FROM = '2026-05-18';
+    const SIGNALS_FROM = CANDLES_FROM;  // signals DB starts 2026-04-20; fetch everything
 
     const [candlesData, expData, cmpData] = await Promise.all([
       apiFetch(`/api/internal/supertrend/candles?from=${CANDLES_FROM}`),
@@ -510,10 +510,14 @@ async function renderPriceChart() {
     priceSeries.setMarkers(markers);
 
     // Initial window: last ~180 4h bars (~30 days), pan left for history
+    // Use timestamp-based range (more reliable than logical index across sparse series)
     const len = unixTs.length;
     if (len > 1) {
-      const from = Math.max(0, len - 180);
-      _priceChart.timeScale().setVisibleLogicalRange({ from, to: len - 1 });
+      const startIdx = Math.max(0, len - 180);
+      _priceChart.timeScale().setVisibleRange({
+        from: unixTs[startIdx],
+        to:   unixTs[len - 1],
+      });
     }
 
     // Click → open signal modal
