@@ -405,6 +405,11 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
         }
       } catch { /* Redis optional */ }
 
+      const snapRes = await pool.query(`
+        SELECT total_equity FROM portfolio_snapshots ORDER BY snapshot_at DESC LIMIT 1
+      `);
+      const totalEquity = snapRes.rows[0] ? parseFloat(snapRes.rows[0].total_equity) : null;
+
       const now       = Date.now();
       const _4H_MS    = 4 * 60 * 60 * 1000;
       const nextBarTs = Math.ceil(now / _4H_MS) * _4H_MS;
@@ -413,6 +418,7 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
         latest_signal:    sigRes.rows[0] || null,
         strategy_status:  strategyStatus,
         live_position:    livePosition,
+        total_equity:     totalEquity,
         next_bar_ts:      new Date(nextBarTs).toISOString(),
         next_bar_eta_ms:  nextBarTs - now,
       });

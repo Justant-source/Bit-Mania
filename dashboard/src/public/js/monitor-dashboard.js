@@ -73,7 +73,7 @@ async function updatePortfolio() {
     if (dailyEl) {
       const v = lat.daily_pnl;
       dailyEl.textContent = fmtUSD(v);
-      dailyEl.className = `kpi-value ${v >= 0 ? 'pos' : 'neg'}`;
+      dailyEl.className = `kpi-value ${v === null || v === undefined ? '' : v >= 0 ? 'pos' : 'neg'}`;
     }
 
     const urEl = document.getElementById('kpi-unrealized');
@@ -220,19 +220,77 @@ async function updateServiceHealth() {
     if (metaEl) metaEl.textContent = `${services.length}개 컨테이너 · ${healthyCount}개 정상`;
 
     const liveStatuses = new Set(['green']);
-    grid.innerHTML = services.map((s) =>
-      `<div class="health-card">
+    grid.innerHTML = services.map((s) => {
+      const hasErrors = s.errors_6h > 0;
+      return `<div class="health-card${hasErrors ? ' has-errors' : ''}" data-service="${s.service}"
+                   style="${hasErrors ? 'cursor:pointer' : ''}">
         <span class="status-dot ${s.status}${liveStatuses.has(s.status) ? ' live' : ''}"></span>
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="health-name">${s.service}</div>
-          <div class="health-meta">${staleLabel(s.stale_sec)}${s.errors_6h > 0 ? ` · 오류 ${s.errors_6h}건` : ''}</div>
+          <div class="health-meta">${staleLabel(s.stale_sec)}${hasErrors ? ` · <span style="color:var(--c-danger)">오류 ${s.errors_6h}건</span>` : ''}</div>
         </div>
-      </div>`
-    ).join('');
+        ${hasErrors ? '<span style="font-size:11px;color:var(--text-soft);flex-shrink:0">상세 ›</span>' : ''}
+      </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.health-card.has-errors').forEach((card) => {
+      card.addEventListener('click', () => openServiceErrorModal(card.dataset.service));
+    });
   } catch (err) {
     console.warn('[monitor] service health error:', err);
   }
 }
+
+// ── Service Error Modal ───────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function openServiceErrorModal(service) {
+  const overlay  = document.getElementById('svc-error-modal');
+  const content  = document.getElementById('svc-error-content');
+  const footer   = document.getElementById('svc-error-footer');
+  document.getElementById('svc-error-title').textContent = `${service} — 최근 6시간 오류`;
+  overlay.style.display = 'flex';
+  content.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-soft)">로딩 중…</div>`;
+  footer.textContent = '';
+
+  try {
+    const data   = await apiFetch(`/api/internal/monitor/service/${encodeURIComponent(service)}/errors`);
+    const errors = data.errors || [];
+
+    if (errors.length === 0) {
+      content.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-soft)">오류 없음</div>`;
+      return;
+    }
+
+    content.innerHTML = errors.map((e) => `
+      <div style="border-bottom:1px solid var(--border);padding:12px 4px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <span class="mono" style="font-size:11px;color:var(--text-muted)">${fmtKST(e.timestamp)}</span>
+          <span class="badge danger" style="font-size:10px;line-height:1.4">${escapeHtml((e.level || 'error').toUpperCase())}</span>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${escapeHtml(e.event)}</div>
+        ${e.message ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">${escapeHtml(e.message)}</div>` : ''}
+        ${e.error_type ? `<div style="font-size:11px;color:var(--c-danger);font-family:monospace;margin-bottom:2px">${escapeHtml(e.error_type)}</div>` : ''}
+        ${e.error_stack ? `<pre style="font-size:10px;color:var(--text-soft);overflow-x:auto;margin:4px 0 0;white-space:pre-wrap;word-break:break-all;max-height:120px;overflow-y:auto">${escapeHtml(e.error_stack)}</pre>` : ''}
+      </div>
+    `).join('');
+
+    footer.textContent = `${errors.length}건 (최근 ${data.hours || 6}시간)`;
+  } catch (err) {
+    content.innerHTML = `<div style="padding:32px;text-align:center;color:var(--c-danger)">로딩 실패</div>`;
+  }
+}
+
+document.getElementById('svc-error-close')?.addEventListener('click', () => {
+  document.getElementById('svc-error-modal').style.display = 'none';
+});
+document.getElementById('svc-error-modal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+});
 
 // ── Infra gauges (circular) ───────────────────────────────────────────────
 

@@ -83,6 +83,20 @@ def get_progress(sweep_id: str) -> tuple[int, int]:
         return 0, 0
 
 
+def stop_backtester_containers() -> list[str]:
+    """실행 중인 모든 backtester-run 컨테이너를 stop. 반환값: 종료된 컨테이너 이름 목록."""
+    result = subprocess.run(
+        ['docker', 'ps', '--filter', 'name=cryptoengine-backtest-backtester-run-',
+         '--format', '{{.Names}}'],
+        capture_output=True, text=True
+    )
+    names = [n.strip() for n in result.stdout.splitlines() if n.strip()]
+    if names:
+        subprocess.run(['docker', 'stop', '-t', '30'] + names,
+                       capture_output=True, timeout=60)
+    return names
+
+
 def start_master(sweep_id: str, workers: int) -> subprocess.Popen:
     cmd = [
         'docker', 'compose', '-f', COMPOSE_FILE, '--profile', 'backtest',
@@ -139,6 +153,11 @@ def main() -> int:
             print('[scheduler] Done.', flush=True)
             return 0
 
+        # 잔존 컨테이너 정리 후 시작
+        leftovers = stop_backtester_containers()
+        if leftovers:
+            print(f'[scheduler] Stopped leftover containers: {leftovers}', flush=True)
+
         proc = start_master(sweep_id, workers)
 
         elapsed   = 0.0
@@ -165,10 +184,15 @@ def main() -> int:
 
         proc.terminate()
         try:
-            proc.wait(timeout=120)
+            proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+        # docker compose CLI 종료 후 컨테이너가 남아있을 수 있으므로 명시적 stop
+        stopped = stop_backtester_containers()
+        if stopped:
+            print(f'[scheduler] Stopped containers: {stopped}', flush=True)
 
         deleted = cleanup_stale(sweep_id)
         if deleted:

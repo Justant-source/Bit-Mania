@@ -278,6 +278,32 @@ export function createMonitorRouter(pool: Pool, redis: Redis): Router {
     }
   });
 
+  // ── GET /service/:service/errors ─────────────────────────────────────
+  // Returns recent ERROR/CRITICAL log entries for a specific service.
+
+  router.get("/service/:service/errors", async (req: Request, res: Response) => {
+    const { service } = req.params;
+    if (!/^[a-zA-Z0-9_-]{1,50}$/.test(service)) {
+      return res.status(400).json({ error: "Invalid service name" });
+    }
+    const hours = Math.min(Math.max(1, parseInt((req.query.hours as string) || "6", 10)), 24);
+    try {
+      const result = await pool.query(`
+        SELECT id, timestamp, level, event, message, error_type, error_stack, context
+        FROM service_logs
+        WHERE service = $1
+          AND level_no >= 40
+          AND timestamp >= NOW() - $2::int * INTERVAL '1 hour'
+        ORDER BY timestamp DESC
+        LIMIT 50
+      `, [service, hours]);
+      return res.json({ service, errors: result.rows, count: result.rowCount, hours });
+    } catch (err) {
+      console.error("[monitor] /service/:service/errors error:", err);
+      return res.status(500).json({ error: "Failed to fetch service errors" });
+    }
+  });
+
   // ── GET /infra ────────────────────────────────────────────────────────
   // Infrastructure metrics via Prometheus HTTP API.
 

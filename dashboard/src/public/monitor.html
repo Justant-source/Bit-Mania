@@ -51,22 +51,11 @@
     </div>
   </aside>
 
-  <!-- ── Topbar ──────────────────────────────────────────────────── -->
-  <header class="topbar">
-    <div class="crumbs">
-      <span>운영</span><span class="sep">/</span><span class="here">시스템 모니터</span>
-    </div>
-    <div class="topbar-actions">
-      <span class="env-pill">
-        <span class="status-dot" style="background:var(--c-warning);width:6px;height:6px;flex-shrink:0"></span>
-        MAINNET · Phase 5
-      </span>
-      <div class="theme-toggle" role="group" aria-label="테마">
-        <button data-set-theme="light">☀︎</button>
-        <button data-set-theme="dark">☾</button>
-      </div>
-    </div>
-  </header>
+  <!-- ── Theme toggle (fixed top-right) ──────────────────────────── -->
+  <div class="theme-toggle theme-toggle-fixed" role="group" aria-label="테마">
+    <button data-set-theme="light">☀︎</button>
+    <button data-set-theme="dark">☾</button>
+  </div>
 
   <!-- ── Main ───────────────────────────────────────────────────── -->
   <main class="page">
@@ -202,6 +191,18 @@
     </div>
     <div id="modal-chart" style="min-height:300px"></div>
     <div id="modal-last-update" class="muted" style="font-size:11px;margin-top:8px;text-align:right"></div>
+  </div>
+</div>
+
+<!-- Service Error Detail Modal -->
+<div class="modal-overlay" id="svc-error-modal" style="display:none">
+  <div class="modal-box" style="max-width:720px;width:92%">
+    <div class="modal-header">
+      <span id="svc-error-title">서비스 오류 상세</span>
+      <button class="modal-close" id="svc-error-close">✕ 닫기</button>
+    </div>
+    <div id="svc-error-content" style="max-height:520px;overflow-y:auto"></div>
+    <div id="svc-error-footer" class="muted" style="font-size:11px;margin-top:8px;text-align:right"></div>
   </div>
 </div>
 
