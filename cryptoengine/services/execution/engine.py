@@ -28,7 +28,7 @@ from shared.log_events import *
 log = structlog.get_logger(__name__)
 
 MAX_CONCURRENT_ORDERS = 5
-ORDER_TIMEOUT = 30.0  # seconds per order
+ORDER_TIMEOUT = 300.0  # seconds per order (post-only limit: up to 20×10s re-peg + buffer)
 MAX_RETRIES = 3
 RETRY_BACKOFF = 1.0
 
@@ -317,6 +317,15 @@ class ExecutionEngine:
                 # Position is being closed — remove the stop-loss
                 await self._stoploss_manager.cancel_stop_loss(symbol)
             else:
+                # BybitConnector.place_order already attaches stopLoss inline when
+                # order.stop_loss is set — skip StopLossManager to avoid double SL.
+                if payload.get("stop_loss") is not None:
+                    log.debug(
+                        ORDER_FILLED,
+                        message="inline SL already attached, skipping StopLossManager",
+                        symbol=symbol,
+                    )
+                    return
                 # New position (or size increase) — attach a stop-loss
                 filled_price = result.get("filled_price")
                 filled_qty = result.get("filled_qty", 0.0)

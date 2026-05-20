@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/orchestrator.yaml
-last_updated: 2026-05-18
+last_updated: 2026-05-21
 when_to_update: |
   - supertrend.yaml 파라미터 변경 시
   - 백테스트 결과 업데이트 시
@@ -208,6 +208,19 @@ phase5:
   max_concurrent_positions: 1          # 동시 1개만
   min_position_usd: 50                 # Bybit 최소 주문
 ```
+
+### 주문 실행 방식 (2026-05-21~)
+
+| 구분 | 방식 |
+|------|------|
+| 진입 (entry) | **Post-only 지정가** — bar close 가격으로 initial peg; order_manager가 best-bid로 즉시 re-peg |
+| 청산 (exit) | **Post-only 지정가** — bar close 가격으로 initial peg; best-ask로 re-peg |
+| 긴급 청산 (on_stop) | 시장가 유지 (셧다운 즉각 청산 보장) |
+| Re-peg 정책 | 10초마다 새 best-bid/ask로 재발행, 최대 20회 (200초) |
+| 폴백 | 20회 미체결 시 시장가 fallback (`LIMIT_FALLBACK_TO_MARKET` 로그) |
+| 수수료 기준 | Maker 0.020% (백테스트 combo #173 가정과 정합) |
+| SafetyGuard leverage_limit | 3.0 (`SAFETY_LEVERAGE_LIMIT=3.0` env) |
+| reduce_only 마진 체크 | SafetyGuard 마진 잔고 검사 면제 — 청산 주문은 마진 부족으로 차단되지 않음 |
 
 ### Equity Stop (청산위험 분석)
 

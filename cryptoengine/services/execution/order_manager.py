@@ -22,6 +22,7 @@ import redis.asyncio as aioredis
 import structlog
 
 from shared.exchange import ExchangeConnector, exchange_factory
+from shared.exchange.bybit import PostOnlyRejected
 from shared.models.order import OrderRequest, OrderResult
 from shared.log_events import *
 
@@ -158,15 +159,137 @@ class OrderManager:
             return await self.place_limit_order(order)
 
     async def place_limit_order(self, order: OrderRequest) -> dict[str, Any]:
-        """Place a limit order with retry logic.
+        """Place a limit order.
 
-        Supports Post-Only mode via ``order.post_only``.
+        When post_only=True, uses the 10s×20 re-peg loop with market fallback.
+        Otherwise falls back to the standard retry path.
         """
+        if order.post_only:
+            return await self._place_with_repeg(order)
         return await self._execute_with_retries(order)
 
     async def place_market_order(self, order: OrderRequest) -> dict[str, Any]:
         """Place a market order with retry logic."""
         return await self._execute_with_retries(order)
+
+    async def _fetch_peg_price(self, symbol: str, side: str) -> float:
+        """Return best bid (buy) or best ask (sell) from the orderbook."""
+        ob = await self._connector.get_orderbook(symbol, limit=1)
+        if side == "buy":
+            return ob.bids[0].price if ob.bids else 0.0
+        return ob.asks[0].price if ob.asks else 0.0
+
+    async def _place_with_repeg(self, order: OrderRequest) -> dict[str, Any]:
+        """Post-only limit: 10s × 20 re-peg attempts, then market-order fallback."""
+        MAX_ATTEMPTS = 20
+        INTERVAL_S = 10.0
+        POLL_S = 0.5
+
+        request_id = order.request_id
+        last_order_id = ""
+
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            # Cancel previous unfilled limit before re-pegging
+            if last_order_id:
+                cancelled = await self._connector.cancel_order(last_order_id, order.symbol)
+                if not cancelled:
+                    # Cancel failed — order may have just filled
+                    late_result = await self._connector.fetch_order_result(
+                        last_order_id, order.symbol, request_id
+                    )
+                    if late_result.status == "filled":
+                        self._transition(request_id, self._order_states.get(request_id), OrderState.FILLED)
+                        result_dict = self._result_to_dict(late_result, order)
+                        await self._update_order_from_result(result_dict)
+                        log.info(ORDER_FILLED, message="limit filled on cancel-fail check",
+                                 request_id=request_id, order_id=last_order_id, attempt=attempt)
+                        return result_dict
+                last_order_id = ""
+
+            # Fresh best-bid/ask peg
+            try:
+                peg_price = await self._fetch_peg_price(order.symbol, order.side)
+                peg_price = self._connector.price_to_precision(order.symbol, peg_price)
+            except Exception as exc:
+                log.warning(LIMIT_REPEG_ATTEMPT, message="peg price fetch failed",
+                            request_id=request_id, attempt=attempt, error=str(exc)[:200])
+                await asyncio.sleep(1.0)
+                continue
+
+            attempt_order = order.model_copy(update={"price": peg_price})
+            log.info(LIMIT_REPEG_ATTEMPT, message="limit repeg attempt",
+                     request_id=request_id, attempt=attempt, price=peg_price)
+
+            # Submit
+            try:
+                current_state = self._order_states.get(request_id)
+                if current_state != OrderState.SUBMITTED:
+                    self._transition(request_id, current_state, OrderState.SUBMITTED)
+                result: OrderResult = await self._connector.place_order(attempt_order)
+            except PostOnlyRejected:
+                log.info(POSTONLY_REJECTED, message="post-only rejected, repeg immediately",
+                         request_id=request_id, attempt=attempt, price=peg_price)
+                continue  # immediate retry, no 10s wait
+            except Exception as exc:
+                exc_type = type(exc).__name__
+                if "InsufficientFunds" in exc_type:
+                    log.error(ORDER_REJECTED, message="repeg: InsufficientFunds — aborting loop",
+                              request_id=request_id, attempt=attempt, error=str(exc)[:300])
+                    break
+                log.warning(ORDER_RETRY, message="repeg attempt exception",
+                            request_id=request_id, attempt=attempt, error=str(exc)[:200])
+                await asyncio.sleep(1.0)
+                continue
+
+            if result.order_id:
+                last_order_id = result.order_id
+                self._request_to_order[request_id] = result.order_id
+                # Update DB with new order_id and peg price
+                await self._update_order_from_result({
+                    "request_id": request_id,
+                    "order_id": result.order_id,
+                    "status": "submitted",
+                    "filled_qty": 0.0,
+                    "filled_price": None,
+                    "fee": 0.0,
+                })
+
+            # Already filled on placement (rare for post-only)
+            if result.status == "filled":
+                self._transition(request_id, OrderState.SUBMITTED, OrderState.FILLED)
+                result_dict = self._result_to_dict(result, order)
+                await self._update_order_from_result(result_dict)
+                return result_dict
+
+            # Poll for fill during INTERVAL_S
+            poll_start = time.monotonic()
+            while time.monotonic() - poll_start < INTERVAL_S:
+                await asyncio.sleep(POLL_S)
+                if not last_order_id:
+                    break
+                try:
+                    polled = await self._connector.fetch_order_result(
+                        last_order_id, order.symbol, request_id
+                    )
+                except Exception:
+                    continue
+                if polled.status == "filled":
+                    self._transition(request_id, OrderState.SUBMITTED, OrderState.FILLED)
+                    result_dict = self._result_to_dict(polled, order)
+                    await self._update_order_from_result(result_dict)
+                    log.info(ORDER_FILLED, message="limit order filled during poll",
+                             request_id=request_id, order_id=last_order_id, attempt=attempt)
+                    return result_dict
+
+        # 20 attempts exhausted → market fallback
+        if last_order_id:
+            await self._connector.cancel_order(last_order_id, order.symbol)
+
+        log.warning(LIMIT_FALLBACK_TO_MARKET,
+                    message="limit repeg exhausted, falling back to market",
+                    request_id=request_id, attempts=MAX_ATTEMPTS)
+        fallback = order.model_copy(update={"order_type": "market", "price": None, "post_only": False})
+        return await self._execute_with_retries(fallback)
 
     # ------------------------------------------------------------------
     # Cancel / Modify

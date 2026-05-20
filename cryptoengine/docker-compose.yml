@@ -207,6 +207,7 @@ services:
       STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
       EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
       STOP_LOSS_PCT: ${STOP_LOSS_PCT:-0.2333}
+      SAFETY_LEVERAGE_LIMIT: "3.0"
     healthcheck:
       test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
       interval: 60s

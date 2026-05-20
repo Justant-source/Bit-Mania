@@ -4,7 +4,8 @@ category: policies/operations
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/shared/kill_switch.py
-last_updated: 2026-05-01
+  - cryptoengine/scripts/manual_mainnet_test.py
+last_updated: 2026-05-21
 when_to_update: |
   - 운영 절차 변경 시
   - Kill Switch 임계값 변경 시
@@ -421,6 +422,28 @@ docker compose build --no-cache <서비스명>
 docker compose up -d <서비스명>
 ```
 
+### Limit 지정가 Re-peg 모니터링
+
+Post-only 지정가 주문은 10초마다 최대 20회 재발행 후 시장가로 폴백됩니다.
+
+**주요 로그 이벤트:**
+
+| 로그 msg | 의미 | 대응 |
+|----------|------|------|
+| `limit_repeg_attempt` | attempt N에서 best-bid/ask로 새 주문 발행 | 정상 (체결 대기 중) |
+| `postonly_rejected` | Bybit이 taker 체결 방지로 즉시 거부 → 바로 다음 attempt | 정상 (빠른 시장) |
+| `limit_fallback_to_market` | 20회 미체결 → 시장가로 폴백 | ⚠️ taker 수수료 발생. 빈도 높으면 repeg 간격 검토 |
+
+```bash
+# Limit repeg 현황 확인
+docker compose logs --tail=200 execution-engine | grep -E "limit_repeg|postonly_rejected|limit_fallback"
+
+# 폴백 빈도 집계
+docker compose logs execution-engine | grep "limit_fallback_to_market" | wc -l
+```
+
+**폴백이 자주 발생하는 경우**: 시장 유동성이 낮거나 BTC 급변동 구간. 단발적이면 정상. 연속 3회 이상이면 시장 상황 확인.
+
 ### 주문이 체결되지 않는 경우
 
 ```bash
@@ -479,6 +502,70 @@ docker compose restart postgres
 | 포지션 빠져나감 | [../emergency-manual-close.md](../emergency-manual-close.md) 참조 |
 | Kill Switch 반복 | 시스템 점검 후 원인 분석 |
 | 거래소 API 장애 | Bybit 공식 상태 페이지 확인 + 기다리기 |
+
+---
+
+---
+
+## 메인넷 매수/매도 파이프라인 검증 (수동 트리거 테스트)
+
+> **목적**: 4h Supertrend 신호를 기다리지 않고 entry → hold → exit 한 사이클을 즉시 실행해
+> execution-engine 파이프라인 전체 (SafetyGuard → ccxt → Bybit → PositionTracker) 를 검증한다.
+> 수수료는 발생하지만 코드 변경 없이 `order:request` 채널 직접 publish 방식으로 동작한다.
+
+### 사전 조건
+
+- Redis 가 `127.0.0.1:6379` 로 접근 가능해야 함 (`docker-compose.yml` 기본 설정)
+- 실행 환경에 `redis` 패키지 설치: `pip install redis`
+- 현재 포지션이 없어야 함 (flat)
+- Kill Switch 비활성 상태
+
+### 실행
+
+```bash
+# 1. dry-run 으로 payload 미리 확인
+cd cryptoengine/
+BYBIT_TESTNET=false EXPECTED_INITIAL_BALANCE_USD=200 \
+    python scripts/manual_mainnet_test.py --dry-run
+
+# 2. 실제 실행 (YES 프롬프트 있음)
+BYBIT_TESTNET=false EXPECTED_INITIAL_BALANCE_USD=200 \
+    python scripts/manual_mainnet_test.py
+
+# 3. 자동 실행 (CI / 자동화 사용 시)
+BYBIT_TESTNET=false EXPECTED_INITIAL_BALANCE_USD=200 \
+    python scripts/manual_mainnet_test.py --yes
+```
+
+### 주요 인자
+
+| 인자 | 기본값 | 설명 |
+|------|--------|------|
+| `--dry-run` | — | payload 만 출력, 실제 거래 없음 |
+| `--yes` | — | 확인 프롬프트 없이 자동 실행 |
+| `--hold-seconds N` | 30 | entry 후 exit 까지 대기 시간 |
+| `--capital USD` | 200 | 배분 자본 (수량 계산에 사용) |
+
+### 결과 cross-check
+
+```bash
+# Telegram
+/positions   # 포지션 0 확인
+/status      # equity 잔고 확인
+
+# Redis
+redis-cli -a $REDIS_PASSWORD GET cache:position:bybit:BTC/USDT:USDT
+
+# Execution engine 로그
+docker compose logs --tail=100 execution-engine | grep manual-test-01
+```
+
+### 안전 규칙
+
+- exit 실패 시: Bybit UI 에서 수동 Market Close, 또는 redis-cli 로 reduce_only sell publish
+- **절대 금지**: `make emergency` / `/kill` / `/emergency_close` → L4 Kill Switch 발동 시
+  supertrend-01 영구 정지 (수동 reset 필요)
+- 스크립트가 직접 수동 청산 명령어를 화면에 출력함 (복사-붙여넣기 가능)
 
 ---
 

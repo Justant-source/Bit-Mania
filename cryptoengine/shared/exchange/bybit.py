@@ -25,6 +25,12 @@ log = structlog.get_logger(__name__)
 _DEFAULT_RATE_LIMIT = 50  # ms between REST calls
 MAX_LEVERAGE: int = 3  # Project policy: never exceed 3x leverage (CLAUDE.md: max 5x)
 
+_POSTONLY_MARKERS = ("110030", "postonly", "post-only", "post_only", "would immediately")
+
+
+class PostOnlyRejected(Exception):
+    """Bybit post-only rejection — order would execute as taker (retCode 110030)."""
+
 
 class BybitConnector(ExchangeConnector):
     """Full async Bybit linear-perpetual connector."""
@@ -191,6 +197,20 @@ class BybitConnector(ExchangeConnector):
                     price=order.price,
                     params=params,
                 )
+            # Bybit market orders often return status=None/open with no fill info.
+            # Fetch once to get the actual filled status.
+            order_id = result.get("id", "")
+            if order_id and result.get("status") not in ("closed",):
+                await asyncio.sleep(0.5)
+                try:
+                    async with self._rate_limiter:
+                        fetched = await self._exchange.fetch_order(
+                            order_id, order.symbol, params={"acknowledged": True}
+                        )
+                    if fetched:
+                        result = fetched
+                except Exception:
+                    pass  # 원본 결과 사용
             status_map: dict[str, str] = {
                 "open": "new",
                 "closed": "filled",
@@ -200,15 +220,18 @@ class BybitConnector(ExchangeConnector):
             }
             return OrderResult(
                 request_id=order.request_id,
-                order_id=result["id"],
-                status=status_map.get(result["status"], "new"),
+                order_id=order_id or result.get("id", ""),
+                status=status_map.get(result.get("status"), "new"),
                 filled_qty=result.get("filled", 0.0) or 0.0,
                 filled_price=result.get("average"),
-                fee=result.get("fee", {}).get("cost", 0.0) or 0.0,
-                fee_currency=result.get("fee", {}).get("currency", "USDT") or "USDT",
+                fee=(result.get("fee") or {}).get("cost", 0.0) or 0.0,
+                fee_currency=(result.get("fee") or {}).get("currency", "USDT") or "USDT",
                 timestamp=datetime.now(tz=timezone.utc),
             )
         except Exception as exc:
+            exc_str = str(exc)
+            if any(m in exc_str.lower() for m in _POSTONLY_MARKERS):
+                raise PostOnlyRejected(exc_str)
             log.exception("order placement failed: %s", exc)
             return OrderResult(
                 request_id=order.request_id,
@@ -391,3 +414,57 @@ class BybitConnector(ExchangeConnector):
             except Exception as exc:
                 log.warning("trades ws error for %s: %s — reconnecting", symbol, exc)
                 await asyncio.sleep(1)
+
+    async def fetch_order_status(self, order_id: str, symbol: str) -> str:
+        """Return ccxt order status for polling: 'open', 'closed', 'canceled', or 'unknown'."""
+        self._ensure_connected()
+        try:
+            async with self._rate_limiter:
+                raw = await self._exchange.fetch_order(
+                    order_id, symbol, params={"acknowledged": True}
+                )
+            return raw.get("status") or "unknown"
+        except Exception as exc:
+            log.debug("fetch_order_status order_id=%s: %s", order_id, exc)
+            return "unknown"
+
+    async def fetch_order_result(self, order_id: str, symbol: str, request_id: str) -> OrderResult:
+        """Fetch a placed order and return as OrderResult (for re-peg fill confirmation)."""
+        self._ensure_connected()
+        status_map = {
+            "open": "new",
+            "closed": "filled",
+            "canceled": "cancelled",
+            "expired": "expired",
+            "rejected": "rejected",
+        }
+        try:
+            async with self._rate_limiter:
+                raw = await self._exchange.fetch_order(
+                    order_id, symbol, params={"acknowledged": True}
+                )
+            return OrderResult(
+                request_id=request_id,
+                order_id=order_id,
+                status=status_map.get(raw.get("status"), "new"),
+                filled_qty=float(raw.get("filled") or 0),
+                filled_price=raw.get("average"),
+                fee=float((raw.get("fee") or {}).get("cost") or 0),
+                fee_currency=(raw.get("fee") or {}).get("currency") or "USDT",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+        except Exception as exc:
+            log.warning("fetch_order_result order_id=%s: %s", order_id, exc)
+            return OrderResult(
+                request_id=request_id,
+                order_id=order_id,
+                status="new",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+
+    def price_to_precision(self, symbol: str, price: float) -> float:
+        """Round price to the exchange's tick size for limit order placement."""
+        try:
+            return float(self._exchange.price_to_precision(symbol, price))
+        except Exception:
+            return round(price, 1)  # BTC/USDT perp default tick = $0.1

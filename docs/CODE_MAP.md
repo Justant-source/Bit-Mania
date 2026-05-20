@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-19 (LWC 엔진 교체: Plotly→Lightweight Charts, ATR 선 제거, fitYToVisible 폐기)
+last_updated: 2026-05-21 (limit repeg P0 완료: order_manager, bybit, position_tracker, safety, main, engine, strategy; reduce_only 마진 체크 면제 추가)
 ---
 
 # Code → Docs 역인덱스
@@ -33,6 +33,7 @@ last_updated: 2026-05-19 (LWC 엔진 교체: Plotly→Lightweight Charts, ATR �
 |------|------|
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) |
 | `shared/log_events.py` | [structure/README.md](structure/README.md) |
+| `services/execution/safety.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) (SAFETY_LEVERAGE_LIMIT env, reduce_only 마진 면제) |
 | `services/telegram-bot/**` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) · [structure/services.md](structure/services.md) |
 | `config/telegram.yaml` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) |
 
@@ -64,12 +65,13 @@ last_updated: 2026-05-19 (LWC 엔진 교체: Plotly→Lightweight Charts, ATR �
 | `dashboard/docker-compose.yml` | [policies/operations/monitoring.md](policies/operations/monitoring.md) |
 | `dashboard/design/index.html` | 디자인 SSOT — 토큰·컴포넌트·적용 예시 |
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
+| `scripts/manual_mainnet_test.py` | [policies/operations/runbook.md](policies/operations/runbook.md) (메인넷 매수/매도 1회 트리거 테스트) |
 
 ## 공유 라이브러리
 
 | 코드 | 문서 |
 |------|------|
-| `shared/exchange/bybit.py` | [policies/leverage-limits.md](policies/leverage-limits.md) (MAX_LEVERAGE: 3x) |
+| `shared/exchange/bybit.py` | [policies/leverage-limits.md](policies/leverage-limits.md) (MAX_LEVERAGE: 3x) · [policies/strategies/supertrend.md](policies/strategies/supertrend.md) (PostOnlyRejected, fetch_order_result, price_to_precision) |
 | `shared/exchange/**` | [structure/README.md](structure/README.md) |
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) · [structure/README.md](structure/README.md) |
 | `shared/models/**` | [structure/README.md](structure/README.md) |

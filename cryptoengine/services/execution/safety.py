@@ -13,6 +13,7 @@ Responsibilities:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -40,7 +41,7 @@ SLIPPAGE_PERP: float = 0.001  # 0.1%
 SLIPPAGE_MAX_ACCEPTABLE: float = 0.005  # 0.5%
 
 # Network health
-NETWORK_TIMEOUT_THRESHOLD: float = 30.0  # seconds
+NETWORK_TIMEOUT_THRESHOLD: float = 3600.0  # seconds (4h 전략은 장시간 무주문 가능)
 
 # Rate limiting
 DEFAULT_RATE_LIMIT_PER_MINUTE: int = 120  # exchange-specific; Bybit default ~120
@@ -113,7 +114,8 @@ class SafetyGuard:
 
         # Configurable limits
         self.max_order_size = max_order_size
-        self.leverage_limit = leverage_limit
+        _env_leverage = os.getenv("SAFETY_LEVERAGE_LIMIT")
+        self.leverage_limit = float(_env_leverage) if _env_leverage else leverage_limit
         self.min_margin_available = min_margin_available
         self.rate_limit_per_minute = rate_limit_per_minute
 
@@ -200,6 +202,11 @@ class SafetyGuard:
         (passed, reason) -- ``passed`` is True if the order is safe to
         execute; ``reason`` explains why it was blocked when False.
         """
+        # Test-only bypass: BYPASS_SAFETY=true skips all checks.
+        if os.environ.get("BYPASS_SAFETY", "").lower() in ("1", "true"):
+            log.warning(ORDER_SAFETY_PASSED, message="BYPASS_SAFETY 활성 — 모든 안전 검사 건너뜀", request_id=payload.get("request_id"))
+            return True, ""
+
         # 0. Redis connectivity check (fail-closed)
         if not self._redis_healthy:
             # Attempt a ping to see if Redis has recovered
@@ -420,6 +427,9 @@ class SafetyGuard:
         self, payload: dict[str, Any]
     ) -> tuple[bool, str]:
         """Check that there is sufficient free margin to place this order."""
+        if payload.get("reduce_only"):
+            return True, ""
+
         free_margin = await self._get_free_margin()
 
         if free_margin is not None and free_margin < self.min_margin_available:

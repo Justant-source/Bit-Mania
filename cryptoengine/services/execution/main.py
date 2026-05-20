@@ -76,21 +76,6 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
                 updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
-            CREATE TABLE IF NOT EXISTS positions (
-                id              BIGSERIAL PRIMARY KEY,
-                exchange        TEXT        NOT NULL,
-                symbol          TEXT        NOT NULL,
-                side            TEXT        NOT NULL,
-                size            DOUBLE PRECISION NOT NULL,
-                entry_price     DOUBLE PRECISION NOT NULL,
-                unrealized_pnl  DOUBLE PRECISION DEFAULT 0,
-                leverage        DOUBLE PRECISION DEFAULT 1,
-                liquidation_price DOUBLE PRECISION,
-                margin_used     DOUBLE PRECISION DEFAULT 0,
-                updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE (exchange, symbol, side)
-            );
-
             CREATE INDEX IF NOT EXISTS idx_orders_request_id ON orders (request_id);
             CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
             CREATE INDEX IF NOT EXISTS idx_orders_strategy ON orders (strategy_id);
@@ -257,11 +242,9 @@ async def main() -> None:
         while not shutdown.is_set():
             try:
                 balance = await position_tracker.get_balance()
-                await redis_client.setex(
-                    "cache:wallet_balance",
-                    300,  # 5분 TTL (60초마다 갱신하므로 충분)
-                    _json.dumps(balance),
-                )
+                balance_json = _json.dumps(balance)
+                await redis_client.setex("cache:wallet_balance", 300, balance_json)
+                await redis_client.setex(f"cache:balance:{EXCHANGE}", 300, balance_json)
                 log.info(SERVICE_HEALTH_OK, message="wallet balance published", total_usdt=balance.get("total", 0))
                 consecutive_failures = 0
             except Exception as exc:
@@ -294,7 +277,9 @@ async def main() -> None:
     # 최초 1회 즉시 실행 — position_tracker 커넥터 재사용
     try:
         balance = await position_tracker.get_balance()
-        await redis_client.setex("cache:wallet_balance", 300, _json.dumps(balance))
+        _initial_balance_json = _json.dumps(balance)
+        await redis_client.setex("cache:wallet_balance", 300, _initial_balance_json)
+        await redis_client.setex(f"cache:balance:{EXCHANGE}", 300, _initial_balance_json)
         log.info(SERVICE_HEALTH_OK, message="wallet balance published (initial)", total_usdt=balance.get("total", 0))
     except Exception as exc:
         log.error(SERVICE_HEALTH_FAIL, message="wallet balance publish failed (initial)", exc_type=type(exc).__name__, exc=str(exc)[:500])

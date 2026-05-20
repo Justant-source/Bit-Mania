@@ -68,6 +68,8 @@ class PositionTracker:
         self._last_sync: float = 0.0
         self._last_reconcile: float = 0.0
         self._connected = False
+        # strategy_id cache — populated from on_order_fill for use in _persist_position
+        self._last_strategy_for: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -171,6 +173,11 @@ class PositionTracker:
         symbol = result.get("symbol", "")
         if not symbol:
             return
+
+        # Cache strategy_id so _persist_position can satisfy the NOT NULL constraint
+        strategy_id = result.get("strategy_id", "")
+        if strategy_id:
+            self._last_strategy_for[symbol] = strategy_id
 
         try:
             position = await self._connector.get_position(symbol)
@@ -464,36 +471,51 @@ class PositionTracker:
     # -- Database persistence --
 
     async def _persist_position(self, position: Position) -> None:
-        """Upsert a position row."""
+        """Upsert a position row using init_schema.sql column layout."""
+        strategy_id = self._last_strategy_for.get(position.symbol, "unknown")
         try:
             async with self._db_pool.acquire() as conn:
-                await conn.execute(
+                existing = await conn.fetchrow(
                     """
-                    INSERT INTO positions
-                        (exchange, symbol, side, size, entry_price,
-                         unrealized_pnl, leverage, liquidation_price,
-                         margin_used, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                    ON CONFLICT (exchange, symbol, side)
-                    DO UPDATE SET
-                        size = EXCLUDED.size,
-                        entry_price = EXCLUDED.entry_price,
-                        unrealized_pnl = EXCLUDED.unrealized_pnl,
-                        leverage = EXCLUDED.leverage,
-                        liquidation_price = EXCLUDED.liquidation_price,
-                        margin_used = EXCLUDED.margin_used,
-                        updated_at = NOW()
+                    SELECT id FROM positions
+                    WHERE strategy_id = $1 AND exchange = $2 AND symbol = $3
+                      AND closed_at IS NULL
                     """,
+                    strategy_id,
                     position.exchange,
                     position.symbol,
-                    position.side,
-                    position.size,
-                    position.entry_price,
-                    position.unrealized_pnl,
-                    position.leverage,
-                    position.liquidation_price,
-                    position.margin_used,
                 )
+                if existing:
+                    await conn.execute(
+                        """
+                        UPDATE positions
+                        SET size = $2, entry_price = $3, current_price = $3,
+                            unrealized_pnl = $4, leverage = $5
+                        WHERE id = $1
+                        """,
+                        existing["id"],
+                        position.size,
+                        position.entry_price,
+                        position.unrealized_pnl,
+                        position.leverage,
+                    )
+                else:
+                    await conn.execute(
+                        """
+                        INSERT INTO positions
+                            (strategy_id, exchange, symbol, side, size, entry_price,
+                             current_price, unrealized_pnl, leverage, opened_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, NOW())
+                        """,
+                        strategy_id,
+                        position.exchange,
+                        position.symbol,
+                        position.side,
+                        position.size,
+                        position.entry_price,
+                        position.unrealized_pnl,
+                        position.leverage,
+                    )
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="persist position error", symbol=position.symbol)
 
@@ -501,7 +523,11 @@ class PositionTracker:
         try:
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
-                    "DELETE FROM positions WHERE exchange = $1 AND symbol = $2",
+                    """
+                    UPDATE positions
+                    SET closed_at = NOW(), close_reason = 'exit'
+                    WHERE exchange = $1 AND symbol = $2 AND closed_at IS NULL
+                    """,
                     self._exchange_id,
                     symbol,
                 )

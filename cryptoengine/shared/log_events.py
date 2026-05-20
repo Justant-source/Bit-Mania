@@ -63,6 +63,9 @@ ORDER_REJECTED = "order_rejected"
 ORDER_RETRY = "order_retry"
 ORDER_TIMEOUT = "order_timeout"
 ORDER_DUPLICATE_SKIPPED = "order_duplicate_skipped"
+LIMIT_REPEG_ATTEMPT = "limit_repeg_attempt"        # 지정가 재peg 시도
+LIMIT_FALLBACK_TO_MARKET = "limit_fallback_to_market"  # 20회 미체결 → 시장가 폴백
+POSTONLY_REJECTED = "postonly_rejected"            # Bybit post-only 즉시 거부
 
 # === Kill Switch ===
 KILL_SWITCH_TRIGGERED = "kill_switch_triggered"
@@ -176,6 +179,9 @@ EVENT_LEVELS: dict[str, str] = {
     ORDER_RETRY: "WARNING",
     ORDER_TIMEOUT: "ERROR",
     ORDER_DUPLICATE_SKIPPED: "WARNING",
+    LIMIT_REPEG_ATTEMPT: "INFO",
+    LIMIT_FALLBACK_TO_MARKET: "WARNING",
+    POSTONLY_REJECTED: "INFO",
     # Kill Switch
     KILL_SWITCH_TRIGGERED: "CRITICAL",
     KILL_SWITCH_RESUMED: "INFO",

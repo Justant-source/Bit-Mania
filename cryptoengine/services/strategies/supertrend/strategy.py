@@ -368,7 +368,7 @@ class SupertrendLiveStrategy(BaseStrategy):
         # ── Exit Signal (has position) ──────────────────────────────────
 
         if exit_signal:
-            await self._exit_long(exit_reason, exit_reason == "atr_distance")
+            await self._exit_long(exit_reason, exit_reason == "atr_distance", price)
             return
 
     # ── Signal Persistence ─────────────────────────────────────────────
@@ -453,10 +453,10 @@ class SupertrendLiveStrategy(BaseStrategy):
             exchange="bybit",
             symbol=SYMBOL,
             side="buy",
-            order_type="market",
+            order_type="limit",
             quantity=qty,
-            price=None,
-            post_only=False,
+            price=price,   # initial peg = bar close; repeg loop updates it
+            post_only=True,
             reduce_only=False,
             stop_loss=stop_loss_price,
         )
@@ -477,7 +477,7 @@ class SupertrendLiveStrategy(BaseStrategy):
         except Exception:
             self._log.exception("entry_order_error")
 
-    async def _exit_long(self, reason: str, atr_triggered: bool = False) -> None:
+    async def _exit_long(self, reason: str, atr_triggered: bool = False, price: float | None = None) -> None:
         """Submit a long exit order."""
         if not self._has_position:
             return
@@ -487,10 +487,10 @@ class SupertrendLiveStrategy(BaseStrategy):
             exchange="bybit",
             symbol=SYMBOL,
             side="sell",
-            order_type="market",
+            order_type="limit" if price is not None else "market",
             quantity=self._position_qty,
-            price=None,
-            post_only=False,
+            price=price,      # initial peg = bar close; repeg loop updates it
+            post_only=price is not None,
             reduce_only=True,
         )
 
