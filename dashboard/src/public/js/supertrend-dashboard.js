@@ -416,9 +416,8 @@ async function renderPriceChart() {
     const ema230 = computeEma(closes, ST.dirEma);
     const stData = computeSupertrend(candles, ST.factor, ST.period);
 
-    // Supertrend band: null where trend is the other type → whitespace gap in LWC
-    const stUpBand = stData.map(s => s.trend ===  1 ? s.band : null);
-    const stDnBand = stData.map(s => s.trend === -1 ? s.band : null);
+    // Supertrend: single line with per-point color — physically impossible to show two lines at same bar
+    // (green = uptrend support below price, red = downtrend resistance above price)
 
     // ── Build signal markers ───────────────────────────────────────
     const markers = [];
@@ -486,25 +485,21 @@ async function renderPriceChart() {
     addEmaLine(ema27,  p.info,  'EMA27');
     addEmaLine(ema7,   p.muted, 'EMA7');
 
-    // Supertrend bands — sparse: only include bars for the matching trend
-    // (stUpBand and stDnBand are mutually exclusive per-bar; no overlap possible)
-    const stUpSeries = _priceChart.addLineSeries({
-      color: p.success, lineWidth: 2,
-      title: 'ST↑', priceLineVisible: false, lastValueVisible: false,
+    const stSeries = _priceChart.addLineSeries({
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      title: 'ST',
     });
-    stUpSeries.setData(unixTs.reduce((acc, t, i) => {
-      if (stUpBand[i] != null) acc.push({ time: t, value: stUpBand[i] });
-      return acc;
-    }, []));
-
-    const stDnSeries = _priceChart.addLineSeries({
-      color: p.danger, lineWidth: 2,
-      title: 'ST↓', priceLineVisible: false, lastValueVisible: false,
-    });
-    stDnSeries.setData(unixTs.reduce((acc, t, i) => {
-      if (stDnBand[i] != null) acc.push({ time: t, value: stDnBand[i] });
-      return acc;
-    }, []));
+    stSeries.setData(
+      stData
+        .map((s, i) => s.band == null ? null : {
+          time:  unixTs[i],
+          value: s.band,
+          color: s.trend === 1 ? p.success : p.danger,
+        })
+        .filter(Boolean)
+    );
 
     // Markers on price series
     priceSeries.setMarkers(markers);
