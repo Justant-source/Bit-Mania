@@ -471,33 +471,40 @@ async function renderPriceChart() {
       close: parseFloat(c.close),
     })));
 
-    // EMA lines (width:1, null → whitespace)
+    // EMA lines (width:1) — sparse: only include bars where value is non-null
     function addEmaLine(values, color, title) {
       const s = _priceChart.addLineSeries({
         color, lineWidth: 1, title,
         priceLineVisible: false, lastValueVisible: true,
       });
-      s.setData(unixTs.map((t, i) =>
-        values[i] != null ? { time: t, value: values[i] } : { time: t }));
+      s.setData(unixTs.reduce((acc, t, i) => {
+        if (values[i] != null) acc.push({ time: t, value: values[i] });
+        return acc;
+      }, []));
     }
     addEmaLine(ema230, T('--c-gauge-orange') || '#E87722', 'EMA230');
     addEmaLine(ema27,  p.info,  'EMA27');
     addEmaLine(ema7,   p.muted, 'EMA7');
 
-    // Supertrend bands (null → whitespace → one line per point)
+    // Supertrend bands — sparse: only include bars for the matching trend
+    // (stUpBand and stDnBand are mutually exclusive per-bar; no overlap possible)
     const stUpSeries = _priceChart.addLineSeries({
       color: p.success, lineWidth: 2,
       title: 'ST↑', priceLineVisible: false, lastValueVisible: false,
     });
-    stUpSeries.setData(unixTs.map((t, i) =>
-      stUpBand[i] != null ? { time: t, value: stUpBand[i] } : { time: t }));
+    stUpSeries.setData(unixTs.reduce((acc, t, i) => {
+      if (stUpBand[i] != null) acc.push({ time: t, value: stUpBand[i] });
+      return acc;
+    }, []));
 
     const stDnSeries = _priceChart.addLineSeries({
       color: p.danger, lineWidth: 2,
       title: 'ST↓', priceLineVisible: false, lastValueVisible: false,
     });
-    stDnSeries.setData(unixTs.map((t, i) =>
-      stDnBand[i] != null ? { time: t, value: stDnBand[i] } : { time: t }));
+    stDnSeries.setData(unixTs.reduce((acc, t, i) => {
+      if (stDnBand[i] != null) acc.push({ time: t, value: stDnBand[i] });
+      return acc;
+    }, []));
 
     // Markers on price series
     priceSeries.setMarkers(markers);
