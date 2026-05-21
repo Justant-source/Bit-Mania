@@ -51,11 +51,6 @@
   gap: var(--s-4);
   text-align: center;
 }
-.indicator-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--s-4);
-}
 
 /* Give multi-column tables a minimum width so they scroll rather than squish */
 #compare-table   { min-width: 700px; }
@@ -146,9 +141,8 @@
   .row-3 { grid-template-columns: repeat(2, 1fr); }
   .row-2 { grid-template-columns: 1fr; }
 
-  /* 인프라 게이지 + 지표 패널 2열 */
+  /* 인프라 게이지 2열 */
   .infra-gauge-grid { grid-template-columns: repeat(2, 1fr); }
-  .indicator-grid   { grid-template-columns: repeat(2, 1fr); }
 
   /* 카드 패딩 축소 */
   .card { padding: var(--s-3); }

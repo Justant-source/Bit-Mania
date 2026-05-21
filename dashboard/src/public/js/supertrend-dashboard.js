@@ -128,6 +128,8 @@ let _signalMap  = new Map();
 let _compareMap = new Map();
 let _priceChart  = null;
 let _equityChart = null;
+let _priceSeries  = null;   // in-progress candle update
+let _lastBucketTs = null;   // detect 4h bucket change
 
 function fromToDays(from) {
   if (/^\d{4}/.test(from)) {
@@ -234,7 +236,6 @@ async function updateStatus() {
         }
       }
       setKpi('kpi-capital', fmtUSD(data.total_equity ?? sig.allocated_capital));
-      renderIndicators(sig);
     }
 
     if (data.next_bar_eta_ms !== null) {
@@ -255,26 +256,6 @@ async function updateStatus() {
   } catch (err) {
     console.warn('[supertrend] status error:', err);
   }
-}
-
-function renderIndicators(sig) {
-  const panel = document.getElementById('indicator-panel');
-  if (!panel) return;
-  const items = [
-    { label: 'ST 방향',    val: sig.st_dir > 0 ? '상승' : '하락',       cls: sig.st_dir > 0 ? 'pos' : 'neg' },
-    { label: 'EMA(7)',     val: Number(sig.fast_ema).toLocaleString(),   cls: '' },
-    { label: 'EMA(27)',    val: Number(sig.slow_ema).toLocaleString(),   cls: '' },
-    { label: 'EMA(230)',   val: Number(sig.dir_ema).toLocaleString(),    cls: '' },
-    { label: 'BTC 가격',   val: `$${Number(sig.price).toLocaleString()}`, cls: '' },
-    { label: 'ATR(14)',    val: Number(sig.atr_14).toLocaleString(),     cls: '' },
-    { label: 'Stop Loss',  val: sig.expected_stop_loss ? `$${Number(sig.expected_stop_loss).toLocaleString()}` : '—', cls: 'warn' },
-  ];
-  panel.innerHTML = items.map(({ label, val, cls }) =>
-    `<div class="kpi">
-      <div class="kpi-label">${label}</div>
-      <div class="kpi-value ${cls}" style="font-size:16px">${val}</div>
-    </div>`
-  ).join('');
 }
 
 // ── Compare (10s poll) ────────────────────────────────────────────────────
@@ -381,7 +362,7 @@ async function renderPriceChart() {
   const div = document.getElementById('chart-price');
   if (!div) return;
 
-  if (_priceChart) { _priceChart.remove(); _priceChart = null; }
+  if (_priceChart) { _priceChart.remove(); _priceChart = null; _priceSeries = null; }
 
   try {
     const p = palette();
@@ -457,12 +438,12 @@ async function renderPriceChart() {
     });
 
     // Candlestick
-    const priceSeries = _priceChart.addCandlestickSeries({
+    _priceSeries = _priceChart.addCandlestickSeries({
       upColor:      p.success, downColor:     p.danger,
       borderVisible: false,
       wickUpColor:  p.success, wickDownColor: p.danger,
     });
-    priceSeries.setData(candles.map((c, i) => ({
+    _priceSeries.setData(candles.map((c, i) => ({
       time:  unixTs[i],
       open:  parseFloat(c.open),
       high:  parseFloat(c.high),
@@ -502,7 +483,7 @@ async function renderPriceChart() {
     );
 
     // Markers on price series
-    priceSeries.setMarkers(markers);
+    _priceSeries.setMarkers(markers);
 
     // Initial window: last ~180 4h bars (~30 days), pan left for history
     // Use timestamp-based range (more reliable than logical index across sparse series)
@@ -705,10 +686,35 @@ function openSignalModal(sig, cmp) {
   overlay.style.display = 'flex';
 }
 
+// ── In-progress 4h candle (1-min polling) ────────────────────────────────
+
+async function updateInProgressCandle() {
+  if (!_priceSeries) return;
+  try {
+    const r = await apiFetch('/api/internal/supertrend/candles/in-progress');
+    if (!r || !r.candle) return;
+    const c = r.candle;
+    _priceSeries.update({
+      time:  Math.floor(c.ts / 1000),
+      open:  parseFloat(c.open),
+      high:  parseFloat(c.high),
+      low:   parseFloat(c.low),
+      close: parseFloat(c.close),
+    });
+    if (_lastBucketTs !== null && _lastBucketTs !== c.ts) {
+      await loadCharts();
+    }
+    _lastBucketTs = c.ts;
+  } catch (e) {
+    console.error('[supertrend] in-progress update error:', e);
+  }
+}
+
 // ── Init & polling ────────────────────────────────────────────────────────
 
 async function loadCharts() {
   await Promise.allSettled([renderPriceChart(), renderEquityChart()]);
+  updateInProgressCandle();
 }
 
 async function init() {
@@ -726,6 +732,7 @@ async function init() {
 init();
 setInterval(() => { updateStatus(); updateCompare(); }, 10_000);
 setInterval(loadCharts, 5 * 60_000);
+setInterval(updateInProgressCandle, 60_000);
 
 // Re-render charts when theme changes (chart instances are destroyed and recreated)
 window.addEventListener('bm:themechange', loadCharts);
