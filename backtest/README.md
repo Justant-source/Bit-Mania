@@ -7,8 +7,8 @@ last_updated: 2026-05-18
 
 전략 R&D 전용 영역. 운영 코드(`cryptoengine/`)와 완전히 격리됨.
 
-**메인넷 현활 전략**: Supertrend 4h 3x long-only (combo #173)  
-- CAGR: +128.93%, Sharpe: 1.30, MDD: -86.94%
+**메인넷 현활 전략**: Supertrend 4h 3x long-only (combo #7908)  
+- CAGR: +151.56%, Sharpe: 1.37, MDD: -84.28%
 - 배포: 2026-05-18~ (Phase 5)
 
 ## 구조

@@ -20,17 +20,17 @@ last_updated: 2026-05-18
 - 손절/익절: ATR 기반 거리 초과 또는 신호 전환
 
 **백테스트 성과** (2017-2026, 9년 전체):
-- CAGR: +128.93% (연환산)
-- Sharpe: 1.30 (위험 조정 효율)
-- MDD: -86.94% (⚠️ 극한 위험, 사용자 승인)
-- 거래 수: 378회 (충분한 샘플)
+- CAGR: +151.56% (연환산)
+- Sharpe: 1.37 (위험 조정 효율)
+- MDD: -84.28% (⚠️ 극한 위험, 사용자 승인)
+- 거래 수: 354회 (충분한 샘플)
 
-**파라미터**: `supertrend_4h_x3_173` (combo #173)
+**파라미터**: `supertrend_4h_x3_7908` (combo #7908)
 - 기간: 4시간 봉
 - 방향: Long-only (롱 포지션만, 숏 없음)
 - 레버리지: 3x (하드 리밋)
-- Supertrend: period=8, multiplier=2.4
-- EMA: 빠른=7, 느린=27, 추세=230
+- Supertrend: period=9, multiplier=2.6
+- EMA: 빠른=7, 느린=29, 추세=240
 
 ### ATR (Average True Range)
 
@@ -39,19 +39,19 @@ last_updated: 2026-05-18
 - **높은 ATR**: 변동성 커짐 → 추세선 거리 증가 (손절 여유)
 - **낮은 ATR**: 변동성 작음 → 추세선 거리 감소 (신호 민감)
 
-### combo #173
+### combo #7908
 
 Supertrend 4h 3x long-only 전략의 파라미터 조합 번호. 매개변수 스윕(sweep) 분석에서 최종 선정된 최적 조합.
-- Supertrend period=8, multiplier=2.4
-- EMA 기간들 (7, 27, 230)
-- ATR 배수 3.2
+- Supertrend period=9, multiplier=2.6
+- EMA 기간들 (7, 29, 240)
+- ATR 배수 3.3
 
 ### sweet_spot_score (스윗스팟 스코어)
 
 매개변수 스윕 분석에서 여러 후보 조합을 평가하는 복합 점수. CAGR, Sharpe, MDD, 거래 수 등을 종합하여 최적 균형을 찾는 메트릭.
 
 - 점수 계산: 수익성(CAGR) + 효율성(Sharpe) + 안정성(MDD 페널티) 조합
-- combo #173이 최고 점수 획득 (따라서 실전 채택)
+- combo #7908이 최고 점수 획득 (따라서 실전 채택)
 
 ### long-only (롱 전용)
 
@@ -76,17 +76,17 @@ Supertrend 4h 3x long-only 전략의 파라미터 조합 번호. 매개변수 �
 
 ## 설정 / 파라미터 (Configuration)
 
-### supertrend_4h_x3_173
+### supertrend_4h_x3_7908
 
 현재 채택된 메인 전략 설정의 약자:
 - **Supertrend**: ATR 기반 추세추종 지표
 - **4h**: 4시간 봉 기반 거래
 - **3x**: 3배 레버리지 (하드 리밋)
-- **173**: 매개변수 스윕 분석 combo #173 선정
+- **7908**: 매개변수 스윕 분석 combo #7908 선정
 
 **백테스트 성과** (Phase 5 채택 기준):
-- CAGR +128.93%, Sharpe 1.30, MDD -86.94%
-- 사용자 승인: MDD -86.94% 극한 위험 수용
+- CAGR +151.56%, Sharpe 1.37, MDD -84.28%
+- 사용자 승인: MDD -84.28% 극한 위험 수용
 
 ### PHASE5_MODE
 
@@ -435,7 +435,7 @@ docker compose logs -f <svc>       # 실시간 로그
 
 **계산**: ((최종값 / 초기값) ^ (1/년수)) - 1
 
-**Supertrend 4h 3x (Phase 5)**: +128.93% (9년 데이터, 2017-2026)
+**Supertrend 4h 3x (Phase 5)**: +151.56% (9년 데이터, 2017-2026)
 **이전 Funding Arb**: +34.87% (6년 데이터, 2019-2025)
 
 **목표**: > 15% (연환산 기본 기준)
@@ -450,7 +450,7 @@ docker compose logs -f <svc>       # 실시간 로그
 - 1.0-2.0: 보통 (적절)
 - < 1.0: 미흡
 
-**Supertrend 4h 3x (Phase 5)**: 1.30 (보통, 극한 MDD로 인한 표준편차 증가)
+**Supertrend 4h 3x (Phase 5)**: 1.37 (보통, 극한 MDD로 인한 표준편차 증가)
 **이전 Funding Arb**: 3.583 (매우 우수, 안정적 수익)
 
 ### MDD (Maximum Drawdown)
@@ -459,8 +459,8 @@ docker compose logs -f <svc>       # 실시간 로그
 
 **계산**: (최저점 - 최고점) / 최고점 × 100%
 
-**Supertrend 4h 3x (Phase 5 실전)**: -86.94% (⚠️ **극한 위험**)
-- 사용자 승인: 고수익성(+128.93% CAGR)과 극한 리스크(-86.94% MDD)의 트레이드오프 명시 수용
+**Supertrend 4h 3x (Phase 5 실전)**: -84.28% (⚠️ **극한 위험**)
+- 사용자 승인: 고수익성(+151.56% CAGR)과 극한 리스크(-84.28% MDD)의 트레이드오프 명시 수용
 - 포지션 보호: Kill Switch 4단계 + 강화 모니터링으로 실제 손실 제한
 
 **이전 Funding Arb 설정**: -4.52% (매우 안정적)

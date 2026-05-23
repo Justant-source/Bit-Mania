@@ -18,7 +18,7 @@ CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략�
 
 | 전략 | 상태 | CAGR | Sharpe | 역할 |
 |------|------|------|--------|------|
-| [Supertrend](supertrend.md) | ✅ **메인** | +128.93% | 1.30 | 메인 수익원 (추세추종) |
+| [Supertrend](supertrend.md) | ✅ **메인** | +151.56% | 1.37 | 메인 수익원 (추세추종) |
 | [Funding Arb](funding-arb.md) | 🗂️ **폐기** | +34.87% | 3.583 | 이전 핵심 전략 (히스토리) |
 | [Adaptive DCA](adaptive-dca.md) | ⚠️ **비활성** | N/A | N/A | 보조 (재활성화 검토 중) |
 
@@ -32,19 +32,19 @@ CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략�
 
 - **진입**: Supertrend 상승 신호 + EMA(7) > EMA(27) + Price > EMA(230)
 - **청산**: EMA 하강 교차 또는 ATR 기반 손절/익절
-- **리스크**: 극단 하락 시 높은 손실 (MDD −86.94%)
+- **리스크**: 극단 하락 시 높은 손실 (MDD −84.28%)
 - **레버리지**: 3x (하드 리밋)
 
-### 백테스트 성과 (supertrend_4h_x3_173)
+### 백테스트 성과 (supertrend_4h_x3_7908)
 
 **기간**: 2017-01-01 ~ 2026-05-18 (9년, 전체 역사)
 
 | 지표 | 값 | 평가 |
 |------|-----|------|
-| **CAGR** | +128.93% | ✅ 매우 우수 |
-| **Sharpe Ratio** | 1.30 | ⚠️ 적절 |
-| **Maximum Drawdown** | -86.94% | ⚠️ **극한 위험** |
-| **거래 수** | 378회 | ✅ 충분한 샘플 |
+| **CAGR** | +151.56% | ✅ 매우 우수 |
+| **Sharpe Ratio** | 1.37 | ⚠️ 적절 |
+| **Maximum Drawdown** | -84.28% | ⚠️ **극한 위험** |
+| **거래 수** | 354회 | ✅ 충분한 샘플 |
 
 ### 핵심 파라미터
 
@@ -57,12 +57,12 @@ leverage: 3
 # 지표
 indicators:
   supertrend:
-    period: 8
-    multiplier: 2.4
+    period: 9
+    multiplier: 2.6
   ema_fast: 7
-  ema_slow: 27
-  ema_trend: 230
-  atr_exit_multiplier: 3.2
+  ema_slow: 29
+  ema_trend: 240
+  atr_exit_multiplier: 3.3
 
 # Phase 5 (메인넷)
 phase5:

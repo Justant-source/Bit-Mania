@@ -33,14 +33,14 @@ from .indicators import compute_atr, compute_ema, compute_supertrend
 
 logger = structlog.get_logger()
 
-# ── Strategy Parameters (combo #173) ────────────────────────────────────
+# ── Strategy Parameters (combo #7908) ───────────────────────────────────
 
-ST_FACTOR = 2.4
-ST_PERIOD = 8
+ST_FACTOR = 2.6
+ST_PERIOD = 9
 FAST_EMA_LEN = 7
-SLOW_EMA_LEN = 27
-DIR_EMA_LEN = 230
-ATR_MULT = 3.2
+SLOW_EMA_LEN = 29
+DIR_EMA_LEN = 240
+ATR_MULT = 3.3
 LEVERAGE = 3
 
 # ── Operational Constants ──────────────────────────────────────────────

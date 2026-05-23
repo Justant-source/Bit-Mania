@@ -513,7 +513,7 @@ _VARIANT_TO_LIQ_COMBO: dict[str, str] = {
     'long_only_x3':     'default',
     'long_only_x3_v2':  'v2',
     'long_only_x3_164': 'combo_164',
-    'long_only_x3_173': 'combo_173',
+    'long_only_x3_7908': 'combo_7908',
     'long_only_x3_176': 'combo_176',
 }
 

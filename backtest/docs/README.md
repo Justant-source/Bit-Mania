@@ -40,7 +40,7 @@ last_updated: 2026-05-18
 - 020: Supertrend + TrendType 조합
 - 021: TradeIQ CCI+CE (최후 폐기 후보)
 
-**현활 전략**: Supertrend 4h 3x long-only (combo #173) — 메인넷 배포 중
+**현활 전략**: Supertrend 4h 3x long-only (combo #7908) — 메인넷 배포 중
 
 ## 빌드 및 실행
 

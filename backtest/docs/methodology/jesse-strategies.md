@@ -13,7 +13,7 @@ when_to_update: |
 
 # Jesse 전략 목록 및 사양 (아카이브)
 
-**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #173)`을 배포 중입니다.
+**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #7908)`을 배포 중입니다.
 
 ## 개요
 

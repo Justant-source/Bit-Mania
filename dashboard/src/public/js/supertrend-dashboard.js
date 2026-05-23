@@ -18,8 +18,8 @@ const palette = () => ({
 
 // ── Strategy params (SSOT: cryptoengine/config/strategies/supertrend.yaml) ──
 
-// st_factor=2.4 st_period=8 | EMA 7/27/230 | atr_mult=3.2 (ATR(14) exit distance)
-const ST = { factor: 2.4, period: 8, fastEma: 7, slowEma: 27, dirEma: 230, atrMult: 3.2 };
+// st_factor=2.6 st_period=9 | EMA 7/29/240 | atr_mult=3.3 (ATR(14) exit distance)
+const ST = { factor: 2.6, period: 9, fastEma: 7, slowEma: 29, dirEma: 240, atrMult: 3.3 };
 
 // ── Indicator helpers (port of cryptoengine/services/strategies/supertrend/indicators.py) ──
 

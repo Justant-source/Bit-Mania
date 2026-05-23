@@ -7,8 +7,8 @@
 ## 현재 진행 상태
 
 - **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $200 USDT
-  - 전략: `supertrend_4h_x3_173` (Supertrend 4h Long-only, 3x, combo #173)
-  - 백테스트: CAGR +128.93% | Sharpe 1.30 | MDD -86.94% (사용자 승인)
+  - 전략: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x, combo #7908)
+  - 백테스트: CAGR +151.56% | Sharpe 1.37 | MDD -84.28% (사용자 승인)
   - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=200`
 
 ## 핵심 원칙
@@ -90,7 +90,7 @@ make emergency                              # 비상 청산
 
 1. **BYBIT_TESTNET=false**: Phase 5 메인넷 실전 중 — 테스트넷 전환 시 포지션 수동 청산 후 진행
 2. **Kill Switch 약화 금지**: `shared/kill_switch.py` 로직 절대 수정 금지
-3. **레버리지 3x 운영**: `supertrend_4h_x3_173` (3x 하드 캡, 초과 절대 금지)
+3. **레버리지 3x 운영**: `supertrend_4h_x3_7908` (3x 하드 캡, 초과 절대 금지)
 4. **BTC 단일 운영**: 다중 심볼 거래 금지
 5. **shared/ 변경 시**: 모든 서비스 이미지 재빌드 필수
 

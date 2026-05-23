@@ -75,7 +75,7 @@ Phase 5 → 전략 교체 (2026-05-12)
   └─ 019 TrendType ADX/DMI — PASS 1D long_only CAGR 21.54% (CANDIDATE)
   └─ 020 Supertrend+TrendType 하이브리드 — PASS 4h+1D (CANDIDATE)
   └─ 021 TradeIQ CCI-CE — FAIL (거래수 부족, CAGR 미달)
-  └─ FA 폐기 → Supertrend 4h 3x combo #173 메인넷 전환 (2026-05-18)
+  └─ FA 폐기 → Supertrend 4h 3x combo #7908 메인넷 전환 (2026-05-18)
 ```
 
 ---

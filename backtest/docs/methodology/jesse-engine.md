@@ -13,7 +13,7 @@ when_to_update: |
 
 # Jesse Engine 가이드 (아카이브)
 
-**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #173)`을 실운영 중입니다.
+**상태**: 아카이브 문서. 현재 메인넷은 `Supertrend 4h 3x long-only (combo #7908)`을 실운영 중입니다.
 
 Jesse 프레임워크 기반 백테스트 환경 설정 및 사용 (과거 FA 및 v2-v3 전략 검증용).
 

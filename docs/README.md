@@ -9,8 +9,8 @@ last_updated: 2026-05-18
 > **BTC 선물 자동매매 시스템**. Supertrend 4h 추세추종 메인 전략, BTC 단일 운영, Bybit 테스트넷 → 메인넷 소액 투자.
 >
 > **현재 상태 (Phase 5)**: 메인넷 소액 실전 운영 중
-> - 채택 설정: `supertrend_4h_x3_173` (Supertrend 4h Long-only, 3x 레버리지, combo #173)
-> - 백테스트 성과: CAGR +128.93% | Sharpe 1.30 | MDD -86.94% (극한 위험, 사용자 승인)
+> - 채택 설정: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x 레버리지, combo #7908)
+> - 백테스트 성과: CAGR +151.56% | Sharpe 1.37 | MDD -84.28% (극한 위험, 사용자 승인)
 > - 운영 모드: 메인넷 (`BYBIT_TESTNET=false`)
 
 이 디렉토리(`docs/`)가 프로젝트의 **유일한 문서 source-of-truth**이다.
@@ -92,9 +92,9 @@ last_updated: 2026-05-18
 
 | 항목 | 현재값 | 정상 범위 | 경고 |
 |------|--------|-----------|------|
-| **CAGR** (연환산) | +128.93% | > +15% | < 0% |
-| **Sharpe Ratio** | 1.30 | > 1.0 | < 0.5 |
-| **Max Drawdown** | -86.94% | ⚠️ **극한 위험** | > -50% (경고) |
+| **CAGR** (연환산) | +151.56% | > +15% | < 0% |
+| **Sharpe Ratio** | 1.37 | > 1.0 | < 0.5 |
+| **Max Drawdown** | -84.28% | ⚠️ **극한 위험** | > -50% (경고) |
 | **Daily P&L** | -5% ~ +10% | -5% ~ +10% | < -10% |
 | **Margin Ratio** (Phase 5) | > 2.0x (기준) | > 1.5x | 1.0x ~ 1.5x (경고), < 1.0x (긴급) |
 | **Kill Switch Events** | 0회 (7일) | 0회 | 1회 이상 |

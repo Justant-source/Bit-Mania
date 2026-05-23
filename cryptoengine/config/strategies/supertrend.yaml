@@ -14,14 +14,14 @@ strategy:
 # ── Model Parameters ──────────────────────────────────────────
 model:
   # Supertrend calculation
-  st_factor: 2.4        # ATR multiplier for Supertrend bands
-  st_period: 8          # ATR lookback period
+  st_factor: 2.6        # ATR multiplier for Supertrend bands
+  st_period: 9          # ATR lookback period
   # EMA filters
   fast_ema_len: 7       # Fast EMA for direction confirmation
-  slow_ema_len: 27      # Slow EMA for trend confirmation
-  direction_ema_len: 230  # Long EMA for overall direction bias
+  slow_ema_len: 29      # Slow EMA for trend confirmation
+  direction_ema_len: 240  # Long EMA for overall direction bias
   # ATR settings
-  atr_mult: 3.2         # ATR multiplier for stop-loss distance
+  atr_mult: 3.3         # ATR multiplier for stop-loss distance
 
 # ── Exchange Configuration ────────────────────────────────────
 exchange: bybit

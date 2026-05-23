@@ -7,7 +7,7 @@ last_updated: 2026-05-18
 
 코드: `backtest/strategies/external/SupertrendStrategy.py`  
 운영 코드: `cryptoengine/services/strategies/supertrend/`  
-현재 상태: **ACTIVE** — Phase 5 메인넷 실전 (combo #173, 3x)
+현재 상태: **ACTIVE** — Phase 5 메인넷 실전 (combo #7908, 3x)
 
 ## 개요
 
@@ -42,18 +42,18 @@ def update_position():
 
 ## 파라미터
 
-두 파라미터 세트가 동일 알고리즘을 사용. v3 스윕 챔피언(combo_18)에서 추가 최적화하여 combo #173이 채택됨.
+두 파라미터 세트가 동일 알고리즘을 사용. v3 스윕 챔피언(combo_18)에서 추가 최적화하여 combo #7908이 채택됨.
 
-| 파라미터 | combo_18 (v3 챔피언) | combo #173 (채택·live) | 설명 |
-|---------|---------------------|----------------------|------|
-| `st_factor` | 2.5 | **2.4** | Supertrend ATR 배수 |
-| `st_period` | 6 | **8** | Supertrend ATR 기간 |
+| 파라미터 | combo_18 (v3 챔피언) | combo #7908 (채택·live) | 설명 |
+|---------|---------------------|------------------------|------|
+| `st_factor` | 2.5 | **2.6** | Supertrend ATR 배수 |
+| `st_period` | 6 | **9** | Supertrend ATR 기간 |
 | `fast_ema_len` | 7 | **7** | 단기 EMA |
-| `slow_ema_len` | 20 | **27** | 장기 EMA |
-| `direction_ema_len` | 200 | **230** | 방향 필터 EMA |
-| `atr_mult` | 3.0 | **3.2** | ATR 손절/익절 배수 |
+| `slow_ema_len` | 20 | **29** | 장기 EMA |
+| `direction_ema_len` | 200 | **240** | 방향 필터 EMA |
+| `atr_mult` | 3.0 | **3.3** | ATR 손절/익절 배수 |
 
-> combo #173은 Phase 5 파라미터 최적화 스윕(v4)에서 CAGR 128.93%, Sharpe 1.30으로 선정됨. 자세한 최적화 내역 → `docs/policies/strategies/supertrend.md`
+> combo #7908은 Phase 5 파라미터 최적화 스윕(v7_st)에서 CAGR 151.56%, Sharpe 1.37로 선정됨. 자세한 최적화 내역 → `docs/policies/strategies/supertrend.md`
 
 ## 백테스트 결과 (1x, 2017-08~2026-04)
 
@@ -74,16 +74,17 @@ def update_position():
 |---|---|---|---|---|---|---|
 | combo_18 (v3 챔피언) | 110.44% | 1.224 | -73.43% | 398 | ❌ FAIL (PF<1.2) | ProfitFactor 1.14 |
 | combo #164 | 115.79% | 1.252 | -86.32% | 379 | ❌ FAIL | |
-| **combo #173** | **128.93%** | **1.304** | **-86.94%** | 378 | **❌ FAIL (사용자 승인)** | **현재 live** |
+| combo #173 | 128.93% | 1.304 | -86.94% | 378 | ❌ FAIL | 이전 live (v4 스윕) |
 | combo #176 | 123.42% | 1.282 | -86.87% | 367 | ❌ FAIL | |
+| **combo #7908** | **151.56%** | **1.374** | **-84.28%** | 354 | **❌ FAIL (사용자 승인)** | **현재 live** |
 
-> MDD ≥ -80% 기준 미충족이나, CAGR 및 Sharpe가 우수하고 사용자가 위험을 인지·승인하여 combo #173 채택.  
-> 3x 레버리지에서 MDD -80%+ 통과하는 파라미터는 4,374 combo 전체 탐색 결과 **0개** (구조적 한계).
+> MDD ≥ -80% 기준 미충족이나, CAGR 및 Sharpe가 우수하고 사용자가 위험을 인지·승인하여 combo #7908 채택.  
+> 3x 레버리지에서 MDD -80%+ 통과하는 파라미터는 v7_st 15,000 combo 전체 탐색 결과 **0개** (구조적 한계).
 
 ## 통합 경위
 
 `backtest/results/7-strategies/supertrend/4h/long_only_x3/` (combo_18)와  
-`backtest/results/7-strategies/supertrend/4h/long_only_x3_173/` (combo #173)는  
+`backtest/results/7-strategies/supertrend/4h/long_only_x3_7908/` (combo #7908)는  
 동일한 알고리즘의 파라미터 변형으로, 이 문서 하나로 통합 관리.
 
 ## 파라미터 스윕 이력 (v2/v3, 2021-04~2026-04 기준)
@@ -97,7 +98,7 @@ def update_position():
 | 1D | long_only | v3 | **2.8** | **7** | **+31.71** | +23.9% | -24.0% | ✅ 우수 |
 | 1h | long_only | v2 | 5.0 | 7 | +10.66 | +4.6% | -33.1% | ⚠️ 조건부 |
 
-> v3 4h champion(2.5/12)에서 추가 최적화 진행 → combo #173 (st_factor=2.4, st_period=8) 채택.
+> v3 4h champion(2.5/12)에서 추가 최적화 진행 → combo #7908 (st_factor=2.6, st_period=9) 채택.
 
 ## 관련 문서
 
