@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-21 (limit repeg P0 완료: order_manager, bybit, position_tracker, safety, main, engine, strategy; reduce_only 마진 체크 면제 추가)
+last_updated: 2026-05-24 (supertrend indicators.py Jesse 정본화 — ST 알고리즘 버그 수정, st_line DB 저장, 대시보드 DB 단일진실원천 전환)
 ---
 
 # Code → Docs 역인덱스
@@ -13,6 +13,9 @@ last_updated: 2026-05-21 (limit repeg P0 완료: order_manager, bybit, position_
 |------|------|
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
 | `services/strategies/supertrend/**` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) · [policies/btc-only.md](policies/btc-only.md) |
+| `services/strategies/supertrend/indicators.py` | Jesse `ta.supertrend` 정본 포팅 — `_atr_jesse`(Wilder ATR, period-1 시드) + 밴드 리셋 절 + gated flip; `compute_supertrend` → `(trend_dir, st_line)` 반환 |
+| `services/strategies/supertrend/strategy.py` | `supertrend_signals` 테이블에 `st_line` 컬럼 저장; `tick()`에서 `st_dir, st_line = compute_supertrend(...)`; `entry_ok=bool(...)` numpy bool_ → Python bool 변환 필수 (asyncpg DataError 방지) |
+| `scripts/backfill_supertrend_signals.py` | 정본 ST 재계산 후 `st_dir`·`st_line` upsert (DO UPDATE) |
 | `config/strategies/supertrend.yaml` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) |
 
 ## 실행 / 주문
@@ -59,7 +62,8 @@ last_updated: 2026-05-21 (limit repeg P0 완료: order_manager, bybit, position_
 | `dashboard/src/public/css/dashboard.css` | 페이지 특수 오버라이드 (app-shell 전체화면, 모달, 인프라 게이지 등) · `--c-purple` 토큰(라이트/다크) — LWC 이전 후 차트에서 미사용 |
 | `dashboard/src/public/js/theme.js` | 라이트/다크 토글 + localStorage — `bm:themechange` 이벤트 발행 |
 | `dashboard/src/public/js/monitor-dashboard.js` | 시스템 모니터 프론트엔드 — palette() 기반 Plotly 토큰 연동 |
-| `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — TradingView Lightweight Charts 엔진(네이티브 pan/zoom/터치/자동스케일), 캔들+EMA 3선+ST 밴드+진입/종료 마커+클릭 모달, ATR 선 제거, fitYToVisible 폐기 |
+| `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — TradingView Lightweight Charts 엔진(네이티브 pan/zoom/터치/자동스케일), 캔들+EMA 3선+ST 밴드+진입/종료 마커+클릭 모달, ATR 선 제거, fitYToVisible 폐기, 진행 중 4h 봉 1분 폴링(updateInProgressCandle·_priceSeries.update); ST 라인 DB 신호(`st_line`/`st_dir`)에서 렌더링으로 교체(JS 재계산 폐기) |
+| `dashboard/src/routes/supertrend.ts` | 대시보드 supertrend 라우터 — `/candles`(확정 4h 봉)·`/candles/in-progress`(진행 중 4h 봉 합성, 1m DB+Redis 집계)·`/expected`에 `st_line` 컬럼 추가 |
 | `dashboard/src/public/monitor.html` | 시스템 모니터 페이지 — app-shell + 새 디자인 시스템 |
 | `dashboard/src/public/supertrend.html` | 전략 비교 페이지 — 가격 차트 강화(밴드+EMA+마커+모달) |
 | `dashboard/docker-compose.yml` | [policies/operations/monitoring.md](policies/operations/monitoring.md) |

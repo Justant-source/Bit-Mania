@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from base_strategy import BaseStrategy  # noqa: E402
 
-from .indicators import compute_atr, compute_ema, compute_supertrend
+from .indicators import compute_atr, compute_ema, compute_supertrend  # returns (dir, line)
 
 logger = structlog.get_logger()
 
@@ -92,6 +92,9 @@ class SupertrendLiveStrategy(BaseStrategy):
         # Background subscription task
         self._sub_task: asyncio.Task | None = None
 
+        # Strong references to fire-and-forget tasks (prevents GC before completion)
+        self._bg_tasks: set[asyncio.Task] = set()
+
         self._log = logger.bind(strategy_id=strategy_id, strategy="supertrend")
 
     # ── Lifecycle ──────────────────────────────────────────────────────
@@ -118,6 +121,7 @@ class SupertrendLiveStrategy(BaseStrategy):
                             bar_ts             TIMESTAMPTZ NOT NULL,
                             computed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                             st_dir             SMALLINT    NOT NULL,
+                            st_line            DOUBLE PRECISION,
                             fast_ema           DOUBLE PRECISION NOT NULL,
                             slow_ema           DOUBLE PRECISION NOT NULL,
                             dir_ema            DOUBLE PRECISION NOT NULL,
@@ -132,6 +136,11 @@ class SupertrendLiveStrategy(BaseStrategy):
                             expected_qty       DOUBLE PRECISION,
                             expected_stop_loss DOUBLE PRECISION
                         )
+                    """)
+                    # Idempotent migration: add st_line if not present (pre-existing DBs)
+                    await conn.execute("""
+                        ALTER TABLE supertrend_signals
+                            ADD COLUMN IF NOT EXISTS st_line DOUBLE PRECISION
                     """)
                     await conn.execute("""
                         CREATE UNIQUE INDEX IF NOT EXISTS idx_supertrend_signals_bar_ts
@@ -286,7 +295,7 @@ class SupertrendLiveStrategy(BaseStrategy):
 
         # Compute indicators
         try:
-            st_dir = compute_supertrend(df, self.st_period, self.st_factor)
+            st_dir, st_line = compute_supertrend(df, self.st_period, self.st_factor)
             fast_ema = compute_ema(df, self.fast_ema_len).iloc[-1]
             slow_ema = compute_ema(df, self.slow_ema_len).iloc[-1]
             dir_ema = compute_ema(df, self.dir_ema_len).iloc[-1]
@@ -319,7 +328,7 @@ class SupertrendLiveStrategy(BaseStrategy):
         expected_stop_loss: float | None = None
 
         if not had_position:
-            entry_ok = (
+            entry_ok = bool(
                 st_dir == 1
                 and fast_ema > slow_ema
                 and price > dir_ema
@@ -340,10 +349,11 @@ class SupertrendLiveStrategy(BaseStrategy):
                 expected_action = "exit"
 
         # Persist signal asynchronously (fire-and-forget, never blocks trading)
-        asyncio.create_task(
+        _task = asyncio.create_task(
             self._persist_signal(
                 bar_ts=self._last_bar_ts,
                 st_dir=st_dir,
+                st_line=st_line,
                 fast_ema=float(fast_ema),
                 slow_ema=float(slow_ema),
                 dir_ema=float(dir_ema),
@@ -358,6 +368,8 @@ class SupertrendLiveStrategy(BaseStrategy):
                 expected_stop_loss=expected_stop_loss,
             )
         )
+        self._bg_tasks.add(_task)
+        _task.add_done_callback(self._bg_tasks.discard)
 
         # ── Entry Signal ────────────────────────────────────────────────
 
@@ -377,6 +389,7 @@ class SupertrendLiveStrategy(BaseStrategy):
         self,
         bar_ts: int,
         st_dir: int,
+        st_line: float,
         fast_ema: float,
         slow_ema: float,
         dir_ema: float,
@@ -398,18 +411,19 @@ class SupertrendLiveStrategy(BaseStrategy):
                 await conn.execute(
                     """
                     INSERT INTO supertrend_signals (
-                        bar_ts, computed_at, st_dir, fast_ema, slow_ema, dir_ema,
+                        bar_ts, computed_at, st_dir, st_line, fast_ema, slow_ema, dir_ema,
                         price, atr_14, allocated_capital, had_position, entry_ok,
                         exit_signal, exit_reason, expected_action,
                         expected_qty, expected_stop_loss
                     ) VALUES (
                         to_timestamp($1::bigint / 1000.0), NOW(),
-                        $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                        $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
                     )
                     ON CONFLICT (bar_ts) DO NOTHING
                     """,
                     bar_ts,
                     st_dir,
+                    st_line,
                     fast_ema,
                     slow_ema,
                     dir_ema,
@@ -424,8 +438,13 @@ class SupertrendLiveStrategy(BaseStrategy):
                     expected_qty,
                     expected_stop_loss,
                 )
-        except Exception:
-            self._log.exception("signal_persist_error")
+        except Exception as exc:
+            self._log.error(
+                "signal_persist_error",
+                exc_type=type(exc).__name__,
+                exc_msg=str(exc),
+                bar_ts=bar_ts,
+            )
 
     # ── Order Submission ───────────────────────────────────────────────
 
