@@ -246,6 +246,8 @@ async def main() -> None:
                 await redis_client.setex("cache:wallet_balance", 300, balance_json)
                 await redis_client.setex(f"cache:balance:{EXCHANGE}", 300, balance_json)
                 log.info(SERVICE_HEALTH_OK, message="wallet balance published", total_usdt=balance.get("total", 0))
+                # Successful exchange API call — keep safety network timer fresh
+                engine._safety.record_api_response()
                 consecutive_failures = 0
             except Exception as exc:
                 consecutive_failures += 1
