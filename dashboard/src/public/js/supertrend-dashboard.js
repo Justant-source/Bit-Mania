@@ -124,7 +124,6 @@ function computeSupertrend(candles, factor, period) {
 
 let currentFrom = '2026-05-15';
 let compareData = [];
-let _signalMap  = new Map();
 let _compareMap = new Map();
 let _priceChart  = null;
 let _equityChart = null;
@@ -410,8 +409,6 @@ async function renderPriceChart() {
       return;
     }
 
-    // Store for click handler — keyed by bar CLOSE ms (signal fires at bar close)
-    _signalMap  = new Map(signals.map(s => [barCloseMs(s.bar_ts), s]));
     _compareMap = new Map(cmpRows.map(r => [barCloseMs(r.bar_ts), r]));
 
     // ── Compute indicators ─────────────────────────────────────────
@@ -605,15 +602,6 @@ async function renderPriceChart() {
     // updateInProgressCandle (called right after render) refreshes this to the live bar.
     requestAnimationFrame(() => { if (len > 0) renderTooltip(unixTs[len - 1], null); });
 
-    // Click → open signal modal
-    _priceChart.subscribeClick((param) => {
-      if (!param.time) return;
-      const k   = param.time * 1000;
-      const sig = _signalMap.get(k);
-      const cmp = _compareMap.get(k);
-      if (sig) openSignalModal(sig, cmp);
-    });
-
     // Crosshair → update floating card at crosshair position; freeze on leave/release
     // Use seriesData to get the exact bar-open timestamp (param.time is raw x-axis seconds,
     // not necessarily snapped to bar timestamps in CrosshairMode.Normal).
@@ -701,118 +689,6 @@ async function renderEquityChart() {
   }
 }
 
-// ── Signal click → condition explanation modal ────────────────────────────
-
-function openSignalModal(sig, cmp) {
-  const overlay = document.getElementById('signal-modal');
-  const titleEl = document.getElementById('signal-modal-title');
-  const bodyEl  = document.getElementById('signal-modal-body');
-  if (!overlay || !bodyEl) return;
-
-  const isEnter = sig.expected_action === 'enter';
-  titleEl.textContent = `${isEnter ? '진입' : '종료'} 신호 상세 — ${fmtKST(barCloseIso(sig.bar_ts))}`;
-
-  const ema7v  = parseFloat(sig.fast_ema);
-  const ema27v = parseFloat(sig.slow_ema);
-  const ema230v = parseFloat(sig.dir_ema);
-  const price  = parseFloat(sig.price);
-  const atr14  = parseFloat(sig.atr_14);
-
-  function chk(ok) {
-    return `<span class="${ok ? 'pos' : 'neg'}">${ok ? '✓' : '✗'}</span>`;
-  }
-
-  let html = '';
-
-  if (isEnter) {
-    const c1 = parseInt(sig.st_dir) === 1;
-    const c2 = ema7v > ema27v;
-    const c3 = price > ema230v;
-    html += `
-      <table class="tbl" style="width:100%;margin-bottom:12px">
-        <thead><tr><th>진입 조건</th><th>값</th><th></th></tr></thead>
-        <tbody>
-          <tr>
-            <td>ST 방향 = +1 (상승)</td>
-            <td class="mono">${sig.st_dir}</td>
-            <td>${chk(c1)}</td>
-          </tr>
-          <tr>
-            <td>EMA(7) &gt; EMA(27)</td>
-            <td class="mono">${ema7v.toLocaleString()} / ${ema27v.toLocaleString()}</td>
-            <td>${chk(c2)}</td>
-          </tr>
-          <tr>
-            <td>종가 &gt; EMA(230)</td>
-            <td class="mono">$${price.toLocaleString()} / $${ema230v.toLocaleString()}</td>
-            <td>${chk(c3)}</td>
-          </tr>
-        </tbody>
-      </table>`;
-    html += `
-      <div style="font:var(--t-small);display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;justify-content:space-between"><span class="muted">예상 진입가</span><span class="mono">${fmtUSD(sig.price)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span class="muted">예상 수량</span><span class="mono">${sig.expected_qty ? fmtBTC(sig.expected_qty) : '—'}</span></div>
-        <div style="display:flex;justify-content:space-between"><span class="muted">스톱로스 (카타스트로픽)</span><span class="mono">${sig.expected_stop_loss ? fmtUSD(sig.expected_stop_loss) : '—'}</span></div>
-        <div style="display:flex;justify-content:space-between"><span class="muted">ATR(14)</span><span class="mono">${atr14.toFixed(1)}</span></div>
-      </div>`;
-  } else {
-    const reason  = sig.exit_reason;
-    const atrDist = atr14 * ST.atrMult;
-    const isEma   = reason === 'ema_cross';
-    const isAtr   = reason === 'atr_distance';
-    html += `
-      <table class="tbl" style="width:100%;margin-bottom:12px">
-        <thead><tr><th>종료 조건</th><th>값</th><th></th></tr></thead>
-        <tbody>
-          <tr>
-            <td>EMA(7) &lt; EMA(27) (EMA 크로스)</td>
-            <td class="mono">${ema7v.toLocaleString()} / ${ema27v.toLocaleString()}</td>
-            <td>${chk(isEma)}</td>
-          </tr>
-          <tr>
-            <td>|종가−진입가| ≥ ATR(14)×${ST.atrMult}</td>
-            <td class="mono">임계 $${atrDist.toFixed(0)}</td>
-            <td>${chk(isAtr)}</td>
-          </tr>
-        </tbody>
-      </table>`;
-    html += `
-      <div style="font:var(--t-small);display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;justify-content:space-between"><span class="muted">종료 사유</span>
-          <span class="badge ${isEma ? 'warning' : 'danger'}">${isEma ? 'EMA 크로스' : isAtr ? 'ATR 거리' : reason || '—'}</span></div>
-        <div style="display:flex;justify-content:space-between"><span class="muted">예상 종료가</span><span class="mono">${fmtUSD(sig.price)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span class="muted">ATR(14)</span><span class="mono">${atr14.toFixed(1)}</span></div>
-      </div>`;
-  }
-
-  // Actual fill comparison
-  if (cmp) {
-    const statusBadge = cmp.status === 'matched'
-      ? '<span class="badge success">매칭</span>'
-      : cmp.status === 'missed'
-        ? '<span class="badge danger">미체결</span>'
-        : '<span class="badge warning">초과</span>';
-    html += `
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-        <div style="font:var(--t-label);color:var(--text-muted);margin-bottom:8px">실제 체결</div>
-        <div style="font:var(--t-small);display:flex;flex-direction:column;gap:6px">
-          <div style="display:flex;justify-content:space-between"><span class="muted">체결 여부</span>${statusBadge}</div>
-          ${cmp.actual_price ? `<div style="display:flex;justify-content:space-between"><span class="muted">체결가</span><span class="mono">${fmtUSD(cmp.actual_price)}</span></div>` : ''}
-          ${cmp.actual_qty   ? `<div style="display:flex;justify-content:space-between"><span class="muted">체결 수량</span><span class="mono">${fmtBTC(cmp.actual_qty)}</span></div>` : ''}
-          ${cmp.slippage_pct != null ? `<div style="display:flex;justify-content:space-between"><span class="muted">슬리피지</span><span class="mono ${Math.abs(cmp.slippage_pct) > 0.1 ? 'neg' : ''}">${fmtPct(cmp.slippage_pct, 3)}</span></div>` : ''}
-          ${cmp.timing_lag_ms != null ? `<div style="display:flex;justify-content:space-between"><span class="muted">타이밍 지연</span><span class="mono">${fmtMs(cmp.timing_lag_ms)}</span></div>` : ''}
-          ${cmp.actual_fill_time ? `<div style="display:flex;justify-content:space-between"><span class="muted">체결 시각</span><span class="mono">${fmtKST(cmp.actual_fill_time)}</span></div>` : ''}
-        </div>
-      </div>`;
-  } else {
-    html += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font:var(--t-small);color:var(--text-muted)">실제 체결 데이터 없음</div>`;
-  }
-
-  bodyEl.innerHTML = html;
-  overlay.style.display = 'flex';
-}
-
 // ── In-progress 4h candle (1-min polling) ────────────────────────────────
 
 async function updateInProgressCandle() {
@@ -862,14 +738,6 @@ async function loadCharts() {
 }
 
 async function init() {
-  // Modal close handlers
-  document.getElementById('signal-modal-close')?.addEventListener('click', () => {
-    document.getElementById('signal-modal').style.display = 'none';
-  });
-  document.getElementById('signal-modal')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
-  });
-
   await Promise.allSettled([updateStatus(), updateCompare(), loadCharts()]);
 }
 
