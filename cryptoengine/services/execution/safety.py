@@ -376,6 +376,11 @@ class SafetyGuard:
         Checks both explicit leverage in the payload and the implied
         leverage based on existing positions + this new order.
         """
+        # reduce_only orders close/reduce existing positions — they can never
+        # increase leverage, so skip this check entirely.
+        if payload.get("reduce_only"):
+            return True, ""
+
         # Direct leverage field (some strategies send it)
         requested_leverage = float(payload.get("leverage", 0))
         if requested_leverage > self.leverage_limit:

@@ -5,11 +5,11 @@ related_code:
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/orchestrator.yaml
-last_updated: 2026-05-21
+last_updated: 2026-05-27
 when_to_update: |
   - supertrend.yaml 파라미터 변경 시
   - 백테스트 결과 업데이트 시
-  - orchestrator.yaml 레짐별 가중치 변경 시
+  - orchestrator.yaml 자본 배분 변경 시
 ---
 
 # Supertrend 4h Long-Only 3x (combo #7908)
@@ -221,6 +221,7 @@ phase5:
 | 수수료 기준 | Maker 0.020% (백테스트 combo #7908 가정과 정합) |
 | SafetyGuard leverage_limit | 3.0 (`SAFETY_LEVERAGE_LIMIT=3.0` env) |
 | reduce_only 마진 체크 | SafetyGuard 마진 잔고 검사 면제 — 청산 주문은 마진 부족으로 차단되지 않음 |
+| reduce_only 레버리지 체크 | SafetyGuard 레버리지 검사 면제 — 청산 주문은 implied leverage 계산에서 제외 (2026-05-27 버그픽스: sell exit가 잘못 차단되던 문제) |
 
 ### Equity Stop (청산위험 분석)
 
@@ -266,40 +267,18 @@ flowchart TD
 
 ---
 
-## 레짐별 가중치 (orchestrator.yaml)
+## 자본 배분 (단일 전략 고정)
 
-Strategy Orchestrator가 시장 레짐에 따라 Supertrend 자본 배분을 동적 조정:
+Strategy Orchestrator는 단일 전략 모델로, **Supertrend에 항상 보유 자본의 100%를 배분**한다 (레짐 기반 동적 배분은 2026-05-25 제거). 전략 내부에서 배분 자본의 95% × 3배 레버리지로 포지션을 구성한다.
 
-```yaml
-# config/orchestrator.yaml 실제 값
-weights:
-  trending_up:       # 상승추세 (최적)
-    supertrend: 0.70
-    cash_reserve: 0.30
-    
-  ranging:           # 횡보 (낮음 수익성)
-    supertrend: 0.30
-    cash_reserve: 0.70
-    
-  trending_down:     # 하락추세 (Long-only이므로 회피)
-    supertrend: 0.10
-    cash_reserve: 0.90
-    
-  volatile:          # 고변동성
-    supertrend: 0.30
-    cash_reserve: 0.70
-
-  uncertain:         # 불확실
-    supertrend: 0.05
-    cash_reserve: 0.95
+```python
+# WeightManager.FIXED_WEIGHTS
+{"supertrend": 1.0, "cash": 0.0}
 ```
 
-**해석**:
-- **Trending Up**: Supertrend 최고 가중치 70% (상승장 최적)
-- **Ranging**: 낮은 가중치 30% (횡보 시 수익성 낮음)
-- **Volatile**: 낮은 가중치 30% (변동성 높을 때 보수적)
-- **Trending Down**: 최소 가중치 10% (Long-only는 약세장 회피)
-- **Uncertain**: 5% (불확실 구간 최소 노출)
+- 배분: 전체 잔고의 100% → 전략이 95% × 3x 사용
+- 현금 예비 없음 (항상 완전 배분)
+- 진입/청산은 Supertrend 4h 신호로만 결정 (시장 레짐 무관)
 
 ---
 

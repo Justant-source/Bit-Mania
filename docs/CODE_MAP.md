@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-24 (supertrend indicators.py Jesse 정본화 — ST 알고리즘 버그 수정, st_line DB 저장, 대시보드 DB 단일진실원천 전환)
+last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implied leverage 체크 면제; compare 엔드포인트 지연 체결 직접 매칭; orders·supertrend_signals 지연 추적 컬럼 추가)
 ---
 
 # Code → Docs 역인덱스
@@ -36,7 +36,7 @@ last_updated: 2026-05-24 (supertrend indicators.py Jesse 정본화 — ST 알고
 |------|------|
 | `shared/kill_switch.py` | [policies/kill-switch.md](policies/kill-switch.md) |
 | `shared/log_events.py` | [structure/README.md](structure/README.md) |
-| `services/execution/safety.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) (SAFETY_LEVERAGE_LIMIT env, reduce_only 마진 면제) |
+| `services/execution/safety.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) (SAFETY_LEVERAGE_LIMIT env, reduce_only 마진·레버리지 면제 — 2026-05-27 버그픽스: `_check_leverage_limit`에 `reduce_only` 조기 반환 추가, exit 주문이 implied leverage 초과로 잘못 차단되던 문제 수정) |
 | `services/telegram-bot/**` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) · [structure/services.md](structure/services.md) |
 | `config/telegram.yaml` | [policies/emergency-manual-close.md](policies/emergency-manual-close.md) |
 
@@ -63,13 +63,14 @@ last_updated: 2026-05-24 (supertrend indicators.py Jesse 정본화 — ST 알고
 | `dashboard/src/public/js/theme.js` | 라이트/다크 토글 + localStorage — `bm:themechange` 이벤트 발행 |
 | `dashboard/src/public/js/monitor-dashboard.js` | 시스템 모니터 프론트엔드 — palette() 기반 Plotly 토큰 연동 |
 | `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — TradingView Lightweight Charts 엔진(네이티브 pan/zoom/터치/자동스케일), 캔들+EMA 3선+ST 밴드+진입/종료 마커+클릭 모달, ATR 선 제거, fitYToVisible 폐기, 진행 중 4h 봉 1분 폴링(updateInProgressCandle·_priceSeries.update); ST 라인 DB 신호(`st_line`/`st_dir`)에서 렌더링으로 교체(JS 재계산 폐기) |
-| `dashboard/src/routes/supertrend.ts` | 대시보드 supertrend 라우터 — `/candles`(확정 4h 봉)·`/candles/in-progress`(진행 중 4h 봉 합성, 1m DB+Redis 집계)·`/expected`에 `st_line` 컬럼 추가 |
+| `dashboard/src/routes/supertrend.ts` | 대시보드 supertrend 라우터 — `/candles`·`/compare`·`/equity`·`/status`. `/compare`: 신호 쿼리에 `actual_exit_price`·`actual_exit_at`·`delay_note` 포함; `actual_exit_at IS NOT NULL`이면 타이밍 윈도우 대신 직접 매칭(status="matched"), orders 쿼리에 `original_signal_ts` 포함 및 `filled_delayed` 상태 인식 |
 | `dashboard/src/public/monitor.html` | 시스템 모니터 페이지 — app-shell + 새 디자인 시스템 |
 | `dashboard/src/public/supertrend.html` | 전략 비교 페이지 — 가격 차트 강화(밴드+EMA+마커+모달) |
 | `dashboard/docker-compose.yml` | [policies/operations/monitoring.md](policies/operations/monitoring.md) |
 | `dashboard/design/index.html` | 디자인 SSOT — 토큰·컴포넌트·적용 예시 |
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 | `scripts/manual_mainnet_test.py` | [policies/operations/runbook.md](policies/operations/runbook.md) (메인넷 매수/매도 1회 트리거 테스트) |
+| `scripts/manual_close_delayed.py` | 지연 청산 복구 스크립트 — safety 버그 등으로 rejected된 exit 신호를 수동으로 체결하고 DB에 지연 이력(delay_reason, original_signal_ts) 기록; orders·supertrend_signals 양쪽 갱신 |
 
 ## 공유 라이브러리
 

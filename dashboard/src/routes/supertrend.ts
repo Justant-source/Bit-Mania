@@ -7,6 +7,7 @@
  * GET /api/internal/supertrend/equity     — expected vs actual equity curve
  * GET /api/internal/supertrend/status     — live position + latest signal
  * GET /api/internal/supertrend/candles    — 4h OHLCV for charting
+ * GET /api/internal/supertrend/candles/in-progress — partial 4h candle from 1m bars + Redis
  */
 
 import { Router, Request, Response } from "express";
@@ -46,30 +47,24 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
       let sql: string;
       let params: any[];
 
-      if ("ts" in fromP && "ts" in toP) {
-        sql = `SELECT bar_ts, computed_at, st_dir,
+      const SELECT_COLS = `SELECT bar_ts, computed_at, st_dir, round(st_line::numeric,2) AS st_line,
                  round(fast_ema::numeric,2) AS fast_ema, round(slow_ema::numeric,2) AS slow_ema,
                  round(dir_ema::numeric,2)  AS dir_ema,  round(price::numeric,2)    AS price,
                  round(atr_14::numeric,2)   AS atr_14,   allocated_capital,
                  had_position, entry_ok, exit_signal, exit_reason, expected_action,
                  round(expected_qty::numeric,6)       AS expected_qty,
                  round(expected_stop_loss::numeric,2) AS expected_stop_loss
-               FROM supertrend_signals
-               WHERE bar_ts BETWEEN $1::timestamptz AND $2::timestamptz
-               ORDER BY bar_ts ASC`;
+               FROM supertrend_signals`;
+
+      if ("ts" in fromP && "ts" in toP) {
+        sql = `${SELECT_COLS} WHERE bar_ts BETWEEN $1::timestamptz AND $2::timestamptz ORDER BY bar_ts ASC`;
         params = [fromP.ts, toP.ts];
+      } else if ("ts" in fromP) {
+        sql = `${SELECT_COLS} WHERE bar_ts >= $1::timestamptz ORDER BY bar_ts ASC`;
+        params = [fromP.ts];
       } else {
         const days = "days" in fromP ? fromP.days : 30;
-        sql = `SELECT bar_ts, computed_at, st_dir,
-                 round(fast_ema::numeric,2) AS fast_ema, round(slow_ema::numeric,2) AS slow_ema,
-                 round(dir_ema::numeric,2)  AS dir_ema,  round(price::numeric,2)    AS price,
-                 round(atr_14::numeric,2)   AS atr_14,   allocated_capital,
-                 had_position, entry_ok, exit_signal, exit_reason, expected_action,
-                 round(expected_qty::numeric,6)       AS expected_qty,
-                 round(expected_stop_loss::numeric,2) AS expected_stop_loss
-               FROM supertrend_signals
-               WHERE bar_ts >= NOW() - $1::int * INTERVAL '1 day'
-               ORDER BY bar_ts ASC`;
+        sql = `${SELECT_COLS} WHERE bar_ts >= NOW() - $1::int * INTERVAL '1 day' ORDER BY bar_ts ASC`;
         params = [days];
       }
 
@@ -183,7 +178,8 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
         fromTs
           ? pool.query(`
               SELECT bar_ts, expected_action, price AS expected_price,
-                     expected_qty, expected_stop_loss, exit_reason AS expected_exit_reason
+                     expected_qty, expected_stop_loss, exit_reason AS expected_exit_reason,
+                     actual_exit_price, actual_exit_at, delay_note
               FROM supertrend_signals
               WHERE expected_action IN ('enter','exit')
                 AND bar_ts >= $1::timestamptz
@@ -191,7 +187,8 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
             `, [fromTs])
           : pool.query(`
               SELECT bar_ts, expected_action, price AS expected_price,
-                     expected_qty, expected_stop_loss, exit_reason AS expected_exit_reason
+                     expected_qty, expected_stop_loss, exit_reason AS expected_exit_reason,
+                     actual_exit_price, actual_exit_at, delay_note
               FROM supertrend_signals
               WHERE expected_action IN ('enter','exit')
                 AND bar_ts >= NOW() - $1::int * INTERVAL '1 day'
@@ -199,10 +196,10 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
             `, [days]),
         pool.query(`
           SELECT id, request_id, side, filled_qty, filled_price, fee,
-                 reduce_only, created_at, updated_at
+                 reduce_only, created_at, updated_at, original_signal_ts
           FROM orders
           WHERE strategy_id = $1
-            AND status IN ('filled', 'closed', 'partial')
+            AND status IN ('filled', 'closed', 'partial', 'filled_delayed')
           ORDER BY created_at ASC
         `, [STRATEGY_ID]),
       ]);
@@ -213,70 +210,129 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
       const actEntries = actOrders.filter((o: any) => o.side === "buy" && !o.reduce_only);
       const actExits   = actOrders.filter((o: any) => o.side === "sell" && o.reduce_only);
 
+      // One expected signal can match MULTIPLE actual fills (split fills).
+      // All fills within [barClose, barClose+4h] are "matched". No "extra" status.
       const compared: any[] = [];
-      let entryIdx = 0;
-      let exitIdx  = 0;
+      let entryCursor = 0;
+      let exitCursor  = 0;
 
       for (const exp of expected) {
         const expTs     = new Date(exp.bar_ts).getTime();
-        const windowEnd = expTs + 14_400_000;
+        const barClose  = expTs + 14_400_000;       // signal fires at bar close
+        const windowEnd = barClose + 14_400_000;    // accept fills up to 4h after bar close
 
         if (exp.expected_action === "enter") {
-          const act    = actEntries[entryIdx];
-          const actTs  = act ? new Date(act.updated_at).getTime() : null;
-          const matched = act && actTs! >= expTs && actTs! <= windowEnd;
+          // skip fills before bar close (belong to a prior signal)
+          while (entryCursor < actEntries.length &&
+                 new Date(actEntries[entryCursor].updated_at).getTime() < barClose) {
+            entryCursor++;
+          }
+          // collect all fills within window
+          const fills: any[] = [];
+          while (entryCursor < actEntries.length) {
+            const actTs = new Date(actEntries[entryCursor].updated_at).getTime();
+            if (actTs > windowEnd) break;
+            fills.push({ act: actEntries[entryCursor], actTs });
+            entryCursor++;
+          }
 
-          compared.push({
-            bar_ts: exp.bar_ts,
-            expected_action: "enter",
-            expected_price: parseFloat(exp.expected_price),
-            expected_qty: exp.expected_qty ? parseFloat(exp.expected_qty) : null,
-            actual_price:    matched ? parseFloat(act.filled_price) : null,
-            actual_qty:      matched ? parseFloat(act.filled_qty)   : null,
-            actual_fill_time: matched ? act.updated_at : null,
-            timing_lag_ms:   matched ? actTs! - expTs : null,
-            slippage_pct:    matched
-              ? ((parseFloat(act.filled_price) - parseFloat(exp.expected_price)) / parseFloat(exp.expected_price)) * 100
-              : null,
-            qty_diff: matched && exp.expected_qty
-              ? parseFloat(act.filled_qty) - parseFloat(exp.expected_qty)
-              : null,
-            status: matched ? "matched" : "missed",
-          });
-          if (matched) entryIdx++;
+          if (fills.length === 0) {
+            compared.push({
+              bar_ts: exp.bar_ts, expected_action: "enter",
+              expected_price: parseFloat(exp.expected_price),
+              expected_qty: exp.expected_qty ? parseFloat(exp.expected_qty) : null,
+              actual_price: null, actual_qty: null, actual_fill_time: null,
+              timing_lag_ms: null, slippage_pct: null, qty_diff: null,
+              status: "missed",
+            });
+          } else {
+            for (const { act, actTs } of fills) {
+              compared.push({
+                bar_ts: exp.bar_ts, expected_action: "enter",
+                expected_price: parseFloat(exp.expected_price),
+                expected_qty: exp.expected_qty ? parseFloat(exp.expected_qty) : null,
+                actual_price:    parseFloat(act.filled_price),
+                actual_qty:      parseFloat(act.filled_qty),
+                actual_fill_time: act.updated_at,
+                timing_lag_ms:   actTs - barClose,
+                slippage_pct:    ((parseFloat(act.filled_price) - parseFloat(exp.expected_price)) / parseFloat(exp.expected_price)) * 100,
+                qty_diff: exp.expected_qty ? parseFloat(act.filled_qty) - parseFloat(exp.expected_qty) : null,
+                status: "matched",
+              });
+            }
+          }
         } else if (exp.expected_action === "exit") {
-          const act    = actExits[exitIdx];
-          const actTs  = act ? new Date(act.updated_at).getTime() : null;
-          const matched = act && actTs! >= expTs && actTs! <= windowEnd;
+          // Delayed execution path: actual_exit_at recorded directly on the signal row.
+          // Skip the timing window — use the stored values as a direct match.
+          if (exp.actual_exit_at && exp.actual_exit_price) {
+            const actualTs  = new Date(exp.actual_exit_at).getTime();
+            const lagMs     = actualTs - barClose;
+            // Find the matching order by original_signal_ts for actual_qty.
+            // original_signal_ts = bar_ts of the signal row.
+            const barTsMs = new Date(exp.bar_ts).getTime();
+            const delayedOrder = actExits.find((o: any) =>
+              o.original_signal_ts &&
+              Math.abs(new Date(o.original_signal_ts).getTime() - barTsMs) < 3_600_000
+            );
+            compared.push({
+              bar_ts: exp.bar_ts, expected_action: "exit",
+              expected_exit_reason: exp.expected_exit_reason,
+              expected_price: parseFloat(exp.expected_price),
+              expected_qty: null,
+              actual_price:    parseFloat(exp.actual_exit_price),
+              actual_qty:      delayedOrder ? parseFloat(delayedOrder.filled_qty) : null,
+              actual_fill_time: exp.actual_exit_at,
+              timing_lag_ms:   lagMs,
+              slippage_pct:    ((parseFloat(exp.actual_exit_price) - parseFloat(exp.expected_price)) / parseFloat(exp.expected_price)) * 100,
+              delay_note:      exp.delay_note ?? null,
+              status: "matched",
+            });
+          } else {
+            // Normal path: match fills within [barClose, barClose+4h]
+            while (exitCursor < actExits.length &&
+                   new Date(actExits[exitCursor].updated_at).getTime() < barClose) {
+              exitCursor++;
+            }
+            const fills: any[] = [];
+            while (exitCursor < actExits.length) {
+              const actTs = new Date(actExits[exitCursor].updated_at).getTime();
+              if (actTs > windowEnd) break;
+              fills.push({ act: actExits[exitCursor], actTs });
+              exitCursor++;
+            }
 
-          compared.push({
-            bar_ts: exp.bar_ts,
-            expected_action: "exit",
-            expected_exit_reason: exp.expected_exit_reason,
-            expected_price: parseFloat(exp.expected_price),
-            actual_price:    matched ? parseFloat(act.filled_price) : null,
-            actual_qty:      matched ? parseFloat(act.filled_qty)   : null,
-            actual_fill_time: matched ? act.updated_at : null,
-            timing_lag_ms:   matched ? actTs! - expTs : null,
-            slippage_pct:    matched
-              ? ((parseFloat(act.filled_price) - parseFloat(exp.expected_price)) / parseFloat(exp.expected_price)) * 100
-              : null,
-            status: matched ? "matched" : "missed",
-          });
-          if (matched) exitIdx++;
+            if (fills.length === 0) {
+              compared.push({
+                bar_ts: exp.bar_ts, expected_action: "exit",
+                expected_exit_reason: exp.expected_exit_reason,
+                expected_price: parseFloat(exp.expected_price),
+                expected_qty: null,
+                actual_price: null, actual_qty: null, actual_fill_time: null,
+                timing_lag_ms: null, slippage_pct: null, delay_note: null,
+                status: "missed",
+              });
+            } else {
+              for (const { act, actTs } of fills) {
+                compared.push({
+                  bar_ts: exp.bar_ts, expected_action: "exit",
+                  expected_exit_reason: exp.expected_exit_reason,
+                  expected_price: parseFloat(exp.expected_price),
+                  expected_qty: null,
+                  actual_price:    parseFloat(act.filled_price),
+                  actual_qty:      parseFloat(act.filled_qty),
+                  actual_fill_time: act.updated_at,
+                  timing_lag_ms:   actTs - barClose,
+                  slippage_pct:    ((parseFloat(act.filled_price) - parseFloat(exp.expected_price)) / parseFloat(exp.expected_price)) * 100,
+                  delay_note: null,
+                  status: "matched",
+                });
+              }
+            }
+          }
         }
       }
 
-      const extraEntries = actEntries.slice(entryIdx).map((o: any) => ({
-        bar_ts: o.created_at, expected_action: "enter", status: "extra",
-        actual_price: parseFloat(o.filled_price), actual_qty: parseFloat(o.filled_qty),
-      }));
-      const extraExits = actExits.slice(exitIdx).map((o: any) => ({
-        bar_ts: o.created_at, expected_action: "exit", status: "extra",
-        actual_price: parseFloat(o.filled_price), actual_qty: parseFloat(o.filled_qty),
-      }));
-
-      const all = [...compared, ...extraEntries, ...extraExits].sort(
+      const all = compared.sort(
         (a, b) => new Date(a.bar_ts).getTime() - new Date(b.bar_ts).getTime()
       );
 
@@ -289,7 +345,6 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
           total:   all.length,
           matched: all.filter((r) => r.status === "matched").length,
           missed:  all.filter((r) => r.status === "missed").length,
-          extra:   all.filter((r) => r.status === "extra").length,
           avg_slippage_pct: slippages.length ? slippages.reduce((a, b) => a + b, 0) / slippages.length : 0,
           avg_lag_ms:       lags.length      ? lags.reduce((a, b) => a + b, 0)      / lags.length      : 0,
         },
@@ -466,6 +521,78 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
     } catch (err) {
       console.error("[supertrend] /candles error:", err);
       return res.status(500).json({ error: "Failed to fetch candles" });
+    }
+  });
+
+  // ── GET /candles/in-progress ──────────────────────────────────────
+  // Synthesizes the current in-progress 4h candle from 1m bars + Redis cache.
+  // Called every 60 s by the dashboard front-end.
+  router.get("/candles/in-progress", async (_req: Request, res: Response) => {
+    try {
+      const now = Date.now();
+      const bucketStartMs = Math.floor(now / (4 * 3600_000)) * (4 * 3600_000);
+      const bucketStart   = new Date(bucketStartMs).toISOString();
+
+      // 1) Confirmed 1m bars within the current 4h bucket
+      const dbRes = await pool.query(`
+        SELECT timestamp AS ts, open, high, low, close, volume
+          FROM ohlcv_history
+         WHERE exchange  = 'bybit'
+           AND symbol    = 'BTCUSDT'
+           AND timeframe = '1m'
+           AND timestamp >= $1::timestamptz
+         ORDER BY timestamp ASC
+      `, [bucketStart]);
+
+      // 2) In-progress 1m bar from Redis (not yet written to DB)
+      const cache = await redis.hgetall("cache:ohlcv:bybit:BTCUSDT:1m");
+      const bars: Array<{ts:number; open:number; high:number; low:number; close:number; volume:number}> = [];
+
+      for (const r of dbRes.rows) {
+        bars.push({
+          ts:     new Date(r.ts).getTime(),
+          open:   parseFloat(r.open),
+          high:   parseFloat(r.high),
+          low:    parseFloat(r.low),
+          close:  parseFloat(r.close),
+          volume: parseFloat(r.volume),
+        });
+      }
+      if (cache && cache.ts && cache.close) {
+        const cacheTs = parseInt(cache.ts, 10);
+        const inBucket    = cacheTs >= bucketStartMs;
+        const dupOfLastDb = bars.length > 0 && bars[bars.length - 1].ts === cacheTs;
+        if (inBucket && !dupOfLastDb) {
+          bars.push({
+            ts:     cacheTs,
+            open:   parseFloat(cache.open),
+            high:   parseFloat(cache.high),
+            low:    parseFloat(cache.low),
+            close:  parseFloat(cache.close),
+            volume: parseFloat(cache.volume || "0"),
+          });
+        }
+      }
+
+      if (bars.length === 0) {
+        return res.json({ candle: null, source: "empty" });
+      }
+
+      const candle = {
+        ts:             bucketStartMs,
+        open:           bars[0].open,
+        high:           Math.max(...bars.map(b => b.high)),
+        low:            Math.min(...bars.map(b => b.low)),
+        close:          bars[bars.length - 1].close,
+        volume:         bars.reduce((s, b) => s + b.volume, 0),
+        bar_count:      bars.length,
+        last_minute_ts: bars[bars.length - 1].ts,
+      };
+      const fromRedis = cache?.ts && bars[bars.length - 1].ts === parseInt(cache.ts, 10);
+      return res.json({ candle, source: fromRedis ? "redis+db" : "db" });
+    } catch (err) {
+      console.error("[supertrend] /candles/in-progress error:", err);
+      return res.status(500).json({ error: "Failed to fetch in-progress candle" });
     }
   });
 

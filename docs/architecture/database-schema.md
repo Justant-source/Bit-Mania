@@ -4,7 +4,7 @@ category: architecture
 related_code:
   - cryptoengine/shared/db/
   - cryptoengine/shared/db/migrations/
-last_updated: 2026-05-01
+last_updated: 2026-05-27
 when_to_update: |
   - 새로운 테이블 추가 시
   - 테이블 컬럼 변경 시
@@ -45,7 +45,7 @@ graph LR
 - **connection.py**: 싱글턴 asyncpg 풀 관리 (`create_pool()`, `get_pool()`, `close_pool()`)
 - **repository.py**: `_BaseRepo` 기반 비동기 Repository 패턴 — `_fetchrow()`, `_fetch()`, `_execute()` 등 공통 메서드 제공
 - **init_schema.sql**: DDL 스크립트 (Docker 초기화 시 실행)
-- **migrations/**: Alembic 버전 관리 (001_initial_schema, 002_llm_reports, 003_service_logs, 004_regime_dashboard)
+- **migrations/**: Alembic 버전 관리 (001_initial_schema, 002_llm_reports, 003_service_logs)
 
 ### DSN 구성
 
@@ -74,9 +74,6 @@ graph TB
     
     subgraph market["시장 데이터"]
         ohlcv["ohlcv_history<br>캔들데이터"]
-        regime["market_regime_history<br>레짐 이력"]
-        regime_raw["regime_raw_log<br>원시 레짐"]
-        regime_trans["regime_transitions<br>확정 전환"]
     end
     
     subgraph portfolio["포트폴리오"]
@@ -252,8 +249,7 @@ graph TB
 | `realized_pnl` | DECIMAL(20,8) | | 실현 손익 |
 | `drawdown` | DECIMAL(10,6) | | 현재 드로다운 비율 |
 | `sharpe_30d` | DECIMAL(10,4) | | 30일 샤프 비율 |
-| `strategy_weights` | JSONB | | 전략별 자본 배분 비율 |
-| `market_regime` | VARCHAR(20) | | 현재 시장 레짐 |
+| `strategy_weights` | JSONB | | 전략별 자본 배분 비율 (현재: supertrend 100%) |
 | `snapshot_at` | TIMESTAMPTZ | DEFAULT NOW() | 스냅샷 시각 |
 
 **인덱스:**
@@ -261,22 +257,85 @@ graph TB
 
 ---
 
-### 2.7 market_regime_history (시장 레짐 이력)
 
-시장 데이터 서비스가 감지한 시장 레짐 (추세/횡보/변동) 변화 이력.
+### 2.7a orders (실행 엔진 주문 테이블)
+
+Execution Engine이 처리하는 모든 주문의 생애주기 기록. `trades` 레거시 테이블과 별개로 Phase 5 이후 운영.
 
 | 컬럼 | 타입 | 제약 조건 | 설명 |
 |------|------|-----------|------|
 | `id` | BIGSERIAL | **PK** | 자동 증가 ID |
-| `symbol` | VARCHAR(20) | NOT NULL, DEFAULT 'BTCUSDT' | 심볼 |
-| `regime` | VARCHAR(20) | NOT NULL | trending / ranging / volatile |
-| `confidence` | DECIMAL(5,3) | | 감지 신뢰도 (0~1) |
-| `indicators` | JSONB | | 판단 근거 지표 |
-| `detected_at` | TIMESTAMPTZ | DEFAULT NOW() | 감지 시각 |
+| `request_id` | TEXT | NOT NULL, **UNIQUE** | 내부 요청 ID (멱등성 보장) |
+| `order_id` | TEXT | | 거래소 주문 ID |
+| `exchange` | TEXT | NOT NULL | 거래소 (bybit) |
+| `symbol` | TEXT | NOT NULL | 심볼 (BTC/USDT:USDT) |
+| `side` | TEXT | NOT NULL | buy / sell |
+| `order_type` | TEXT | NOT NULL | limit / market |
+| `quantity` | DOUBLE PRECISION | NOT NULL | 주문 수량 (BTC) |
+| `price` | DOUBLE PRECISION | | 주문 가격 (지정가 시) |
+| `status` | TEXT | NOT NULL, DEFAULT 'pending' | pending / filled / rejected / **filled_delayed** |
+| `filled_qty` | DOUBLE PRECISION | DEFAULT 0 | 체결 수량 |
+| `filled_price` | DOUBLE PRECISION | | 체결 가격 |
+| `fee` | DOUBLE PRECISION | DEFAULT 0 | 수수료 |
+| `fee_currency` | TEXT | DEFAULT 'USDT' | 수수료 통화 |
+| `strategy_id` | TEXT | | 전략 식별자 |
+| `post_only` | BOOLEAN | DEFAULT true | Post-only 여부 |
+| `reduce_only` | BOOLEAN | DEFAULT false | 청산 전용 여부 |
+| `created_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | 주문 생성 시각 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | 마지막 갱신 시각 |
+| `delay_reason` | TEXT | | 지연 실행 사유 (버그·수동 복구 시 기록) |
+| `original_signal_ts` | TIMESTAMPTZ | | 원래 신호가 발생한 bar_ts (지연 체결 추적용) |
+| `original_request_id` | TEXT | | 지연 체결 시 원본 rejected 주문의 request_id |
 
 **인덱스:**
-- `idx_regime_history_time` — (detected_at)
-- `idx_regime_history_symbol` — (symbol, detected_at)
+- `idx_orders_request_id` — (request_id)
+- `idx_orders_status` — (status)
+- `idx_orders_strategy` — (strategy_id)
+
+**status 값 설명:**
+- `pending` — 처리 대기
+- `filled` — 거래소 체결 완료
+- `rejected` — safety 검사 또는 거래소 거부
+- `filled_delayed` — 원본이 rejected 됐으나 수동으로 지연 체결된 것으로 확인된 건 (delay_reason 참조)
+
+---
+
+### 2.7b supertrend_signals (Supertrend 신호 기록)
+
+Strategy tick마다 bar 단위로 기록하는 신호 계산 결과. 대시보드 `/compare` 및 `/equity` 의 데이터 소스.
+
+| 컬럼 | 타입 | 제약 조건 | 설명 |
+|------|------|-----------|------|
+| `id` | BIGSERIAL | **PK** | 자동 증가 ID |
+| `bar_ts` | TIMESTAMPTZ | NOT NULL, **UNIQUE** | 4h 봉 시작 시각 (bar open time) |
+| `computed_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | 신호 계산 시각 (≈ bar close time) |
+| `st_dir` | SMALLINT | NOT NULL | Supertrend 방향 (+1 = 상승, -1 = 하락) |
+| `st_line` | DOUBLE PRECISION | | Supertrend 밴드 값 |
+| `fast_ema` | DOUBLE PRECISION | NOT NULL | Fast EMA 값 |
+| `slow_ema` | DOUBLE PRECISION | NOT NULL | Slow EMA 값 |
+| `dir_ema` | DOUBLE PRECISION | NOT NULL | Direction filter EMA 값 |
+| `price` | DOUBLE PRECISION | NOT NULL | bar 종가 (= 예상 체결가) |
+| `atr_14` | DOUBLE PRECISION | NOT NULL | 14기간 ATR |
+| `allocated_capital` | DOUBLE PRECISION | NOT NULL | 전략 배분 자본 (USDT) |
+| `had_position` | BOOLEAN | NOT NULL | 해당 bar 처리 시점의 포지션 보유 여부 |
+| `entry_ok` | BOOLEAN | NOT NULL | 진입 조건 충족 여부 |
+| `exit_signal` | BOOLEAN | NOT NULL | 청산 신호 여부 |
+| `exit_reason` | VARCHAR(20) | | 청산 사유 (ema_cross / atr_distance) |
+| `expected_action` | VARCHAR(10) | NOT NULL | enter / exit / hold |
+| `expected_qty` | DOUBLE PRECISION | | 예상 주문 수량 (BTC) |
+| `expected_stop_loss` | DOUBLE PRECISION | | 예상 손절 가격 |
+| `actual_exit_price` | DOUBLE PRECISION | | **실제 체결가** (예상과 다른 경우 기록) |
+| `actual_exit_at` | TIMESTAMPTZ | | **실제 체결 시각** (지연 실행 시 bar 이후 시각) |
+| `delay_note` | TEXT | | 지연 원인 설명 (버그·수동 복구 내용) |
+
+**인덱스:**
+- `idx_supertrend_signals_bar_ts` — (bar_ts) **UNIQUE**
+- `idx_supertrend_signals_action` — (expected_action, bar_ts DESC)
+- `idx_supertrend_signals_computed_at` — (computed_at DESC)
+
+**compare 엔드포인트 매칭 규칙:**
+- `actual_exit_at IS NOT NULL` → 지연 직접 매칭: `actual_exit_price`·`actual_exit_at` 사용, status="matched"
+- `actual_exit_at IS NULL` → 타이밍 윈도우: orders 테이블에서 `[barClose, barClose+4h]` 내 fill 검색
 
 ---
 
@@ -456,68 +515,6 @@ CREATE INDEX IF NOT EXISTS idx_logs_errors ON service_logs (service, timestamp D
 
 ---
 
-### 2.13c regime_raw_log (원시 레짐 로그) — migration 004
-
-market-data 서비스가 매 5분 캔들마다 기록하는 원시 레짐 감지 결과.
-분석 목적으로 모든 신호(확정 전)를 저장하여 레짐 감지 알고리즘 성능 평가용.
-
-```sql
-CREATE TABLE IF NOT EXISTS regime_raw_log (
-    id                BIGSERIAL PRIMARY KEY,
-    symbol            VARCHAR(20) NOT NULL,           -- BTCUSDT
-    raw_regime        VARCHAR(20) NOT NULL,           -- trending_up/trending_down/ranging/volatile
-    confidence        DECIMAL(5,3),                   -- 0.0 ~ 1.0 신뢰도
-    adx               DECIMAL(10,4),                  -- ADX 값 (14기간)
-    atr               DECIMAL(10,4),                  -- ATR 값 (14기간)
-    bb_width          DECIMAL(10,6),                  -- Bollinger Band 폭 (20기간, 2σ)
-    is_confirmed      BOOLEAN DEFAULT FALSE,          -- 확정 여부 (3회 연속 동일 신호)
-    consecutive_count SMALLINT,                       -- 연속 신호 횟수
-    candle_time       TIMESTAMPTZ NOT NULL,           -- 해당 5분 캔들 시작 시각
-    recorded_at       TIMESTAMPTZ DEFAULT NOW(),      -- DB 기록 시각
-    UNIQUE(symbol, candle_time)
-);
-
-CREATE INDEX IF NOT EXISTS idx_regime_raw_symbol_time ON regime_raw_log(symbol, candle_time DESC);
-CREATE INDEX IF NOT EXISTS idx_regime_raw_confidence ON regime_raw_log(confidence DESC);
-```
-
----
-
-### 2.13d regime_transitions (확정 레짐 전환) — migration 004
-
-레짐이 3회 연속 동일 신호로 확정 변경될 때만 기록되는 이벤트 로그.
-
-```sql
-CREATE TABLE IF NOT EXISTS regime_transitions (
-    id              BIGSERIAL PRIMARY KEY,
-    symbol          VARCHAR(20) NOT NULL,             -- BTCUSDT
-    previous_regime VARCHAR(20),                      -- 이전 확정 레짐 (NULL: 초기)
-    new_regime      VARCHAR(20) NOT NULL,             -- 새로운 확정 레짐
-    transition_type VARCHAR(20) DEFAULT 'confirmed',  -- 전환 방식
-    confirmed       BOOLEAN DEFAULT TRUE,             -- 항상 TRUE (확정만 저장)
-    confidence      DECIMAL(5,3),                     -- 전환 신뢰도
-    confirmed_at    TIMESTAMPTZ DEFAULT NOW()         -- 확정 시각
-);
-
-CREATE INDEX IF NOT EXISTS idx_regime_transitions_symbol_time ON regime_transitions(symbol, confirmed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_regime_transitions_from_to ON regime_transitions(previous_regime, new_regime);
-```
-
-**알고리즘 상세** (from regime_detector.py):
-
-레짐 감지는 다음 2단계 프로세스:
-
-1. **원시 신호 (매 5분 캔들)** — `regime_raw_log`에 저장
-   - ADX 기반: ADX > 25 → trending_up/down, ADX < 20 + BB_width 좁음 → ranging
-   - ATR 기반: ATR > 평균ATR × 2.0 → volatile
-   - MIN_CANDLES = 50 (초기 학습 기간)
-
-2. **확정 신호 (3회 연속)** — `regime_transitions`에 저장
-   - 동일 신호가 3회 연속 나타나면 확정
-   - 확정된 레짐이 변경되면 `regime_transitions`에 이벤트 기록
-   - Orchestrator가 이를 구독하여 전략 가중치 조정
-
----
 
 ### 2.14 dca_purchases (DCA 매입 기록)
 
@@ -742,8 +739,6 @@ strategy_states.strategy_id
     ├── positions.strategy_id
     └── grid_orders.strategy_id
 
-portfolio_snapshots.market_regime ←→ market_regime_history.regime
-
 llm_judgments ←→ llm_reports (동일 분석의 요약/상세 버전)
 
 daily_reports.funding_income ← funding_payments 집계
@@ -763,8 +758,6 @@ erDiagram
     FUNDING_PAYMENTS ||--o{ DAILY_REPORTS : "date"
     GRID_ORDERS ||--o{ DAILY_REPORTS : "date"
     DCA_PURCHASES ||--o{ DAILY_REPORTS : "date"
-    MARKET_REGIME_HISTORY ||--o{ PORTFOLIO_SNAPSHOTS : "regime"
-    OHLCV_HISTORY ||--o{ MARKET_REGIME_HISTORY : "symbol"
     FUNDING_RATE_HISTORY ||--o{ FUNDING_PAYMENTS : "rate"
     KILL_SWITCH_EVENTS ||--o{ STRATEGY_STATES : "strategy_id"
     LLM_JUDGMENTS ||--o{ LLM_REPORTS : "similar"
@@ -844,15 +837,6 @@ erDiagram
         timestamptz timestamp UK
     }
 
-    MARKET_REGIME_HISTORY {
-        bigserial id PK
-        varchar symbol
-        varchar regime
-        decimal confidence
-        jsonb indicators
-        timestamptz detected_at
-    }
-
     PORTFOLIO_SNAPSHOTS {
         bigserial id PK
         decimal total_equity
@@ -861,7 +845,6 @@ erDiagram
         decimal drawdown
         decimal sharpe_30d
         jsonb strategy_weights
-        varchar market_regime FK
         timestamptz snapshot_at
     }
 
@@ -963,24 +946,6 @@ erDiagram
         timestamptz created_at
     }
 
-    REGIME_RAW_LOG {
-        bigserial id PK
-        varchar symbol
-        varchar raw_regime
-        decimal confidence
-        jsonb indicators
-        timestamptz candle_time
-        timestamptz recorded_at
-    }
-
-    REGIME_TRANSITIONS {
-        bigserial id PK
-        varchar symbol
-        varchar from_regime
-        varchar to_regime
-        decimal confidence
-        timestamptz transitioned_at
-    }
 ```
 
 ---
@@ -1001,14 +966,12 @@ graph LR
     A["ohlcv_history<br>1분 캔들<br>~1,440/일"] --> B["월간<br>~43,200"]
     C["funding_rate_history<br>8시간마다<br>~3/일"] --> D["월간<br>~90"]
     E["portfolio_snapshots<br>매시간<br>~24/일"] --> F["월간<br>~720"]
-    G["market_regime_history<br>레짐 변경 시<br>~5-20/일"] --> H["월간<br>~150-600"]
     I["trades<br>전략 활동<br>변동적"] --> J["변동적"]
     K["llm_reports<br>6시간마다<br>~4/일"] --> L["월간<br>~120"]
     
     style A fill:#BBDEFB
     style C fill:#C8E6C9
     style E fill:#F8BBD0
-    style G fill:#FFF9C4
     style I fill:#FFE0B2
     style K fill:#E0E0E0
 ```
@@ -1018,7 +981,6 @@ graph LR
 | ohlcv_history | 1분 캔들 기준 | ~1,440 | ~43,200 |
 | funding_rate_history | 8시간마다 | ~3 | ~90 |
 | portfolio_snapshots | 매시간 | ~24 | ~720 |
-| market_regime_history | 레짐 변경 시 | ~5~20 | ~150~600 |
 | trades | 전략 활동 시 | 변동적 | 변동적 |
 | llm_reports | 6시간마다 | ~4 | ~120 |
 
@@ -1098,7 +1060,4 @@ SELECT add_compression_policy('ohlcv_history', INTERVAL '7 days');
 -- 미청산 포지션의 빠른 전략별 조회 (이미 부분 인덱스 있음 — 양호)
 -- trades 테이블 심볼별 조회 (백테스트/분석)
 CREATE INDEX idx_trades_symbol ON trades(symbol, filled_at);
-
--- portfolio_snapshots 시장 레짐별 필터링
-CREATE INDEX idx_snapshots_regime ON portfolio_snapshots(market_regime, snapshot_at);
 ```
