@@ -62,7 +62,7 @@ last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implie
 | `dashboard/src/public/css/dashboard.css` | 페이지 특수 오버라이드 (app-shell 전체화면, 모달, 인프라 게이지 등) · `--c-purple` 토큰(라이트/다크) — LWC 이전 후 차트에서 미사용 |
 | `dashboard/src/public/js/theme.js` | 라이트/다크 토글 + localStorage — `bm:themechange` 이벤트 발행 |
 | `dashboard/src/public/js/monitor-dashboard.js` | 시스템 모니터 프론트엔드 — palette() 기반 Plotly 토큰 연동 |
-| `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — TradingView Lightweight Charts 엔진(네이티브 pan/zoom/터치/자동스케일), 캔들+EMA 3선+ST 밴드+진입/종료 마커+클릭 모달, ATR 선 제거, fitYToVisible 폐기, 진행 중 4h 봉 1분 폴링(updateInProgressCandle·_priceSeries.update); ST 라인 DB 신호(`st_line`/`st_dir`)에서 렌더링으로 교체(JS 재계산 폐기) |
+| `dashboard/src/public/js/supertrend-dashboard.js` | 전략 비교 프론트엔드 — TradingView Lightweight Charts 엔진(네이티브 pan/zoom/터치/자동스케일), 캔들+EMA 3선+ST 밴드+진입/종료 마커+클릭 모달; 플로팅 크로스헤어 툴팁(검은 카드·가격 내림차순, `subscribeCrosshairMove`+`param.seriesData`); 우측 축 현재가 티커만 유지(`lastValueVisible:true`); 진행 중 4h 봉 1분 폴링(updateInProgressCandle·_emaStep) |
 | `dashboard/src/routes/supertrend.ts` | 대시보드 supertrend 라우터 — `/candles`·`/compare`·`/equity`·`/status`. `/compare`: 신호 쿼리에 `actual_exit_price`·`actual_exit_at`·`delay_note` 포함; `actual_exit_at IS NOT NULL`이면 타이밍 윈도우 대신 직접 매칭(status="matched"), orders 쿼리에 `original_signal_ts` 포함 및 `filled_delayed` 상태 인식 |
 | `dashboard/src/public/monitor.html` | 시스템 모니터 페이지 — app-shell + 새 디자인 시스템 |
 | `dashboard/src/public/supertrend.html` | 전략 비교 페이지 — 가격 차트 강화(밴드+EMA+마커+모달) |

@@ -130,6 +130,11 @@ let _priceChart  = null;
 let _equityChart = null;
 let _priceSeries  = null;   // in-progress candle update
 let _lastBucketTs = null;   // detect 4h bucket change
+let _tooltip      = null;   // floating crosshair card (TradingView-style)
+let _emaChartData = null;   // {ema7,ema29,ema240,tsArr,tsToIdx,candleMap,stSigMap} set by renderPriceChart
+let _liveCandle        = null;  // current in-progress 4h candle {time,open,high,low,close}
+let _tooltipPinnedTime = null;  // bar time the user pinned via hover; null = follow live edge
+let _renderTooltip     = null;  // ref to renderPriceChart's renderTooltip closure (for live refresh)
 
 function fromToDays(from) {
   if (/^\d{4}/.test(from)) {
@@ -155,6 +160,19 @@ function fmtKST(isoStr) {
     month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
   });
+}
+
+// bar_ts is bar OPEN time; signal fires at bar CLOSE (+4h)
+const BAR_4H_MS = 14_400_000;
+function barCloseMs(barTsStr)  { return new Date(barTsStr).getTime() + BAR_4H_MS; }
+function barCloseIso(barTsStr) { return new Date(barCloseMs(barTsStr)).toISOString(); }
+
+// One-step EMA update: extend a confirmed EMA to the in-progress bar's close.
+// ema_live = close*k + ema_prev*(1-k), k = 2/(len+1). Returns null if no seed.
+function _emaStep(prev, close, len) {
+  if (prev == null || !isFinite(close)) return null;
+  const k = 2 / (len + 1);
+  return close * k + prev * (1 - k);
 }
 
 function fmtMs(ms) {
@@ -295,20 +313,25 @@ function renderCompareTable(rows) {
     return;
   }
 
+  // Detect split fills: same bar_ts + same expected_action = multiple fills for one signal
+  const seen = new Map();
   tbody.innerHTML = rows.map((r) => {
+    const key = `${r.bar_ts}|${r.expected_action}`;
+    const isFirst = !seen.has(key);
+    seen.set(key, true);
+    const isSplit = r.status === 'matched' && !isFirst;
+
     const statusBadge = r.status === 'matched'
       ? '<span class="badge success">매칭</span>'
-      : r.status === 'missed'
-        ? '<span class="badge danger">놓침</span>'
-        : '<span class="badge warning">초과</span>';
+      : '<span class="badge danger">놓침</span>';
     const actionBadge = r.expected_action === 'enter'
       ? '<span class="badge success">진입</span>'
       : '<span class="badge danger">종료</span>';
     const slipAbs = r.slippage_pct !== null ? Math.abs(r.slippage_pct) : null;
     const slipClass = slipAbs !== null && slipAbs > 0.1 ? 'neg' : '';
 
-    return `<tr>
-      <td class="mono" style="font-size:12px">${fmtKST(r.bar_ts)}</td>
+    return `<tr${isSplit ? ' style="background:color-mix(in srgb,var(--surface) 94%,var(--c-primary,#1f6feb))"' : ''}>
+      <td class="mono" style="font-size:12px">${fmtKST(barCloseIso(r.bar_ts))}</td>
       <td>${actionBadge}</td>
       <td class="num cmp-expected">${r.expected_price ? fmtUSD(r.expected_price) : '—'}</td>
       <td class="num cmp-expected">${r.expected_qty ? fmtBTC(r.expected_qty) : '—'}</td>
@@ -356,13 +379,16 @@ function lwcThemeOpts() {
   };
 }
 
+
 // ── Price chart (TradingView Lightweight Charts) ──────────────────────────
 
 async function renderPriceChart() {
   const div = document.getElementById('chart-price');
   if (!div) return;
 
-  if (_priceChart) { _priceChart.remove(); _priceChart = null; _priceSeries = null; }
+  if (_priceChart) { _priceChart.remove(); _priceChart = null; _priceSeries = null; _tooltip = null; }
+  // Fresh render → follow the live edge again until the user pins a bar by hovering.
+  _tooltipPinnedTime = null;
 
   try {
     const p = palette();
@@ -384,46 +410,57 @@ async function renderPriceChart() {
       return;
     }
 
-    // Store for click handler (keyed by ms)
-    _signalMap  = new Map(signals.map(s => [new Date(s.bar_ts).getTime(), s]));
-    _compareMap = new Map(cmpRows.map(r => [new Date(r.bar_ts).getTime(), r]));
+    // Store for click handler — keyed by bar CLOSE ms (signal fires at bar close)
+    _signalMap  = new Map(signals.map(s => [barCloseMs(s.bar_ts), s]));
+    _compareMap = new Map(cmpRows.map(r => [barCloseMs(r.bar_ts), r]));
 
     // ── Compute indicators ─────────────────────────────────────────
     const closes = candles.map(c => parseFloat(c.close));
     const unixTs = candles.map(c => Math.floor(new Date(c.ts).getTime() / 1000));
 
-    const ema7   = computeEma(closes, ST.fastEma);
-    const ema27  = computeEma(closes, ST.slowEma);
-    const ema230 = computeEma(closes, ST.dirEma);
-    const stData = computeSupertrend(candles, ST.factor, ST.period);
+    const ema7   = computeEma(closes, ST.fastEma);   // EMA7
+    const ema27  = computeEma(closes, ST.slowEma);   // EMA29
+    const ema230 = computeEma(closes, ST.dirEma);    // EMA240
+    // ST line built from DB signals (canonical: matches live strategy + backtest Jesse)
+    const _stSigMap = new Map(
+      signals
+        .filter(s => s.st_line != null)
+        .map(s => [Math.floor(new Date(s.bar_ts).getTime() / 1000),
+                   { trend: parseInt(s.st_dir), line: parseFloat(s.st_line) }])
+    );
 
-    // Supertrend: single line with per-point color — physically impossible to show two lines at same bar
-    // (green = uptrend support below price, red = downtrend resistance above price)
+    // Store indicator data for legend functions (module-level access)
+    const tsToIdx  = new Map(unixTs.map((t, i) => [t, i]));
+    const candleMap = new Map(candles.map((c, i) => [unixTs[i], {
+      open: parseFloat(c.open), close: parseFloat(c.close),
+    }]));
+    const _lastIdx = unixTs.length - 1;
+    _emaChartData = {
+      ema7, ema29: ema27, ema240: ema230,
+      tsArr: unixTs, tsToIdx, candleMap, stSigMap: _stSigMap,
+      // live in-progress bar extension (populated by updateInProgressCandle)
+      emaSeed: _lastIdx >= 0
+        ? { e7: ema7[_lastIdx], e29: ema27[_lastIdx], e240: ema230[_lastIdx] }
+        : { e7: null, e29: null, e240: null },
+      lastConfirmedTs: _lastIdx >= 0 ? unixTs[_lastIdx] : null,
+      liveTime: null,
+      liveEma:  null,
+    };
 
     // ── Build signal markers ───────────────────────────────────────
     const markers = [];
     for (const s of signals) {
       if (s.expected_action !== 'enter' && s.expected_action !== 'exit') continue;
-      const key     = new Date(s.bar_ts).getTime();
+      const key     = barCloseMs(s.bar_ts);   // signal fires at bar CLOSE, not bar open
       const cmp     = _compareMap.get(key);
       const matched = cmp ? cmp.status === 'matched' : false;
       const enter   = s.expected_action === 'enter';
       markers.push({
-        time:     Math.floor(key / 1000),
+        time:     Math.floor(key / 1000),      // bar close unix timestamp
         position: enter ? 'belowBar' : 'aboveBar',
         color:    matched ? (enter ? p.success : p.danger) : p.muted,
         shape:    enter ? 'arrowUp' : 'arrowDown',
         text:     matched ? '체결' : '예상',
-      });
-    }
-    // Extra actual fills (no matching expected signal)
-    for (const r of cmpRows.filter(x => x.status === 'extra')) {
-      markers.push({
-        time:     Math.floor(new Date(r.actual_fill_time || r.bar_ts).getTime() / 1000),
-        position: 'aboveBar',
-        color:    p.warning,
-        shape:    'circle',
-        text:     '초과',
       });
     }
     markers.sort((a, b) => a.time - b.time);
@@ -434,14 +471,19 @@ async function renderPriceChart() {
     _priceChart = LightweightCharts.createChart(div, {
       ...lwcThemeOpts(),
       autoSize: true,
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+        // hide the cursor's own price-axis label (would look like a duplicate box)
+        horzLine: { labelVisible: false },
+      },
     });
 
     // Candlestick
     _priceSeries = _priceChart.addCandlestickSeries({
-      upColor:      p.success, downColor:     p.danger,
-      borderVisible: false,
-      wickUpColor:  p.success, wickDownColor: p.danger,
+      upColor:        p.success, downColor:     p.danger,
+      borderVisible:  false,
+      wickUpColor:    p.success, wickDownColor: p.danger,
+      lastValueVisible: true,   // live current-price ticker on right axis
     });
     _priceSeries.setData(candles.map((c, i) => ({
       time:  unixTs[i],
@@ -462,24 +504,22 @@ async function renderPriceChart() {
         return acc;
       }, []));
     }
-    addEmaLine(ema230, T('--c-gauge-orange') || '#E87722', 'EMA230');
-    addEmaLine(ema27,  p.info,  'EMA27');
+    addEmaLine(ema230, T('--c-gauge-orange') || '#E87722', 'EMA240');
+    addEmaLine(ema27,  p.info,  'EMA29');
     addEmaLine(ema7,   p.muted, 'EMA7');
 
     const stSeries = _priceChart.addLineSeries({
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: false,
+      lastValueVisible: true,
       title: 'ST',
     });
     stSeries.setData(
-      stData
-        .map((s, i) => s.band == null ? null : {
-          time:  unixTs[i],
-          value: s.band,
-          color: s.trend === 1 ? p.success : p.danger,
-        })
-        .filter(Boolean)
+      unixTs.reduce((acc, t) => {
+        const sig = _stSigMap.get(t);
+        if (sig) acc.push({ time: t, value: sig.line, color: sig.trend === 1 ? p.success : p.danger });
+        return acc;
+      }, [])
     );
 
     // Markers on price series
@@ -496,6 +536,75 @@ async function renderPriceChart() {
       });
     }
 
+    // ── Floating crosshair tooltip (TradingView-style) ─────────────────────────
+    // Appears at the crosshair position, freezes there on release/leave.
+    div.style.position = 'relative';
+    _tooltip = document.createElement('div');
+    _tooltip.style.cssText = [
+      'position:absolute;pointer-events:none;z-index:6;display:none',
+      'background:rgba(13,18,28,.94);color:#fff',
+      'border:1px solid rgba(255,255,255,.12);border-radius:6px',
+      'box-shadow:var(--shadow-3);padding:8px 10px',
+      "font:11px/1.5 'JetBrains Mono',monospace;white-space:nowrap",
+    ].join(';');
+    div.appendChild(_tooltip);
+
+    function renderTooltip(time, point) {
+      if (!_emaChartData || !_tooltip) return;
+      const { ema7, ema29, ema240, tsToIdx, candleMap, stSigMap, liveTime, liveEma } = _emaChartData;
+      const p2     = palette();
+      const isLive = (liveTime != null && time === liveTime);
+      const idx    = tsToIdx.get(time);
+      const stSig  = stSigMap.get(time);
+      // Confirmed bars resolve via candleMap; the in-progress bar falls back to _liveCandle.
+      const cand   = candleMap.get(time)
+        || (isLive && _liveCandle ? { open: _liveCandle.open, close: _liveCandle.close } : null);
+      if (idx == null && !stSig && !cand) return;
+      const rows = [];
+      if (stSig) rows.push({ label: stSig.trend===1?'ST(롱)':'ST(숏)', color: stSig.trend===1?p2.success:p2.danger, price: stSig.line });
+      // EMA values: live bar uses the 1-step extended EMA; confirmed bars use the array.
+      const e240v = isLive ? (liveEma ? liveEma.e240 : null) : (idx != null ? ema240[idx] : null);
+      const e29v  = isLive ? (liveEma ? liveEma.e29  : null) : (idx != null ? ema29[idx]  : null);
+      const e7v   = isLive ? (liveEma ? liveEma.e7   : null) : (idx != null ? ema7[idx]   : null);
+      if (e240v != null) rows.push({ label:'EMA240', color: T('--c-gauge-orange')||'#E87722', price: e240v });
+      if (e29v  != null) rows.push({ label:'EMA29',  color: p2.info,  price: e29v });
+      if (e7v   != null) rows.push({ label:'EMA7',   color: p2.muted, price: e7v });
+      if (cand) rows.push({ label:'Close', color: cand.close>=cand.open?p2.success:p2.danger, price: cand.close });
+      rows.sort((a, b) => b.price - a.price);
+      const barLabel = new Date(time * 1000).toLocaleString('ko-KR',
+        { timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+        + (isLive ? ' (진행중)' : '');
+      _tooltip.innerHTML =
+        `<div style="color:rgba(255,255,255,.5);font-size:10px;margin-bottom:5px">${barLabel}</div>` +
+        rows.map(r =>
+          `<div style="display:flex;align-items:center;gap:8px;justify-content:space-between">` +
+          `<span style="display:flex;align-items:center;gap:4px">` +
+          `<span style="width:8px;height:8px;border-radius:50%;background:${r.color};flex-shrink:0"></span>` +
+          `<span style="color:rgba(255,255,255,.7)">${r.label}</span></span>` +
+          `<span style="color:#fff">${fmtUSD(r.price)}</span></div>`
+        ).join('');
+      if (point) {
+        const tw = _tooltip.offsetWidth || 140, th = _tooltip.offsetHeight || 80;
+        const cw = div.clientWidth,           ch = div.clientHeight;
+        const m  = 8;
+        let left = point.x + 16; if (left + tw > cw - m) left = point.x - tw - 16;
+        let top  = point.y + 16; if (top  + th > ch - m) top  = point.y - th - 16;
+        _tooltip.style.left = Math.max(m, left) + 'px';
+        _tooltip.style.top  = Math.max(m, top)  + 'px';
+      } else {
+        _tooltip.style.left = '10px';
+        _tooltip.style.top  = '10px';
+      }
+      _tooltip.style.display = 'block';
+    }
+
+    // Expose for live refresh from updateInProgressCandle (keeps this closure's div/_tooltip).
+    _renderTooltip = renderTooltip;
+
+    // Default: show last bar's card at top-left on load (non-empty initial state).
+    // updateInProgressCandle (called right after render) refreshes this to the live bar.
+    requestAnimationFrame(() => { if (len > 0) renderTooltip(unixTs[len - 1], null); });
+
     // Click → open signal modal
     _priceChart.subscribeClick((param) => {
       if (!param.time) return;
@@ -503,6 +612,24 @@ async function renderPriceChart() {
       const sig = _signalMap.get(k);
       const cmp = _compareMap.get(k);
       if (sig) openSignalModal(sig, cmp);
+    });
+
+    // Crosshair → update floating card at crosshair position; freeze on leave/release
+    // Use seriesData to get the exact bar-open timestamp (param.time is raw x-axis seconds,
+    // not necessarily snapped to bar timestamps in CrosshairMode.Normal).
+    _priceChart.subscribeCrosshairMove((param) => {
+      if (param.time && param.point) {
+        const candleBar = param.seriesData?.get(_priceSeries);
+        const barTime = candleBar?.time ?? param.time;
+        // Pin the card to the hovered bar. Hovering the live edge keeps following live;
+        // hovering a historical bar freezes the card there (matches freeze-on-leave UX).
+        _tooltipPinnedTime = barTime;
+        // NOTE: never call series.applyOptions() here — applyOptions triggers a chart
+        // redraw that synchronously re-fires crosshairMove → infinite recursion (stack
+        // overflow) that breaks the whole tooltip. ST marker uses its series default color.
+        renderTooltip(barTime, param.point);
+      }
+      // on leave / touch-end: keep tooltip frozen at last position (don't hide)
     });
 
   } catch (err) {
@@ -583,7 +710,7 @@ function openSignalModal(sig, cmp) {
   if (!overlay || !bodyEl) return;
 
   const isEnter = sig.expected_action === 'enter';
-  titleEl.textContent = `${isEnter ? '진입' : '종료'} 신호 상세 — ${fmtKST(sig.bar_ts)}`;
+  titleEl.textContent = `${isEnter ? '진입' : '종료'} 신호 상세 — ${fmtKST(barCloseIso(sig.bar_ts))}`;
 
   const ema7v  = parseFloat(sig.fast_ema);
   const ema27v = parseFloat(sig.slow_ema);
@@ -694,13 +821,30 @@ async function updateInProgressCandle() {
     const r = await apiFetch('/api/internal/supertrend/candles/in-progress');
     if (!r || !r.candle) return;
     const c = r.candle;
-    _priceSeries.update({
-      time:  Math.floor(c.ts / 1000),
-      open:  parseFloat(c.open),
-      high:  parseFloat(c.high),
-      low:   parseFloat(c.low),
-      close: parseFloat(c.close),
-    });
+    const liveTime = Math.floor(c.ts / 1000);
+    const o  = parseFloat(c.open), h = parseFloat(c.high),
+          l  = parseFloat(c.low),  cl = parseFloat(c.close);
+    _priceSeries.update({ time: liveTime, open: o, high: h, low: l, close: cl });
+
+    // Integrate the live bar into the tooltip data so the floating card resolves
+    // and updates for the in-progress candle — not only confirmed bars.
+    _liveCandle = { time: liveTime, open: o, high: h, low: l, close: cl };
+    if (_emaChartData) {
+      _emaChartData.liveTime = liveTime;
+      _emaChartData.candleMap.set(liveTime, { open: o, close: cl });
+      const seed = _emaChartData.emaSeed || {};
+      _emaChartData.liveEma = {
+        e240: _emaStep(seed.e240, cl, ST.dirEma),
+        e29:  _emaStep(seed.e29,  cl, ST.slowEma),
+        e7:   _emaStep(seed.e7,   cl, ST.fastEma),
+      };
+    }
+    // Auto-refresh the floating card when it's following the live edge
+    // (not pinned by the user onto a historical bar).
+    if (_renderTooltip && (_tooltipPinnedTime == null || _tooltipPinnedTime === liveTime)) {
+      _renderTooltip(liveTime, null);
+    }
+
     if (_lastBucketTs !== null && _lastBucketTs !== c.ts) {
       await loadCharts();
     }
