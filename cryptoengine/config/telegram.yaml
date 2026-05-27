@@ -61,10 +61,6 @@ telegram:
       error_spike_threshold: 10
       error_spike_window_minutes: 5
 
-    # Strategy regime changes
-    regime:
-      enabled: true
-
     # Kill switch activation
     kill_switch:
       enabled: true
@@ -77,7 +73,6 @@ telegram:
     # /pnl     — Today's PnL summary
     # /positions — Open positions
     # /balance — Account balance
-    # /regime  — Current market regime
     # /stop    — Emergency stop all strategies
     # /start   — Resume strategies
     # /report  — Generate performance report

@@ -3,7 +3,7 @@ title: 공유 라이브러리 (shared/)
 category: structure
 related_code:
   - cryptoengine/shared/
-last_updated: 2026-05-01
+last_updated: 2026-05-25
 ---
 
 # 공유 라이브러리 (shared/)
@@ -202,22 +202,6 @@ class OHLCV(BaseModel):
     @property
     def is_bullish(self) -> bool:
         return self.close >= self.open
-```
-
-### MarketRegime (시장 레짐)
-```python
-class MarketRegime(BaseModel):
-    regime: Literal[
-        "trending_up",
-        "trending_down",
-        "ranging",
-        "volatile"
-    ]
-    confidence: float = Field(ge=0.0, le=1.0)  # 0~1 신뢰도
-    adx: float | None            # ADX 지표값
-    volatility: float | None      # 변동성 측정값
-    bb_width: float | None        # Bollinger Band 폭
-    detected_at: datetime         # 감지 시각 (UTC)
 ```
 
 ### StrategyCommand & StrategyStatus
@@ -625,7 +609,7 @@ Kill Switch 발동 시:
 
 **시장 데이터** (7개):
 - `MARKET_WS_CONNECTED`, `MARKET_WS_DISCONNECTED`, `MARKET_WS_RECONNECTING`
-- `MARKET_OHLCV_STORED`, `MARKET_FUNDING_RATE`, `MARKET_REGIME_CHANGED`, `MARKET_TICKER_RECEIVED`
+- `MARKET_OHLCV_STORED`, `MARKET_FUNDING_RATE`, `MARKET_TICKER_RECEIVED`
 
 **전략** (8개):
 - `STRATEGY_STARTED`, `STRATEGY_STOPPED`, `STRATEGY_PAUSED`, `STRATEGY_RESUMED`

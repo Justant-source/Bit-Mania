@@ -2,8 +2,7 @@
 
 Initialises Redis, PostgreSQL, and launches:
   1. MarketDataCollector  — WebSocket + REST ingestion
-  2. RegimeDetector       — real-time market-regime classification
-  3. FundingMonitor        — funding-rate tracking & alerting
+  2. FundingMonitor        — funding-rate tracking & alerting
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ from shared.logging_config import setup_logging
 from shared.log_writer import init_log_writer, close_log_writer
 from shared.log_events import *
 from collector import MarketDataCollector
-from regime_detector import RegimeDetector
 from funding_monitor import FundingMonitor
 
 # ---------------------------------------------------------------------------
@@ -80,15 +78,6 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
                 timestamp          TIMESTAMPTZ NOT NULL,
                 UNIQUE (exchange, symbol, timestamp)
             );
-
-            CREATE TABLE IF NOT EXISTS market_regime_history (
-                id            BIGSERIAL PRIMARY KEY,
-                symbol        TEXT        NOT NULL DEFAULT 'BTCUSDT',
-                regime        TEXT        NOT NULL,
-                confidence    DOUBLE PRECISION,
-                indicators    JSONB,
-                detected_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
             """
         )
     log.info(SERVICE_HEALTH_OK, message="database tables ensured")
@@ -123,7 +112,6 @@ async def main() -> None:
         redis=redis_client,
         db_pool=db_pool,
     )
-    regime_detector = RegimeDetector(redis=redis_client, db_pool=db_pool, symbol=SYMBOL, exchange=EXCHANGE)
     funding = FundingMonitor(
         exchange=EXCHANGE,
         symbol=SYMBOL,
@@ -171,7 +159,6 @@ async def main() -> None:
     # --- Launch tasks ---
     tasks = [
         asyncio.create_task(collector.run(shutdown_event), name="collector"),
-        asyncio.create_task(regime_detector.run(shutdown_event), name="regime_detector"),
         asyncio.create_task(funding.run(shutdown_event), name="funding_monitor"),
         asyncio.create_task(_heartbeat_publisher(shutdown_event), name="heartbeat_publisher"),
     ]

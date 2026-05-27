@@ -5,7 +5,7 @@ related_code:
   - docker-compose.yml
   - cryptoengine/services/
   - cryptoengine/shared/
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - 새로운 마이크로서비스 추가 시
   - 서비스 레이어 구성 변경 시
@@ -43,8 +43,8 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 
 | 서비스 | 역할 |
 |--------|------|
-| **market-data** | Bybit WebSocket으로 실시간 시세, 펀딩비, 오더북 수신. OHLCV 캔들 저장. 시장 레짐(trending/ranging/volatile) 감지 후 Redis 발행 |
-| **strategy-orchestrator** | 시장 레짐에 따라 전략별 자본 배분 가중치 조정. Kill Switch 4단계 계층 관리. 전략 시작/정지 명령 발행 |
+| **market-data** | Bybit WebSocket으로 실시간 시세, 펀딩비, 오더북 수신. OHLCV 캔들 저장 |
+| **strategy-orchestrator** | 고정 전략 할당 (Supertrend 100%). Kill Switch 4단계 계층 관리. 전략 시작/정지 명령 발행 |
 | **execution-engine** | 주문 요청 수신 후 Bybit API로 실행. 포지션 추적, 안전 검증(레버리지 제한), 체결/취소 알림 발행. `stoploss_manager.py`로 거래소 스탑로스 주문 자동 배치/취소/복구 |
 
 ### 2.3 Strategy (전략)
@@ -113,7 +113,6 @@ graph TB
     
     subgraph channels["Redis Pub/Sub Channels"]
         c1["market:funding_rate"]
-        c2["market:regime"]
         c3["strategy:command:{id}"]
         c4["order:request"]
         c5["order:update"]
@@ -142,9 +141,7 @@ graph TB
     orch --> c8
     orch --> c9
     
-    c1 --> fa
     c1 --> o2
-    c2 --> o2
     c3 --> fa
     c3 --> dca
     c4 --> exec2
@@ -163,8 +160,7 @@ graph TB
 | 채널 | 발행자 | 구독자 | 메시지 내용 |
 |------|--------|--------|------------|
 | `market:ohlcv:bybit:BTCUSDT:4h` | market-data | supertrend, orchestrator | 4시간 확정 캔들 (OHLCV) |
-| `market:regime` | market-data | orchestrator, supertrend | 시장 레짐 (trending_up / trending_down / ranging / volatile) |
-| `strategy:command:supertrend-01` | orchestrator | supertrend | 자본 배분, 시작/정지/파라미터 명령 |
+| `strategy:command:supertrend-01` | orchestrator | supertrend | 자본 배분, 시작/정지/파라미터 명령 (고정: 100% supertrend) |
 | `order:request` | supertrend | execution-engine | 주문 요청 (BTC/USDT, 방향, 수량, 가격) |
 | `order:update` | execution-engine | supertrend | 체결/취소/거부 알림 |
 | `strategy:status:supertrend-01` | supertrend | orchestrator | 포지션 상태, P&L, 하트비트 |
@@ -194,7 +190,7 @@ graph LR
     end
 
     subgraph core["Core Services"]
-        market_data["market-data<br>price collection<br>+ regime detection"]
+        market_data["market-data<br>price collection"]
         orchestrator["strategy-orchestrator<br>strategy coordination<br>+ Kill Switch"]
         execution["execution-engine<br>order execution<br>+ safety validation"]
     end
@@ -265,7 +261,6 @@ graph LR
     bybit -->|"WebSocket"| md
     md --> pg
     md --> redis
-    redis -->|"market:regime"| orch
     redis -->|"market:ohlcv:4h"| st
     orch -->|"strategy:command:supertrend-01"| st
     st -->|"order:request"| exec
@@ -282,9 +277,9 @@ graph LR
 
 **상세 흐름:**
 
-1. **시세 수집**: market-data가 Bybit WebSocket에서 실시간 가격(OHLCV), 레짐 데이터를 수신
+1. **시세 수집**: market-data가 Bybit WebSocket에서 실시간 가격(OHLCV)을 수신
 2. **데이터 저장 및 발행**: 4시간 확정 캔들을 PostgreSQL에 저장하고, Redis로 발행
-3. **전략 조율**: strategy-orchestrator가 시장 레짐을 모니터링하고 supertrend에 자본 배분 명령 발행
+3. **전략 조율**: strategy-orchestrator가 supertrend에 자본 배분 명령 발행 (고정 100%)
 4. **전략 실행**: supertrend가 4시간 캔들 확정 시 Supertrend 신호 + EMA 조건을 계산 → 주문 요청
 5. **주문 처리**: execution-engine이 안전 검증(레버리지 3x, 포지션 크기) 후 Bybit API로 주문 실행
 6. **결과 통보**: 체결 결과를 Redis로 발행하고 supertrend에 전달, PostgreSQL에 거래 기록 저장
@@ -300,7 +295,7 @@ graph LR
 config/
 ├── strategies/
 │   └── supertrend.yaml       # Supertrend 전략 파라미터 (period, multiplier, EMA 기간, leverage 등)
-├── orchestrator.yaml         # 레짐별 가중치, Kill Switch 임계값
+├── orchestrator.yaml         # Kill Switch 임계값
 ├── prometheus/
 │   └── prometheus.yml        # Prometheus 스크래핑 대상 설정
 └── grafana/

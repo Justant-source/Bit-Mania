@@ -7,7 +7,7 @@ related_code:
   - cryptoengine/services/telegram-bot/
   - cryptoengine/config/orchestrator.yaml
   - cryptoengine/config/prometheus/
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - 대시보드 페이지/라우트 변경 시
   - Telegram 알림 형식/임계값 변경 시
@@ -216,7 +216,6 @@ P&L: +$75 (0.75%)
 | `/status` | 현재 포트폴리오 상태 |
 | `/positions` | 열린 포지션 목록 |
 | `/balance` | 현재 잔고 |
-| `/regime` | 현재 시장 레짐 |
 | `/funding` | 현재 펀딩레이트 |
 | `/kill` | Kill Switch 수동 발동 (모든 포지션 청산) |
 | `/acknowledge` or `/ack` | Kill Switch 알림 확인 |

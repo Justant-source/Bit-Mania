@@ -4,7 +4,7 @@ category: policies/operations
 related_code:
   - cryptoengine/shared/redis_client.py
   - cryptoengine/services/*/
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - 채널 추가/삭제 시
   - 메시지 포맷 변경 시
@@ -27,7 +27,6 @@ graph LR
 
     subgraph ch["Redis Channels"]
         C1["market:ohlcv\n:bybit:BTCUSDT:4h"]
-        C2["market:regime"]
         C4["order:request"]
         C5["order:update"]
         C6["strategy:command:supertrend-01"]
@@ -52,7 +51,6 @@ graph LR
 
     C1 --> ST2
     C1 --> ORC2
-    C2 --> ORC2
     C4 --> ENG2
     C5 --> ST2
     C6 --> ST2
@@ -90,37 +88,6 @@ OHLCV 캔들 데이터 배포. Market Data Collector → 전략 서비스
 **수신자**:
 - supertrend 전략 (4h 캔들만, confirmed=true)
 - orchestrator
-
----
-
-#### `market:regime`
-
-시장 레짐 분류 결과 → Strategy Orchestrator가 수신하여 가중치 조정
-
-**메시지 예시**:
-
-```json
-{
-  "regime": "ranging",
-  "confidence": 0.75,
-  "adx": 18.5,
-  "volatility": 120.3,
-  "bb_width": 0.035,
-  "detected_at": "2026-04-03T12:00:00Z"
-}
-```
-
-**레짐 값**:
-- `trending_up`: 상승 추세
-- `trending_down`: 하락 추세
-- `ranging`: 횡보 (박스권)
-- `volatile`: 고변동성
-
-**전략별 대응** (Supertrend):
-- `trending_up` → 가중치 60% (최적)
-- `trending_down` → 가중치 10% (회피, long-only)
-- `ranging` → 가중치 30% (낮음)
-- `volatile` → 가중치 40% (중간)
 
 ---
 
@@ -201,10 +168,9 @@ Strategy Orchestrator → 전략 자본 배분 명령
 
 ```json
 {
-  "strategy_id": "funding_arb",
-  "allocated_capital": 2500.0,
-  "weight": 0.25,
-  "regime": "ranging",
+  "strategy_id": "supertrend",
+  "allocated_capital": 10000.0,
+  "weight": 1.0,
   "max_drawdown": 5.0,
   "timestamp": "2026-04-03T12:00:00Z"
 }
@@ -260,7 +226,6 @@ LLM 어드바이저 가중치 조정 제안
     "cash": -0.08
   },
   "reasoning": "시장 저점 구간으로 판단...",
-  "regime_assessment": "ranging_to_trending_up"
 }
 ```
 
@@ -287,8 +252,6 @@ LLM 분석 요청 (온디맨드)
 
 | 키 | 타입 | TTL | 설명 |
 |----|------|-----|------|
-| `market:regime:current` | String(JSON) | 600s | 현재 레짐 |
-| `cache:regime` | Hash | - | 레짐 상세 정보 |
 | `cache:portfolio_state` | String(JSON) | 300s | 포트폴리오 상태 |
 | `features:latest` | String(JSON) | 300s | ML 특성 벡터 |
 | `market:ticker:{symbol}` | String(JSON) | 60s | 최신 시세 |
@@ -353,15 +316,6 @@ curl http://localhost:3000/api/internal/trades?limit=50
 
 ---
 
-#### `GET /api/internal/regime`
-
-현재 시장 레짐
-
-```bash
-curl http://localhost:3000/api/internal/regime
-```
-
----
 
 #### `POST /api/internal/kill-switch`
 
@@ -402,7 +356,6 @@ curl http://localhost:3001/api/public/status
 ```json
 {
   "status": "running",
-  "regime": "ranging",
   "uptime_hours": 72.5
 }
 ```
@@ -474,18 +427,6 @@ class PortfolioState(BaseModel):
 
 ---
 
-### MarketRegime
-
-```python
-class MarketRegime(BaseModel):
-    regime: Literal["trending_up", "trending_down", "ranging", "volatile"]
-    confidence: float  # 0.0 ~ 1.0
-    adx: float | None = None
-    volatility: float | None = None
-    bb_width: float | None = None
-```
-
----
 
 ## 에러 코드
 

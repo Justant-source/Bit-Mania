@@ -1,6 +1,6 @@
 ---
 title: 프로젝트 용어집
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 ---
 
 # 프로젝트 용어집
@@ -148,23 +148,6 @@ FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
 
 ## 시장 & 데이터 (Market & Data)
 
-### 레짐 (Regime)
-
-시장 상황을 5분 캔들 기반 HMM(Hidden Markov Model)으로 분류한 상태.
-
-**4가지 레짐**:
-1. **Trending Up** — 일정한 상향 추세장
-2. **Trending Down** — 일정한 하향 추세장
-3. **Ranging** — 상하한 사이를 오르락내리락하는 박스권
-4. **Volatile** — 급변동하는 변동성장
-
-**감지 메커니즘**: ADX(Average Directional Index), 볼린저밴드 폭, 변동성 지표 조합
-
-**전략별 대응** (config/orchestrator.yaml):
-- Trending Up: Supertrend 가중치 60% (상승장 최적)
-- Trending Down: Supertrend 가중치 10% (Long-only 약세장 회피)
-- Ranging: Supertrend 가중치 30% (횡보 시 수익성 낮음)
-- Volatile: Supertrend 가중치 40% (중간 가중치, 변동성 관리)
 
 ### ADX (Average Directional Index)
 
@@ -369,7 +352,6 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 - `ohlcv_history` — OHLCV 캔들 (90일 보존)
 - `kill_switch_events` — Kill Switch 발동 이력
 - `service_logs` — 구조화 이벤트 로그 (모든 서비스)
-- `regime_transitions` — 레짐 전환 이벤트
 
 ### Redis
 
@@ -377,11 +359,10 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 **역할**:
 - **Pub/Sub**: 서비스 간 실시간 통신 (시장 데이터, 주문, 명령)
-- **캐시**: 포지션 상태, 포트폴리오 스냅샷, 레짐 정보
+- **캐시**: 포지션 상태, 포트폴리오 스냅샷
 - **포지션 복구**: service_shutdown 시 상태 저장 (TTL 1시간)
 
 **중요 키**:
-- `market:regime:current` — 현재 시장 레짐
 - `strategy:saved_state:supertrend-01` — Supertrend 포지션 상태 복구용
 - `ce:kill_switch:active` — Kill Switch 활성 상태
 

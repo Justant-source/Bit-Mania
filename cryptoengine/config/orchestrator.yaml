@@ -3,105 +3,17 @@
 # ============================================================
 
 orchestrator:
-  version: "1.0"
-  # How often the orchestrator evaluates market regime and rebalances (seconds)
+  version: "2.0"
+  # How often the orchestrator evaluates risk and reallocates (seconds)
   evaluation_interval_seconds: 300
   # Portfolio snapshot interval (seconds)
   portfolio_snapshot_interval_seconds: 900
-  # Minimum time between weight changes (seconds) — prevents thrashing
-  min_rebalance_interval_seconds: 900
 
-# ── Regime Detection ─────────────────────────────────────────
-regime_detection:
-  # Stage 2 최우수 레짐 감지 방법
-  method: multi_consensus
-  timeframes:
-    - 15m
-    - 1h
-    - 4h
-
-  # Indicators used for regime classification
-  indicators:
-    # ADX for trend strength
-    adx:
-      period: 14
-      trending_threshold: 25
-      strong_trend_threshold: 40
-
-    # Bollinger Band width for volatility regime
-    bollinger:
-      period: 20
-      std_dev: 2.0
-      narrow_threshold: 0.03   # ranging
-      wide_threshold: 0.08     # volatile
-
-    # Moving average alignment for trend direction
-    moving_averages:
-      fast: 20
-      medium: 50
-      slow: 200
-      type: ema
-
-    # ATR for volatility measurement
-    atr:
-      period: 14
-      high_vol_percentile: 75
-      low_vol_percentile: 25
-
-    # Volume profile
-    volume:
-      lookback_periods: 20
-      spike_threshold: 2.0  # multiple of average
-
-  # Regime classification confidence threshold (0.0 - 1.0)
-  min_confidence: 0.5
-  # Smoothing: number of consecutive signals before regime change
-  confirmation_periods: 2
-
-# ── Weight Matrix ─────────────────────────────────────────────
-# Rows = market regime, Columns = strategy allocation weight.
-# Each row must sum to 1.0.
-# 포트폴리오: FA 단독 + 현금 (2026-04-05 확정)
-# DCA 6년 Walk-Forward 실패 (consistency 0.409, 2022 MDD -42%) → 가중치 0 고정
-# Phase 4 이후 4주 테스트넷 운영 결과에 따라 DCA 추가 여부 재결정
-weights:
-  # 횡보: Supertrend 30% + Cash 70%
-  ranging:
-    supertrend: 0.30
-    cash_reserve: 0.70
-
-  # 상승추세: Supertrend 70% + Cash 30% (추세 따라)
-  trending_up:
-    supertrend: 0.70
-    cash_reserve: 0.30
-
-  # 하락추세: Supertrend 10% + Cash 90% (방어)
-  trending_down:
-    supertrend: 0.10
-    cash_reserve: 0.90
-
-  # 고변동: Supertrend 30% + Cash 70%
-  volatile:
-    supertrend: 0.30
-    cash_reserve: 0.70
-
-  # 불확실: Supertrend 5% + Cash 95% (매우 방어적)
-  uncertain:
-    supertrend: 0.05
-    cash_reserve: 0.95
-
-# ── Weight Transition ─────────────────────────────────────────
-transition:
-  # Gradually shift weights over N steps to avoid sudden rebalancing
-  steps: 5
-  # Time between transition steps (seconds)
-  step_interval_seconds: 60
-  # Maximum weight change per step (percentage points)
-  max_step_change: 0.10
-  # EMA smoothing factor for weight transitions (0-1, lower = smoother)
-  ema_alpha: 0.3
-  # Minimum weight change to trigger reallocation
-  min_weight_change: 0.02
+# ── Strategy Allocation ───────────────────────────────────────
+# Single-strategy model (regime allocation removed 2026-05-25):
+# supertrend always receives 100% of available equity. The strategy itself
+# deploys 95% × 3x leverage internally. Weights are hardcoded in
+# WeightManager.FIXED_WEIGHTS — no per-regime matrix.
 
 # ── Kill Switch ───────────────────────────────────────────────
 kill_switch:
@@ -162,10 +74,10 @@ risk:
   max_capital_usd: 1_000
   # Maximum total leverage across all strategies
   max_total_leverage: 5.0
-  # Maximum single strategy allocation (percentage)
-  max_single_strategy_pct: 50.0
-  # Minimum cash reserve (percentage)
-  min_cash_reserve_pct: 5.0
+  # Single-strategy model: supertrend may use 100% of equity
+  max_single_strategy_pct: 100.0
+  # No cash reserve enforced (always fully deployed)
+  min_cash_reserve_pct: 0.0
   # Sharpe ratio calculation window (days)
   sharpe_window_days: 30
   # Risk-free rate for Sharpe calculation (annualized)
@@ -181,33 +93,8 @@ llm_advisor:
   # Redis channel for LLM advisories
   redis_channel: "llm:advisory"
 
-# ── ML Regime Model ──────────────────────────────────────────
-regime_ml:
-  enabled: true
-  retrain_interval_hours: 6
-  training_lookback_days: 30
-  # Dissimilarity index threshold
-  di_threshold: 2.5
-  # Number of std deviations for outlier detection
-  di_std_multiplier: 2.0
-  # Minimum training samples
-  min_training_samples: 500
-  # Model features
-  features:
-    - adx_14
-    - rsi_14
-    - bb_width_20
-    - atr_14
-    - volume_sma_ratio
-    - close_sma_ratio_20
-    - close_sma_ratio_50
-    - macd_histogram
-    - obv_slope
-    - funding_rate
-
 # ── Notifications ─────────────────────────────────────────────
 notifications:
-  on_regime_change: true
   on_rebalance: true
   on_kill_switch: true
   status_report_interval_hours: 6

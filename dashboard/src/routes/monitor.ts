@@ -3,7 +3,6 @@
  *
  * GET /api/internal/monitor/portfolio    — equity, daily/MTD PnL, drawdown
  * GET /api/internal/monitor/killswitch   — kill-switch status + history
- * GET /api/internal/monitor/regime       — current regime + 7d timeline
  * GET /api/internal/monitor/positions    — open positions + strategy KPIs
  * GET /api/internal/monitor/service      — per-service health (log freshness)
  * GET /api/internal/monitor/infra        — CPU/mem/disk/Redis via Prometheus

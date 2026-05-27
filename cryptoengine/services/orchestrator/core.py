@@ -1,11 +1,13 @@
 """StrategyOrchestrator — main coordination loop.
 
 Every 5 minutes:
-1. Receive market regime from Redis
-2. Adjust strategy weights based on regime
-3. Evaluate portfolio risk
-4. Check kill-switch conditions
-5. Issue capital allocation commands to strategies via Redis
+1. Evaluate portfolio risk
+2. Check kill-switch conditions
+3. Issue capital allocation commands to strategies via Redis
+
+Single-strategy model: supertrend always receives 100% of available equity
+(the strategy itself deploys 95% × 3x leverage internally). Regime-based
+allocation was removed 2026-05-25.
 """
 
 from __future__ import annotations
@@ -20,9 +22,7 @@ import redis.asyncio as aioredis
 import structlog
 from pydantic import BaseModel, Field
 
-from services.orchestrator.dissimilarity_index import DissimilarityIndex
 from services.orchestrator.portfolio_monitor import PortfolioMonitor, PortfolioState
-from services.orchestrator.regime_ml_model import RegimeMLModel
 from services.orchestrator.weight_manager import WeightManager
 from shared.kill_switch import (
     KillLevel,
@@ -36,7 +36,6 @@ from shared.log_events import *
 log = structlog.get_logger(__name__)
 
 StrategyName = Literal["supertrend", "cash"]
-RegimeType = Literal["trending_up", "trending_down", "ranging", "volatile", "uncertain"]
 
 STRATEGY_CHANNELS: dict[str, str] = {
     "supertrend": "strategy:command:supertrend-01",
@@ -56,8 +55,6 @@ class StrategyOrchestrator:
         self._redis: aioredis.Redis | None = None
         self._weight_manager = WeightManager(config)
         self._portfolio_monitor: PortfolioMonitor | None = None
-        self._regime_model: RegimeMLModel | None = None
-        self._di_index: DissimilarityIndex | None = None
 
         ks_cfg = self._kill_switch_config
         cooldown_min = ks_cfg.get("cooldown_minutes", 60)
@@ -68,16 +65,8 @@ class StrategyOrchestrator:
             or os.environ.get("BYBIT_TESTNET", "true").lower() == "false"
         )
         self._kill_switch = self._build_kill_switch(ks_cfg, cooldown_min)
-        self._current_regime: RegimeType = "ranging"
         self._current_weights: dict[str, float] = {}
         self._total_equity: float = 0.0
-
-        # 가중치 전환 추적
-        self._previous_weights: dict[str, float] = {}
-        self._target_weights: dict[str, float] = {}
-        self._transition_cycle_count: int = 0
-        self._transition_started_at: str | None = None
-        self._in_transition: bool = False
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -138,13 +127,6 @@ class StrategyOrchestrator:
         self._portfolio_monitor = PortfolioMonitor(self._redis, pg_dsn, snapshot_interval=snapshot_interval)
         await self._portfolio_monitor.start()
 
-        ml_config = self._config.get("regime_ml", {})
-        if ml_config.get("enabled", True):
-            ml_config = {**ml_config, "_redis_url": redis_url}
-            self._regime_model = RegimeMLModel(self._redis, ml_config)
-            await self._regime_model.start()
-            self._di_index = DissimilarityIndex(ml_config)
-
         self._running = True
         self._task = asyncio.create_task(self._run_loop(), name="orchestrator-loop")
         self._llm_advisory_task = asyncio.create_task(
@@ -176,8 +158,6 @@ class StrategyOrchestrator:
                 except asyncio.CancelledError:
                     pass
 
-        if self._regime_model:
-            await self._regime_model.stop()
         if self._portfolio_monitor:
             await self._portfolio_monitor.stop()
         if self._redis:
@@ -199,37 +179,13 @@ class StrategyOrchestrator:
         """Single orchestration cycle."""
         log.info(ORCH_CYCLE_START, message="orchestration cycle start")
 
-        # 1. Receive market regime
-        regime = await self._get_market_regime()
-        self._current_regime = regime
-        log.info(MARKET_REGIME_CHANGED, message="regime detected", regime=regime)
+        # 1. Fixed allocation: supertrend always receives 100% of equity.
+        # (Regime-based weight allocation removed 2026-05-25.)
+        weights = self._weight_manager.get_target_weights()
+        self._current_weights = weights
+        log.info(ORCH_WEIGHT_CHANGED, message="weights fixed (single-strategy)", weights=weights)
 
-        # 2. Adjust strategy weights based on regime
-        target_weights = self._weight_manager.get_target_weights(regime)
-
-        # 전환 추적: 목표 가중치가 크게 바뀐 경우 새 전환 시작
-        if self._is_new_transition(target_weights):
-            self._previous_weights = dict(self._current_weights)
-            self._target_weights = dict(target_weights)
-            self._transition_cycle_count = 0
-            self._transition_started_at = datetime.now(timezone.utc).isoformat()
-            self._in_transition = True
-
-        smoothed_weights = self._weight_manager.smooth_transition(
-            self._current_weights, target_weights
-        )
-        self._current_weights = smoothed_weights
-
-        # 전환 진행 카운터 업데이트
-        if self._in_transition:
-            self._transition_cycle_count += 1
-            # 5사이클(25분) 후 또는 목표와 충분히 가까워지면 전환 완료
-            if self._transition_cycle_count >= 5 or self._is_near_target(smoothed_weights, target_weights):
-                self._in_transition = False
-
-        log.info(ORCH_WEIGHT_CHANGED, message="weights updated", weights=smoothed_weights, regime=regime)
-
-        # 3. Evaluate portfolio risk
+        # 2. Evaluate portfolio risk
         assert self._portfolio_monitor is not None
         portfolio_state = await self._portfolio_monitor.evaluate()
         self._total_equity = portfolio_state.total_equity
@@ -241,7 +197,7 @@ class StrategyOrchestrator:
             weekly_dd=portfolio_state.weekly_drawdown,
         )
 
-        # 4. Check kill-switch conditions (delegates to shared KillSwitch)
+        # 3. Check kill-switch conditions (delegates to shared KillSwitch)
         # portfolio_monitor returns drawdowns as positive fractions (0.05 = 5% loss),
         # but KillSwitch expects negative convention (-0.05 = 5% loss).
         # Negate at the boundary to match KillSwitch convention.
@@ -277,43 +233,12 @@ class StrategyOrchestrator:
             log.warning(KILL_SWITCH_COOLDOWN, message="kill switch cooldown", triggered_at=self._kill_switch.triggered_at)
             return
 
-        # 5. Issue capital allocation commands
-        await self._issue_allocations(smoothed_weights, portfolio_state.total_equity)
+        # 4. Issue capital allocation commands
+        await self._issue_allocations(weights, portfolio_state.total_equity)
 
         # Cache current state in Redis
         await self._cache_orchestrator_state()
         log.info(ORCH_CYCLE_START, message="orchestration cycle complete")
-
-    async def _get_market_regime(self) -> RegimeType:
-        """Retrieve current market regime from Redis or ML model."""
-        assert self._redis is not None
-
-        # Try ML model first
-        if self._regime_model:
-            try:
-                ml_regime, confidence = await self._regime_model.predict()
-
-                # Check dissimilarity index
-                if self._di_index and self._di_index.is_uncertain():
-                    log.warning(MARKET_REGIME_CHANGED, message="di threshold exceeded", regime="uncertain")
-                    return "uncertain"
-
-                if confidence > 0.3:
-                    return ml_regime
-                log.warning(MARKET_REGIME_CHANGED, message="ml regime low confidence", confidence=confidence)
-            except Exception:
-                log.exception(MARKET_REGIME_CHANGED, message="ml regime prediction failed")
-
-        # Fallback: read from Redis (set by market-data service)
-        raw = await self._redis.get("market:regime:current")
-        if raw:
-            try:
-                data = json.loads(raw)
-                return data.get("regime", "ranging")
-            except (json.JSONDecodeError, KeyError):
-                log.warning(MARKET_REGIME_CHANGED, message="invalid regime data", raw=raw)
-
-        return "ranging"
 
     def _get_drawdown_size_multiplier(self, drawdown_pct: float) -> float:
         """Return position size multiplier based on current drawdown level.
@@ -474,7 +399,7 @@ class StrategyOrchestrator:
                 action="start",
                 allocated_capital=round(allocated, 2),
                 max_drawdown=self._kill_switch_config.get("max_daily_drawdown_pct", 5.0),
-                params={"weight": round(weight, 4), "regime": self._current_regime},
+                params={"weight": round(weight, 4)},
             )
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info(
@@ -519,13 +444,12 @@ class StrategyOrchestrator:
                         )
                         continue
 
+                    # Single-strategy model: weights are fixed (100% supertrend),
+                    # so LLM weight adjustments are recorded but not applied.
                     adjustments = advisory.get("weight_adjustments", {})
-                    self._weight_manager.apply_llm_adjustments(
-                        adjustments, max_adj, confidence
-                    )
                     log.info(
                         LLM_WEIGHT_SUGGESTION,
-                        message="llm advisory applied",
+                        message="llm advisory received (ignored — fixed weights)",
                         confidence=confidence,
                         adjustments=adjustments,
                     )
@@ -542,7 +466,6 @@ class StrategyOrchestrator:
         assert self._redis is not None
 
         state = {
-            "regime": self._current_regime,
             "weights": self._current_weights,
             "total_equity": self._total_equity,
             "kill_switch": {
@@ -550,44 +473,11 @@ class StrategyOrchestrator:
                 "level": self._kill_switch.level.name,
                 "reason": self._kill_switch.reason,
             },
-            "weight_transition": {
-                "in_progress": self._in_transition,
-                "current_step": min(self._transition_cycle_count, 5),
-                "total_steps": 5,
-                "previous_weights": self._previous_weights,
-                "target_weights": self._target_weights,
-                "current_weights": self._current_weights,
-                "started_at": self._transition_started_at,
-            },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         await self._redis.set(
             "orchestrator:state", json.dumps(state), ex=600
         )
-
-        # orchestrator:weight_transition 별도 키에도 발행 (대시보드용)
-        transition_data = state["weight_transition"]
-        await self._redis.set(
-            "orchestrator:weight_transition",
-            json.dumps(transition_data),
-            ex=600,
-        )
-
-    def _is_new_transition(self, new_target: dict[str, float]) -> bool:
-        """목표 가중치가 현재 목표와 유의미하게 다른지 확인."""
-        if not self._target_weights:
-            return bool(self._current_weights)
-        for key in new_target:
-            if abs(new_target.get(key, 0.0) - self._target_weights.get(key, 0.0)) > 0.05:
-                return True
-        return False
-
-    def _is_near_target(self, current: dict[str, float], target: dict[str, float]) -> bool:
-        """현재 가중치가 목표에 충분히 가까운지 확인 (모든 전략 1% 이내)."""
-        for key in target:
-            if abs(current.get(key, 0.0) - target.get(key, 0.0)) > 0.01:
-                return False
-        return True
 
     async def _watchdog_loop(self) -> None:
         """모니터링 서비스들의 하트비트를 60초마다 체크.

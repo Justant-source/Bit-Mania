@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/services/execution/safety.py
   - cryptoengine/services/orchestrator/core.py
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - Kill Switch 임계값 변경 시
   - 안전 검증 규칙 변경 시
@@ -173,49 +173,22 @@ class KillSwitch:
 
 ## 4. 포트폴리오 수준 리스크
 
-### 4.1 레짐 적응형 가중치 배분
+### 4.1 자본 배분 (고정)
 
-오케스트레이터가 시장 레짐을 감지하고, 레짐에 따라 자본 배분을 조절한다.
+Strategy Orchestrator는 고정 가중치로 자본을 배분합니다:
 
-```mermaid
-graph TB
-    subgraph regimes["시장 레짐"]
-        R1["횡보<br>ranging"]
-        R2["상승추세<br>trending_up"]
-        R3["하락추세<br>trending_down"]
-        R4["고변동<br>volatile"]
-    end
-    
-    R1 --> A["펀딩 차익: 50%<br>현금: 50%"]
-    R2 --> B["펀딩 차익: 20%<br>현금: 80%"]
-    R3 --> C["펀딩 차익: 10%<br>현금: 90%<br>⚠️ 리스크 최소화"]
-    R4 --> D["펀딩 차익: 40%<br>현금: 60%"]
-    
-    style A fill:#FFF3E0
-    style B fill:#FFE0B2
-    style C fill:#FFCDD2
-    style D fill:#FFF9C4
+```yaml
+weights:
+  supertrend: 1.0       # Supertrend에 100% 배분
+  cash_reserve: 0.0     # 현금 보유 없음
 ```
 
-| 레짐 | 펀딩 차익 | 그리드 | DCA | 현금 |
-|------|----------|--------|-----|------|
-| 횡보 (ranging) | **50%** | 0% | 0% | **50%** |
-| 상승 추세 (trending_up) | **20%** | 0% | 0% | **80%** |
-| 하락 추세 (trending_down) | **10%** | 0% | 0% | **90%** |
-| 고변동 (volatile) | **40%** | 0% | 0% | **60%** |
+**설명**:
+- Supertrend에 보유 자본의 100%를 배분
+- 전략 내부에서 배분 자본의 95% × 3배 레버리지로 포지션 구성 (5% 유보)
+- 시장 레짐에 관계없이 고정 배분 (2026-05-25 제거)
 
-> **2026-04-05 기준**: 6년 백테스트 결과 Grid(-) / DCA(MDD 42%) 모두 가중치 0으로 조정. FA 단독 운영, 현금 50% 최소 버퍼 유지.
-
-핵심: **하락 추세 시 90%를 현금으로 보유**하여 급격한 손실을 방지한다.
-
-### 4.2 가중치 전환 메커니즘
-
-- 급격한 리밸런싱 방지를 위해 **5단계에 걸쳐 점진적 전환**
-- 단계당 최대 변화폭: **10%p**
-- EMA 스무딩 팩터: **0.3**
-- 최소 리밸런싱 간격: **15분**
-
-### 4.3 포트폴리오 제약 조건
+### 4.2 포트폴리오 제약 조건
 
 | 항목 | 값 |
 |------|-----|
@@ -225,13 +198,13 @@ graph TB
 | Sharpe 비율 계산 윈도우 | 30일 |
 | 포트폴리오 스냅샷 간격 | 15분 |
 
-### 4.4 모니터링 데이터
+### 4.3 모니터링 데이터
 
 - `portfolio_snapshots` 테이블: 15분 간격 자본 스냅샷
 - `strategy_states` 테이블: 전략 상태 스냅샷
 - Redis `cache:balance:{exchange}`: 실시간 잔고 캐시
 
-### 4.5 낙폭 기반 주문 사이징 (Graduated Drawdown Multiplier)
+### 4.4 낙폭 기반 주문 사이징 (Graduated Drawdown Multiplier)
 
 `orchestrator/core.py`의 `_get_drawdown_size_multiplier()`가 포트폴리오 낙폭에 따라 주문 크기를 자동 축소한다.
 
@@ -412,7 +385,6 @@ flowchart TD
 
 모든 리스크 이벤트에 대해 텔레그램 봇이 즉시 알림을 전송한다:
 - Kill Switch 발동/해제
-- 레짐 변경
 - 리밸런싱 실행
 - 서킷 브레이커 작동
 - 정기 상태 보고 (6시간 간격)

@@ -4,7 +4,7 @@ category: structure
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/services/
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 note: |
   Supertrend 4h 3x 단일 전략 (Phase 5 메인넷).
   Funding Arb, Adaptive DCA, llm-advisor 제거.
@@ -30,7 +30,7 @@ graph TD
     end
 
     subgraph core["⚙️ Core Services"]
-        MD[market-data\n시세수집+레짐감지]
+        MD[market-data\n시세수집]
         ORC[strategy-orchestrator\n전략조율+KillSwitch]
         ENG[execution-engine\n주문실행+안전검증]
     end
@@ -85,7 +85,7 @@ graph TD
 - **역할**: Pub/Sub 메시징, 전략 상태 캐시, 세션 저장
 - **이미지**: redis:7
 - **포트**: 6379
-- **채널**: market:ohlcv:bybit:BTCUSDT:4h, market:regime, strategy:command:{id}, order:request, order:update, kill_switch
+- **채널**: market:ohlcv:bybit:BTCUSDT:4h, strategy:command:{id}, order:request, order:update, kill_switch
 - **TTL**: 전략 상태 1시간 (배포 중 포지션 유지)
 
 #### ~~Grafana~~ (제거됨 2026-05-18)
@@ -96,13 +96,12 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 ### 2. Market Data & Monitoring
 
 #### market-data
-- **역할**: Bybit WebSocket 실시간 펀딩비/OHLCV 수집, 시장 레짐 감지
+- **역할**: Bybit WebSocket 실시간 펀딩비/OHLCV 수집
 - **언어**: Python 3.12
 - **입력**: Bybit WebSocket (BTCUSDT)
 - **출력**: Redis channels
   - `market:ohlcv:bybit:BTCUSDT:4h` — 4h 봉 확정 시 발행 (confirmed=true)
-  - `market:regime` — trending_up/ranging/trending_down/volatile/uncertain 분류
-- **핵심 파일**: collector.py, funding_monitor.py, regime_detector.py
+- **핵심 파일**: collector.py, funding_monitor.py
 
 
 ---
@@ -132,20 +131,14 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 - **참고**: 재활성화 검토 중
 
 #### strategy-orchestrator
-- **역할**: 전략 자본 배분, 레짐 기반 가중치 조정, Kill Switch 조율
+- **역할**: 고정 전략 할당 (Supertrend 100%), Kill Switch 조율
 - **언어**: Python 3.12
 - **입력**:
-  - Redis `market:regime`
   - PostgreSQL positions, portfolio_snapshots
 - **출력**:
   - Redis `strategy:command:{id}`
   - Redis `kill_switch` (긴급 청산 신호)
-- **파라미터**: config/orchestrator.yaml
-  - trending_up:   {supertrend: 70%, cash_reserve: 30%}
-  - ranging:       {supertrend: 30%, cash_reserve: 70%}
-  - trending_down: {supertrend: 10%, cash_reserve: 90%}
-  - volatile:      {supertrend: 30%, cash_reserve: 70%}
-  - uncertain:     {supertrend:  5%, cash_reserve: 95%}
+- **할당**: 고정 비율 (Supertrend 100%, Cash 0%)
 
 ---
 
@@ -195,7 +188,7 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 ### 6. Monitoring & Alerts
 
 #### telegram-bot
-- **역할**: 실시간 알림 (Kill Switch, 포지션 진입/청산, 시장 레짐 변화), 비상 명령
+- **역할**: 실시간 알림 (Kill Switch, 포지션 진입/청산), 비상 명령
 - **언어**: Python 3.12
 - **입력**: 
   - PostgreSQL service_logs, trades, kill_switch_events
@@ -209,10 +202,9 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 #### dashboard
 - **내부 대시보드** (포트 3000): 전략 예상/실제 비교, 시스템 모니터링 (Grafana 대체)
   - `/supertrend` — Supertrend 4h 예상(백테스트) vs 실제(메인넷) 거래 비교
-  - `/monitor` — 자산 곡선, Kill Switch, 레짐, 포지션, 서비스 상태, 인프라 메트릭
-  - `/regime` — 레짐 분석 (기존 유지)
+  - `/monitor` — 자산 곡선, Kill Switch, 포지션, 서비스 상태, 인프라 메트릭
   - `GET /api/internal/supertrend/*` — 예상/실제/비교/자산/상태/캔들 API
-  - `GET /api/internal/monitor/*` — 포트폴리오/킬스위치/레짐/포지션/서비스/인프라 API
+  - `GET /api/internal/monitor/*` — 포트폴리오/킬스위치/포지션/서비스/인프라 API
   - `alertEvaluator` — Grafana 9개 알림 규칙 포팅, Redis `ce:alerts:grafana` 발행 (60s 주기)
 - **공개 대시보드** (포트 3001): 공개 가능한 성과 지표만 노출
   - Cumulative PnL %, Win Rate, Total Trades, Avg Duration, Sharpe Ratio
@@ -245,11 +237,6 @@ market:ohlcv:bybit:BTCUSDT:4h
   ├─ Subscribers: supertrend (confirmed=true 봉만 처리)
   └─ Content: { "open": 95000, "high": 96000, "low": 94000, "close": 95500,
                "volume": 1234.5, "ts": 1716048000000, "confirmed": true }
-
-market:regime
-  ├─ Publisher: market-data
-  ├─ Subscribers: strategy-orchestrator, adaptive-dca
-  └─ Content: { "regime": "trending_up|ranging|trending_down|volatile|uncertain", "ts": "..." }
 
 strategy:command:supertrend-01
   ├─ Publisher: strategy-orchestrator
@@ -347,7 +334,7 @@ flowchart LR
 PostgreSQL (5432)
   ←─ (data persistence)
   ├─ execution-engine (trades, positions 저장)
-  ├─ market-data (funding_rate_history, regime_raw_log)
+  ├─ market-data (funding_rate_history)
   ├─ strategy-orchestrator (daily_reports, strategy_states)
   ├─ telegram-bot (service_logs 읽기)
   ├─ dashboard (모든 테이블 읽기)
@@ -356,11 +343,11 @@ PostgreSQL (5432)
 
 Redis (6379)
   ←─ (pub/sub messaging + state cache)
-  ├─ market-data (ohlcv, regime 발행)
+  ├─ market-data (ohlcv 발행)
   ├─ strategy-orchestrator (명령 발행, kill_switch 발행)
   ├─ execution-engine (order 구독)
   ├─ supertrend (ohlcv:4h confirmed 구독, order 발행)
-  ├─ adaptive-dca (regime, command 구독, order 발행)
+  ├─ adaptive-dca (command 구독, order 발행)
   └─ telegram-bot (kill_switch 구독, alerts 발행)
 
 Bybit API
@@ -418,8 +405,8 @@ log-retention (postgres 필수)
    → 4h 봉 확정 시 Redis `market:ohlcv:bybit:BTCUSDT:4h` 발행 (confirmed=true)
 
 2. strategy-orchestrator
-   → market:regime 기반 자본 배분 결정 (ranging 30%, trending_up 70%)
-   → Redis `strategy:command:supertrend-01` 발행 (capital: 60.0)
+   → 고정 자본 배분 결정 (supertrend 100%)
+   → Redis `strategy:command:supertrend-01` 발행
 
 3. supertrend
    → `market:ohlcv:bybit:BTCUSDT:4h` 구독 (confirmed=true 봉만 처리)
@@ -473,8 +460,8 @@ sequenceDiagram
 
     MD->>MD: Bybit 4h 봉 확정
     MD->>Redis: 발행: market:ohlcv:bybit:BTCUSDT:4h (confirmed=true)
-    ORC->>ORC: regime 감지 → 자본 배분
-    ORC->>Redis: 발행: strategy:command:supertrend-01 (capital: 60)
+    ORC->>ORC: 자본 배분 (고정 100%)
+    ORC->>Redis: 발행: strategy:command:supertrend-01 (capital: 100%)
     
     ST->>Redis: 구독: market:ohlcv:bybit:BTCUSDT:4h
     ST->>ST: Supertrend / EMA / ATR 계산

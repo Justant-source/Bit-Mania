@@ -3,7 +3,7 @@ title: 디렉토리 구조
 category: structure
 related_code:
   - cryptoengine/
-last_updated: 2026-05-01
+last_updated: 2026-05-25
 ---
 
 # 디렉토리 구조
@@ -48,7 +48,6 @@ graph TD
             M1["001_init_schema.sql"]
             M2["002_funding.sql"]
             M3["003_logs.sql"]
-            M4["004_regime.sql"]
         end
 
         subgraph doc["docs/\n프로젝트 문서"]
@@ -105,7 +104,7 @@ Bit-Mania/
     │   │   ├── funding_arb.yaml        # (복사본, 언더스코어 버전)
     │   │   ├── adaptive-dca.yaml       # DCA 전략 파라미터
     │   │   └── adaptive_dca.yaml       # (복사본)
-    │   ├── orchestrator.yaml           # 자본 배분, 레짐 가중치, Kill Switch 임계값
+    │   ├── orchestrator.yaml           # 자본 배분, Kill Switch 임계값
     │   ├── exchanges/
     │   │   └── bybit.yaml              # Bybit 거래소 설정 (페어 정의)
     │   └── grafana/
@@ -138,7 +137,7 @@ Bit-Mania/
     │   ├── redis_client.py             # Redis Pub/Sub 헬퍼 (싱글톤)
     │   ├── config_loader.py            # YAML 설정 로더 (절대경로 지원)
     │   ├── kill_switch.py              # Kill Switch 4계층 로직
-    │   ├── log_events.py               # 이벤트 코드 정의 (95개)
+    │   ├── log_events.py               # 이벤트 코드 정의
     │   ├── log_writer.py               # 비동기 DB 로그 라이터 (큐 기반)
     │   ├── logging_config.py           # structlog 표준 설정 (KST)
     │   └── timezone_utils.py           # KST 타임존 유틸리티
@@ -146,8 +145,7 @@ Bit-Mania/
     ├── migrations/                     # 데이터베이스 마이그레이션
     │   ├── 001_init_schema.sql         # 초기 스키마 (trades, positions 등)
     │   ├── 002_add_funding_tables.sql  # 펀딩비 테이블 추가
-    │   ├── 003_add_service_logs.sql    # service_logs 테이블
-    │   └── 004_add_regime_tables.sql   # 시장 레짐 테이블
+    │   └── 003_add_service_logs.sql    # service_logs 테이블
     │
     ├── docs/                           # 프로젝트 문서
     │   ├── EMERGENCY_MANUAL_CLOSE.md   # 비상 수동 청산 SOP (휴대폰 저장용)
@@ -192,12 +190,11 @@ Bit-Mania/
     │
     └── services/                       # 마이크로서비스 (19개)
         │
-        ├── market-data/                # 시장 데이터 수집, 레짐 감지
+        ├── market-data/                # 시장 데이터 수집
         │   ├── Dockerfile
         │   ├── main.py                 # 메인 루프
         │   ├── collector.py            # WebSocket 데이터 수집
         │   ├── funding_monitor.py      # 펀딩비 모니터링
-        │   ├── regime_detector.py      # 시장 레짐 감지 (trending/ranging/volatile)
         │   ├── feature_engine.py       # 기술적 지표 계산
         │   └── requirements.txt
         │
@@ -226,7 +223,7 @@ Bit-Mania/
         ├── orchestrator/               # 자본 배분, Kill Switch 조율
         │   ├── Dockerfile
         │   ├── main.py                 # 조율 루프
-        │   ├── capital_allocator.py    # 레짐 기반 자본 배분
+        │   ├── capital_allocator.py    # 자본 배분 (단일 전략 고정)
         │   └── requirements.txt
         │
         │   # jesse_engine/ → backtest/ 트리로 이전됨
@@ -340,19 +337,8 @@ allocation: 0.2             # 자본의 20% 배분
 ```
 
 #### orchestrator.yaml
-자본 배분 및 Kill Switch:
+Kill Switch 설정:
 ```yaml
-regimes:
-  trending:
-    funding_arb: 0.8
-    adaptive_dca: 0.2
-  ranging:
-    funding_arb: 0.6
-    adaptive_dca: 0.4
-  volatile:
-    funding_arb: 0.4
-    adaptive_dca: 0.6
-
 kill_switch:
   daily_loss_percent: -5
   max_drawdown_percent: -10
@@ -380,8 +366,7 @@ DB 스키마:
 |-----|------|--------|
 | 001_init_schema.sql | 초기 구조 | trades, positions, funding_rate_history, ohlcv_history, portfolio_snapshots, daily_reports, kill_switch_events, strategy_states, llm_judgments |
 | 002_add_funding_tables.sql | 펀딩비 확장 | funding_payments |
-| 003_add_service_logs.sql | 로깅 | service_logs (95개 이벤트) |
-| 004_add_regime_tables.sql | 레짐 분석 | regime_raw_log, regime_transitions |
+| 003_add_service_logs.sql | 로깅 | service_logs |
 
 ---
 
@@ -395,8 +380,6 @@ DB 스키마:
 ### 시장 데이터
 - **funding_rate_history** — 펀딩비 히스토리 (timestamp, rate, symbol)
 - **ohlcv_history** — OHLCV 캔들 (timestamp, open, high, low, close, volume, timeframe)
-- **regime_raw_log** — 5분마다 레짐 감지 결과 (timestamp, regime, confidence)
-- **regime_transitions** — 확정 레짐 전환 (timestamp, from_regime, to_regime, reason)
 
 ### 포트폴리오 & 보고서
 - **portfolio_snapshots** — 시간별 포트폴리오 스냅샷 (timestamp, total_equity, cash, position_value)

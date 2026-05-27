@@ -160,7 +160,7 @@ def main() -> None:
 
         df = pd.DataFrame(list(candle_buf))
         try:
-            st_dir = compute_supertrend(df, ST_PERIOD, ST_FACTOR)
+            st_dir, st_line = compute_supertrend(df, ST_PERIOD, ST_FACTOR)
             fast_ema = float(compute_ema(df, FAST_EMA_LEN).iloc[-1])
             slow_ema = float(compute_ema(df, SLOW_EMA_LEN).iloc[-1])
             dir_ema = float(compute_ema(df, DIR_EMA_LEN).iloc[-1])
@@ -223,18 +223,21 @@ def main() -> None:
         cur.execute(
             """
             INSERT INTO supertrend_signals (
-                bar_ts, computed_at, st_dir, fast_ema, slow_ema, dir_ema,
+                bar_ts, computed_at, st_dir, st_line, fast_ema, slow_ema, dir_ema,
                 price, atr_14, allocated_capital, had_position, entry_ok,
                 exit_signal, exit_reason, expected_action,
                 expected_qty, expected_stop_loss
             ) VALUES (
-                %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
-            ON CONFLICT (bar_ts) DO NOTHING
+            ON CONFLICT (bar_ts) DO UPDATE SET
+                st_dir  = EXCLUDED.st_dir,
+                st_line = EXCLUDED.st_line
             """,
             (
                 row["timestamp"],
                 st_dir,
+                st_line,
                 fast_ema,
                 slow_ema,
                 dir_ema,
@@ -250,10 +253,7 @@ def main() -> None:
                 expected_stop_loss,
             ),
         )
-        if cur.rowcount > 0:
-            inserted += 1
-        else:
-            skipped += 1
+        inserted += 1
 
         if (inserted + skipped) % 500 == 0:
             conn.commit()
@@ -261,7 +261,7 @@ def main() -> None:
 
     if not args.dry_run:
         conn.commit()
-        print(f"[backfill] Done. inserted={inserted} skipped(already exists)={skipped}")
+        print(f"[backfill] Done. upserted={inserted} (st_dir + st_line overwritten with canonical)")
     else:
         print(f"[backfill] Dry-run complete. Would insert {inserted} rows.")
 

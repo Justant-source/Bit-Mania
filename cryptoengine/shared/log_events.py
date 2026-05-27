@@ -17,11 +17,11 @@ MARKET_WS_DISCONNECTED = "market_ws_disconnected"
 MARKET_WS_RECONNECTING = "market_ws_reconnecting"
 MARKET_OHLCV_STORED = "market_ohlcv_stored"
 MARKET_FUNDING_RATE = "market_funding_rate"
-MARKET_REGIME_CHANGED = "market_regime_changed"
 MARKET_TICKER_RECEIVED = "market_ticker_received"
 
 # === 전략 ===
 STRATEGY_STARTED = "strategy_started"
+STRATEGY_STOPPING = "strategy_stopping"
 STRATEGY_STOPPED = "strategy_stopped"
 STRATEGY_PAUSED = "strategy_paused"
 STRATEGY_RESUMED = "strategy_resumed"
@@ -137,10 +137,10 @@ EVENT_LEVELS: dict[str, str] = {
     MARKET_WS_RECONNECTING: "WARNING",
     MARKET_OHLCV_STORED: "DEBUG",
     MARKET_FUNDING_RATE: "DEBUG",
-    MARKET_REGIME_CHANGED: "INFO",
     MARKET_TICKER_RECEIVED: "DEBUG",
     # 전략
     STRATEGY_STARTED: "INFO",
+    STRATEGY_STOPPING: "INFO",
     STRATEGY_STOPPED: "INFO",
     STRATEGY_PAUSED: "WARNING",
     STRATEGY_RESUMED: "INFO",

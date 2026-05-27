@@ -32,9 +32,9 @@ MAX_LEVERAGE 코드 상한: 3 (shared/exchange/bybit.py)
 
 ```mermaid
 graph TD
-    A["초기 자본: $200 USDT"] --> B["Supertrend 배분 30%<br>$60 (ranging 레짐)"]
-    B --> C["3배 레버리지<br>명목 $180"]
-    C --> D["포지션 크기<br>~0.0019 BTC @ $95,000"]
+    A["초기 자본: $200 USDT"] --> B["Supertrend 배분 100%<br>전액 (단일 전략)"]
+    B --> C["95% × 3배 레버리지<br>명목 ~$570"]
+    C --> D["포지션 크기<br>~0.0060 BTC @ $95,000"]
     
     subgraph Performance["백테스트 성과 2017-2026"]
         E["CAGR: +151.56% ✅"]
@@ -72,13 +72,13 @@ Sharpe 비율:    1.37        ⚠️ 적절 (> 1.0)
 ### 포지션 사이징 공식
 
 ```python
-# 예시: 오케스트레이터가 $60 배분 (ranging 레짐, 30%)
-allocated_capital = 60.0     # orchestrator 배분 자본
+# 예시: 오케스트레이터가 전액 배분 (단일 전략, 100%)
+allocated_capital = 200.0    # orchestrator 배분 자본 (전체 잔고)
 leverage = 3.0
 btc_price = 95_000
 
-qty = (allocated_capital * 0.95 * leverage) / btc_price  # ≈ 0.0019 BTC
-notional = qty * btc_price                                # ≈ $171
+qty = (allocated_capital * 0.95 * leverage) / btc_price  # ≈ 0.0060 BTC
+notional = qty * btc_price                                # ≈ $570
 
 # catastrophic SL
 stop_loss = btc_price * (1 - 0.70 / leverage)            # entry × 0.7667
@@ -149,7 +149,7 @@ http://localhost:3002 에서 다음을 실시간 확인:
 [Supertrend 상태]
 - 현재 포지션 PnL
 - Kill Switch 이벤트 수 (7일)
-- 레짐별 가중치 배분
+- 자본 배분 (단일 전략 100%)
 ```
 
 ---

@@ -197,6 +197,28 @@ class SupertrendLiveStrategy(BaseStrategy):
         except Exception:
             self._log.exception("candle_backfill_error")
 
+        # Recover position state from execution engine's Redis cache to prevent
+        # double-entry after service restart when a position is already open.
+        try:
+            import json as _json
+            raw = await self._redis.get("ce:positions:all")
+            if raw:
+                positions = _json.loads(raw)
+                for pos in positions:
+                    if "BTC" in pos.get("symbol", "") and float(pos.get("size", 0)) > 0:
+                        self._has_position = True
+                        self._position_qty = float(pos["size"])
+                        self._entry_price = float(pos["entry_price"])
+                        self._log.info(
+                            "position_restored",
+                            message="기존 포지션 복구 (더블 진입 방지)",
+                            qty=self._position_qty,
+                            entry_price=self._entry_price,
+                        )
+                        break
+        except Exception:
+            self._log.exception("position_restore_error")
+
         # Start background subscription task
         self._sub_task = asyncio.create_task(self._subscribe_market_data())
 

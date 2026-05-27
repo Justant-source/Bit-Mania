@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/scripts/manual_mainnet_test.py
-last_updated: 2026-05-21
+last_updated: 2026-05-25
 when_to_update: |
   - 운영 절차 변경 시
   - Kill Switch 임계값 변경 시
@@ -102,7 +102,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 
 # 5. 대시보드 확인
 #    http://localhost:3000/supertrend  — Supertrend 예상 vs 실제 비교
-#    http://localhost:3000/monitor     — 자산/Kill Switch/레짐/서비스 상태
+#    http://localhost:3000/monitor     — 자산/Kill Switch/서비스 상태
 ```
 
 ### 주간 확인 사항
@@ -366,13 +366,12 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 ### 대시보드 (Grafana 대체)
 
 http://localhost:3000/supertrend — Supertrend 예상 vs 실제 비교  
-http://localhost:3000/monitor   — 자산/Kill Switch/레짐/서비스 상태/인프라
+http://localhost:3000/monitor   — 자산/Kill Switch/서비스 상태/인프라
 
 **주요 패널**:
 - **Supertrend 비교**: 매 4h 봉 예상 진입·청산 vs 실제 체결 (가격, 수량, 지연)
 - **자산 곡선**: 예상(백테스트) vs 실제(메인넷) 30일
 - **Kill Switch**: 현재 상태 + 발동 이력
-- **레짐**: 현재 레짐, 오케스트레이터 가중치
 - **서비스 상태**: 서비스별 마지막 응답 시간 + 오류 건수
 - **인프라**: CPU / 메모리 / 디스크 / Redis (Prometheus 연동)
 
@@ -462,19 +461,6 @@ curl https://api.bybit.com/v5/market/time
 # 5. 거래소에서 직접 주문 테스트 (Bybit UI)
 ```
 
-### 레짐 감지 오류
-
-```bash
-# 1. Market Data 로그 확인
-docker compose logs market-data --tail=100 | grep -E "regime|error"
-
-# 2. OHLCV 데이터 수집 상태
-docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
-  "SELECT MAX(timestamp) FROM ohlcv_history WHERE symbol='BTCUSDT';"
-
-# 3. Redis 레짐 상태
-docker compose exec redis redis-cli GET market:regime:current | jq .
-```
 
 ### 데이터베이스 연결 실패
 

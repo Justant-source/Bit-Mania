@@ -1,7 +1,7 @@
 ---
 title: 아키텍처 문서
 category: architecture
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - 시스템 구조 변경 시 (서비스 추가/제거)
   - 데이터 흐름 변경 시 (채널, 이벤트 순서)
@@ -26,8 +26,8 @@ when_to_update: |
 | 계층 | 역할 | 주요 서비스 | 기술 스택 |
 |------|------|-----------|----------|
 | **1. 인프라 (Infrastructure)** | 데이터 영구 저장, 메시징 브로커, 모니터링 | postgres, redis, prometheus, grafana | PostgreSQL 16, Redis 7, Prometheus, Grafana |
-| **2. 시장 데이터 (Market Data)** | WebSocket 실시간 수집, 레짐 감지 | market-data | CCXT, Pandas, TA-Lib, asyncio |
-| **3. 전략 조율 (Orchestration)** | 레짐 기반 가중치, Kill Switch, LLM Advisory | strategy-orchestrator, llm-advisor | structlog, asyncio, Redis Pub/Sub |
+| **2. 시장 데이터 (Market Data)** | WebSocket 실시간 수집 | market-data | CCXT, Pandas, TA-Lib, asyncio |
+| **3. 전략 조율 (Orchestration)** | 자본 배분, Kill Switch, LLM Advisory | strategy-orchestrator, llm-advisor | structlog, asyncio, Redis Pub/Sub |
 | **4. 전략 구현 (Strategy)** | 주문 신호 생성 | funding-arb, adaptive-dca | Custom Strategy Framework |
 | **5. 실행 엔진 (Execution)** | 주문 검증, 거래소 전송, 포지션 추적 | execution-engine | CCXT Async, asyncpg |
 | **6. 인터페이스 (Interfaces)** | 웹 UI, 알림, 대시보드 | dashboard, telegram-bot, grafana | FastAPI, Telegram Bot API |
@@ -37,7 +37,7 @@ when_to_update: |
 | 문서 | 설명 | 읽는 사람 |
 |------|------|---------|
 | **[system-overview.md](system-overview.md)** (준비중) | 6계층 구조, 서비스 책임, 공유 라이브러리, 디자인 패턴 | 아키텍트, 신입 온보딩 |
-| **[data-flow.md](data-flow.md)** | 시장→레짐→전략→주문의 전체 데이터 흐름, Redis Pub/Sub 채널 명세, 주문 실행 시퀀스 | 백엔드 엔지니어, 전략 개발자 |
+| **[data-flow.md](data-flow.md)** | 시장→전략→주문의 전체 데이터 흐름, Redis Pub/Sub 채널 명세, 주문 실행 시퀀스 | 백엔드 엔지니어, 전략 개발자 |
 | **[database-schema.md](database-schema.md)** | 22개 테이블 완전 명세, 컬럼 타입, 인덱스, 보존 정책, SQL DDL | DBA, 데이터 분석가 |
 | **[deployment.md](deployment.md)** | Docker Compose 19서비스, 빌드 컨텍스트, 환경 설정, 포트/볼륨/리소스 제한 | DevOps, 배포 담당자 |
 | **[risk-management.md](risk-management.md)** | Kill Switch 4단계, 안전 검증 7단계, 레버리지 제한 | 리스크 담당자, 운영팀 |
@@ -65,7 +65,3 @@ when_to_update: |
 - **의도**: 급락이 심할수록 더 빠른 중단, 시스템 장애는 즉시 중단
 - **구현**: orchestrator가 5분마다 체크, dead man's switch로 service_health 모니터링
 
-### 4. 레짐 감지 2단계 확정
-- **단계 1**: 매 5분 캔들마다 원시 신호 계산 → `regime_raw_log`
-- **단계 2**: 동일 신호 3회 연속 확정 → `regime_transitions`에 이벤트 기록
-- **이점**: 거짓 신호 필터링, 가중치 조정의 안정성

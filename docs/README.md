@@ -1,7 +1,7 @@
 ---
 title: CryptoEngine 문서 홈
 category: root
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 ---
 
 # CryptoEngine 문서
@@ -105,7 +105,7 @@ last_updated: 2026-05-18
 
 | 리소스 | 목적 | 언제 확인 |
 |--------|------|---------|
-| [glossary.md](glossary.md) | 프로젝트 용어집 (FA, Kill Switch, 레짐 등) | 용어 불명확 시 |
+| [glossary.md](glossary.md) | 프로젝트 용어집 (FA, Kill Switch 등) | 용어 불명확 시 |
 | [CODE_MAP.md](CODE_MAP.md) | 코드 경로 → 문서 역인덱스 | 코드 수정 후 |
 | 루트 `CLAUDE.md` | 진입 규칙, 핵심 원칙, 배포 규칙 | Phase 전환, 서비스 배포 전 |
 | [policies/operations/pubsub-channels.md](policies/operations/pubsub-channels.md) | Redis Pub/Sub 채널 & API | 서비스 간 통신 이해 |

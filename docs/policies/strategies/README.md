@@ -1,7 +1,7 @@
 ---
 title: 거래 전략
 category: policies/strategies
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - 새 전략 추가 시
   - orchestrator.yaml 가중치 변경 시
@@ -10,7 +10,7 @@ when_to_update: |
 
 # 거래 전략
 
-CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략은 BaseStrategy ABC를 상속하며, Strategy Orchestrator가 시장 레짐에 따라 자본을 동적 배분합니다.
+CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략은 BaseStrategy ABC를 상속하며, Strategy Orchestrator가 단일 전략(supertrend)에 자본의 100%를 배분합니다.
 
 ---
 
@@ -222,7 +222,7 @@ Orchestrator                Strategy (BaseStrategy)
 
 1. **Orchestrator 시작**
    - Strategy Orchestrator 서비스 부팅
-   - market-data와 regime 감지 시작
+   - market-data 시작
 
 2. **전략 시작 신호**
    ```
@@ -288,40 +288,20 @@ if risk_ctrl.should_stop():
 
 ---
 
-## 레짐별 가중치 (orchestrator.yaml)
+## 자본 배분
 
-Strategy Orchestrator가 **시장 레짐**에 따라 자본을 동적 배분:
+Strategy Orchestrator는 고정 가중치로 자본을 배분합니다:
 
 ```yaml
 weights:
-  ranging:           # 횡보 시장 (낮은 수익성)
-    supertrend: 0.30
-    adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.70
-  
-  trending_up:       # 상승추세 (최적 환경)
-    supertrend: 0.60
-    adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.40
-  
-  trending_down:     # 하락추세 (Long-only 회피)
-    supertrend: 0.10
-    adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.90
-  
-  volatile:          # 고변동성
-    supertrend: 0.40
-    adaptive_dca: 0.00  # DCA 비활성
-    cash_reserve: 0.60
+  supertrend: 1.0       # Supertrend에 100% 배분
+  cash_reserve: 0.0     # 현금 보유 없음
 ```
 
 **해석**:
-- **Trending Up**: Supertrend 최고 가중치 60% (상승장 최적)
-- **Volatile**: 중간 가중치 40% (변동성 높아도 추세 추종)
-- **Ranging**: 낮은 가중치 30% (횡보 시 수익성 낮음)
-- **Trending Down**: 최소 가중치 10% (Long-only는 약세장 회피)
-
-**주의**: DCA는 현재 모든 레짐에서 0.0 (비활성)
+- Supertrend에 보유 자본의 100%를 배분
+- 전략 내부에서 배분 자본의 95% × 3배 레버리지로 포지션 구성 (5% 유보)
+- 시장 레짐에 관계없이 고정 배분 (2026-05-25 제거)
 
 ---
 

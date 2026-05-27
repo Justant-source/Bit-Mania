@@ -11,7 +11,7 @@ related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/services/market-data/
   - cryptoengine/services/execution/
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - When new data stores are introduced (e.g., TimescaleDB, DuckDB)
   - When scaling triggers require architecture re-evaluation
@@ -124,8 +124,6 @@ Adopt **polyglot persistence** with **intentional workload separation**:
 
 **Retention**: `DELETE FROM ohlcv_history WHERE timestamp < now() - interval '7 days'` (daily cron)
 
-**Known issue**: `regime_detector.py` queries `FROM ohlcv` (empty table) — pre-existing bug, separate ticket
-
 ### PostgreSQL 5433 (Backtest, jesse_db)
 
 **Tables** (from `backtest/scripts/db/schema.sql`):
@@ -145,7 +143,6 @@ Adopt **polyglot persistence** with **intentional workload separation**:
 **Key patterns**:
 - `ce:kill_switch:*` — Kill Switch state flags
 - `strategy:status:*` — Per-strategy runtime state
-- `ce:market:signal` — Market regime (trending/ranging/volatile)
 - Pub/Sub channels: `ce:*` namespace
 
 **Retention**: In-memory + AOF (no persistence beyond restart)
@@ -195,25 +192,6 @@ Adopt **polyglot persistence** with **intentional workload separation**:
 
 ## Known Issues & Deferred
 
-### Pre-Existing Bug (Separate Ticket)
-
-**File**: `cryptoengine/services/market-data/regime_detector.py`
-
-**Issue**: Queries `FROM ohlcv` table which is empty in live PostgreSQL (5432).  
-Regime detection currently disabled or fallback hardcoded.
-
-**Fix scope**: Out of scope for this ADR. Requires analysis of whether regime table should be:
-- Populated by market-data service itself
-- Cached in Redis
-- Computed from `ohlcv_history` rolling window
-
-### Migration Cleanup (Task #3)
-
-`cryptoengine/shared/db/migrations/017_drop_ohlcv_1m_longterm.sql` (deferred from 2026-05-01):
-- Removes `ohlcv_1m_longterm` table from live PostgreSQL (5432)
-- Blocked until live queries audited (regime_detector dependency)
-- Will be created as separate migration when regime_detector fix is deployed
-
 ---
 
 ## Review Criteria (Decision Confidence)
@@ -247,12 +225,7 @@ This decision is **Accepted** because:
    rm -rf data/ohlcv/BTCUSDT/1m/*.parquet
    ```
 
-2. **Fix regime_detector bug** (separate PR):
-   - Audit live `ohlcv` table usage
-   - Populate from market-data service or Redis
-   - Deploy 017_drop_ohlcv_1m_longterm.sql
-
-3. **Backtest perf monitoring** (ongoing):
+2. **Backtest perf monitoring** (ongoing):
    - Measure sweep p95 query time (target: < 1 sec/combo)
    - If > 2 hours for full sweep: evaluate TimescaleDB
    - If data > 5GB: re-evaluate compression strategy

@@ -78,7 +78,7 @@ graph TB
 | **pg-backup** | `postgres:16-alpine` | 매일 02:00 KST pg_dump | 없음 | 0.5 / 128M |
 | **log-retention** | `postgres:16-alpine` | 매일 03:00 KST service_logs 보존 정책 | 없음 | 0.2 / 64M |
 | **redis** | `redis:7-alpine` | Pub/Sub 브로커 + AOF 캐시 | `redis-cli ping` | 0.5 / 320M |
-| **market-data** | 커스텀 빌드 | WebSocket 데이터 수집, 레짐 감지 | `/tmp/heartbeat_ok` | 0.5 / 256M |
+| **market-data** | 커스텀 빌드 | WebSocket 데이터 수집 | `/tmp/heartbeat_ok` | 0.5 / 256M |
 | **strategy-orchestrator** | 커스텀 빌드 | 전략 조율, 자본 배분 | 없음 | 0.5 / 256M |
 | **execution-engine** | 커스텀 빌드 | 주문 실행, 포지션 추적, 안전 검증 | `/tmp/heartbeat_ok` | 0.5 / 256M |
 | **supertrend** | 커스텀 빌드 | 메인 전략: Supertrend 4h 3x long-only | `/tmp/heartbeat_ok` | 0.5 / 256M |
@@ -259,7 +259,7 @@ x-common-env: &common-env
 |------|------|
 | `config/strategies/funding-arb.yaml` | 펀딩비 전략 파라미터 (임계값, 헤지 비율 등) |
 | `config/strategies/adaptive-dca.yaml` | DCA 전략 파라미터 (투자 주기, 비율 등) |
-| `config/orchestrator.yaml` | 레짐별 가중치, Kill Switch 임계값 |
+| `config/orchestrator.yaml` | Kill Switch 임계값 |
 
 설정 로딩 시 환경 변수 치환을 지원한다:
 - `${VAR}` -- 환경 변수 값으로 치환

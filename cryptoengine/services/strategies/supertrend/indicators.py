@@ -1,4 +1,8 @@
-"""Self-contained Supertrend and EMA indicators using TA-Lib and pandas."""
+"""Supertrend and EMA indicators.
+
+compute_supertrend is a direct port of Jesse framework's ta.supertrend
+(atr_loop + supertrend_fast) so that live signals match the backtest exactly.
+"""
 
 from __future__ import annotations
 
@@ -8,15 +12,7 @@ import talib
 
 
 def compute_atr(df: pd.DataFrame, period: int = 14) -> float:
-    """Compute ATR (Average True Range) and return the latest value.
-
-    Args:
-        df: DataFrame with 'high', 'low', 'close' columns.
-        period: ATR period (default 14).
-
-    Returns:
-        Latest ATR value as float.
-    """
+    """Compute ATR (Average True Range) and return the latest value."""
     if len(df) < period:
         return 0.0
 
@@ -31,99 +27,98 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> float:
 
 
 def compute_ema(df: pd.DataFrame, period: int) -> pd.Series:
-    """Compute EMA (Exponential Moving Average) of close prices.
-
-    Args:
-        df: DataFrame with 'close' column.
-        period: EMA period.
-
-    Returns:
-        Series of EMA values (same length as df).
-    """
+    """Compute EMA (Exponential Moving Average) of close prices."""
     close = df["close"].values
     ema = talib.EMA(close, timeperiod=period)
     return pd.Series(ema, index=df.index)
 
 
-def compute_supertrend(df: pd.DataFrame, period: int, factor: float) -> int:
-    """Compute Supertrend and return the current trend direction.
+def _atr_jesse(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+    """Wilder ATR matching Jesse's atr_loop exactly.
 
-    Algorithm:
-    1. atr = ATR(high, low, close, period)
-    2. hl2 = (high + low) / 2
-    3. basic_ub = hl2 + factor * atr
-    4. basic_lb = hl2 - factor * atr
-    5. final_ub: stacked upper band (moves toward close when trend intact)
-    6. final_lb: stacked lower band (moves toward close when trend intact)
-    7. trend: +1 if close > final_ub, -1 if close < final_lb, else sticky
+    Differences from talib.ATR: seeds at index period-1 (not period),
+    TR[0] = high[0]-low[0], SMA seed then Wilder recursion.
+    """
+    n = len(close)
+    tr = np.empty(n, dtype=np.float64)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        d1 = high[i] - low[i]
+        d2 = abs(float(high[i]) - float(close[i - 1]))
+        d3 = abs(float(low[i]) - float(close[i - 1]))
+        tr[i] = d1 if d1 >= d2 and d1 >= d3 else (d2 if d2 >= d3 else d3)
+
+    atr = np.full(n, np.nan, dtype=np.float64)
+    atr[period - 1] = tr[:period].mean()
+    for i in range(period, n):
+        atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
+    return atr
+
+
+def compute_supertrend(df: pd.DataFrame, period: int, factor: float) -> tuple[int, float]:
+    """Compute Supertrend direction and line value (port of Jesse ta.supertrend).
+
+    Algorithm matches Jesse's supertrend_fast exactly:
+    - Wilder ATR via _atr_jesse (seeds at period-1, not period)
+    - Upper band resets when prevClose > upper_band (Pine Script rule)
+    - Lower band resets when prevClose < lower_band
+    - Trend is gated on the active band of the previous bar
+    - Direction = +1 if close > st_line else -1
 
     Args:
-        df: DataFrame with 'high', 'low', 'close' columns (must have period + 1 rows).
-        period: Supertrend period (typical 10).
-        factor: ATR multiplier (typical 3.0).
+        df: DataFrame with 'high', 'low', 'close' columns.
+        period: ATR period (combo #7908: 9).
+        factor: ATR multiplier (combo #7908: 2.6).
 
     Returns:
-        Latest trend direction: +1 (uptrend) or -1 (downtrend).
+        (trend_dir, st_line): trend_dir is +1 (uptrend) or -1 (downtrend);
+        st_line is the supertrend band price (lower band when up, upper when down).
     """
-    if len(df) < period + 1:
-        return 0
+    n = len(df)
+    if n < period:
+        return 0, 0.0
 
-    high = df["high"].values
-    low = df["low"].values
-    close = df["close"].values
+    high = df["high"].values.astype(np.float64)
+    low = df["low"].values.astype(np.float64)
+    close = df["close"].values.astype(np.float64)
 
-    # Compute ATR
-    atr = talib.ATR(high, low, close, timeperiod=period)
+    atr = _atr_jesse(high, low, close, period)
 
-    # Compute hl2
-    hl2 = (high + low) / 2.0
+    # Pre-compute basic bands (NaN where ATR is NaN)
+    mid = (high + low) / 2.0
+    upper_band = mid + factor * atr
+    lower_band = mid - factor * atr
 
-    # Basic bands
-    basic_ub = hl2 + factor * atr
-    basic_lb = hl2 - factor * atr
+    st_line = np.zeros(n, dtype=np.float64)
 
-    # Stacked (final) bands with sticky logic
-    final_ub = np.full_like(close, np.nan)
-    final_lb = np.full_like(close, np.nan)
-    trend = np.ones_like(close, dtype=int)  # default uptrend
+    # Seed at period-1 (first valid ATR)
+    seed = period - 1
+    st_line[seed] = upper_band[seed] if close[seed] <= upper_band[seed] else lower_band[seed]
 
-    # Seed bands at first non-NaN ATR position (index = period, TA-Lib convention)
-    first_valid = np.where(~np.isnan(atr))[0]
-    if len(first_valid) == 0:
-        return 0
-    seed = int(first_valid[0])
-    final_ub[seed] = basic_ub[seed]
-    final_lb[seed] = basic_lb[seed]
+    # Bar-by-bar sticky band + trend computation (exact Jesse supertrend_fast logic)
+    for i in range(period, n):
+        p = i - 1
+        prev_close = close[p]
 
-    # Compute bands and trends bar-by-bar starting after seed
-    for i in range(seed + 1, len(close)):
-        # Upper band: tighten (lower) only if new band is smaller; carry forward on NaN
-        prev_ub = final_ub[i - 1]
-        if np.isnan(prev_ub):
-            final_ub[i] = basic_ub[i] if not np.isnan(basic_ub[i]) else np.nan
-        elif np.isnan(basic_ub[i]) or basic_ub[i] >= prev_ub:
-            final_ub[i] = prev_ub
+        # Upper band: ratchet down unless previous close broke above it (reset)
+        if prev_close <= upper_band[p]:
+            upper_band[i] = min(upper_band[i], upper_band[p])
+        # else: upper_band[i] stays at basic (reset by prior close piercing)
+
+        # Lower band: ratchet up unless previous close broke below it (reset)
+        if prev_close >= lower_band[p]:
+            lower_band[i] = max(lower_band[i], lower_band[p])
+        # else: lower_band[i] stays at basic (reset)
+
+        # Trend: gated on which band was the active supertrend line last bar
+        if st_line[p] == upper_band[p]:
+            # Previous bar was downtrend (line = upper band)
+            st_line[i] = lower_band[i] if close[i] > upper_band[i] else upper_band[i]
         else:
-            final_ub[i] = basic_ub[i]
+            # Previous bar was uptrend (line = lower band)
+            st_line[i] = upper_band[i] if close[i] < lower_band[i] else lower_band[i]
 
-        # Lower band: tighten (raise) only if new band is larger; carry forward on NaN
-        prev_lb = final_lb[i - 1]
-        if np.isnan(prev_lb):
-            final_lb[i] = basic_lb[i] if not np.isnan(basic_lb[i]) else np.nan
-        elif np.isnan(basic_lb[i]) or basic_lb[i] <= prev_lb:
-            final_lb[i] = prev_lb
-        else:
-            final_lb[i] = basic_lb[i]
+    last_line = float(st_line[-1])
+    trend_dir = 1 if float(close[-1]) > last_line else -1
 
-        # Determine trend; if bands are NaN, carry forward previous trend
-        if np.isnan(final_lb[i]) or np.isnan(final_ub[i]):
-            trend[i] = trend[i - 1]
-        elif close[i] <= final_lb[i]:
-            trend[i] = -1
-        elif close[i] >= final_ub[i]:
-            trend[i] = 1
-        else:
-            trend[i] = trend[i - 1]
-
-    # Return the latest trend
-    return int(trend[-1])
+    return trend_dir, last_line

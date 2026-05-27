@@ -6,7 +6,7 @@ related_code:
   - cryptoengine/scripts/switch_to_testnet.py (롤백 스크립트)
   - cryptoengine/scripts/phase5_preflight.py (8개 항목 점검)
   - cryptoengine/.env
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - Phase 5 진입 기준 변경 시
   - 초기 자본 설정 변경 시
@@ -241,7 +241,7 @@ sleep 180
 docker compose ps | grep -E "Running"
 
 # 5. 마켓데이터 수집 확인
-docker compose logs --tail=20 market-data | grep -E "funding|regime|OHLCV"
+docker compose logs --tail=20 market-data | grep -E "funding|OHLCV"
 
 # 6. 포지션 복구 확인 (없어야 함, Phase 5 신규 시작)
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -257,7 +257,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 sleep 120
 
 # 최종 점검
-docker compose logs --tail=50 strategy-orchestrator | grep -E "ready|regime|ERROR"
+docker compose logs --tail=50 strategy-orchestrator | grep -E "ready|ERROR"
 docker compose logs --tail=50 funding-arb | grep -E "initialized|ready|ERROR"
 
 # 모든 OK면 거래 자동 시작됨 (오케스트레이터 판단)

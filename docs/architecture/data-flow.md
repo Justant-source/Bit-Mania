@@ -7,7 +7,7 @@ related_code:
   - cryptoengine/services/orchestrator/
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/shared/redis_client.py
-last_updated: 2026-05-18
+last_updated: 2026-05-25
 when_to_update: |
   - Redis Pub/Sub 채널 추가/변경 시
   - 데이터베이스 스키마 변경 시
@@ -115,68 +115,6 @@ CREATE TABLE funding_rates (
 - 페이로드: `{ type: "snapshot"|"delta", bids: [[price, qty]], asks: [[price, qty]], ts }`
 - DB 저장 없음 -- 실시간 전파 전용
 
-### 1.7 레짐 감지 (Regime Detection) — 2단계 확정 알고리즘
-
-`RegimeDetector`가 확정된 5분봉 캔들을 구독하여 시장 레짐을 분류한다.
-**최소 50개 캔들** 누적 후 감지 시작. 동일 신호 **3회 연속 확정**.
-
-**사용 기술 지표:**
-
-| 지표 | 설정 | 산출식 | 용도 |
-|------|------|--------|------|
-| ADX | 14기간 | TA-Lib compute_adx | 추세 강도 측정 (0~100) |
-| ATR | 14기간 | TA-Lib compute_atr | 변동성 측정 |
-| BB | 20기간, 2.0σ | TA-Lib compute_bb | 밴드 폭 = (Upper - Lower) / Middle |
-| EMA | 20기간 | TA-Lib compute_ema | 가격 방향성 판단 |
-
-**단계 1: 원시 신호 생성 (매 5분 캔들)**
-
-우선순위 분류:
-1. **Volatile (우선순위 1)**: ATR > 평균ATR × **2.0**
-   - 조건: 현재 ATR이 평균의 2배 이상
-   - 신뢰도: min(1.0, current_atr / (avg_atr × 2.0 × 1.5))
-   - 용도: 극단적 변동성 → 방어 모드
-
-2. **Ranging (우선순위 2)**: ADX < **20** AND BB_width < 중앙값
-   - 조건: 추세 약함 AND 밴드 폭 좁음
-   - 신뢰도: (1 - ADX/20 + 1 - BB_width/median) / 2
-   - 용도: 횡보 구간 → 펀딩비 수취 집중
-
-3. **Trending_Up**: ADX > **25** AND 종가 > EMA20
-   - 신뢰도: min(1.0, (ADX - 25) / 50 + 0.5)
-   - 용도: 상승 추세 → 현금 80% 방어
-
-4. **Trending_Down**: ADX > **25** AND 종가 < EMA20
-   - 신뢰도: min(1.0, (ADX - 25) / 50 + 0.5)
-   - 용도: 하락 추세 → 현금 90% 방어
-
-5. **Ranging (Fallback)**: 위 조건 불만족
-   - 신뢰도: 0.3 (불명확)
-   - 용도: 기본값
-
-**저장 위치** (매 5분 캔들):
-- Redis 발행: `market:regime` 채널 (신뢰도 포함)
-- Redis 캐시: `cache:regime` Hash (최신 값)
-- PostgreSQL: `regime_raw_log` 테이블
-
-**단계 2: 확정 신호 (3회 연속)**
-
-```
-연속 카운트 = 1   →  _pending_regime = "ranging"
-연속 카운트 = 2   →  동일 신호 유지
-연속 카운트 = 3   →  ✓ CONFIRMED: regime_transitions에 기록
-                    orchestrator가 구독하여 가중치 조정
-```
-
-- 신호 변경 시 카운트 리셋
-- 확정 후 다시 3회 필요 (중복 이벤트 방지)
-
-**저장 위치** (레짐 변경 확정 시):
-- Redis 발행: `market:regime:confirmed` 채널 (이유 포함)
-- Redis 키: `market:regime:confirmed` (TTL 1시간)
-- PostgreSQL: `regime_transitions` 테이블 (from_regime, to_regime, reason)
-
----
 
 ## 1.8 Supertrend 신호 생성 (Signal Generation Cycle)
 
@@ -278,21 +216,20 @@ graph TD
 
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
-| `market:ohlcv:{exchange}:{symbol}:{tf}` | market-data | regime-detector | `{ exchange, symbol, timeframe, open, high, low, close, volume, ts, confirmed }` |
+| `market:ohlcv:{exchange}:{symbol}:{tf}` | market-data | supertrend | `{ exchange, symbol, timeframe, open, high, low, close, volume, ts, confirmed }` |
 | `market:orderbook:{exchange}:{symbol}` | market-data | (실시간 소비자) | `{ exchange, symbol, type, bids, asks, ts }` |
 | `market:trades:{exchange}:{symbol}` | market-data | (실시간 소비자) | `{ exchange, symbol, price, quantity, side, ts }` |
 | `market:ticker:{exchange}:{symbol}` | market-data | (실시간 소비자) | `{ exchange, symbol, last_price, mark_price, index_price, funding_rate, next_funding_time, open_interest, volume_24h }` |
-| `market:funding:{exchange}:{symbol}` | market-data | funding-arb, orchestrator | `{ exchange, symbol, rate, predicted_rate, next_funding_time }` |
+| `market:funding:{exchange}:{symbol}` | market-data | orchestrator | `{ exchange, symbol, rate, predicted_rate, next_funding_time }` |
 | `market:open_interest:{exchange}:{symbol}` | market-data | (분석용) | `{ exchange, symbol, open_interest, ts }` |
 | `market:long_short_ratio:{exchange}:{symbol}` | market-data | (분석용) | `{ exchange, symbol, buy_ratio, sell_ratio, ts }` |
 | `market:liquidations:{exchange}:{symbol}` | market-data | (분석용) | `{ exchange, symbol, price, qty, side, ts }` |
-| `market:regime` | market-data (RegimeDetector) | orchestrator | `{ regime, confidence, adx, volatility, bb_width, detected_at }` |
 
 ### 2.2 전략 조율 채널
 
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
-| `strategy:funding_arb:command` | orchestrator | funding-arb | `AllocationCommand { strategy_id, allocated_capital, weight, regime, max_drawdown, timestamp }` |
+| `strategy:funding_arb:command` | orchestrator | funding-arb | `AllocationCommand { strategy_id, allocated_capital, weight, max_drawdown, timestamp }` |
 | `strategy:dca:command` | orchestrator | adaptive-dca | `AllocationCommand` (동일 구조) |
 
 ### 2.3 주문 실행 채널
@@ -320,9 +257,8 @@ graph TD
 | `cache:ohlcv:{exchange}:{symbol}:{tf}` | 캔들마다 | 없음 (Hash) | 최신 OHLCV 값 |
 | `cache:funding:{exchange}:{symbol}` | 티커마다 | 없음 (Hash) | 현재 펀딩비 |
 | `cache:oi:{exchange}:{symbol}` | 60초 | 없음 (Hash) | 미결제약정 |
-| `cache:regime` | 5분봉마다 | 없음 (Hash) | 현재 레짐 |
 | `cache:wallet_balance` | 60초 | 300초 | 지갑 잔고 (JSON) |
-| `orchestrator:state` | 5분 | 600초 | 오케스트레이터 상태 |
+| `orchestrator:state` | 5분 | 600초 | 오케스트레이터 상태 (고정 할당: supertrend 100%) |
 | `orchestrator:kill_switch` | 이벤트 시 | 7200초 | Kill Switch 상태 |
 | `heartbeat:execution-engine` | 30초 | 300초 | 실행 엔진 하트비트 (JSON) |
 | `heartbeat:market-data` | 30초 | 300초 | 시장 데이터 서비스 하트비트 (JSON) |
@@ -414,18 +350,17 @@ graph TD
     B --> C["Redis:<br>cache:wallet_balance<br>TTL 300s"]
     C --> D["orchestrator<br>PortfolioMonitor"]
     D --> E["5분마다<br>오케스트레이션 사이클"]
-    E --> F["1. 레짐 조회<br>cache:regime"]
-    F --> G["2. 가중치 산출<br>WeightManager"]
-    G --> H["3. LLM Advisory<br>최대 15% 조정"]
-    H --> I["4. 포트폴리오 평가<br>PortfolioMonitor.evaluate"]
-    I --> J["5. Kill Switch<br>조건 검사"]
-    J --> K["6. 자본 배분<br>명령 발행"]
-    K --> L["strategy:*:command<br>각 전략으로 배분"]
-    L --> M["전략들:<br>포지션 조정"]
+    E --> F["1. 가중치 산출<br>WeightManager"]
+    F --> G["2. LLM Advisory<br>최대 15% 조정"]
+    G --> H["3. 포트폴리오 평가<br>PortfolioMonitor.evaluate"]
+    H --> I["4. Kill Switch<br>조건 검사"]
+    I --> J["5. 자본 배분<br>명령 발행"]
+    J --> K["strategy:*:command<br>각 전략으로 배분"]
+    K --> L["전략들:<br>포지션 조정"]
 
     style A fill:#E3F2FD
     style E fill:#E3F2FD
-    style J fill:#FFEBEE
+    style I fill:#FFEBEE
 ```
 
 ### 4.1 Kill Switch 4단계
@@ -500,7 +435,6 @@ Grafana가 PostgreSQL에 직접 쿼리하여 다음 데이터를 시각화:
 |--------|-------------|
 | `ohlcv` | 가격 차트, 캔들스틱 |
 | `funding_rates` | 펀딩비 히스토리 차트 |
-| `market_regimes` | 레짐 변화 타임라인 |
 | `orders` | 주문 실행 기록 |
 | `positions` | 포지션 현황 |
 | `portfolio_snapshots` | 자산 추이, 수익률 곡선 |
@@ -528,7 +462,6 @@ graph LR
 - `ohlcv` -- OHLCV 캔들 (exchange, symbol, timeframe, ts 복합 유니크)
 - `trades` -- 공개 체결 기록
 - `funding_rates` -- 펀딩비 (exchange, symbol, next_funding_time 복합 유니크)
-- `market_regimes` -- 레짐 감지 결과
 
 ### execution-engine 서비스 생성 테이블
 - `orders` -- 주문 기록 (request_id 유니크, 인덱스: request_id, status, strategy_id)

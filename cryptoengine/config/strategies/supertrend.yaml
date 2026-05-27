@@ -9,7 +9,7 @@ strategy:
   description: >
     Trend-following strategy using Supertrend indicator with ADX
     and multiple EMA filters. Suitable for 4h timeframe during
-    trending market regimes.
+    trending market conditions.
 
 # ── Model Parameters ──────────────────────────────────────────
 model:

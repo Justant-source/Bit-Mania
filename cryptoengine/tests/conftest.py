@@ -27,7 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shared.models.market import FundingRate, MarketRegime, OHLCV, OrderBook
+from shared.models.market import FundingRate, OHLCV, OrderBook
 from shared.models.order import OrderRequest, OrderResult
 from shared.models.position import PortfolioState, Position, StrategySnapshot
 from shared.models.strategy import StrategyCommand, StrategyStatus

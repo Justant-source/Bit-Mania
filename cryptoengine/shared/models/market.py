@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -84,16 +83,3 @@ class OrderBook(BaseModel):
         if self.best_bid is not None and self.best_ask is not None:
             return (self.best_ask + self.best_bid) / 2.0
         return None
-
-
-class MarketRegime(BaseModel):
-    """Detected market regime classification."""
-
-    regime: Literal["trending_up", "trending_down", "ranging", "volatile"]
-    confidence: float = Field(ge=0.0, le=1.0)
-    adx: float | None = None
-    volatility: float | None = None
-    bb_width: float | None = None
-    detected_at: datetime = Field(default_factory=datetime.utcnow)
-
-    model_config = {"frozen": True}

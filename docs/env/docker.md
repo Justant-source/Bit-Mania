@@ -141,7 +141,7 @@ graph TD
     end
 
     subgraph core["2단계: 핵심 서비스 (postgres/redis 이후)"]
-        MD["market-data<br>시세 + 레짐"]
+        MD["market-data<br>시세 수집"]
         ENG["execution-engine<br>주문 실행"]
         ORC["strategy-orchestrator<br>조율 + Kill Switch"]
         TG["telegram-bot<br>알림"]
@@ -177,7 +177,7 @@ graph TD
     RD -->|"healthcheck"| ORC
     RD -->|"healthcheck"| TG
 
-    MD -->|"펀딩비 + 레짐"| ORC
+    MD -->|"펀딩비"| ORC
     ORC -->|"자본 배분"| FA
     ORC -->|"자본 배분"| DCA
     ORC -->|"Kill Switch"| ENG
