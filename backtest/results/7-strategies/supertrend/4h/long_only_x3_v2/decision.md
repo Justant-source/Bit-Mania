@@ -1,7 +1,7 @@
 ---
 strategy: SupertrendStrategy
 verdict: FAIL
-created: 2026-05-18
+created: 2026-05-27
 ---
 
 # SupertrendStrategy 백테스트 결과
@@ -10,20 +10,19 @@ created: 2026-05-18
 
 | 항목 | 결과 | 기준 | 통과 |
 |------|------|------|------|
-| CAGR | 94.51% | ≥ +5% | ✓ |
-| Sharpe | 1.158 | ≥ 0.5 | ✓ |
-| MDD | -88.70% | ≥ -80% | ✗ |
-| Trades | 382 | ≥ 30 | ✓ |
-| Win Rate | 46.9% | ≥ 35% | ✓ |
-| Profit Factor | 1.175 | ≥ 1.2 | ✗ |
+| CAGR | 127.98% | ≥ +5% | ✓ |
+| Sharpe | 1.302 | ≥ 0.5 | ✓ |
+| MDD | -86.05% | ≥ -30% | ✗ |
+| Trades | 369 | ≥ 30 | ✓ |
+| Win Rate | 46.1% | ≥ 35% | ✓ |
+| Profit Factor | 1.159 | ≥ 1.2 | ✗ |
 
 ## 종합 판정: **FAIL**
 
 ## 관찰 사항
-- 백테스트 기간: 2017-08-18 ~ 2026-04-30 (6년)
+- 백테스트 기간: 2017-08-18 ~ 2026-05-28 (6년)
 - 기준: post-ETF 압축장 표준 (backtest-skillset.md)
-- 데이터: 실제 Binance 1m OHLC (intrabar wick 손절 포함)
 
 ## CryptoEngine 적용 권고
 - [ ] archived 처리 (폐기 round 1)
-- [ ] 실패 항목: MDD ≥ -80%, ProfitFactor ≥ 1.2
+- [ ] 실패 항목: MDD ≥ -30%, ProfitFactor ≥ 1.2

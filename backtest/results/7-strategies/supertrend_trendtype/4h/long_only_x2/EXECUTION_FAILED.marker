@@ -1,20 +1,35 @@
 status: FAILED
-reason: invalid literal for int() with base 10: '2.0'
-executed_at: 2026-05-17T11:32:31.192789+00:00
+reason: 'atr_len'
+executed_at: 2026-05-27T22:40:16.648327+00:00
 traceback:
 Traceback (most recent call last):
-  File "/app/scripts/runners/run_intrabar_backtest.py", line 799, in <module>
+  File "/app/scripts/runners/run_external_backtest.py", line 637, in <module>
     verdict, metrics = run(args)
                        ^^^^^^^^^
-  File "/app/scripts/runners/run_intrabar_backtest.py", line 695, in run
-    strategy_cls = _load_strategy(strategy_name)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scripts/runners/run_intrabar_backtest.py", line 285, in _load_strategy
-    spec.loader.exec_module(mod)
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/strategies/external/SupertrendTrendTypeStrategy.py", line 17, in <module>
-    LEVERAGE = int(os.environ.get('STRATEGY_LEVERAGE', '1'))
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: invalid literal for int() with base 10: '2.0'
+  File "/app/scripts/runners/run_external_backtest.py", line 573, in run
+    raw = research.backtest(
+          ^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 65, in backtest
+    return _isolated_backtest(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 158, in _isolated_backtest
+    backtest_result = simulator(
+                      ^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 503, in simulator
+    return _step_simulator(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 605, in _step_simulator
+    r.strategy._execute()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1251, in _execute
+    self._check()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1056, in _check
+    should_long = self.should_long()
+                  ^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/SupertrendTrendTypeStrategy.py", line 84, in should_long
+    tt = self._trend_type()
+         ^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/SupertrendTrendTypeStrategy.py", line 50, in _trend_type
+    atr_len=self.hp['atr_len'],
+            ~~~~~~~^^^^^^^^^^^
+KeyError: 'atr_len'
 

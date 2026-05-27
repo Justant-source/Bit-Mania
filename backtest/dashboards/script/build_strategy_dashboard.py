@@ -59,8 +59,14 @@ def _discover_combo_variants() -> list[str]:
 
 VARIANTS = _VARIANTS_BASE + _discover_combo_variants()
 START_MS    = int(datetime(2017, 8, 18, tzinfo=timezone.utc).timestamp() * 1000)
-END_MS      = int(datetime(2026, 4, 30, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+END_MS      = int(datetime(2026, 5, 28, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
 _N_DAYS     = int((END_MS - START_MS) / 86_400_000) + 1  # days inclusive
+
+# Variant alias map: remap v2 variants into base long_only for unified filtering
+_VARIANT_ALIAS: dict[str, str] = {
+    'long_only_v2':    'long_only',
+    'long_only_x3_v2': 'long_only_x3',
+}
 
 
 def _load_bnh_sharpe() -> dict:
@@ -597,10 +603,11 @@ def collect_all_results(btc_daily: list[dict] | None = None,
                 'events':  cr.get('total_liq_risk_events', 0),
                 'period':  _lrd.get('analysis_period', '2018-2026'),
             }
+        display_variant = _VARIANT_ALIAS.get(variant, variant)
         result = {
             'id':       f'{strat_dir}__{variant}__{tf}',
             'strat':    strat_dir,
-            'variant':  variant,
+            'variant':  display_variant,
             'tf':       tf,
             'tier':     tier,
             'leverage':    leverage,
@@ -667,7 +674,7 @@ def load_btc_1d() -> list[dict]:
     if df['open_time'].dt.tz is None:
         df['open_time'] = df['open_time'].dt.tz_localize('UTC')
     df = df[(df['open_time'] >= pd.Timestamp('2017-08-18', tz='UTC')) &
-            (df['open_time'] <= pd.Timestamp('2026-04-30', tz='UTC'))]
+            (df['open_time'] <= pd.Timestamp('2026-05-28', tz='UTC'))]
     return [
         {
             't': int(row.open_time.timestamp() * 1000),
@@ -951,10 +958,10 @@ const TEXT_CLR  = '#c9d1d9';
 const state = {
   selected: [],                          // ordered array of IDs (max 6)
   tfFilter:      new Set(['1h','4h','1D']),
-  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3','long_only_v2']),
+  variantFilter: new Set(['bidirectional','long_only','buy_and_hold','bidirectional_x2','long_only_x2','bidirectional_x3','long_only_x3']),
   sortMode: 'return',                    // 'alpha' | 'return' | 'top10'
   startMs: Date.UTC(2017, 7, 18),         // 2017-08-18
-  endMs:   Date.UTC(2026, 3, 30),        // 2026-04-30
+  endMs:   Date.UTC(2026, 4, 28),        // 2026-05-28
 };
 
 // ── Cost period mapping (date range → period key in r.costs) ──────────────
@@ -970,9 +977,9 @@ const COST_PERIOD_MAP = {
   '2022-01-01|2022-12-31': '2022',
   '2023-01-01|2023-12-31': '2023',
   '2024-01-01|2024-12-31': '2024',
-  '2025-01-01|2026-04-30': '2025',
+  '2025-01-01|2026-05-28': '2025',
   '2025-01-01|2025-12-31': '2025',   // year-preset ends Dec 31
-  '2021-01-01|2026-04-30': 'post21_full',
+  '2021-01-01|2026-05-28': 'post21_full',
 };
 
 function msToDateStr(ms) {
@@ -1031,7 +1038,7 @@ function filteredResults() {
     if (state.variantFilter.has(r.variant)) return true;
     // Combo x3 variants (long_only_x3_257 etc.) and v2 signal variant are controlled by 'long_only_x3'.
     // 1x combo variants stay hidden — they exist only as balanceSim base data.
-    if (/^long_only_x3_[0-9]+$/.test(r.variant) || r.variant === 'long_only_x3_v2') return state.variantFilter.has('long_only_x3');
+    if (/^long_only_x3_[0-9]+$/.test(r.variant)) return state.variantFilter.has('long_only_x3');
     return false;
   });
 }
@@ -2330,7 +2337,7 @@ function renderDescription() {
 
 // ── JS math helpers ──────────────────────────────────────
 const BTC_DATES = DATA.btc_1d.map(p => new Date(p.t));  // parallel to btc_1d
-const N_DAYS = __N_DAYS__;  // returns_daily length (2017-08-19..2026-04-30)
+const N_DAYS = __N_DAYS__;  // returns_daily length (2017-08-19..2026-05-28)
 // Day-index corresponding to a returns_daily index: i → 2017-08-19 + i days
 function dayLabel(i) {
   const d = new Date(Date.UTC(2017, 7, 19) + i * 86400000);
@@ -3156,11 +3163,11 @@ document.addEventListener('DOMContentLoaded', () => {
       el.classList.add('active');
       const p = el.dataset.preset;
       if (p === 'all') {
-        dateStartEl.value = '2017-08-18'; dateEndEl.value = '2026-04-30';
+        dateStartEl.value = '2017-08-18'; dateEndEl.value = '2026-05-28';
       } else if (/^\d{4}$/.test(p)) {
         const y = p;
         dateStartEl.value = y === '2017' ? '2017-08-18' : `${y}-01-01`;
-        dateEndEl.value   = y === '2026' ? '2026-04-30' : `${y}-12-31`;
+        dateEndEl.value   = y === '2026' ? '2026-05-28' : `${y}-12-31`;
       } else if (PRE21_RANGES[p]) {
         const [s, e] = PRE21_RANGES[p];
         dateStartEl.value = s; dateEndEl.value = e;
@@ -3231,7 +3238,7 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
   <aside class="sidebar">
     <div class="header">
       <div class="h1" style="font-size:14px;font-weight:700;color:#f0f6fc">V4 백테스트 대시보드</div>
-      <div class="subtitle">초기 자본 $10,000 · 2017-08-18 ~ 2026-04-30 · 7가지 전략 · {n_results}개 백테스트</div>
+      <div class="subtitle">초기 자본 $10,000 · 2017-08-18 ~ 2026-05-28 · 7가지 전략 · {n_results}개 백테스트</div>
     </div>
 
     <!-- Filters -->
@@ -3250,7 +3257,6 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
         <span class="tag active" data-filter="variant" data-value="bidirectional_x2">양방x2</span>
         <span class="tag active" data-filter="variant" data-value="long_only_x3">롱x3</span>
         <span class="tag active" data-filter="variant" data-value="bidirectional_x3">양방x3</span>
-        <span class="tag active" data-filter="variant" data-value="long_only_v2">롱v2</span>
         <span class="tag active" data-filter="variant" data-value="buy_and_hold">매수보유</span>
       </div>
       <div class="filter-label" style="margin-top:6px">정렬 / 보기</div>
@@ -3261,9 +3267,9 @@ def generate_html(data_json: str, plotlyjs: str, n_results: int = 57) -> str:
       </div>
       <div class="filter-label" style="margin-top:8px">기간 선택</div>
       <div style="padding:0 2px;display:flex;flex-direction:column;gap:4px">
-        <input type="date" id="dateStart" min="2017-08-18" max="2026-04-30" value="2017-08-18"
+        <input type="date" id="dateStart" min="2017-08-18" max="2026-05-28" value="2017-08-18"
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
-        <input type="date" id="dateEnd" min="2017-08-18" max="2026-04-30" value="2026-04-30"
+        <input type="date" id="dateEnd" min="2017-08-18" max="2026-05-28" value="2026-05-28"
           style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:4px;padding:3px 6px;font-size:12px;width:100%">
         <button id="dateApply" type="button"
           style="background:#1f6feb;color:#fff;border:none;border-radius:4px;padding:5px 8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px">

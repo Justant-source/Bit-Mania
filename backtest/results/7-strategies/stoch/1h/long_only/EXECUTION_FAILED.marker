@@ -1,14 +1,32 @@
 status: FAILED
-reason: [Errno 2] No such file or directory: '/app/scripts/strategies/external/StochStrategy.py'
-tb: Traceback (most recent call last):
-  File "/app/scripts/sweep/param_sweep_v3.py", line 605, in run_champion_backtests
-    strategy_cls = _load_strategy_cls(strat, variant)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scripts/sweep/param_sweep_v3.py", line 287, in _load_strategy_cls
-    spec_mod.loader.exec_module(mod)
-  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
-  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
-  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
-FileNotFoundError: [Errno 2] No such file or directory: '/app/scripts/strategies/external/StochStrategy.py'
+reason: 'slow_n'
+executed_at: 2026-05-27T22:27:47.859812+00:00
+traceback:
+Traceback (most recent call last):
+  File "/app/scripts/runners/run_external_backtest.py", line 637, in <module>
+    verdict, metrics = run(args)
+                       ^^^^^^^^^
+  File "/app/scripts/runners/run_external_backtest.py", line 573, in run
+    raw = research.backtest(
+          ^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 65, in backtest
+    return _isolated_backtest(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 158, in _isolated_backtest
+    backtest_result = simulator(
+                      ^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 503, in simulator
+    return _step_simulator(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 605, in _step_simulator
+    r.strategy._execute()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1251, in _execute
+    self._check()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1056, in _check
+    should_long = self.should_long()
+                  ^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/StochStrategy.py", line 72, in should_long
+    if len(self.candles) < self.hp['slow_n'] + 2:
+                           ~~~~~~~^^^^^^^^^^
+KeyError: 'slow_n'
 
-executed_at: 2026-05-12T09:58:38.225448+00:00

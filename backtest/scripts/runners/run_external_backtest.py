@@ -574,6 +574,7 @@ def run(args):
         config=config, routes=routes, data_routes=[],
         candles=candles_dict, warmup_candles=warmup_dict,
         generate_json=True, generate_csv=True, generate_equity_curve=True,
+        hyperparameters=getattr(args, 'hp_dict', None) or {},
     )
 
     # 5. Extract metrics
@@ -619,7 +620,12 @@ def parse_args():
                    help='V3: use 1h candles directly, skip 60x upsample (faster)')
     p.add_argument('--timeframe', choices=['1h', '4h', '1D'], default='1h',
                    help='V4: target timeframe (non-1h implies --no-upsample)')
-    return p.parse_args()
+    p.add_argument('--hp-json', default='{}',
+                   help='JSON string of hyperparameter overrides, e.g. \'{"st_factor": 2.6}\'')
+    args = p.parse_args()
+    import json as _json
+    args.hp_dict = _json.loads(args.hp_json) if args.hp_json else {}
+    return args
 
 
 if __name__ == '__main__':
