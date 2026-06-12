@@ -7,7 +7,7 @@ related_code:
   - cryptoengine/services/orchestrator/
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/shared/redis_client.py
-last_updated: 2026-05-25
+last_updated: 2026-06-13
 when_to_update: |
   - Redis Pub/Sub 채널 추가/변경 시
   - 데이터베이스 스키마 변경 시
@@ -237,8 +237,8 @@ graph TD
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
 | `order:request` | 각 전략 (BaseStrategy) | execution-engine | `OrderRequest { request_id, symbol, side, order_type, quantity, price, strategy_id, post_only, reduce_only, leverage }` |
-| `order:result` | execution-engine | 모든 전략 | `OrderResult { request_id, order_id, status, filled_qty, filled_price, fee, fee_currency, reason }` |
-| `order:result:{strategy_id}` | execution-engine | 해당 전략 | `OrderResult` (전략별 필터링 채널) |
+| `order:result` | execution-engine | (감사용 — 수동 스크립트) | `OrderResult { request_id, order_id, status, filled_qty, filled_price, fee, fee_currency, reason, strategy_id, symbol, side }` |
+| `order:result:{strategy_id}` | execution-engine | **해당 전략 (supertrend가 구독, 2026-06-13~)** | `OrderResult` — filled면 상태 확정, rejected/partially_filled면 재동기화 + exit 1회 재시도. 거부 결과에도 strategy_id 포함 (이전엔 누락되어 전략별 채널 미발행 → 전략이 거부를 모른 채 발산하던 사고 원인) |
 
 ### 2.4 시스템 채널
 
@@ -337,7 +337,10 @@ sequenceDiagram
 
 - 체결 결과: `order:result` 채널 + `order:result:{strategy_id}` 채널 동시 발행
 - DB 업데이트: `orders` 테이블의 `status`, `filled_qty`, `filled_price`, `fee` 갱신
-- 거부된 주문: `status = 'rejected'`로 기록, 거부 사유 포함
+- 거부된 주문: `status = 'rejected'`로 기록, 거부 사유 포함. **거부 결과도 strategy_id를 포함해 전략별 채널에 발행하고 ERROR 레벨로 기록** (→ `ce:alerts:anomaly` 경유 Telegram 알림, 2026-06-13~)
+- 부분 체결 종결(시장가 폴백 실패): `status = 'partially_filled'`로 보고 + ERROR 알림 — 전략이 재동기화
+- 타임아웃(420초): 엔진이 잔존 주문 취소 후 거부 발행 — 블라인드 재시도 제거 (idempotency에 막혀 무의미했음)
+- 엔진 재시작: in-flight 주문의 거래소 실상태 확인 — 떠 있으면 취소(고아 방지), 체결됐으면 DB 갱신
 - 포지션 갱신: 체결 시 `PositionTracker.on_order_fill()` 호출
 
 ---

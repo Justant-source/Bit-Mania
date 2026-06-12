@@ -5,11 +5,12 @@ related_code:
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/orchestrator.yaml
-last_updated: 2026-05-27
+last_updated: 2026-06-13
 when_to_update: |
   - supertrend.yaml 파라미터 변경 시
   - 백테스트 결과 업데이트 시
   - orchestrator.yaml 자본 배분 변경 시
+  - 주문 확정/재시도/동기화 동작 변경 시 (strategy.py)
 ---
 
 # Supertrend 4h Long-Only 3x (combo #7908)
@@ -216,12 +217,28 @@ phase5:
 | 진입 (entry) | **Post-only 지정가** — bar close 가격으로 initial peg; order_manager가 best-bid로 즉시 re-peg |
 | 청산 (exit) | **Post-only 지정가** — bar close 가격으로 initial peg; best-ask로 re-peg |
 | 긴급 청산 (on_stop) | 시장가 유지 (셧다운 즉각 청산 보장) |
-| Re-peg 정책 | 10초마다 새 best-bid/ask로 재발행, 최대 20회 (200초) |
-| 폴백 | 20회 미체결 시 시장가 fallback (`LIMIT_FALLBACK_TO_MARKET` 로그) |
+| Re-peg 정책 | 10초마다 새 best-bid/ask로 재발행, 최대 20회 (200초). **부분체결 누적 추적 — 잔량만 재발주** (2026-06-13: 전량 재발주로 인한 과체결 위험 수정) |
+| 폴백 | 20회 미체결 시 시장가 fallback (`LIMIT_FALLBACK_TO_MARKET` 로그) — 잔량만 발주, 결과는 누적 합산 보고 |
 | 수수료 기준 | Maker 0.020% (백테스트 combo #7908 가정과 정합) |
 | SafetyGuard leverage_limit | 3.0 (`SAFETY_LEVERAGE_LIMIT=3.0` env) |
 | reduce_only 마진 체크 | SafetyGuard 마진 잔고 검사 면제 — 청산 주문은 마진 부족으로 차단되지 않음 |
 | reduce_only 레버리지 체크 | SafetyGuard 레버리지 검사 면제 — 청산 주문은 implied leverage 계산에서 제외 (2026-05-27 버그픽스: sell exit가 잘못 차단되던 문제) |
+| 진입 사이징 자본 | `min(할당자본, 실시간 equity)` — equity(`cache:balance:bybit`)가 낮으면 축소 진입해 implied leverage 차단(2.85x vs 한도 3.0x, 여유 5%) 예방 (2026-06-13) |
+
+### 주문 확정·상태 동기화 (2026-06-13~, 미체결 사고 재발 방지)
+
+2026-05-27 사고(청산 신호 safety 차단 → 전략이 모른 채 발산 → 수동 개입)의 구조적 재발 방지를 위해 전략의 상태 관리를 "낙관적 갱신"에서 "확정 기반"으로 전환했다.
+
+| 구분 | 동작 |
+|------|------|
+| 진실 동기화 | 매 봉 신호 판단 **전** `get_position`으로 내부 상태(`_has_position` 등)를 거래소 실포지션으로 교정. 발산 감지 시 `position_state_divergence` ERROR (→ Telegram) |
+| 주문 확정 | 제출 시 낙관적 상태 변경 없이 pending으로 추적. `order:result:{strategy_id}` 구독 수신 또는 포지션 폴링(20초 주기 백스톱)으로만 확정 |
+| 확정 시한 | 450초 (engine ORDER_TIMEOUT 420초 + 여유). 초과 시 `pending_order_unresolved` ERROR + 재동기화 |
+| exit 거부 | ERROR 알림 + 재동기화 + **60초 후 1회 자동 재시도** (일시적 차단 자동 회복; 재시도도 거부되면 수동 대응) |
+| entry 거부 | ERROR 알림 + 재동기화만 — **재시도 없음** (진입 스킵이 안전한 방향) |
+| 쿨다운 | `_last_liquidation_ts`/`_atr_cooldown_until`은 청산 **확정** 시에만 설정 (거부된 청산이 쿨다운을 남기지 않음) |
+| 봉 누락 복구 | 확정 봉 메시지 미수신 시 워치독이 마감+10분 후 REST 백필(`bar_feed_stall` ERROR). 갭/중복 봉은 수신 시점에 백필/교체. 재시작 중 놓친 봉은 `supertrend_signals MAX(bar_ts)` 대비로 감지해 즉시 처리 |
+| 실체결가 채택 | 진입 확정 시 entry_price를 주문가가 아닌 실체결가로 기록 (ATR exit 정확도 개선) |
 
 ### Equity Stop (청산위험 분석)
 

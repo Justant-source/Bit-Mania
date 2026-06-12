@@ -19,6 +19,7 @@ from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 import pandas as pd
 import numpy as np
 
@@ -49,7 +50,7 @@ def event_loop():
 # Redis mock (fakeredis)
 # ===================================================================
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def mock_redis():
     """Provide a fakeredis async client.
 
@@ -157,15 +158,19 @@ def mock_exchange():
 
     exchange.get_ohlcv = AsyncMock(return_value=[])
 
-    exchange.place_order = AsyncMock(return_value=OrderResult(
-        request_id="test-req-001",
-        order_id="ord-001",
-        status="filled",
-        filled_qty=0.1,
-        filled_price=65000.0,
-        fee=0.039,
-        fee_currency="USDT",
-    ))
+    async def _echo_place_order(order):
+        """요청의 request_id를 그대로 반환 — 실제 거래소 응답과 동일한 계약."""
+        return OrderResult(
+            request_id=getattr(order, "request_id", "test-req-001"),
+            order_id="ord-001",
+            status="filled",
+            filled_qty=0.1,
+            filled_price=65000.0,
+            fee=0.039,
+            fee_currency="USDT",
+        )
+
+    exchange.place_order = AsyncMock(side_effect=_echo_place_order)
 
     exchange.cancel_order = AsyncMock(return_value=True)
 

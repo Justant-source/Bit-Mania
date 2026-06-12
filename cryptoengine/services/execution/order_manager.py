@@ -68,6 +68,15 @@ DEFAULT_RETRY_BACKOFF = 0.5  # seconds, multiplied by attempt number
 IDEMPOTENCY_SET_MAX = 50_000
 IDEMPOTENCY_SET_TRIM = 25_000
 
+# Post-only 재페그 루프 파라미터 (테스트에서 패치 가능하도록 모듈 레벨)
+REPEG_MAX_ATTEMPTS = 20
+REPEG_INTERVAL_S = 10.0
+REPEG_POLL_S = 0.5
+
+# BTC/USDT:USDT 기본값 — 거래소 메타 조회 실패 시 폴백
+FALLBACK_MIN_QTY = 0.001
+FALLBACK_QTY_STEP = 0.001
+
 
 class OrderManager:
     """Manages the full lifecycle of exchange orders."""
@@ -103,6 +112,8 @@ class OrderManager:
         self._processed_request_ids: set[str] = set()
         # Map request_id -> exchange order_id for active orders
         self._request_to_order: dict[str, str] = {}
+        # Symbol -> (min_qty, qty_step) — 재페그 잔량 계산용
+        self._qty_limits_cache: dict[str, tuple[float, float]] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -144,6 +155,9 @@ class OrderManager:
                 "fee": 0.0,
                 "fee_currency": "USDT",
                 "reason": "duplicate_request_id",
+                "strategy_id": payload.get("strategy_id", ""),
+                "symbol": payload.get("symbol", ""),
+                "side": payload.get("side", ""),
             }
 
         order = OrderRequest(**payload)
@@ -180,116 +194,317 @@ class OrderManager:
         return ob.asks[0].price if ob.asks else 0.0
 
     async def _place_with_repeg(self, order: OrderRequest) -> dict[str, Any]:
-        """Post-only limit: 10s × 20 re-peg attempts, then market-order fallback."""
-        MAX_ATTEMPTS = 20
-        INTERVAL_S = 10.0
-        POLL_S = 0.5
+        """Post-only limit: 10s × 20 re-peg attempts, then market-order fallback.
 
+        부분체결 안전성: 재페그로 취소한 이전 시도의 체결량을 누적 추적하고
+        잔량만 재발주한다 (전량 재발주는 과체결 → 의도 초과 레버리지 위험).
+        엔진 타임아웃 등으로 태스크가 취소되면 거래소에 떠 있는 미체결 주문을
+        정리한 뒤 취소를 전파한다 (고아 주문 방지).
+        """
         request_id = order.request_id
         last_order_id = ""
+        # 취소된 이전 시도들의 누적 체결 (현재 활성 주문 제외)
+        cum_qty = 0.0
+        cum_notional = 0.0
+        cum_fee = 0.0
+        min_qty, qty_step = await self._get_qty_limits(order.symbol)
 
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            # Cancel previous unfilled limit before re-pegging
-            if last_order_id:
-                cancelled = await self._connector.cancel_order(last_order_id, order.symbol)
-                if not cancelled:
-                    # Cancel failed — order may have just filled
-                    late_result = await self._connector.fetch_order_result(
-                        last_order_id, order.symbol, request_id
+        try:
+            for attempt in range(1, REPEG_MAX_ATTEMPTS + 1):
+                # Cancel previous unfilled limit & harvest its partial fills
+                if last_order_id:
+                    harvested = await self._harvest_order(last_order_id, order.symbol, request_id)
+                    last_order_id = ""
+                    if harvested is not None and harvested.filled_qty > 0:
+                        cum_qty += harvested.filled_qty
+                        cum_notional += harvested.filled_qty * float(harvested.filled_price or 0.0)
+                        cum_fee += harvested.fee
+                        log.info(LIMIT_REPEG_ATTEMPT, message="repeg partial fill harvested",
+                                 request_id=request_id, attempt=attempt,
+                                 harvested_qty=harvested.filled_qty, cum_qty=cum_qty)
+
+                # 잔량 계산 — 누적 체결분을 빼고 스텝 단위로 내림
+                remaining = self._floor_to_step(order.quantity - cum_qty, qty_step)
+                if remaining < min_qty:
+                    return await self._finalize_combined(
+                        order, cum_qty, cum_notional, cum_fee, attempt=attempt
                     )
-                    if late_result.status == "filled":
-                        self._transition(request_id, self._order_states.get(request_id), OrderState.FILLED)
-                        result_dict = self._result_to_dict(late_result, order)
-                        await self._update_order_from_result(result_dict)
-                        log.info(ORDER_FILLED, message="limit filled on cancel-fail check",
-                                 request_id=request_id, order_id=last_order_id, attempt=attempt)
-                        return result_dict
-                last_order_id = ""
 
-            # Fresh best-bid/ask peg
-            try:
-                peg_price = await self._fetch_peg_price(order.symbol, order.side)
-                peg_price = self._connector.price_to_precision(order.symbol, peg_price)
-            except Exception as exc:
-                log.warning(LIMIT_REPEG_ATTEMPT, message="peg price fetch failed",
-                            request_id=request_id, attempt=attempt, error=str(exc)[:200])
-                await asyncio.sleep(1.0)
-                continue
-
-            attempt_order = order.model_copy(update={"price": peg_price})
-            log.info(LIMIT_REPEG_ATTEMPT, message="limit repeg attempt",
-                     request_id=request_id, attempt=attempt, price=peg_price)
-
-            # Submit
-            try:
-                current_state = self._order_states.get(request_id)
-                if current_state != OrderState.SUBMITTED:
-                    self._transition(request_id, current_state, OrderState.SUBMITTED)
-                result: OrderResult = await self._connector.place_order(attempt_order)
-            except PostOnlyRejected:
-                log.info(POSTONLY_REJECTED, message="post-only rejected, repeg immediately",
-                         request_id=request_id, attempt=attempt, price=peg_price)
-                continue  # immediate retry, no 10s wait
-            except Exception as exc:
-                exc_type = type(exc).__name__
-                if "InsufficientFunds" in exc_type:
-                    log.error(ORDER_REJECTED, message="repeg: InsufficientFunds — aborting loop",
-                              request_id=request_id, attempt=attempt, error=str(exc)[:300])
-                    break
-                log.warning(ORDER_RETRY, message="repeg attempt exception",
-                            request_id=request_id, attempt=attempt, error=str(exc)[:200])
-                await asyncio.sleep(1.0)
-                continue
-
-            if result.order_id:
-                last_order_id = result.order_id
-                self._request_to_order[request_id] = result.order_id
-                # Update DB with new order_id and peg price
-                await self._update_order_from_result({
-                    "request_id": request_id,
-                    "order_id": result.order_id,
-                    "status": "submitted",
-                    "filled_qty": 0.0,
-                    "filled_price": None,
-                    "fee": 0.0,
-                })
-
-            # Already filled on placement (rare for post-only)
-            if result.status == "filled":
-                self._transition(request_id, OrderState.SUBMITTED, OrderState.FILLED)
-                result_dict = self._result_to_dict(result, order)
-                await self._update_order_from_result(result_dict)
-                return result_dict
-
-            # Poll for fill during INTERVAL_S
-            poll_start = time.monotonic()
-            while time.monotonic() - poll_start < INTERVAL_S:
-                await asyncio.sleep(POLL_S)
-                if not last_order_id:
-                    break
+                # Fresh best-bid/ask peg
                 try:
-                    polled = await self._connector.fetch_order_result(
-                        last_order_id, order.symbol, request_id
-                    )
-                except Exception:
+                    peg_price = await self._fetch_peg_price(order.symbol, order.side)
+                    peg_price = self._connector.price_to_precision(order.symbol, peg_price)
+                except Exception as exc:
+                    log.warning(LIMIT_REPEG_ATTEMPT, message="peg price fetch failed",
+                                request_id=request_id, attempt=attempt, error=str(exc)[:200])
+                    await asyncio.sleep(1.0)
                     continue
-                if polled.status == "filled":
-                    self._transition(request_id, OrderState.SUBMITTED, OrderState.FILLED)
-                    result_dict = self._result_to_dict(polled, order)
-                    await self._update_order_from_result(result_dict)
-                    log.info(ORDER_FILLED, message="limit order filled during poll",
-                             request_id=request_id, order_id=last_order_id, attempt=attempt)
-                    return result_dict
 
-        # 20 attempts exhausted → market fallback
-        if last_order_id:
-            await self._connector.cancel_order(last_order_id, order.symbol)
+                attempt_order = order.model_copy(update={"price": peg_price, "quantity": remaining})
+                log.info(LIMIT_REPEG_ATTEMPT, message="limit repeg attempt",
+                         request_id=request_id, attempt=attempt, price=peg_price,
+                         quantity=remaining, cum_filled=cum_qty)
 
-        log.warning(LIMIT_FALLBACK_TO_MARKET,
-                    message="limit repeg exhausted, falling back to market",
-                    request_id=request_id, attempts=MAX_ATTEMPTS)
-        fallback = order.model_copy(update={"order_type": "market", "price": None, "post_only": False})
-        return await self._execute_with_retries(fallback)
+                # Submit
+                try:
+                    current_state = self._order_states.get(request_id)
+                    if current_state != OrderState.SUBMITTED:
+                        self._transition(request_id, current_state, OrderState.SUBMITTED)
+                    result: OrderResult = await self._connector.place_order(attempt_order)
+                except PostOnlyRejected:
+                    log.info(POSTONLY_REJECTED, message="post-only rejected, repeg immediately",
+                             request_id=request_id, attempt=attempt, price=peg_price)
+                    continue  # immediate retry, no 10s wait
+                except Exception as exc:
+                    exc_type = type(exc).__name__
+                    if "InsufficientFunds" in exc_type:
+                        log.error(ORDER_REJECTED, message="repeg: InsufficientFunds — aborting loop",
+                                  request_id=request_id, attempt=attempt, error=str(exc)[:300])
+                        break
+                    log.warning(ORDER_RETRY, message="repeg attempt exception",
+                                request_id=request_id, attempt=attempt, error=str(exc)[:200])
+                    await asyncio.sleep(1.0)
+                    continue
+
+                if result.order_id:
+                    last_order_id = result.order_id
+                    self._request_to_order[request_id] = result.order_id
+                    # Update DB with new order_id and peg price
+                    await self._update_order_from_result({
+                        "request_id": request_id,
+                        "order_id": result.order_id,
+                        "status": "submitted",
+                        "filled_qty": cum_qty,
+                        "filled_price": (cum_notional / cum_qty) if cum_qty > 0 else None,
+                        "fee": cum_fee,
+                    })
+
+                # Already filled on placement (rare for post-only)
+                if result.status == "filled":
+                    cum_qty += result.filled_qty or remaining
+                    cum_notional += (result.filled_qty or remaining) * float(result.filled_price or peg_price)
+                    cum_fee += result.fee
+                    return await self._finalize_combined(
+                        order, cum_qty, cum_notional, cum_fee,
+                        order_id=last_order_id, attempt=attempt,
+                    )
+
+                # Poll for fill during REPEG_INTERVAL_S
+                poll_start = time.monotonic()
+                while time.monotonic() - poll_start < REPEG_INTERVAL_S:
+                    await asyncio.sleep(REPEG_POLL_S)
+                    if not last_order_id:
+                        break
+                    try:
+                        polled = await self._connector.fetch_order_result(
+                            last_order_id, order.symbol, request_id
+                        )
+                    except Exception:
+                        continue
+                    if polled.status == "filled":
+                        cum_qty += polled.filled_qty or remaining
+                        cum_notional += (polled.filled_qty or remaining) * float(polled.filled_price or peg_price)
+                        cum_fee += polled.fee
+                        log.info(ORDER_FILLED, message="limit order filled during poll",
+                                 request_id=request_id, order_id=last_order_id, attempt=attempt)
+                        return await self._finalize_combined(
+                            order, cum_qty, cum_notional, cum_fee,
+                            order_id=last_order_id, attempt=attempt,
+                        )
+
+            # Attempts exhausted → cancel remainder, harvest fills, market fallback
+            if last_order_id:
+                harvested = await self._harvest_order(last_order_id, order.symbol, request_id)
+                last_order_id = ""
+                if harvested is not None and harvested.filled_qty > 0:
+                    cum_qty += harvested.filled_qty
+                    cum_notional += harvested.filled_qty * float(harvested.filled_price or 0.0)
+                    cum_fee += harvested.fee
+
+            remaining = self._floor_to_step(order.quantity - cum_qty, qty_step)
+            if remaining < min_qty:
+                return await self._finalize_combined(order, cum_qty, cum_notional, cum_fee)
+
+            log.warning(LIMIT_FALLBACK_TO_MARKET,
+                        message="limit repeg exhausted, falling back to market",
+                        request_id=request_id, attempts=REPEG_MAX_ATTEMPTS,
+                        remaining_qty=remaining, cum_filled=cum_qty)
+            fallback = order.model_copy(
+                update={"order_type": "market", "price": None, "post_only": False, "quantity": remaining}
+            )
+            market_result = await self._execute_with_retries(fallback)
+            return await self._merge_market_fallback(order, market_result, cum_qty, cum_notional, cum_fee)
+
+        except asyncio.CancelledError:
+            # 엔진 타임아웃/서비스 종료 — 거래소에 떠 있는 주문을 정리해 고아화 방지
+            if last_order_id:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(self._connector.cancel_order(last_order_id, order.symbol)),
+                        timeout=5.0,
+                    )
+                    log.warning(ORDER_CANCELLED, message="repeg cancelled — outstanding order cleaned up",
+                                request_id=request_id, order_id=last_order_id)
+                except Exception:
+                    log.error(ORDER_REJECTED, message="repeg 취소 중 미체결 주문 정리 실패 — 수동 확인 필요",
+                              request_id=request_id, order_id=last_order_id)
+            raise
+
+    # ------------------------------------------------------------------
+    # Re-peg helpers
+    # ------------------------------------------------------------------
+
+    async def _harvest_order(
+        self, order_id: str, symbol: str, request_id: str
+    ) -> OrderResult | None:
+        """주문을 취소하고 그때까지의 체결량을 조회해 반환한다.
+
+        취소 실패(이미 전량 체결 등)와 무관하게 최종 체결량을 조회한다.
+        bybit 커넥터는 조회 실패 시 status='new', filled_qty=0 폴백을 반환하므로
+        그 시그니처가 나오면 1회 재조회한다 (부분체결 누락 → 과체결 방지).
+        """
+        try:
+            await self._connector.cancel_order(order_id, symbol)
+        except Exception as exc:
+            log.warning(ORDER_CANCELLED, message="repeg cancel error (continuing to fetch fills)",
+                        order_id=order_id, error=str(exc)[:200])
+
+        result: OrderResult | None = None
+        for fetch_attempt in (1, 2):
+            try:
+                result = await self._connector.fetch_order_result(order_id, symbol, request_id)
+            except Exception as exc:
+                log.warning(ORDER_RETRY, message="harvest fetch error",
+                            order_id=order_id, fetch_attempt=fetch_attempt, error=str(exc)[:200])
+                result = None
+            # 방금 취소한 주문이 'new'로 보이면 조회 폴백/전파 지연 — 재시도
+            if result is not None and not (result.status == "new" and result.filled_qty == 0):
+                return result
+            await asyncio.sleep(0.3)
+
+        if result is None:
+            log.error(ORDER_REJECTED,
+                      message="취소된 주문의 체결량 조회 실패 — 부분체결 미반영 가능, 수동 확인 필요",
+                      order_id=order_id, request_id=request_id)
+        return result
+
+    async def _get_qty_limits(self, symbol: str) -> tuple[float, float]:
+        """(min_qty, qty_step) — 거래소 메타에서 조회, 실패 시 BTC 기본값."""
+        cached = self._qty_limits_cache.get(symbol)
+        if cached:
+            return cached
+        try:
+            info = await self._connector.get_min_order_sizes([symbol])
+            meta = info.get(symbol, {})
+            limits = (
+                float(meta.get("min_qty") or FALLBACK_MIN_QTY),
+                float(meta.get("qty_step") or FALLBACK_QTY_STEP),
+            )
+        except Exception as exc:
+            log.warning(SERVICE_HEALTH_FAIL, message="min order size lookup failed, using defaults",
+                        symbol=symbol, error=str(exc)[:200])
+            limits = (FALLBACK_MIN_QTY, FALLBACK_QTY_STEP)
+        self._qty_limits_cache[symbol] = limits
+        return limits
+
+    @staticmethod
+    def _floor_to_step(qty: float, step: float) -> float:
+        """수량을 거래소 스텝 단위로 내림 (음수 방지)."""
+        if qty <= 0:
+            return 0.0
+        if step <= 0:
+            return qty
+        import math
+        return max(math.floor((qty + 1e-12) / step) * step, 0.0)
+
+    def _combined_result(
+        self,
+        order: OrderRequest,
+        qty: float,
+        notional: float,
+        fee: float,
+        status: str,
+        order_id: str = "",
+    ) -> dict[str, Any]:
+        """누적 체결값으로 합산 결과 dict를 만든다."""
+        return {
+            "request_id": order.request_id,
+            "order_id": order_id,
+            "status": status,
+            "filled_qty": round(qty, 12),
+            "filled_price": (notional / qty) if qty > 0 else None,
+            "fee": fee,
+            "fee_currency": "USDT",
+            "strategy_id": order.strategy_id,
+            "symbol": order.symbol,
+            "side": order.side,
+            "order_type": order.order_type,
+        }
+
+    async def _finalize_combined(
+        self,
+        order: OrderRequest,
+        qty: float,
+        notional: float,
+        fee: float,
+        *,
+        order_id: str = "",
+        attempt: int | None = None,
+    ) -> dict[str, Any]:
+        """누적 체결로 주문을 filled 종결 처리한다."""
+        request_id = order.request_id
+        if qty <= 0:
+            # 체결 없이 잔량만 최소수량 미만 — filled로 보고하면 전략이 오인하므로 거부 처리
+            self._transition(request_id, self._order_states.get(request_id), OrderState.REJECTED)
+            rejection = self._combined_result(order, 0.0, 0.0, fee, "rejected", order_id)
+            rejection["reason"] = "repeg_no_fill_below_min_qty"
+            await self._update_order_from_result(rejection)
+            log.error(ORDER_REJECTED, message="재페그 종결 시 체결량 0 — 거부 처리",
+                      request_id=request_id)
+            return rejection
+        self._transition(request_id, self._order_states.get(request_id), OrderState.FILLED)
+        result_dict = self._combined_result(order, qty, notional, fee, "filled", order_id)
+        await self._update_order_from_result(result_dict)
+        log.info(ORDER_FILLED, message="limit repeg fill complete",
+                 request_id=request_id, filled_qty=result_dict["filled_qty"],
+                 filled_price=result_dict["filled_price"], attempt=attempt)
+        return result_dict
+
+    async def _merge_market_fallback(
+        self,
+        order: OrderRequest,
+        market_result: dict[str, Any],
+        cum_qty: float,
+        cum_notional: float,
+        cum_fee: float,
+    ) -> dict[str, Any]:
+        """시장가 폴백 결과에 재페그 부분체결 누적을 합산한다."""
+        if cum_qty <= 0:
+            return market_result
+
+        m_qty = float(market_result.get("filled_qty") or 0.0)
+        m_price = float(market_result.get("filled_price") or 0.0)
+        total_qty = cum_qty + m_qty
+        total_notional = cum_notional + m_qty * m_price
+        total_fee = cum_fee + float(market_result.get("fee") or 0.0)
+
+        status = market_result.get("status", "")
+        if status == "rejected":
+            # 시장가 폴백 실패 — 부분체결만 남음. 전략이 재동기화하도록 부분 종결로 보고.
+            status = "partially_filled"
+            log.error(ORDER_REJECTED,
+                      message="시장가 폴백 거부 — 재페그 부분체결만 보유, 잔량 미체결",
+                      request_id=order.request_id, cum_filled=cum_qty,
+                      reason=market_result.get("reason", ""))
+
+        merged = self._combined_result(
+            order, total_qty, total_notional, total_fee, status,
+            order_id=market_result.get("order_id", ""),
+        )
+        if market_result.get("reason"):
+            merged["reason"] = market_result["reason"]
+        await self._update_order_from_result(merged)
+        return merged
 
     # ------------------------------------------------------------------
     # Cancel / Modify
@@ -637,13 +852,16 @@ class OrderManager:
     async def _restore_inflight_orders(self) -> None:
         """On startup, load orders that were in non-terminal states.
 
-        This prevents re-processing and lets us resume tracking.
+        재시작하면 재페그/폴링 루프가 끊겨 in-flight 주문을 관리할 주체가 없다.
+        거래소에 아직 떠 있는 주문은 취소해 고아화를 막는다 (떠 있는 채로 나중에
+        체결되면 전략·SL 관리 밖의 포지션이 생긴다). 전략은 사전 동기화로
+        다음 봉에서 진실 기반으로 재판단한다.
         """
         try:
             async with self._db_pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT request_id, order_id, status
+                    SELECT request_id, order_id, status, symbol
                     FROM orders
                     WHERE exchange = $1
                       AND status NOT IN ('filled', 'cancelled', 'rejected', 'expired')
@@ -664,6 +882,48 @@ class OrderManager:
                     self._order_states[rid] = OrderState.SUBMITTED
 
             log.info(SERVICE_HEALTH_OK, message="inflight orders restored", count=len(rows))
+
+            # 고아 주문 정리
+            for row in rows:
+                rid = row["request_id"]
+                oid = row["order_id"]
+                symbol = row["symbol"]
+                if not oid:
+                    # 거래소 도달 전 pending — 재시작으로 유실됐으므로 거부 종결
+                    self._order_states[rid] = OrderState.REJECTED
+                    await self._update_order_status(rid, OrderState.REJECTED)
+                    log.warning(ORDER_REJECTED, message="재시작 시 미발주 pending 주문 거부 종결",
+                                request_id=rid)
+                    continue
+                try:
+                    status = await self._connector.fetch_order_status(oid, symbol)
+                    if status == "open":
+                        await self._connector.cancel_order(oid, symbol)
+                        self._order_states[rid] = OrderState.CANCELLED
+                        await self._update_order_status(rid, OrderState.CANCELLED)
+                        log.error(ORDER_CANCELLED,
+                                  message="재시작 시 고아 미체결 주문 취소 — 전략이 다음 봉에 재판단",
+                                  request_id=rid, order_id=oid, symbol=symbol)
+                    elif status == "closed":
+                        result = await self._connector.fetch_order_result(oid, symbol, rid)
+                        self._order_states[rid] = OrderState.FILLED
+                        await self._update_order_from_result({
+                            "request_id": rid,
+                            "order_id": oid,
+                            "status": "filled",
+                            "filled_qty": result.filled_qty,
+                            "filled_price": result.filled_price,
+                            "fee": result.fee,
+                        })
+                        log.warning(ORDER_FILLED,
+                                    message="재시작 중 in-flight 주문 체결 확인 — DB 갱신 (전략은 포지션 동기화로 반영)",
+                                    request_id=rid, order_id=oid, filled_qty=result.filled_qty)
+                    else:
+                        log.warning(SERVICE_HEALTH_FAIL, message="in-flight 주문 상태 미확인",
+                                    request_id=rid, order_id=oid, status=status)
+                except Exception:
+                    log.exception(SERVICE_HEALTH_FAIL, message="in-flight 주문 정리 실패",
+                                  request_id=rid, order_id=oid)
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="restore inflight orders error")
 

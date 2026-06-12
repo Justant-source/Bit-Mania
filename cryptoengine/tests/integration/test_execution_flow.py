@@ -126,8 +126,12 @@ class ExecutionPipeline:
             )
 
 
-@pytest.fixture
-def pipeline(mock_exchange, mock_redis, mock_db):
+import pytest_asyncio
+
+
+@pytest_asyncio.fixture
+async def pipeline(mock_exchange, mock_redis, mock_db):
+    # pytest-asyncio 1.x: 비동기 픽스처(mock_redis)에 의존하므로 async 픽스처여야 한다
     return ExecutionPipeline(mock_exchange, mock_redis, mock_db)
 
 

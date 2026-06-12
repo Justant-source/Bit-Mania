@@ -28,9 +28,9 @@ from shared.log_events import *
 log = structlog.get_logger(__name__)
 
 MAX_CONCURRENT_ORDERS = 5
-ORDER_TIMEOUT = 300.0  # seconds per order (post-only limit: up to 20×10s re-peg + buffer)
-MAX_RETRIES = 3
-RETRY_BACKOFF = 1.0
+# 재페그 worst-case(20×10s) + 시도별 API 지연 + 시장가 폴백 여유.
+# 이전 300s는 네트워크 저하 시 재페그 도중 잘릴 수 있었다.
+ORDER_TIMEOUT = 420.0
 
 
 class ExecutionEngine:
@@ -172,42 +172,66 @@ class ExecutionEngine:
             try:
                 safe, reason = await self._safety.check_order(payload)
                 if not safe:
-                    await self._publish_rejection(request_id, reason)
+                    await self._publish_rejection(request_id, reason, payload=payload)
                     return
             except Exception:
                 log.exception(ORDER_SAFETY_FAILED, message="safety check error", request_id=request_id)
-                await self._publish_rejection(request_id, "safety_check_internal_error")
+                await self._publish_rejection(request_id, "safety_check_internal_error", payload=payload)
                 return
 
-            # --- Execute with retries ---
-            result: dict[str, Any] | None = None
-            last_error: str = ""
-
-            for attempt in range(1, MAX_RETRIES + 1):
+            # --- Execute (1회) ---
+            # 재시도는 OrderManager 내부(_execute_with_retries / 재페그)에서 수행한다.
+            # 엔진 레벨 재실행은 request_id idempotency에 막혀 duplicate 거부만
+            # 반환하므로 의미가 없고, 타임아웃 시 거래소에 남은 주문만 고아화시켰다.
+            try:
+                result: dict[str, Any] = await asyncio.wait_for(
+                    self._order_manager.place_order(payload),
+                    timeout=ORDER_TIMEOUT,
+                )
+                self._safety.record_api_response()
+                self._safety.record_api_call()
+            except asyncio.TimeoutError:
+                log.error(ORDER_TIMEOUT, message="주문 실행 시간 초과 — 미체결 주문 정리 후 거부",
+                          request_id=request_id, timeout_s=ORDER_TIMEOUT)
                 try:
-                    result = await asyncio.wait_for(
-                        self._order_manager.place_order(payload),
-                        timeout=ORDER_TIMEOUT,
-                    )
-                    self._safety.record_api_response()
-                    self._safety.record_api_call()
-                    break
-                except asyncio.TimeoutError:
-                    last_error = "order_timeout"
-                    log.warning(ORDER_TIMEOUT, message="order timeout", request_id=request_id, attempt=attempt)
-                except Exception as exc:
-                    last_error = str(exc)
-                    log.warning(ORDER_RETRY, message="order attempt failed", request_id=request_id, attempt=attempt, error=last_error)
-
-                if attempt < MAX_RETRIES:
-                    await asyncio.sleep(RETRY_BACKOFF * attempt)
-
-            if result is None:
-                await self._publish_rejection(request_id, f"execution_failed_after_{MAX_RETRIES}_retries: {last_error}")
+                    await self._order_manager.cancel_order(request_id, payload.get("symbol", ""))
+                except Exception:
+                    log.exception(ORDER_CANCELLED, message="타임아웃 주문 취소 실패 — 수동 확인 필요",
+                                  request_id=request_id)
+                await self._publish_rejection(
+                    request_id, "order_timeout: 실행 시간 초과, 미체결 주문 취소됨", payload=payload
+                )
+                return
+            except Exception as exc:
+                log.exception(ORDER_RETRY, message="order execution error", request_id=request_id)
+                await self._publish_rejection(request_id, f"execution_error: {exc}", payload=payload)
                 return
 
             # --- Publish result ---
             await self._publish_result(result)
+
+            # --- 미체결 종결 알림 (ERROR → Telegram) ---
+            final_status = result.get("status")
+            if final_status == "rejected":
+                log.error(
+                    ORDER_REJECTED,
+                    message="주문 거부 — 전략 신호 미체결",
+                    request_id=request_id,
+                    strategy_id=result.get("strategy_id", payload.get("strategy_id", "")),
+                    side=payload.get("side"),
+                    reduce_only=payload.get("reduce_only", False),
+                    reason=result.get("reason", ""),
+                )
+            elif final_status == "partially_filled":
+                log.error(
+                    ORDER_REJECTED,
+                    message="부분 체결 후 잔량 미체결 종결 — 수동 확인 필요",
+                    request_id=request_id,
+                    strategy_id=result.get("strategy_id", payload.get("strategy_id", "")),
+                    filled_qty=result.get("filled_qty"),
+                    requested_qty=payload.get("quantity"),
+                    reason=result.get("reason", ""),
+                )
 
             # --- Update position cache ---
             if result.get("status") in ("new", "partially_filled", "filled"):
@@ -257,8 +281,21 @@ class ExecutionEngine:
         except Exception:
             log.exception(ORDER_REJECTED, message="result persist error", request_id=result.get("request_id"))
 
-    async def _publish_rejection(self, request_id: str, reason: str) -> None:
-        """Publish a rejected OrderResult."""
+    async def _publish_rejection(
+        self,
+        request_id: str,
+        reason: str,
+        *,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Publish a rejected OrderResult.
+
+        strategy_id를 포함해 전략별 채널(order:result:{strategy_id})로도 발행하고
+        ERROR 레벨로 기록한다 (→ Telegram 알림). 2026-05-27 사고에서는 거부가
+        WARNING이라 알림이 없었고 전략도 거부 사실을 몰랐다.
+        """
+        p = payload or {}
+        strategy_id = p.get("strategy_id", "")
         result = {
             "request_id": request_id,
             "order_id": "",
@@ -268,20 +305,40 @@ class ExecutionEngine:
             "fee": 0.0,
             "fee_currency": "USDT",
             "reason": reason,
+            "strategy_id": strategy_id,
+            "symbol": p.get("symbol", ""),
+            "side": p.get("side", ""),
         }
         await self.redis.publish("order:result", json.dumps(result))
-        log.warning(ORDER_REJECTED, message="order rejected", request_id=request_id, reason=reason)
+        if strategy_id:
+            await self.redis.publish(f"order:result:{strategy_id}", json.dumps(result))
+
+        log.error(
+            ORDER_REJECTED,
+            message="주문 거부 — 전략 신호 미체결",
+            request_id=request_id,
+            strategy_id=strategy_id,
+            symbol=p.get("symbol", ""),
+            side=p.get("side", ""),
+            reduce_only=p.get("reduce_only", False),
+            reason=reason,
+        )
 
         try:
             async with self.db_pool.acquire() as conn:
                 await conn.execute(
                     """
-                    INSERT INTO orders (request_id, exchange, symbol, side, order_type, quantity, status)
-                    VALUES ($1, $2, '', '', '', 0, 'rejected')
+                    INSERT INTO orders (request_id, exchange, symbol, side, order_type, quantity, status, strategy_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'rejected', $7)
                     ON CONFLICT (request_id) DO UPDATE SET status = 'rejected', updated_at = NOW()
                     """,
                     request_id,
                     self.exchange,
+                    p.get("symbol", ""),
+                    p.get("side", ""),
+                    p.get("order_type", ""),
+                    float(p.get("quantity", 0) or 0),
+                    strategy_id or None,
                 )
         except Exception:
             log.exception(ORDER_REJECTED, message="rejection persist error", request_id=request_id)

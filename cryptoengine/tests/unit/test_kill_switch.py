@@ -164,7 +164,7 @@ class TestL4ManualEmergency:
         await kill_switch.trigger_manual("Operator pressed /kill")
         assert kill_switch.is_triggered
         assert kill_switch.level == KillLevel.MANUAL
-        assert "Manual" in kill_switch.reason
+        assert kill_switch.reason == "Operator pressed /kill"
 
     @pytest.mark.asyncio
     async def test_manual_does_not_auto_resume(self, kill_switch):

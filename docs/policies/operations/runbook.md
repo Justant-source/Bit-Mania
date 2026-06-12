@@ -5,7 +5,8 @@ related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/scripts/manual_mainnet_test.py
-last_updated: 2026-05-25
+  - cryptoengine/scripts/audit_signal_order_mismatch.py
+last_updated: 2026-06-13
 when_to_update: |
   - 운영 절차 변경 시
   - Kill Switch 임계값 변경 시
@@ -103,7 +104,25 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 # 5. 대시보드 확인
 #    http://localhost:3000/supertrend  — Supertrend 예상 vs 실제 비교
 #    http://localhost:3000/monitor     — 자산/Kill Switch/서비스 상태
+
+# 6. 신호-주문 대조 감사 (미체결 사고 조기 감지)
+python3 cryptoengine/scripts/audit_signal_order_mismatch.py --days 7
+#    --alert 옵션: 불일치 발견 시 Telegram 알림 발행
+#    종료 코드 0=정상, 1=불일치 발견, 2=실행 오류
 ```
+
+### 미체결·발산 관련 ERROR 알림 대응 (2026-06-13~)
+
+주문이 전략 신호대로 체결되지 않으면 아래 ERROR 알림이 Telegram으로 온다 (5분 dedup):
+
+| 알림 이벤트 | 의미 | 대응 |
+|------------|------|------|
+| `주문 거부 — 전략 신호 미체결` (`order_rejected`) | safety 차단·실행 실패로 주문 거부. reason 필드에 사유 | reason 확인. exit이면 60초 후 1회 자동 재시도됨 — 재시도도 거부되면 `/positions` 확인 후 수동 청산 판단 |
+| `position_state_divergence` | 전략 믿음 ≠ 거래소 실포지션 — 자동으로 실제값으로 교정됨 | 직전 거부/유실 이력 확인 (`orders` 테이블). 교정 후 다음 봉부터 정상 동작 |
+| `pending_order_unresolved` | 주문 결과를 450초 내 확인 못 함 — 재동기화 수행됨 | execution-engine 로그 확인, 거래소 주문 내역 대조 |
+| `bar_feed_stall` / `bar_gap_detected` | 4h 봉 마감 메시지 누락 — REST 백필 자동 수행 | market-data 서비스 상태 확인 (`docker compose logs market-data`) |
+| `부분 체결 후 잔량 미체결 종결` | 시장가 폴백 실패로 일부만 체결 | `/positions`로 실수량 확인 — 전략은 자동 재동기화됨 |
+| `재시작 시 고아 미체결 주문 취소` | 엔진 재시작 시 떠 있던 주문 정리됨 | 정보성 — 전략이 다음 봉에 재판단 |
 
 ### 주간 확인 사항
 

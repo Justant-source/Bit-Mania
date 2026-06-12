@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implied leverage 체크 면제; compare 엔드포인트 지연 체결 직접 매칭; orders·supertrend_signals 지연 추적 컬럼 추가)
+last_updated: 2026-06-13 (미체결 사고 재발 방지: 전략 상태 확정 기반 전환 — pending 추적·order:result 구독·거래소 진실 동기화·봉 워치독; 엔진 거부 ERROR 알림 + strategy_id 전파; 재페그 부분체결 누적·고아 주문 정리; 신호-주문 감사 스크립트)
 ---
 
 # Code → Docs 역인덱스
@@ -14,7 +14,7 @@ last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implie
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
 | `services/strategies/supertrend/**` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) · [policies/btc-only.md](policies/btc-only.md) |
 | `services/strategies/supertrend/indicators.py` | Jesse `ta.supertrend` 정본 포팅 — `_atr_jesse`(Wilder ATR, period-1 시드) + 밴드 리셋 절 + gated flip; `compute_supertrend` → `(trend_dir, st_line)` 반환 |
-| `services/strategies/supertrend/strategy.py` | `supertrend_signals` 테이블에 `st_line` 컬럼 저장; `tick()`에서 `st_dir, st_line = compute_supertrend(...)`; `entry_ok=bool(...)` numpy bool_ → Python bool 변환 필수 (asyncpg DataError 방지) |
+| `services/strategies/supertrend/strategy.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) §주문 확정·상태 동기화 — pending 추적·`order:result:{id}` 구독·`_sync_position_from_exchange`(매 봉 신호 전)·exit 거부 60s 후 1회 재시도·봉 워치독/갭 백필·`min(할당자본, equity)` 사이징. `supertrend_signals` 테이블에 `st_line` 컬럼 저장; `entry_ok=bool(...)` numpy bool_ → Python bool 변환 필수 (asyncpg DataError 방지) |
 | `scripts/backfill_supertrend_signals.py` | 정본 ST 재계산 후 `st_dir`·`st_line` upsert (DO UPDATE) |
 | `config/strategies/supertrend.yaml` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) |
 
@@ -23,6 +23,8 @@ last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implie
 | 코드 | 문서 |
 |------|------|
 | `services/execution/**` | [architecture/data-flow.md](architecture/data-flow.md) · [policies/operations/runbook.md](policies/operations/runbook.md) |
+| `services/execution/engine.py` | [architecture/data-flow.md](architecture/data-flow.md) §3.5 — 거부 ERROR 알림 + strategy_id 전파(`_publish_rejection`), ORDER_TIMEOUT 420s + 타임아웃 시 취소 후 거부 (블라인드 재시도 제거) |
+| `services/execution/order_manager.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) §주문 실행 방식 — 재페그 부분체결 누적 추적(잔량만 재발주), CancelledError 시 미체결 주문 정리, 재시작 시 고아 주문 취소(`_restore_inflight_orders`) |
 | `services/orchestrator/**` | [architecture/system-overview.md](architecture/system-overview.md) |
 | `services/market-data/**` | [architecture/data-flow.md](architecture/data-flow.md) · [policies/btc-only.md](policies/btc-only.md) |
 | `services/market-data/collector.py` | [architecture/data-flow.md](architecture/data-flow.md) |
@@ -71,6 +73,7 @@ last_updated: 2026-05-27 (safety 버그픽스: reduce_only exit 주문의 implie
 | `scripts/backfill_supertrend_signals.py` | [structure/services.md](structure/services.md) |
 | `scripts/manual_mainnet_test.py` | [policies/operations/runbook.md](policies/operations/runbook.md) (메인넷 매수/매도 1회 트리거 테스트) |
 | `scripts/manual_close_delayed.py` | 지연 청산 복구 스크립트 — safety 버그 등으로 rejected된 exit 신호를 수동으로 체결하고 DB에 지연 이력(delay_reason, original_signal_ts) 기록; orders·supertrend_signals 양쪽 갱신 |
+| `scripts/audit_signal_order_mismatch.py` | [policies/operations/runbook.md](policies/operations/runbook.md) §일상 운영 — supertrend_signals(expected_action) vs orders(filled) 대조: signal_no_fill/qty_mismatch/unmatched_fill 감지, `--alert`로 Telegram 발행 |
 
 ## 공유 라이브러리
 
