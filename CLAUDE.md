@@ -6,10 +6,11 @@
 
 ## 현재 진행 상태
 
-- **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $200 USDT
+- **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $200 USDT로 시작 (2026-06-13 현재 ~$185)
   - 전략: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x, combo #7908)
   - 백테스트: CAGR +151.56% | Sharpe 1.37 | MDD -84.28% (사용자 승인)
-  - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=200`
+  - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=185.31`
+  - ⚠️ execution-engine 재시작 전 잔고 게이트 현행화 필수 → `docs/policies/operations/runbook.md` §문제 해결
 
 ## 핵심 원칙
 

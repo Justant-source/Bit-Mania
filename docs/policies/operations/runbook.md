@@ -419,6 +419,27 @@ CRITICAL: Kill Switch 발동 (즉시 대응 필요)
 
 ## 문제 해결
 
+### execution-engine 재시작 시 주의 2가지 (2026-06-13 실사례)
+
+**1. Phase 5 잔고 게이트**: 시작 시 실제 잔고가 `EXPECTED_INITIAL_BALANCE_USD` 대비 ±5%를
+벗어나면 기동을 거부하고 재시작 루프에 빠진다. 거래 손익으로 잔고가 5% 이상 변한 뒤의
+재시작은 반드시 걸리므로, **재배포 전 .env의 기대값을 현재 잔고로 현행화**한다:
+
+```bash
+# 현재 잔고 확인 후 .env 갱신 → 재시작
+docker compose logs execution-engine | grep "잔고 검증"   # actual_usdt 값 확인
+# .env: EXPECTED_INITIAL_BALANCE_USD=<actual>
+```
+
+(2026-06-13: $200 → $185.31 현행화. 장기적으로는 "최초 1회만 검증" 또는 동적 기준 도입 검토)
+
+**2. Dead Man's Switch 연쇄**: execution-engine 하트비트(TTL 300s)가 5분 이상 끊기면
+오케스트레이터가 Kill Switch를 발동한다(인메모리, 쿨다운 4시간 후 자동 해제).
+잔고 게이트 등으로 재시작이 5분을 넘기면 발동되므로, 발동 시:
+- `ce:kill_switch:active` Redis 키는 dead-man 경로에서 설정되지 않음 (safety 차단 아님)
+- 전략 재시작은 쿨다운 만료 후 오케스트레이터 배분 사이클이 자동 수행
+- 즉시 복구가 필요하면 orchestrator 재시작 (인메모리 kill 상태 초기화 — 하트비트 정상 확인 후)
+
 ### 서비스가 시작되지 않는 경우
 
 ```bash
