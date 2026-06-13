@@ -1970,7 +1970,13 @@ function renderTradeTable(focusIdx = null) {
     const d = new Date(Math.round(ms / 14400000) * 14400000);
     const p = n => String(n).padStart(2, '0');
     const yy = String(d.getUTCFullYear()).slice(2);
-    return `${yy}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+    const utcStr = `${yy}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+    const kst = new Date(d.getTime() + 9 * 3600 * 1000);
+    const kstTime = `${p(kst.getUTCHours())}:${p(kst.getUTCMinutes())}`;
+    const kstSameDay = kst.getUTCDate() === d.getUTCDate() && kst.getUTCMonth() === d.getUTCMonth();
+    const kstStr = kstSameDay ? kstTime
+      : `${String(kst.getUTCFullYear()).slice(2)}-${p(kst.getUTCMonth()+1)}-${p(kst.getUTCDate())} ${kstTime}`;
+    return `${utcStr}<br><span style="color:#8b949e;font-size:0.82em">(KST ${kstStr})</span>`;
   }
   function fmtDur(ms) {
     const totalMin = Math.round(ms / 60_000);
@@ -2182,7 +2188,13 @@ function showTradeDetail(id, month) {
     const d = new Date(Math.round(ms / 14400000) * 14400000);
     const pad = n => String(n).padStart(2,'0');
     const yy = String(d.getUTCFullYear()).slice(2);
-    return `${yy}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    const utcStr = `${yy}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    const kst = new Date(d.getTime() + 9 * 3600 * 1000);
+    const kstTime = `${pad(kst.getUTCHours())}:${pad(kst.getUTCMinutes())}`;
+    const kstSameDay = kst.getUTCDate() === d.getUTCDate() && kst.getUTCMonth() === d.getUTCMonth();
+    const kstStr = kstSameDay ? kstTime
+      : `${String(kst.getUTCFullYear()).slice(2)}-${pad(kst.getUTCMonth()+1)}-${pad(kst.getUTCDate())} ${kstTime}`;
+    return `${utcStr}<br><span style="color:#8b949e;font-size:0.82em">(KST ${kstStr})</span>`;
   }
 
   const totalPnl = trades.reduce((s, st) => s + st.vNetPnl, 0);

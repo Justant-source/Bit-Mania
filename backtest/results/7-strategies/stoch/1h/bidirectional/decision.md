@@ -1,7 +1,7 @@
 ---
 strategy: StochStrategy
 verdict: FAIL
-created: 2026-05-12
+created: 2026-05-27
 ---
 
 # StochStrategy 백테스트 결과
@@ -10,17 +10,17 @@ created: 2026-05-12
 
 | 항목 | 결과 | 기준 | 통과 |
 |------|------|------|------|
-| CAGR | 1.83% | ≥ +5% | ✗ |
-| Sharpe | 0.313 | ≥ 0.5 | ✗ |
-| MDD | -70.68% | ≥ -30% | ✗ |
-| Trades | 881 | ≥ 30 | ✓ |
-| Win Rate | 49.4% | ≥ 35% | ✓ |
-| Profit Factor | 1.005 | ≥ 1.2 | ✗ |
+| CAGR | -7.84% | ≥ +5% | ✗ |
+| Sharpe | 0.211 | ≥ 0.5 | ✗ |
+| MDD | -94.14% | ≥ -30% | ✗ |
+| Trades | 2334 | ≥ 30 | ✓ |
+| Win Rate | 50.4% | ≥ 35% | ✓ |
+| Profit Factor | 0.993 | ≥ 1.2 | ✗ |
 
 ## 종합 판정: **FAIL**
 
 ## 관찰 사항
-- 백테스트 기간: 2021-01-01 ~ 2026-04-30 (6년)
+- 백테스트 기간: 2017-08-18 ~ 2026-05-28 (6년)
 - 기준: post-ETF 압축장 표준 (backtest-skillset.md)
 
 ## CryptoEngine 적용 권고

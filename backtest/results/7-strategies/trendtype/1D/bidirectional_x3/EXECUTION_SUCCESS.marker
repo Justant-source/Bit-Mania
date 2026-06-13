@@ -1,1 +1,8 @@
-EXECUTION_SUCCESS (leveraged variant — data verified by D1/D2/D3 audit 2026-05-13)
+status: SUCCESS
+stats_sha256: 2393076809c2fba85d0efa1da97a2ccde7cc67b07b422b8c78b102a8e30d8aa3
+stats_size: 2416
+sample_metrics:
+  cagr: 42.2158
+  sharpe: 1.0288
+  trades: 178
+executed_at: 2026-05-27T23:14:35.807509+00:00

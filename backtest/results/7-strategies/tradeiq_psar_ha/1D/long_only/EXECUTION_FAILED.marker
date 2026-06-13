@@ -1,14 +1,35 @@
 status: FAILED
-reason: [Errno 2] No such file or directory: '/app/scripts/strategies/external/TradeIQPsarHaStrategy.py'
-tb: Traceback (most recent call last):
-  File "/app/scripts/sweep/param_sweep_v3.py", line 605, in run_champion_backtests
-    strategy_cls = _load_strategy_cls(strat, variant)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/scripts/sweep/param_sweep_v3.py", line 287, in _load_strategy_cls
-    spec_mod.loader.exec_module(mod)
-  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
-  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
-  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
-FileNotFoundError: [Errno 2] No such file or directory: '/app/scripts/strategies/external/TradeIQPsarHaStrategy.py'
+reason: 'psar_inc'
+executed_at: 2026-05-27T22:40:45.257708+00:00
+traceback:
+Traceback (most recent call last):
+  File "/app/scripts/runners/run_external_backtest.py", line 637, in <module>
+    verdict, metrics = run(args)
+                       ^^^^^^^^^
+  File "/app/scripts/runners/run_external_backtest.py", line 573, in run
+    raw = research.backtest(
+          ^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 65, in backtest
+    return _isolated_backtest(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/research/backtest.py", line 158, in _isolated_backtest
+    backtest_result = simulator(
+                      ^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 503, in simulator
+    return _step_simulator(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/jesse-docker/jesse/modes/backtest_mode.py", line 605, in _step_simulator
+    r.strategy._execute()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1251, in _execute
+    self._check()
+  File "/jesse-docker/jesse/strategies/Strategy.py", line 1056, in _check
+    should_long = self.should_long()
+                  ^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/TradeIQPsarHaStrategy.py", line 53, in should_long
+    psar, dema, rsi = self._indicators()
+                      ^^^^^^^^^^^^^^^^^^
+  File "/app/strategies/external/TradeIQPsarHaStrategy.py", line 40, in _indicators
+    acceleration=self.hp['psar_inc'],
+                 ~~~~~~~^^^^^^^^^^^^
+KeyError: 'psar_inc'
 
-executed_at: 2026-05-12T09:59:05.159849+00:00

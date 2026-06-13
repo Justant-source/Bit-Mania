@@ -1,5 +1,5 @@
 """
-TradeIQ 220320 Strategy (PSAR + EMA + RSI + Heikin Ashi) — Jesse 2.x port
+TradeIQ PSAR-HA Strategy (PSAR + EMA + RSI + Heikin Ashi) — Jesse 2.x port
 Original: Pine Script tradeiq-220320-strategy (trading-bot/strategies/tradeiq-220320-strategy/)
 
 4-factor confluence entry: PSAR + 200 EMA + RSI > 50 + HA bullish candle.

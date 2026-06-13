@@ -1,8 +1,8 @@
 status: SUCCESS
-stats_sha256: b00efdb510c1c1a26998fa87be32447971cce34d02f3918627933a3ad3aa3c9a
-stats_size: 2455
+stats_sha256: 810daa1e2896e2b701412cd01f5bc9f582832aa3913621cbfc33ce4bf2ae8cc1
+stats_size: 2437
 sample_metrics:
-  cagr: 46.7993
-  sharpe: 0.8862
-  trades: 195
-executed_at: 2026-05-17T13:08:26.741535+00:00
+  cagr: 24.8199
+  sharpe: 0.7333
+  trades: 119
+executed_at: 2026-05-27T22:53:33.940022+00:00

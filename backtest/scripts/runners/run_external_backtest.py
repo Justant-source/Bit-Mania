@@ -574,7 +574,7 @@ def run(args):
         config=config, routes=routes, data_routes=[],
         candles=candles_dict, warmup_candles=warmup_dict,
         generate_json=True, generate_csv=True, generate_equity_curve=True,
-        hyperparameters=getattr(args, 'hp_dict', None) or {},
+        hyperparameters=getattr(args, 'hp_dict', None) or None,
     )
 
     # 5. Extract metrics

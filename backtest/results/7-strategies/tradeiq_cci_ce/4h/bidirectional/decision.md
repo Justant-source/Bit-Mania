@@ -1,7 +1,7 @@
 ---
 strategy: TradeIQCciCeStrategy
 verdict: FAIL
-created: 2026-05-12
+created: 2026-05-27
 ---
 
 # TradeIQCciCeStrategy 백테스트 결과
@@ -10,17 +10,17 @@ created: 2026-05-12
 
 | 항목 | 결과 | 기준 | 통과 |
 |------|------|------|------|
-| CAGR | 21.94% | ≥ +5% | ✓ |
-| Sharpe | 0.867 | ≥ 0.5 | ✓ |
-| MDD | -31.84% | ≥ -30% | ✗ |
-| Trades | 121 | ≥ 30 | ✓ |
-| Win Rate | 57.9% | ≥ 35% | ✓ |
-| Profit Factor | 1.388 | ≥ 1.2 | ✓ |
+| CAGR | 20.31% | ≥ +5% | ✓ |
+| Sharpe | 0.802 | ≥ 0.5 | ✓ |
+| MDD | -34.04% | ≥ -30% | ✗ |
+| Trades | 176 | ≥ 30 | ✓ |
+| Win Rate | 59.1% | ≥ 35% | ✓ |
+| Profit Factor | 1.267 | ≥ 1.2 | ✓ |
 
 ## 종합 판정: **FAIL**
 
 ## 관찰 사항
-- 백테스트 기간: 2021-01-01 ~ 2026-04-30 (6년)
+- 백테스트 기간: 2017-08-18 ~ 2026-05-28 (6년)
 - 기준: post-ETF 압축장 표준 (backtest-skillset.md)
 
 ## CryptoEngine 적용 권고

@@ -1,7 +1,7 @@
 ---
 strategy: TradeIQPsarHaStrategy
 verdict: FAIL
-created: 2026-05-10
+created: 2026-05-27
 ---
 
 # TradeIQPsarHaStrategy 백테스트 결과
@@ -10,17 +10,17 @@ created: 2026-05-10
 
 | 항목 | 결과 | 기준 | 통과 |
 |------|------|------|------|
-| CAGR | 51.39% | ≥ +5% | ✓ |
-| Sharpe | 0.913 | ≥ 0.5 | ✓ |
-| MDD | -65.62% | ≥ -30% | ✗ |
-| Trades | 87 | ≥ 30 | ✓ |
-| Win Rate | 35.6% | ≥ 35% | ✓ |
-| Profit Factor | 1.212 | ≥ 1.2 | ✓ |
+| CAGR | 58.70% | ≥ +5% | ✓ |
+| Sharpe | 0.998 | ≥ 0.5 | ✓ |
+| MDD | -80.95% | ≥ -30% | ✗ |
+| Trades | 125 | ≥ 30 | ✓ |
+| Win Rate | 38.4% | ≥ 35% | ✓ |
+| Profit Factor | 1.209 | ≥ 1.2 | ✓ |
 
 ## 종합 판정: **FAIL**
 
 ## 관찰 사항
-- 백테스트 기간: 2021-01-01 ~ 2026-04-30 (6년)
+- 백테스트 기간: 2017-08-18 ~ 2026-05-28 (6년)
 - 기준: post-ETF 압축장 표준 (backtest-skillset.md)
 
 ## CryptoEngine 적용 권고

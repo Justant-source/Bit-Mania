@@ -81,6 +81,9 @@ class SupertrendStrategy(Strategy):
         qty = self.balance * 0.95 * LEVERAGE / self.price
         self.buy = qty, self.price
         self._last_entry = self.price
+        # Safety stop-market: equity −70% = price drop 70%/LEVERAGE from entry.
+        # Fires on candle low (intrabar), not bar-close — exchange-order analog.
+        self.stop_loss = qty, self.price * (1 - 0.70 / LEVERAGE)
 
     def go_short(self):
         qty = self.balance * 0.95 * LEVERAGE / self.price
