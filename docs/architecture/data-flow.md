@@ -7,7 +7,7 @@ related_code:
   - cryptoengine/services/orchestrator/
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/shared/redis_client.py
-last_updated: 2026-06-13
+last_updated: 2026-06-14
 when_to_update: |
   - Redis Pub/Sub 채널 추가/변경 시
   - 데이터베이스 스키마 변경 시
@@ -18,7 +18,7 @@ when_to_update: |
 # CryptoEngine 데이터 흐름 아키텍처
 
 > 비트코인 선물 자동매매 시스템의 전체 데이터 파이프라인 명세.
-> Bybit 테스트넷 기반, Docker Compose 환경에서 24/7 무중단 운영.
+> Bybit 메인넷 기반, Docker Compose 환경에서 24/7 무중단 운영.
 
 ---
 
@@ -229,8 +229,7 @@ graph TD
 
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
-| `strategy:funding_arb:command` | orchestrator | funding-arb | `AllocationCommand { strategy_id, allocated_capital, weight, max_drawdown, timestamp }` |
-| `strategy:dca:command` | orchestrator | adaptive-dca | `AllocationCommand` (동일 구조) |
+| `strategy:command:supertrend-01` | orchestrator | supertrend | `AllocationCommand { strategy_id, allocated_capital, weight, max_drawdown, timestamp }` |
 
 ### 2.3 주문 실행 채널
 
@@ -238,14 +237,13 @@ graph TD
 |------|--------|--------|----------|
 | `order:request` | 각 전략 (BaseStrategy) | execution-engine | `OrderRequest { request_id, symbol, side, order_type, quantity, price, strategy_id, post_only, reduce_only, leverage }` |
 | `order:result` | execution-engine | (감사용 — 수동 스크립트) | `OrderResult { request_id, order_id, status, filled_qty, filled_price, fee, fee_currency, reason, strategy_id, symbol, side }` |
-| `order:result:{strategy_id}` | execution-engine | **해당 전략 (supertrend가 구독, 2026-06-13~)** | `OrderResult` — filled면 상태 확정, rejected/partially_filled면 재동기화 + exit 1회 재시도. 거부 결과에도 strategy_id 포함 (이전엔 누락되어 전략별 채널 미발행 → 전략이 거부를 모른 채 발산하던 사고 원인) |
+| `order:result:supertrend-01` | execution-engine | **supertrend** | `OrderResult` — filled면 상태 확정, rejected/partially_filled면 재동기화 + exit 1회 재시도. 거부 결과에도 strategy_id 포함 (이전엔 누락되어 전략별 채널 미발행 → 전략이 거부를 모른 채 발산하던 사고 원인) |
 
 ### 2.4 시스템 채널
 
 | 채널 | 발행자 | 구독자 | 페이로드 |
 |------|--------|--------|----------|
 | `system:kill_switch` | orchestrator | execution-engine, telegram-bot | `{ triggered, reason, timestamp, cooldown_minutes }` |
-| `llm:advisory` | llm-advisor | orchestrator | `{ confidence, weight_adjustments, analysis, timestamp }` |
 | `system:service_health` | orchestrator (watchdog) | (모니터링 대시보드) | `{ status: "healthy"/"degraded", dead_services: [...], timestamp }` |
 | `system:config_reload` | orchestrator (config watcher) | (감사 로그) | `{ section: "kill_switch", changed_keys: [...], new_values: {...}, old_values: {...}, timestamp }` |
 | `telegram:notification` | orchestrator (watchdog) | telegram-bot | `{ level: "critical", message: "...", timestamp }` — Dead man's switch 발동 알림 |
@@ -274,7 +272,7 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    actor Strategy as 전략<br>(funding-arb)
+    actor Strategy as 전략<br>(supertrend)
     participant Redis as Redis<br>Pub/Sub
     participant ExecEngine as execution-engine
     participant Safety as SafetyGuard
@@ -294,7 +292,7 @@ sequenceDiagram
         ExecEngine->>Bybit: 3. 주문 실행<br>POST /v5/order/create
         Bybit-->>ExecEngine: 주문 결과
         ExecEngine->>DB: 4. 결과 저장<br>orders 테이블
-        ExecEngine->>Redis: 5. 체결 알림<br>order:result<br>order:result:funding_arb
+        ExecEngine->>Redis: 5. 체결 알림<br>order:result<br>order:result:supertrend-01
         Redis->>Strategy: 체결 결과 수신
     end
 ```
@@ -327,7 +325,7 @@ sequenceDiagram
 |------|----------|-------------|------|
 | 0 | Redis 연결 상태 (fail-closed) | 3회 연속 실패 시 차단 | Redis 불건강 시 모든 주문 차단. 로컬 캐시(TTL 60s)로 임시 폴백 |
 | 1 | 최대 주문 크기 | $100,000 명목가 | 단일 주문 명목가 제한 |
-| 2 | 레버리지 제한 | 10배 (설정), 2배 (운영 원칙) | 명시적 + 암묵적 레버리지 검사 |
+| 2 | 레버리지 제한 | **3배 (SAFETY_LEVERAGE_LIMIT=3.0)** | 명시적 + 암묵적 레버리지 검사 |
 | 3 | 여유 마진 확인 | $50 이상 | 가용 마진 부족 시 차단 |
 | 4 | 슬리피지 검증 | 0.1% 경고, 0.5% 차단 | post_only 주문은 검사 제외 |
 | 5 | 네트워크 상태 | 30초 이내 응답 | 마지막 API 응답 이후 경과 시간 |
@@ -370,9 +368,9 @@ graph TD
 
 | 레벨 | 조건 | 동작 |
 |------|------|------|
-| 일간 | 일일 낙폭 >= 5% | 전 전략 정지, 100% 현금 |
-| 주간 | 주간 낙폭 >= 10% | 전 전략 정지, 100% 현금 |
-| 월간 | 월간 낙폭 >= 15% | 전 전략 정지, 100% 현금 |
+| 일간 | 일일 낙폭 >= 5% AND $10 | 전 전략 정지, 100% 현금 |
+| 주간 | 주간 낙폭 >= 10% AND $20 | 전 전략 정지, 100% 현금 |
+| 월간 | 월간 낙폭 >= 15% AND $30 | 전 전략 정지, 100% 현금 |
 | 쿨다운 | 발동 후 60분 | 모든 거래 중단, 자동 복구 대기 |
 
 Kill Switch 발동 시:
@@ -476,8 +474,8 @@ graph LR
 
 | 항목 | 주소 |
 |------|------|
-| Bybit WebSocket (테스트넷) | `wss://stream-testnet.bybit.com/v5/public/linear` |
-| Bybit REST (테스트넷) | `https://api-testnet.bybit.com` |
+| Bybit WebSocket (메인넷) | `wss://stream.bybit.com/v5/public/linear` |
+| Bybit REST (메인넷) | `https://api.bybit.com` |
 | PostgreSQL | `localhost:5432` (DB: cryptoengine) |
 | Redis | `localhost:6379` |
 | Grafana | `http://localhost:3002` |

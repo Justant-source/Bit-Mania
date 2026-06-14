@@ -200,7 +200,7 @@ FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
 | 3 | SYSTEM | API 연결 실패, DB/Redis 다운 | 시장가 청산 시도 → 실패 시 수동 개입 대기 | 자동 불가 (수동) |
 | 4 | MANUAL | Telegram 명령 또는 SSH | 즉시 **모든 포지션 청산** | 수동 `/resume` |
 
-**Phase 5 특수**: Level 2는 퍼센트 AND 절대값 USD 둘 다 조건 (예: -5% AND $50 손실)
+**Phase 5 특수**: Level 2는 퍼센트 AND 절대값 USD 둘 다 조건 (예: -5% AND $10 손실)
 
 **임계값 확인**: `redis-cli GET ce:kill_switch:active`
 

@@ -3,7 +3,7 @@ title: 공유 라이브러리 (shared/)
 category: structure
 related_code:
   - cryptoengine/shared/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 ---
 
 # 공유 라이브러리 (shared/)
@@ -35,7 +35,7 @@ graph TD
     end
 
     subgraph services["각 마이크로서비스"]
-        SVC["market-data\nexecution-engine\nfunding-arb\n..."]
+        SVC["market-data\nexecution-engine\nsupertrend\nstrategy-orchestrator\n..."]
     end
 
     shared -->|"COPY shared /app/shared\nPYTHONPATH=/app"| SVC
@@ -208,7 +208,7 @@ class OHLCV(BaseModel):
 ```python
 class StrategyCommand(BaseModel):
     """오케스트레이터 → 전략에 전송"""
-    strategy_id: str              # "funding-arb"
+    strategy_id: str              # "supertrend-01"
     action: Literal["start", "stop", "pause", "resume", "reconfigure"]
     allocated_capital: float | None  # 배분 자본 (USDT)
     max_drawdown: float | None    # 최대 손실 한도
@@ -501,7 +501,7 @@ def load_config(
     - ${VAR_NAME:-default} → os.environ.get('VAR_NAME') 또는 'default'
     
     예:
-    - load_config("funding-arb") → cryptoengine/config/funding-arb.yaml
+    - load_config("supertrend") → cryptoengine/config/supertrend.yaml
     - load_config("/absolute/path/to/file.yaml") → 직접 열기
     """
 
@@ -512,8 +512,7 @@ def load_all_configs(
     
     반환값:
     {
-        "funding-arb": {...},  # funding-arb.yaml 내용
-        "adaptive-dca": {...},
+        "supertrend": {...},    # supertrend.yaml 내용
         "orchestrator": {...},
         ...
     }
@@ -523,12 +522,13 @@ def load_all_configs(
 ### 환경 변수 치환 패턴
 
 ```yaml
-# config/strategies/funding-arb.yaml 예시
-pairs: [BTCUSDT]
-leverage: ${LEVERAGE:-5}              # env LEVERAGE 또는 기본값 5
-min_funding_rate: 0.0001
-max_position_hours: 168
-alert_webhook: ${ALERT_WEBHOOK}      # 필수 (없으면 오류)
+# config/strategies/supertrend.yaml 예시
+pairs: [BTC/USDT:USDT]
+leverage: 3                           # 3x fixed
+st_period: 9
+st_factor: 2.6
+fast_ema: 7
+slow_ema: 29
 ```
 
 ### 기본 설정 디렉토리
@@ -544,7 +544,7 @@ _CONFIG_DIR = _PROJECT_ROOT / "config"  # cryptoengine/config/
 - config_loader는 relative to shared: `../../config/` → `/app/config/`
 
 **주의**:
-- 파일명 중복: `funding-arb.yaml` vs `funding_arb.yaml` (둘 다 지원, 하이픈 우선)
+- 파일명 중복: `supertrend.yaml` vs `supertrend_yaml` (하이픈 우선)
 - YAML 파싱: `yaml.safe_load()` 사용 (안전성)
 
 ---
@@ -851,23 +851,23 @@ def setup_logging(
 {
   "timestamp": "2026-05-01T14:30:45+09:00",
   "level": "INFO",
-  "event": "fa_position_opened",
-  "service": "funding-arb",
-  "strategy_id": "funding-arb",
+  "event": "st_position_opened",
+  "service": "supertrend",
+  "strategy_id": "supertrend-01",
   "symbol": "BTCUSDT",
-  "size": 10.5,
+  "size": 0.003,
   "entry_price": 67500,
-  "funding_rate": 0.0001,
-  "message": "펀딩비 진입 조건 만족",
+  "leverage": 3,
+  "message": "Supertrend 진입 조건 만족",
   "correlation_id": "a1b2c3d4e5f6"
 }
 ```
 
 **콘솔 모드** (json_output=False):
 ```
-2026-05-01T14:30:45+09:00 [INFO   ] funding-arb: fa_position_opened
-    symbol='BTCUSDT' size=10.5 entry_price=67500 funding_rate=0.0001
-    message='펀딩비 진입 조건 만족'
+2026-05-01T14:30:45+09:00 [INFO   ] supertrend: st_position_opened
+    symbol='BTCUSDT' size=0.003 entry_price=67500 leverage=3
+    message='Supertrend 진입 조건 만족'
 ```
 
 ### Correlation ID (요청 추적)
@@ -997,8 +997,8 @@ from shared.kill_switch import KillSwitch
 ### shared/ 수정 시 (모든 서비스 재빌드)
 
 ```bash
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 
 ---
@@ -1035,7 +1035,7 @@ graph TD
     subgraph services["마이크로서비스"]
         MD["market-data"]
         ENG["execution-engine"]
-        FA["funding-arb"]
+        ST["supertrend"]
         ORC["strategy-orchestrator"]
         TG["telegram-bot"]
     end
@@ -1061,4 +1061,4 @@ graph TD
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

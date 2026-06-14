@@ -6,7 +6,7 @@ related_code:
   - cryptoengine/scripts/switch_to_testnet.py (롤백 스크립트)
   - cryptoengine/scripts/phase5_preflight.py (8개 항목 점검)
   - cryptoengine/.env
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 when_to_update: |
   - Phase 5 진입 기준 변경 시
   - 초기 자본 설정 변경 시
@@ -60,8 +60,8 @@ flowchart TD
 - [ ] Walk-Forward 월간 파이프라인 1회 이상 정상 완료
 
 **파이널 백테스트 검증** (필수):
-- [ ] fa80_lev5_r30 파라미터 재확인 (config/strategies/funding-arb.yaml)
-- [ ] 6년 백테스트 결과 CAGR +34.87% 재확인
+- [ ] supertrend #7908 파라미터 재확인 (config/strategies/supertrend.yaml: st_period=9, st_factor=2.6, ema=7/29/240)
+- [ ] Bybit 네이티브 백테스트 결과 CAGR +137.64% 재확인
 - [ ] 최근 OOS(Out-of-Sample) 30일 성과 > 기준의 70% 달성
 
 **Preflight 자동 검증** (필수):
@@ -258,7 +258,7 @@ sleep 120
 
 # 최종 점검
 docker compose logs --tail=50 strategy-orchestrator | grep -E "ready|ERROR"
-docker compose logs --tail=50 funding-arb | grep -E "initialized|ready|ERROR"
+docker compose logs --tail=50 supertrend | grep -E "initialized|ready|ERROR"
 
 # 모든 OK면 거래 자동 시작됨 (오케스트레이터 판단)
 ```
@@ -290,9 +290,9 @@ phase5:
     atr_exit_multiplier: 3.3
 ```
 
-### 이전 FA 설정 (참고, 더 이상 사용 안 함)
+### 이전 FA 설정 (📦 아카이브됨, 2026-05-18 폐기)
 
-이전 Funding Arb 전략의 Phase 5 설정:
+이전 Funding Arb 전략은 2026-05-18 대규모 레거시 정리로 폐기되었습니다.
 ```yaml
 # [폐기됨] 이전 FA Phase 5 오버라이드
 # fixed_notional_usd: 150
@@ -306,13 +306,14 @@ phase5:
 
 ```python
 # Phase 5: 둘 다 조건 만족해야 발동 (AND)
-if (drawdown_pct <= -5.0) AND (drawdown_usd >= $50):
-    trigger_kill_switch_l2()
+# L1: 일일 -5% AND $10 / 주간 -10% AND $20 / 월간 -15% AND $30
+if (drawdown_pct <= -5.0) AND (drawdown_usd >= $10):
+    trigger_kill_switch_l1()
 
 # 예:
 # - 손실 -4% ($8) → 발동 안 함 (상대값 미만)
-# - 손실 -6% ($8) → 발동 안 함 (절대값 미만)
-# - 손실 -6% ($60) → 발동 함 (둘 다 만족)
+# - 손실 -6% ($8) → 발동 안 함 (절대값 미만, $10 미만)
+# - 손실 -6% ($15) → 발동 함 (둘 다 만족)
 ```
 
 ---
@@ -323,7 +324,7 @@ if (drawdown_pct <= -5.0) AND (drawdown_usd >= $50):
 
 ```bash
 # 매 시간마다 확인
-watch -n 3600 'docker compose logs --tail=20 funding-arb | grep -E "position|entry|profit"'
+watch -n 3600 'docker compose logs --tail=20 supertrend | grep -E "position|entry|signal"'
 
 # 또는 수동 확인 (30분마다)
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -406,13 +407,14 @@ docker compose up -d
 ```markdown
 메인넷 전환 GO/NO-GO (Supertrend 4h):
 - [ ] Phase 4 모든 항목 완료
-- [ ] Supertrend 파라미터 최종 확인 (ST 8, 2.4 / EMA 7,27,230)
+- [ ] Supertrend 파라미터 최종 확인 (ST period=9, factor=2.6 / EMA 7,29,240, atr_mult=3.3)
 - [ ] API 키 교체 (메인넷)
-- [ ] EXPECTED_INITIAL_BALANCE_USD = $200
+- [ ] EXPECTED_INITIAL_BALANCE_USD = $200 (현재 $185.31 기준)
 - [ ] STRICT_MONITORING_HOURS = 24
 - [ ] PHASE5_MODE = true
 - [ ] BYBIT_TESTNET = false (마지막 변경)
 - [ ] MAX_LEVERAGE = 3 (공유 라이브러리에서 확인)
+- [ ] min_position_usd = 65
 - [ ] 최종 백업 완료
 - [ ] 비상 청산 SOP 준비 완료
 - [ ] Telegram 봇 토큰 확인

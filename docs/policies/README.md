@@ -1,7 +1,7 @@
 ---
 title: 정책 문서
 category: policies
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # 정책
@@ -40,8 +40,7 @@ last_updated: 2026-05-01
 | 문서 | 설명 |
 |------|------|
 | [strategies/README.md](strategies/README.md) | 전략 인덱스 |
-| [strategies/funding-arb.md](strategies/funding-arb.md) | Funding Arb 전략 (핵심) |
-| [strategies/adaptive-dca.md](strategies/adaptive-dca.md) | Adaptive DCA 전략 (보조) |
+| [strategies/supertrend.md](strategies/supertrend.md) | Supertrend 4h Long-Only 3x 전략 (현재 운영) |
 
 ---
 

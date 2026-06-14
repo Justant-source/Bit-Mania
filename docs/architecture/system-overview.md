@@ -5,7 +5,7 @@ related_code:
   - docker-compose.yml
   - cryptoengine/services/
   - cryptoengine/shared/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 when_to_update: |
   - 새로운 마이크로서비스 추가 시
   - 서비스 레이어 구성 변경 시
@@ -52,13 +52,11 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 | 서비스 | 유형 | 상태 | 역할 |
 |--------|------|------|------|
 | **supertrend** | 메인 전략 | ✅ **활성** (Phase 5) | Supertrend 4h 추세추종, Long-only 3x 레버리지. 4시간 봉 마감 시 신호 계산, EMA 교차 및 ATR 기반 청산 |
-| **adaptive-dca** | 보조 전략 | ⚠️ 비활성 | Fear & Greed 지수 기반 적응형 분할매수. 재활성화 검토 중 |
 
 ### 2.4 Intelligence (지능)
 
 | 서비스 | 상태 | 역할 |
 |--------|------|------|
-| **llm-advisor** | ❌ 삭제됨 | 이전: Anthropic SDK + LangGraph 기반 시장 분석. Phase 5 단순화로 제거됨 |
 
 ### 2.5 Interface (인터페이스)
 
@@ -74,7 +72,6 @@ WSL Ubuntu 환경에서 24/7 무중단 운영을 목표로 설계되었다.
 |--------|------|
 | **backtester** | 백테스팅 엔진. `backtest` 프로필로 온디맨드 실행. Jesse 프레임워크 기반, Supertrend 전략 검증용 |
 | **log-retention** | 매일 03:00 KST `service_logs` 보존 정책 자동 실행 (DEBUG 7일, INFO 30일, WARNING 90일, ERROR 365일) |
-| **wf-scheduler** | ⚠️ 아카이브됨 | 이전: Walk-Forward 월간 분석. Phase 5 단순화로 수동 분석으로 변경 |
 
 ---
 
@@ -112,8 +109,7 @@ graph TB
     end
     
     subgraph channels["Redis Pub/Sub Channels"]
-        c1["market:funding_rate"]
-        c3["strategy:command:{id}"]
+        c3["strategy:command:supertrend-01"]
         c4["order:request"]
         c5["order:update"]
         c6["kill_switch"]
@@ -123,16 +119,14 @@ graph TB
     end
     
     subgraph sub["Subscribers"]
-        fa["funding-arb"]
-        dca["adaptive-dca"]
+        st["supertrend"]
         o2["orchestrator"]
         exec2["execution-engine"]
         tg["telegram-bot"]
         audit["audit logs"]
     end
     
-    md --> c1
-    md --> c2
+    md --> c3
     orch --> c3
     strat --> c4
     exec --> c5
@@ -141,12 +135,9 @@ graph TB
     orch --> c8
     orch --> c9
     
-    c1 --> o2
-    c3 --> fa
-    c3 --> dca
+    c3 --> st
     c4 --> exec2
-    c5 --> fa
-    c5 --> dca
+    c5 --> st
     c6 --> exec2
     c7 --> audit
     c8 --> audit
@@ -196,7 +187,7 @@ graph LR
     end
 
     subgraph strat["Strategy"]
-        supertrend["supertrend<br>main strategy<br>Supertrend 4h 3x<br>long-only"]
+        supertrend["supertrend<br>main strategy<br>Supertrend 4h 3x<br>long-only<br>100% allocation"]
     end
 
     subgraph iface["Interface"]
@@ -229,7 +220,6 @@ graph LR
     style infra fill:#E8EAF6
     style core fill:#E8F5E9
     style strat fill:#FFF3E0
-    style intel fill:#F3E5F5
     style iface fill:#E0F7FA
 ```
 

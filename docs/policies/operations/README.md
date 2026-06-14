@@ -1,7 +1,7 @@
 ---
 title: 운영 매뉴얼
 category: policies/operations
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # 운영 매뉴얼

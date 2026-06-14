@@ -4,7 +4,7 @@ category: env
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/Dockerfile (각 서비스)
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # Docker 설정 및 사용 가이드
@@ -21,10 +21,10 @@ Docker Compose를 이용한 CryptoEngine 스택 관리.
 **docker-compose.yml 예**:
 ```yaml
 services:
-  funding-arb:
+  supertrend:
     build:
       context: .
-      dockerfile: cryptoengine/services/strategies/funding-arb/Dockerfile
+      dockerfile: cryptoengine/services/strategies/supertrend/Dockerfile
 ```
 
 ### Dockerfile 작성 규칙
@@ -37,7 +37,7 @@ FROM python:3.12
 WORKDIR /app
 
 COPY cryptoengine/shared /app/shared
-COPY cryptoengine/services/strategies/funding-arb /app/strategy
+COPY cryptoengine/services/strategies/supertrend /app/strategy
 COPY cryptoengine/services/strategies/base_strategy.py /app/
 
 ENV PYTHONPATH=/app
@@ -67,19 +67,20 @@ docker compose up -d
 - 데이터베이스 자동 초기화
 - 로그는 백그라운드로 실행
 
-#### 인프라만 기동 (DB, Redis, Grafana)
+#### 인프라만 기동 (DB, Redis)
 ```bash
-docker compose up -d postgres redis grafana
+docker compose up -d postgres redis
 ```
 - 개발/테스트 시 유용
 - 핵심 서비스 없이 데이터 계층만 준비
 
 #### 핵심 서비스만 기동
 ```bash
-docker compose up -d market-data execution-engine funding-arb strategy-orchestrator
+docker compose up -d market-data execution-engine supertrend strategy-orchestrator
 ```
 - 시장 데이터부터 실행 순서 중요
-- execution-engine, funding-arb는 market-data 이후 시작
+- execution-engine, supertrend는 market-data 이후 시작
+- strategy-orchestrator 마지막
 
 ---
 
@@ -87,7 +88,7 @@ docker compose up -d market-data execution-engine funding-arb strategy-orchestra
 
 #### 특정 서비스 재빌드 (코드 변경 후)
 ```bash
-docker compose up -d --build --no-deps funding-arb
+docker compose up -d --build --no-deps supertrend
 ```
 - `--build`: 이미지 재빌드
 - `--no-deps`: 의존 서비스 재시작 안 함
@@ -95,11 +96,11 @@ docker compose up -d --build --no-deps funding-arb
 
 예시:
 ```bash
-# funding-arb 전략 로직 수정 후
-docker compose up -d --build --no-deps funding-arb
+# supertrend 전략 로직 수정 후
+docker compose up -d --build --no-deps supertrend
 
 # 로그 확인하며 정상 시작 확인
-docker compose logs --tail=20 funding-arb
+docker compose logs --tail=20 supertrend
 ```
 
 #### 전체 스택 재빌드
@@ -115,19 +116,19 @@ docker compose build
 
 ```bash
 # 1단계: 각 서비스 재빌드 (순서 중요)
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
 
 # 2단계: 서비스 재시작 (의존성 유지)
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine supertrend strategy-orchestrator telegram-bot
 
 # 3단계: 로그 확인
-docker compose logs --follow funding-arb
+docker compose logs --follow supertrend
 ```
 
 **재빌드 순서**:
 1. market-data (다른 서비스의 데이터 소비)
 2. execution-engine (주문 처리)
-3. funding-arb (핵심 전략)
+3. supertrend (핵심 전략)
 4. strategy-orchestrator (조율)
 5. telegram-bot (알림)
 
@@ -148,8 +149,7 @@ graph TD
     end
 
     subgraph strategy["3단계: 전략 (orchestrator 이후)"]
-        FA["funding-arb<br>펀딩비 차익"]
-        DCA["adaptive-dca<br>Fear & Greed"]
+        ST["supertrend<br>4h 추세추종"]
     end
 
     subgraph aux["4단계: 보조 서비스 (독립적)"]
@@ -177,17 +177,14 @@ graph TD
     RD -->|"healthcheck"| ORC
     RD -->|"healthcheck"| TG
 
-    MD -->|"펀딩비"| ORC
-    ORC -->|"자본 배분"| FA
-    ORC -->|"자본 배분"| DCA
+    ORC -->|"자본 배분"| ST
     ORC -->|"Kill Switch"| ENG
 
-    FA -->|"주문 요청"| ENG
-    DCA -->|"주문 요청"| ENG
+    ST -->|"주문 요청"| ENG
 
     style PG fill:#336791,color:#fff
     style RD fill:#dc382d,color:#fff
-    style FA fill:#ff9800,color:#fff
+    style ST fill:#ff9800,color:#fff
     style ENG fill:#4caf50,color:#fff
     style ORC fill:#2196f3,color:#fff
 ```
@@ -228,25 +225,25 @@ python scripts/phase5_preflight.py --skip fees --skip leverage
 #### 실시간 로그 보기
 ```bash
 # 특정 서비스
-docker compose logs -f funding-arb
+docker compose logs -f supertrend
 
 # 마지막 50줄만
-docker compose logs --tail=50 funding-arb
+docker compose logs --tail=50 supertrend
 
 # 여러 서비스 동시
-docker compose logs -f market-data execution-engine funding-arb
+docker compose logs -f market-data execution-engine supertrend
 ```
 
 #### 로그 필터링
 ```bash
 # ERROR 레벨만
-docker compose logs funding-arb | grep ERROR
+docker compose logs supertrend | grep ERROR
 
 # 특정 문자열 검색
-docker compose logs funding-arb | grep "포지션\|Error"
+docker compose logs supertrend | grep "포지션\|Error"
 
 # 최근 1시간 로그
-docker compose logs --since 1h funding-arb
+docker compose logs --since 1h supertrend
 ```
 
 #### 전체 로그 출력
@@ -274,14 +271,14 @@ postgres               postgres:15            Up 2 hours
 redis                  redis:7                Up 2 hours
 market-data           cryptoengine:latest   Up 1 hour
 execution-engine      cryptoengine:latest   Up 1 hour
-funding-arb           cryptoengine:latest   Up 45 minutes
+supertrend            cryptoengine:latest   Up 45 minutes
 strategy-orchestrator cryptoengine:latest   Up 40 minutes
 ...
 ```
 
 #### 특정 서비스 상태
 ```bash
-docker compose exec funding-arb ps aux
+docker compose exec supertrend ps aux
 docker compose exec postgres pg_isready
 ```
 
@@ -292,7 +289,7 @@ docker compose exec postgres pg_isready
 #### 서비스 정지
 ```bash
 # 특정 서비스
-docker compose stop funding-arb
+docker compose stop supertrend
 
 # 모든 서비스 (데이터 유지)
 docker compose stop
@@ -301,7 +298,7 @@ docker compose stop
 #### 서비스 재시작
 ```bash
 # 특정 서비스
-docker compose restart funding-arb
+docker compose restart supertrend
 
 # 모든 서비스
 docker compose restart
@@ -310,7 +307,7 @@ docker compose restart
 #### 서비스 제거
 ```bash
 # 컨테이너만 제거 (이미지 유지)
-docker compose rm -f funding-arb
+docker compose rm -f supertrend
 
 # 컨테이너 + 볼륨 (데이터 삭제!)
 docker compose down -v
@@ -384,15 +381,15 @@ docker compose down
 
 #### Graceful Shutdown (포지션 보호)
 ```bash
-# 1. funding-arb 정지 (상태 저장)
-docker compose stop funding-arb
+# 1. supertrend 정지 (상태 저장)
+docker compose stop supertrend
 
 # 2. 상태 저장 확인
-docker compose logs --tail=5 funding-arb | grep -i "저장\|saved"
+docker compose logs --tail=5 supertrend | grep -i "저장\|saved"
 
 # 3. 재시작 시 복구
-docker compose up -d --no-deps funding-arb
-docker compose logs --tail=10 funding-arb | grep -i "복구\|recovered"
+docker compose up -d --no-deps supertrend
+docker compose logs --tail=10 supertrend | grep -i "복구\|recovered"
 ```
 
 ---
@@ -419,7 +416,7 @@ docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm
 `docker-compose.yml`에서 각 서비스에 메모리 제한:
 ```yaml
 services:
-  funding-arb:
+  supertrend:
     deploy:
       resources:
         limits:
@@ -466,10 +463,10 @@ docker system prune -a
 ### 빌드 실패 (Dockerfile 경로)
 ```bash
 # Dockerfile 위치 확인
-ls -la cryptoengine/services/strategies/funding-arb/Dockerfile
+ls -la cryptoengine/services/strategies/supertrend/Dockerfile
 
 # Docker 빌드 디버그 모드
-docker compose build --no-cache --progress=plain funding-arb 2>&1 | tail -50
+docker compose build --no-cache --progress=plain supertrend 2>&1 | tail -50
 ```
 
 ### 컨테이너 메모리 부족
@@ -481,7 +478,7 @@ docker stats
 docker system prune -a --volumes
 
 # 특정 서비스 메모리 확인
-docker compose exec funding-arb free -h
+docker compose exec supertrend free -h
 ```
 
 ### 데이터베이스 연결 실패
@@ -541,4 +538,4 @@ docker compose cp redis:/data/dump.rdb ./redis_backup.rdb
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

@@ -1,6 +1,6 @@
 ---
 title: Backtest — 전략 R&D 통합 트리
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 ---
 
 # Backtest
@@ -8,7 +8,8 @@ last_updated: 2026-05-18
 전략 R&D 전용 영역. 운영 코드(`cryptoengine/`)와 완전히 격리됨.
 
 **메인넷 현활 전략**: Supertrend 4h 3x long-only (combo #7908)  
-- CAGR: +151.56%, Sharpe: 1.37, MDD: -84.28%
+- CAGR: +137.64%, Sharpe: 1.349, MDD: -73.29% (Bybit 네이티브 4h 정본, 2026-06-14)
+- 구 Binance 스윕 값(151.56%/1.37/-84.28%)은 폐기됨
 - 배포: 2026-05-18~ (Phase 5)
 
 ## 구조

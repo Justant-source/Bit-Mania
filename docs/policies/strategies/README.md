@@ -1,7 +1,7 @@
 ---
 title: 거래 전략
 category: policies/strategies
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 when_to_update: |
   - 새 전략 추가 시
   - orchestrator.yaml 가중치 변경 시
@@ -18,9 +18,9 @@ CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략�
 
 | 전략 | 상태 | CAGR | Sharpe | 역할 |
 |------|------|------|--------|------|
-| [Supertrend](supertrend.md) | ✅ **메인** | +151.56% | 1.37 | 메인 수익원 (추세추종) |
-| [Funding Arb](funding-arb.md) | 🗂️ **폐기** | +34.87% | 3.583 | 이전 핵심 전략 (히스토리) |
-| [Adaptive DCA](adaptive-dca.md) | ⚠️ **비활성** | N/A | N/A | 보조 (재활성화 검토 중) |
+| [Supertrend](supertrend.md) | ✅ **메인** | +137.64% | 1.349 | 메인 수익원 (추세추종, Bybit 네이티브 4h) |
+| Funding Arb | 🗂️ **폐기** | — | — | 이전 핵심 전략 (히스토리) |
+| Adaptive DCA | ⚠️ **비활성** | — | — | 보조 (재활성화 검토 중) |
 
 ---
 
@@ -30,21 +30,21 @@ CryptoEngine의 거래 전략 포트폴리오 및 운영 규칙. 모든 전략�
 
 **BTC 4시간 추세 추종 전략으로, Supertrend 지표 + EMA 조합을 활용한 추세기반 매매**
 
-- **진입**: Supertrend 상승 신호 + EMA(7) > EMA(27) + Price > EMA(230)
+- **진입**: Supertrend 상승 신호 + EMA(7) > EMA(29) + Close > EMA(240)
 - **청산**: EMA 하강 교차 또는 ATR 기반 손절/익절
-- **리스크**: 극단 하락 시 높은 손실 (MDD −84.28%)
+- **리스크**: 극단 하락 시 높은 손실 (MDD −73.29%)
 - **레버리지**: 3x (하드 리밋)
 
-### 백테스트 성과 (supertrend_4h_x3_7908)
+### 백테스트 성과 (supertrend_4h_x3_7908, Bybit 네이티브 4h)
 
-**기간**: 2017-01-01 ~ 2026-05-18 (9년, 전체 역사)
+**기간**: 2017-08-17 ~ 2026-04-30 (Bybit 네이티브 데이터)
 
 | 지표 | 값 | 평가 |
 |------|-----|------|
-| **CAGR** | +151.56% | ✅ 매우 우수 |
-| **Sharpe Ratio** | 1.37 | ⚠️ 적절 |
-| **Maximum Drawdown** | -84.28% | ⚠️ **극한 위험** |
-| **거래 수** | 354회 | ✅ 충분한 샘플 |
+| **CAGR** | +137.64% | ✅ 매우 우수 |
+| **Sharpe Ratio** | 1.349 | ⚠️ 적절 |
+| **Maximum Drawdown** | -73.29% | ⚠️ **극한 위험** |
+| **거래 수** | 360회 | ✅ 충분한 샘플 |
 
 ### 핵심 파라미터
 
@@ -129,13 +129,12 @@ risk:
   weekly_cap_usd: 2_000
 ```
 
-[상세 문서 →](adaptive-dca.md)
 
 ---
 
 ## BaseStrategy ABC (전략 구현 기본)
 
-모든 전략(funding-arb, adaptive-dca)은 `BaseStrategy` 추상 기본 클래스를 상속합니다.
+모든 전략은 `BaseStrategy` 추상 기본 클래스를 상속합니다.
 
 **파일**: `cryptoengine/services/strategies/base_strategy.py`
 
@@ -226,17 +225,17 @@ Orchestrator                Strategy (BaseStrategy)
 
 2. **전략 시작 신호**
    ```
-   Orchestrator 판단: 펀딩레이트 > 15% → FA 활성화 필요
-   → StrategyCommand(action="start", allocated_capital=$8,000) 발행
+   Orchestrator 판단: 보유 자본 > 0 → Supertrend 활성화
+   → StrategyCommand(action="start", allocated_capital=전체) 발행
    ```
 
 3. **전략 초기화**
    ```python
-   # funding-arb strategy.py
+   # supertrend strategy.py
    async def on_start(self, capital: float, params: dict) -> None:
        self.allocated_capital = capital
        # 포지션 사이징 계산
-       # Redis 청취 시작 (펀딩레이트 채널)
+       # Redis 청취 시작 (신호 채널)
        # 진입 조건 모니터링 활성화
    ```
 
@@ -258,8 +257,8 @@ Orchestrator                Strategy (BaseStrategy)
 
 6. **전략 중지 신호**
    ```
-   Orchestrator: 펀딩비 반전 또는 Kill Switch 발동
-   → StrategyCommand(action="stop", reason="funding_reversal") 발행
+   Orchestrator: Kill Switch 발동 또는 시스템 장애
+   → StrategyCommand(action="stop", reason="kill_switch") 발행
    ```
 
 7. **정리**
@@ -309,14 +308,14 @@ weights:
 
 포트폴리오 레벨 Kill Switch 발동 시:
 
-| Level | 조건 | Supertrend | Adaptive DCA |
-|-------|------|-----------|-------------|
-| **L1** | 전략 손실 > 3% | 포지션 청산 | 매수 중지 |
-| **L2** | 일일 손실 > 5% | 포지션 청산 | 포지션 청산 |
-| **L3** | 시스템 장애 | 시장가 청산 | 시장가 청산 |
-| **L4** | 수동 비상 정지 | 즉시 청산 | 즉시 청산 |
+| Level | 조건 | Supertrend |
+|-------|------|-----------|
+| **L1** | 전략 손실 > 3% | 포지션 청산 |
+| **L2** | 일일 손실 > 5% | 포지션 청산 |
+| **L3** | 시스템 장애 | 시장가 청산 |
+| **L4** | 수동 비상 정지 | 즉시 청산 |
 
-**Phase 5 추가**: 절대값 기준 AND 로직 — `drawdown_pct ≤ -5.0` AND `drawdown_usd ≥ $50`
+**Phase 5 추가**: 절대값 기준 AND 로직 — `drawdown_pct ≤ -5.0` AND `drawdown_usd ≥ $10` (일일)
 
 [상세 정책 →](../kill-switch.md)
 
@@ -384,18 +383,10 @@ docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm
 | `indicators.py` | Supertrend, EMA 지표 계산 |
 | `main.py` | 서비스 엔트리포인트 |
 
-### Funding Arb 서비스 (폐기됨, 히스토리용)
+### Funding Arb 서비스 (폐기됨 — ADR-004, 2026-05-18)
 
 **파일**: `cryptoengine/services/strategies/funding-arb/` (삭제됨)
 
-이전 버전 이해를 위한 참조용 문서만 [policies/strategies/funding-arb.md](funding-arb.md)에 보존됨.
+### Adaptive DCA 서비스 (폐기됨 — ADR-005, 2026-05-18)
 
-### Adaptive DCA 서비스
-
-**파일**: `cryptoengine/services/strategies/adaptive-dca/`
-
-| 모듈 | 역할 |
-|------|------|
-| `strategy.py` | 메인 전략 로직 (BaseStrategy 상속) |
-| `fear_greed.py` | Fear & Greed Index 멀티플라이어 |
-| `scheduler.py` | 매수 스케줄 + 분할 진입 관리 |
+**파일**: `cryptoengine/services/strategies/adaptive-dca/` (삭제됨)

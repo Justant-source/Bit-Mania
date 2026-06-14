@@ -3,7 +3,7 @@ title: 비상 수동 청산 SOP
 category: policies
 related_code:
   - cryptoengine/services/telegram-bot/
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 when_to_update: |
   - Telegram 명령 변경 시
   - 비상 청산 절차 변경 시
@@ -15,8 +15,8 @@ when_to_update: |
 > [!danger] 이 문서를 즉시 접근 가능한 위치에 저장하라
 > 봇이 완전히 다운되었을 때 사용한다. 휴대폰 메모앱 즐겨찾기 또는 Telegram Saved Messages에 이 문서를 보관하라.
 
-**최종 업데이트**: 2026-05-18  
-**적용 환경**: Phase 5 메인넷 Supertrend 운영 중 봇 또는 서버 장애 발생 시
+**최종 업데이트**: 2026-06-14  
+**적용 환경**: Phase 5 메인넷 Supertrend Long-Only 운영 중 봇 또는 서버 장애 발생 시
 
 ---
 
@@ -99,8 +99,8 @@ flowchart LR
 ### 1a. 모바일 앱
 
 1. 하단 메뉴 **[거래]** 탭
-2. 오른쪽 상단 **[포지션]** 탭
-3. `BTCUSDT` 포지션 찾기 (Long 방향, Supertrend 롱 포지션)
+2. **[선물]** 탭 → **[포지션]** 확인
+3. `BTCUSDT Long` 포지션 찾기 (Supertrend 3x 롱 포지션)
 4. 포지션 옆 **[청산]** 버튼 탭
 5. **수량**: 전량 선택 (또는 수량 직접 입력)
 6. **주문 유형**: **시장가(Market)** 선택 ← 반드시 시장가
@@ -161,10 +161,10 @@ Supertrend는 진입 시 거래소에 StopLoss 주문을 자동 배치한다. �
 ```bash
 cd ~/Data/Bit-Mania/cryptoengine
 docker compose ps  # 서비스 상태 확인
-docker compose stop funding-arb execution-engine strategy-orchestrator
+docker compose stop supertrend execution-engine strategy-orchestrator
 ```
 
-### 5b. DB 포지션 상태 수동 갱신
+### 4b. DB 포지션 상태 수동 갱신
 
 ```bash
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -175,7 +175,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 
 > [!warning] 청산가는 Bybit 거래 내역에서 확인한 실제 체결가를 입력한다.
 
-### 5c. Redis 캐시 클리어
+### 4c. Redis 캐시 클리어
 
 ```bash
 docker compose exec redis redis-cli -a ${REDIS_PASSWORD} \
@@ -186,26 +186,26 @@ docker compose exec redis redis-cli -a ${REDIS_PASSWORD} \
   --scan --pattern "cache:stoploss:*" | xargs docker compose exec redis redis-cli -a ${REDIS_PASSWORD} DEL
 ```
 
-### 5d. 서비스 재시작
+### 4d. 서비스 재시작
 
 ```bash
 # 포지션 없음 확인 후 재시작
 docker compose up -d execution-engine strategy-orchestrator
-# funding-arb는 5분 대기 후 (오케스트레이터 안정화 후)
-docker compose up -d funding-arb
+# supertrend는 5분 대기 후 (오케스트레이터 안정화 후)
+docker compose up -d supertrend
 # 로그 확인
-docker compose logs -f funding-arb | head -30
+docker compose logs -f supertrend | head -30
 ```
 
 ---
 
-## 6. 비상 청산 후 원인 분석
+## 5. 비상 청산 후 원인 분석
 
 청산 완료 후 반드시 원인을 파악한다.
 
 ```bash
 # 서비스 로그 확인 (장애 발생 시간 전후)
-docker compose logs --since=1h funding-arb execution-engine market-data | grep -E "ERROR|CRITICAL|exception"
+docker compose logs --since=1h supertrend execution-engine market-data | grep -E "ERROR|CRITICAL|exception"
 
 # Kill Switch 이벤트 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -218,7 +218,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 
 ---
 
-## 7. 사고 보고 체크리스트
+## 6. 사고 보고 체크리스트
 
 - [ ] 비상 청산 시각 기록
 - [ ] 청산 당시 포지션 상세 (종목, 수량, 진입가, 청산가, 손익)
@@ -238,12 +238,11 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 === CryptoEngine 비상 청산 요약 ===
 
 1. Bybit 앱 → [거래] → [포지션]
-2. BTCUSDT Short → [청산] → 시장가 → 전량 → 확인
-3. [자산] → [현물] → BTC [매도] → 시장가 → 전량 → 확인
-4. [미체결 주문] → StopMarket 주문 [취소]
-5. USDT 잔고 확인
+2. BTCUSDT Long (Perp) → [청산] → 시장가 → 전량 → 확인
+3. [미체결 주문] → StopMarket/StopLoss 주문 모두 [취소]
+4. USDT 잔고 확인 (초기값 대비 손익 기록)
 
-복구 후: make emergency (Docker가 살아있으면)
+복구 후: docker compose up -d execution-engine strategy-orchestrator supertrend
 문서: docs/policies/emergency-manual-close.md
 ```
 

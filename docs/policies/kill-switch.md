@@ -5,8 +5,8 @@ related_code:
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/config/orchestrator.yaml
   - cryptoengine/services/orchestrator/main.py
-  - cryptoengine/services/telegam-bot/
-last_updated: 2026-05-01
+  - cryptoengine/services/telegram-bot/
+last_updated: 2026-06-14
 when_to_update: |
   - KillLevel enum 또는 KillSwitch 클래스 시그니처 변경 시
   - orchestrator.yaml kill_switch 섹션 임계값/파라미터 변경 시
@@ -97,7 +97,7 @@ kill_switch:
   # 각 전략이 자신의 config에서 max_drawdown_pct 정의
 ```
 
-전략별 설정 (config/strategies/funding-arb.yaml):
+전략별 설정 (config/strategies/supertrend.yaml):
 ```yaml
 risk:
   max_drawdown_pct: 5.0        # 5% 이상 손실 시 전략 정지

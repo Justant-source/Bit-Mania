@@ -128,7 +128,7 @@ graph TB
 | 컬럼 | 타입 | 제약 조건 | 설명 |
 |------|------|-----------|------|
 | `id` | BIGSERIAL | **PK** | 자동 증가 ID |
-| `strategy_id` | VARCHAR(50) | NOT NULL | 전략 식별자 (funding_arb, grid 등) |
+| `strategy_id` | VARCHAR(50) | NOT NULL | 전략 식별자 (예: supertrend-01) |
 | `exchange` | VARCHAR(20) | NOT NULL | 거래소 (bybit) |
 | `symbol` | VARCHAR(20) | NOT NULL | 심볼 (BTCUSDT) |
 | `side` | VARCHAR(10) | NOT NULL | buy / sell |
@@ -1040,9 +1040,8 @@ SELECT add_compression_policy('ohlcv_history', INTERVAL '7 days');
 |--------|-----------|---------------|
 | market-data | 높음 (OHLCV 삽입) | 8~10 |
 | execution-engine | 중간 (체결 기록) | 5~8 |
-| funding-arb | 낮음 | 3~5 |
+| supertrend | 낮음 | 3~5 |
 | strategy-orchestrator | 낮음 | 3~5 |
-| llm-advisor | 낮음 | 2~3 |
 | dashboard | 중간 (읽기 전용) | 5~8 |
 
 총 커넥션 수 상한: PostgreSQL `max_connections` 기본값(100)으로 충분하나,

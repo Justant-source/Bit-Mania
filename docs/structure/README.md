@@ -1,7 +1,7 @@
 ---
 title: 코드 구조 가이드
 category: structure
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # 코드 구조 가이드
@@ -94,11 +94,11 @@ Pydantic BaseModel 사용으로:
 
 | 항목 | 경로 | 설명 |
 |-----|------|------|
-| **Docker 스택** | cryptoengine/docker-compose.yml | 19개 서비스 정의 |
+| **Docker 스택** | cryptoengine/docker-compose.yml | 핵심 서비스 정의 |
 | **환경 설정** | cryptoengine/.env | API 키, DB 비밀번호 (git 제외) |
-| **전략 파라미터** | cryptoengine/config/strategies/ | YAML 기반 전략 설정 |
+| **전략 파라미터** | cryptoengine/config/strategies/supertrend.yaml | Supertrend 4h 전략 |
 | **핵심 라이브러리** | cryptoengine/shared/ | 모든 서비스 공용 유틸 |
-| **핵심 전략** | cryptoengine/services/strategies/funding-arb/ | 펀딩비 차익거래 |
+| **핵심 전략** | cryptoengine/services/strategies/supertrend/ | Supertrend 4h Long-only 3x #7908 |
 | **실행 엔진** | cryptoengine/services/execution/ | 주문 실행 + 포지션 추적 |
 | **DB 마이그레이션** | cryptoengine/migrations/ | 스키마 버전 관리 |
 | **운영 스크립트** | cryptoengine/scripts/ | Phase 5 전환, 백업 등 |
@@ -117,8 +117,8 @@ Pydantic BaseModel 사용으로:
 
 ### shared/ 수정 시 (모든 서비스 재빌드)
 ```bash
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 
 ### 문제 디버깅
@@ -135,4 +135,4 @@ docker compose exec redis redis-cli SUBSCRIBE "market:*"
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

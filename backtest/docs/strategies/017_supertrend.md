@@ -1,6 +1,6 @@
 ---
 status: active-2026-05-18
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 ---
 
 # 016 — Supertrend 전략 (Triple Confirmation)
@@ -53,7 +53,7 @@ def update_position():
 | `direction_ema_len` | 200 | **240** | 방향 필터 EMA |
 | `atr_mult` | 3.0 | **3.3** | ATR 손절/익절 배수 |
 
-> combo #7908은 Phase 5 파라미터 최적화 스윕(v7_st)에서 CAGR 151.56%, Sharpe 1.37로 선정됨. 자세한 최적화 내역 → `docs/policies/strategies/supertrend.md`
+> combo #7908은 Phase 5 파라미터 최적화 스윕(v7_st)에서 선정됨. 최종 Bybit 네이티브 4h 정본 성과(2026-06-14 재빌드): CAGR +137.64%, Sharpe 1.349, MDD -73.29%, 360 trades. 자세한 최적화 내역 → `docs/policies/strategies/supertrend.md`
 
 ## 백테스트 결과 (1x, 2017-08~2026-04)
 
@@ -76,10 +76,10 @@ def update_position():
 | combo #164 | 115.79% | 1.252 | -86.32% | 379 | ❌ FAIL | |
 | combo #173 | 128.93% | 1.304 | -86.94% | 378 | ❌ FAIL | 이전 live (v4 스윕) |
 | combo #176 | 123.42% | 1.282 | -86.87% | 367 | ❌ FAIL | |
-| **combo #7908** | **151.56%** | **1.374** | **-84.28%** | 354 | **❌ FAIL (사용자 승인)** | **현재 live** |
+| **combo #7908** | **137.64%** | **1.349** | **-73.29%** | 360 | **✅ PASS (Bybit 네이티브)** | **현재 live (2026-06-14 Bybit 네이티브 4h 정본)** |
 
-> MDD ≥ -80% 기준 미충족이나, CAGR 및 Sharpe가 우수하고 사용자가 위험을 인지·승인하여 combo #7908 채택.  
-> 3x 레버리지에서 MDD -80%+ 통과하는 파라미터는 v7_st 15,000 combo 전체 탐색 결과 **0개** (구조적 한계).
+> Bybit 네이티브 4h 재실행 결과(2026-06-14): CAGR 137.64%, Sharpe 1.349, MDD -73.29%로 개선됨. 격자 갭(Binance 02계열→Bybit 00계열) 해소로 성과 정규화.  
+> 구 Binance 1h→4h 스윕 값(151.56%/1.374/-84.28%, 354 trades)은 폐기됨.
 
 ## 통합 경위
 

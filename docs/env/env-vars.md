@@ -4,7 +4,7 @@ category: env
 related_code:
   - cryptoengine/.env
   - cryptoengine/.env.example
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # 환경 변수 설정
@@ -27,7 +27,7 @@ cryptoengine/.env.example
 
 ## Bybit 거래소 설정 (필수)
 
-**상태**: Phase 4 (테스트넷) 또는 Phase 5 (메인넷)
+**상태**: Phase 5 (메인넷 실전)
 
 ### BYBIT_API_KEY
 ```bash
@@ -50,19 +50,18 @@ BYBIT_SECRET_KEY=<your_secret_key>
 
 ### BYBIT_TESTNET
 ```bash
-BYBIT_TESTNET=true
+BYBIT_TESTNET=false
 ```
 - **필수**: 예
-- **기본값**: `true` (Phase 4)
+- **기본값**: `false` (Phase 5 메인넷)
 - **값**: `true` (테스트넷) | `false` (메인넷)
-- **주의**: **Phase 5 메인넷 진입까지 절대 false로 변경하지 않음**
-- **전환**: `scripts/switch_to_mainnet.py` 실행 후 변경 (이중 확인 포함)
+- **주의**: Phase 5 메인넷 운영 중
+- **전환**: `scripts/switch_to_testnet.py` 실행하여 테스트넷 롤백 가능
 
 **Phase별 설정**:
 | Phase | BYBIT_TESTNET | 설명 |
 |-------|---------------|------|
-| 0-4 | true | 테스트넷 (현재) |
-| 5 | false | 메인넷 전환 |
+| Phase 5 | false | 메인넷 (현재) |
 
 ---
 
@@ -166,13 +165,13 @@ TELEGRAM_CHAT_ID=<your_chat_id>
 
 ### EXPECTED_INITIAL_BALANCE_USD
 ```bash
-EXPECTED_INITIAL_BALANCE_USD=200
+EXPECTED_INITIAL_BALANCE_USD=185.31
 ```
 - **Phase**: 5 (메인넷)
 - **설명**: 초기 예상 잔고 (USD)
 - **목적**: 메인넷 진입 시 잔고 검증 (오류 방지)
 - **검증**: 실제 잔고가 ±10% 범위에 있는지 확인
-- **설정**: 메인넷 진입 직전 명시적 입력 필수
+- **설정**: 현재 메인넷 운영 잔고 185.31 USD
 
 ### STRICT_MONITORING_HOURS
 ```bash
@@ -231,17 +230,6 @@ ENVIRONMENT=testnet
 
 ---
 
-## 기능 플래그 & 공급자 API
-
-### COINGLASS_API_KEY
-```bash
-COINGLASS_API_KEY=<your_api_key>
-```
-- **필수**: 아니오 (선택)
-- **설명**: Coinglass Fear & Greed 지수 API
-- **용도**: adaptive-dca 전략의 공포/탐욕 지수 조회
-- **획득**: https://www.coinglass.com/api
-
 ---
 
 ## x-common-env 앵커 (docker-compose.yml)
@@ -278,13 +266,13 @@ services:
 
 ## 설정 예시
 
-### Phase 4 (테스트넷, 현재)
+### Phase 5 (메인넷, 현재)
 
 ```bash
-# Bybit
-BYBIT_API_KEY=testnet_api_key_xxxxx
-BYBIT_SECRET_KEY=testnet_secret_key_xxxxx
-BYBIT_TESTNET=true
+# Bybit (메인넷)
+BYBIT_API_KEY=mainnet_api_key_xxxxx
+BYBIT_SECRET_KEY=mainnet_secret_key_xxxxx
+BYBIT_TESTNET=false
 
 # Database
 DB_HOST=postgres
@@ -293,114 +281,30 @@ DB_USER=cryptoengine
 DB_PASSWORD=***REMOVED***
 DB_NAME=cryptoengine
 
-# Grafana
-GRAFANA_PASSWORD=***REMOVED***
-
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Telegram (선택)
-TELEGRAM_BOT_TOKEN=123456789:ABCDefGHIJKlmnopQRStUVwxyz
-TELEGRAM_CHAT_ID=987654321
-
-# Phase 4 설정 (미사용)
-# EXPECTED_INITIAL_BALANCE_USD=
-# STRICT_MONITORING_HOURS=
-# PHASE5_MODE=false
-```
-
-### Phase 5 (메인넷, 진입 예정)
-
-```bash
-# Bybit (메인넷)
-BYBIT_API_KEY=mainnet_api_key_xxxxx
-BYBIT_SECRET_KEY=mainnet_secret_key_xxxxx
-BYBIT_TESTNET=false
-
-# Database (동일)
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=cryptoengine
-DB_PASSWORD=***REMOVED***
-DB_NAME=cryptoengine
-
-# Grafana
-GRAFANA_PASSWORD=***REMOVED***
-
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Telegram (권장)
+# Telegram (필수)
 TELEGRAM_BOT_TOKEN=123456789:ABCDefGHIJKlmnopQRStUVwxyz
 TELEGRAM_CHAT_ID=987654321
 
 # Phase 5 강화 설정
-EXPECTED_INITIAL_BALANCE_USD=200
+EXPECTED_INITIAL_BALANCE_USD=185.31
 STRICT_MONITORING_HOURS=24
 PHASE5_MODE=true
 ```
 
-#### Phase 4 vs Phase 5 전환 흐름
+#### Phase 5 (메인넷 운영 중)
 
-```mermaid
-graph TD
-    subgraph phase4["Phase 4: 테스트넷 (현재)"]
-        ENV4A["BYBIT_TESTNET=true"]
-        ENV4B["BYBIT_API_KEY=testnet_xxx"]
-        ENV4C["BYBIT_SECRET_KEY=testnet_xxx"]
-        ENV4D["로그 레벨: DEBUG/INFO"]
-        ENV4E["상대값 Kill Switch<br>-5% daily, -10% weekly"]
-    end
-
-    subgraph preflight["Phase 5 전환 전"]
-        CHK["scripts/phase5_preflight.py<br>8개 항목 검증"]
-        CHK1["✓ Bybit 메인넷 키 테스트"]
-        CHK2["✓ 초기 잔고 검증 ±10%"]
-        CHK3["✓ 레버리지 5배 이하"]
-        CHK4["✓ DB/Redis 연결"]
-        PASS["모든 항목 PASS"]
-    end
-
-    subgraph switch["Phase 5 전환"]
-        MAIN["scripts/switch_to_mainnet.py<br>9단계 + 이중 확인"]
-        MAIN1["1-2. 현재 상태 백업"]
-        MAIN3["3-5. 메인넷 키 설정"]
-        MAIN6["6. 환경변수 업데이트"]
-        MAIN9["9. 최종 확인"]
-    end
-
-    subgraph phase5["Phase 5: 메인넷 (진입 후)"]
-        ENV5A["BYBIT_TESTNET=false"]
-        ENV5B["BYBIT_API_KEY=mainnet_xxx"]
-        ENV5C["BYBIT_SECRET_KEY=mainnet_xxx"]
-        ENV5D["EXPECTED_INITIAL_BALANCE_USD=200"]
-        ENV5E["STRICT_MONITORING_HOURS=24"]
-        ENV5F["PHASE5_MODE=true"]
-        ENV5G["절대값 Kill Switch<br>-$10 daily, -$20 weekly"]
-    end
-
-    phase4 --> CHK
-    CHK --> CHK1
-    CHK --> CHK2
-    CHK --> CHK3
-    CHK --> CHK4
-    CHK1 --> PASS
-    CHK2 --> PASS
-    CHK3 --> PASS
-    CHK4 --> PASS
-    PASS --> MAIN
-    MAIN --> MAIN1
-    MAIN --> MAIN3
-    MAIN --> MAIN6
-    MAIN --> MAIN9
-    MAIN9 --> phase5
-
-    style phase4 fill:#c8e6c9,color:#1b5e20
-    style PASS fill:#a5d6a7,color:#1b5e20
-    style MAIN fill:#fff9c4,color:#f57f17
-    style phase5 fill:#ffccbc,color:#bf360c
+```
+Phase 5: 메인넷 실전 운영 (2026-05-18~현재)
+├── BYBIT_TESTNET=false
+├── BYBIT_API_KEY=mainnet_xxx
+├── BYBIT_SECRET_KEY=mainnet_xxx
+├── EXPECTED_INITIAL_BALANCE_USD=185.31
+├── STRICT_MONITORING_HOURS=24
+├── PHASE5_MODE=true
+└── Kill Switch: 절대값 기반
+    ├── Daily: -$10
+    ├── Weekly: -$20
+    └── 60분 쿨다운
 ```
 
 ---
@@ -548,4 +452,4 @@ docker compose logs grafana | tail -20
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

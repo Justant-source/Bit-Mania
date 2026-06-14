@@ -54,9 +54,9 @@ START_BAL = 10_000.0
 _4H_MS = 4 * 3600 * 1000
 FX = Path(__file__).resolve().parent
 
-# #7908 (Binance 1h→4h, 02계열) headline stats — results/.../long_only_x3_7908/stats.json
-REF = {"trades": 346, "winrate": 48.27, "cagr": 152.61, "mdd": -74.32,
-       "pf": 1.188, "sharpe": 1.401}
+# #7908 (Bybit 네이티브 4h, 00계열 정본, 2026-06-14 재빌드) — stats.json 기준
+REF = {"trades": 360, "winrate": 48.61, "cagr": 137.64, "mdd": -73.29,
+       "pf": 1.184, "sharpe": 1.349}
 
 
 def _u(ms) -> str:

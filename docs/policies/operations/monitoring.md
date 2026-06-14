@@ -7,7 +7,7 @@ related_code:
   - cryptoengine/services/telegram-bot/
   - cryptoengine/config/orchestrator.yaml
   - cryptoengine/config/prometheus/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 when_to_update: |
   - 대시보드 페이지/라우트 변경 시
   - Telegram 알림 형식/임계값 변경 시
@@ -25,7 +25,7 @@ when_to_update: |
 ```mermaid
 graph TD
     subgraph sources["데이터 소스"]
-        SVC["마이크로서비스들\n(execution-engine, funding-arb 등)"]
+        SVC["마이크로서비스들\n(execution-engine, supertrend 등)"]
         SYS["호스트 시스템\n(CPU, 메모리, 디스크)"]
         RD["Redis\n(메모리, 클라이언트)"]
     end
@@ -90,7 +90,7 @@ URL: http://localhost:3000
 - **가격 차트**: BTC 4h 캔들 + 예상 진입(파랑 ▲) / 예상 청산(파랑 ▼) vs 실제 체결(초록/오렌지)
 - **자산 곡선**: 백테스트 기준 예상 자산 (파랑 점선) vs 실제 메인넷 자산 (초록 실선)
 - **거래 비교 테이블**: bar_ts별 예상(시각/가격/수량) ↔ 실제(체결가/수량/슬리피지/타이밍) + matched/missed/extra 배지
-- **지표 패널**: ST 방향, EMA 7/27/230, ATR(14) 최신값
+- **지표 패널**: ST 방향, EMA 7/29/240, ATR(14) 최신값
 
 ### alertEvaluator (Grafana 알림 대체)
 
@@ -168,11 +168,10 @@ sequenceDiagram
 
 ```
 📊 [12:00 KST] 포트폴리오 상태
-Equity: $10,250 (+2.5%)
-Daily P&L: +$250
+Equity: $187.50 (+1.2%)
+Daily P&L: +$2.50
 Strategies:
-  - Funding Arb: $80 PnL
-  - Adaptive DCA: 포지션 없음
+  - Supertrend: +$2.50 PnL (2 trades)
 ```
 
 **주기**: 매 4시간
@@ -180,17 +179,17 @@ Strategies:
 #### 4. 거래 진입/청산 (자동)
 
 ```
-📈 [Funding Arb 진입]
-BTC: 0.15 @ $65,000
-Basis: +0.25%
-목표 수익: +$50-100
+📈 [Supertrend Long 진입]
+BTC: 0.003 @ $65,000
+구간: Supertrend 상향 전환
+목표: ATR(14)×3.3 청산
 
 ---
 
-📊 [Funding Arb 청산]
-보유기간: 24시간
-P&L: +$75 (0.75%)
-펀딩비: +$50 | 기저: +$25
+📊 [Supertrend Long 청산]
+보유기간: 8시간
+P&L: +$18.50 (1.0%)
+진입가: $64,800 | 청산가: $65,285
 ```
 
 #### 5. API 장애 알림 (자동)
@@ -213,10 +212,11 @@ P&L: +$75 (0.75%)
 
 | 명령 | 설명 |
 |------|------|
+| 명령 | 설명 |
+|------|------|
 | `/status` | 현재 포트폴리오 상태 |
 | `/positions` | 열린 포지션 목록 |
 | `/balance` | 현재 잔고 |
-| `/funding` | 현재 펀딩레이트 |
 | `/kill` | Kill Switch 수동 발동 (모든 포지션 청산) |
 | `/acknowledge` or `/ack` | Kill Switch 알림 확인 |
 | `/resume` | Kill Switch 해제 (전략 재개) |
@@ -268,28 +268,28 @@ rate(orders_pending_total[5m])
 |------|-----------|------------|---------|
 | Portfolio Equity | > 초기값 | < 95% 초기값 | `/status` |
 | Daily P&L | -2% ~ +5% | < -3% | 대시보드 /monitor |
-| Margin Ratio | > 10x | 5x ~ 10x | 대시보드 /monitor |
+| Margin Ratio (3x) | > 3x (증거금율 < 33%) | 1.5x ~ 3x | 대시보드 /monitor |
 | API Latency | < 200ms | > 1000ms | 대시보드 /monitor |
 | Kill Switch Events | 0회 | 1회 이상 | 대시보드 /monitor |
-| Open Positions | ≤ 5개 | > 5개 | `/positions` |
+| Open Positions | ≤ 1개 | > 1개 | `/positions` |
 
 ### 주간 체크 지표
 
 | 지표 | 정상 범위 | 확인 방법 |
 |------|-----------|---------|
 | Weekly P&L | +1% ~ +3% | 대시보드 /monitor |
-| Sharpe (7일) | > 1.0 | 대시보드 /monitor |
-| Trade Count | ≥ 3회 | Telegram 통계 |
+| Sharpe (7일) | > 0.8 | 대시보드 /monitor |
+| Trade Count | ≥ 2회 | Telegram 통계 |
 | API Success Rate | > 99% | 대시보드 /monitor |
 
 ### 월간 체크 지표
 
 | 지표 | 정상 범위 | 확인 방법 |
 |------|-----------|---------|
-| Monthly CAGR | +2.9% (annualized +34.87%) | 대시보드 /monitor |
-| Sharpe (30일) | > 2.0 | 대시보드 /monitor |
-| Max Drawdown | < -5% | 대시보드 /monitor |
-| Win Rate | > 60% | Telegram 통계 |
+| Monthly CAGR | +8.0% 이상 (annualized ~137%) | 대시보드 /monitor |
+| Sharpe (30일) | > 0.8 | 대시보드 /monitor |
+| Max Drawdown | < -73% (백테스트 MDD 기준) | 대시보드 /monitor |
+| Win Rate | > 48% | Telegram 통계 |
 
 ---
 
@@ -331,17 +331,17 @@ alerts:
 
 ## 문제 상황별 모니터링
 
-### 포지션이 없는데 수익이 없음
+### 포지션이 없는데 거래가 없음
 
 ```bash
-# 1. 펀딩레이트 확인
-docker compose exec redis redis-cli GET market:funding:BTCUSDT | jq .
+# 1. Supertrend 신호 확인
+docker compose exec redis redis-cli GET strategy:status:supertrend-01 | jq .
 
 # 2. 진입 조건 확인
-docker compose logs funding-arb --tail=100 | grep -E "entry|condition|funding"
+docker compose logs supertrend --tail=100 | grep -E "entry|signal|condition"
 
 # 3. 오케스트레이터 상태 확인
-docker compose logs strategy-orchestrator --tail=50 | grep -E "funding|weight"
+docker compose logs strategy-orchestrator --tail=50 | grep -E "supertrend|weight"
 ```
 
 ### 수익이 음수
@@ -405,14 +405,14 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 # Bybit 웹 → [선물] → [포지션] → [조정]
 
 # 3. 모니터링 강화
-watch -n 30 'docker compose logs --tail=10 funding-arb'
+watch -n 30 'docker compose logs --tail=10 supertrend'
 ```
 
 ### Kill Switch 연속 발동
 
 ```bash
 # 1. 원인 분석
-docker compose logs --since=2h funding-arb execution-engine | grep -E "ERROR|kill|switch"
+docker compose logs --since=2h supertrend execution-engine | grep -E "ERROR|kill|switch"
 
 # 2. 시스템 상태 확인
 docker compose ps
@@ -420,7 +420,7 @@ docker compose exec postgres pg_isready
 docker compose exec redis redis-cli ping
 
 # 3. 시스템 재시작
-docker compose restart strategy-orchestrator funding-arb
+docker compose restart strategy-orchestrator supertrend
 ```
 
 ---

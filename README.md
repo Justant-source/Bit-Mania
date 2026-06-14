@@ -2,7 +2,7 @@
 
 **비트코인 선물 자동매매 시스템** — Supertrend 4h 추세추종, BTC 단일 운영, Long-only 3x
 
-> **상태**: Phase 5 (메인넷 소액 실전) 운영 중 | Supertrend 4h Long-only 3x, $200 USDT
+> **상태**: Phase 5 (메인넷 소액 실전) 운영 중 | Supertrend 4h Long-only 3x, $185.31 USDT (2026-06-14)
 
 ---
 

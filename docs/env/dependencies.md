@@ -44,7 +44,7 @@ graph TD
     subgraph services["마이크로서비스"]
         MD["market-data"]
         ENG["execution-engine"]
-        FA["funding-arb"]
+        ST["supertrend"]
         ORC["strategy-orchestrator"]
         TG["telegram-bot"]
     end
@@ -128,7 +128,7 @@ structlog>=24.1.0
     "timestamp": "2026-05-01T14:30:45+09:00",
     "level": "INFO",
     "event": "trade_entry",
-    "strategy": "funding-arb",
+    "strategy": "supertrend",
     "size": 10.5
   }
   ```
@@ -195,13 +195,15 @@ python-dotenv>=1.0.0
 
 ## 전략 서비스 의존성
 
-### funding-arb
+### supertrend
 ```
 pandas>=2.0.0
 numpy>=1.24.0
+ta-lib (또는 jesse_rust)
 ```
-- **pandas**: 데이터프레임 기반 분석 (가격, 펀딩비 처리)
-- **numpy**: 수치 계산 (ATR, SMA 등 기술적 지표)
+- **pandas**: 데이터프레임 기반 분석 (가격, OHLCV 처리)
+- **numpy**: 수치 계산 (Supertrend, EMA 등 기술적 지표)
+- **ta-lib/jesse_rust**: 기술 지표 계산
 
 ### backtester (백테스트)
 ```
@@ -279,7 +281,7 @@ pip install -r requirements.txt
 ### 서비스별 설치 (Docker)
 각 서비스 Dockerfile에서 자동 설치:
 ```dockerfile
-COPY cryptoengine/services/funding-arb/requirements.txt .
+COPY cryptoengine/services/strategies/supertrend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 ```
 
@@ -351,7 +353,7 @@ docker compose exec execution-engine python -c \
 pip install --upgrade ccxt>=4.0.0
 
 # Bybit exchange 플러그인 확인
-docker compose exec funding-arb python -c \
+docker compose exec supertrend python -c \
   "from ccxt.async_support import bybit; print('OK')"
 ```
 
@@ -387,4 +389,4 @@ await redis.close()
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

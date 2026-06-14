@@ -4,7 +4,7 @@ category: policies/operations
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/Dockerfile.* 
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 when_to_update: |
   - Docker 빌드 컨텍스트 변경 시
   - 서비스 의존성 변경 시
@@ -21,14 +21,14 @@ flowchart TD
     subgraph single["단일 서비스 배포"]
         B --> B1["로그 확인\ndocker compose logs -f SERVICE"]
         B1 --> B2{포지션 복구 확인?}
-        B2 -->|"funding-arb"| B3["'복구 완료' 로그 확인"]
+        B2 -->|"supertrend"| B3["'복구 완료' 로그 확인"]
         B2 -->|"기타 서비스"| B4["정상 기동 확인"]
     end
 
     subgraph multi["shared/ 변경 시 전체 재빌드"]
         C --> C1["market-data 재빌드"]
         C1 --> C2["execution-engine 재빌드"]
-        C2 --> C3["funding-arb 재빌드"]
+        C2 --> C3["supertrend 재빌드"]
         C3 --> C4["strategy-orchestrator 재빌드"]
         C4 --> C5["telegram-bot 재빌드"]
         C5 --> C6["순차 재시작"]
@@ -48,12 +48,12 @@ Dockerfile 내 COPY 경로는 반드시 프로젝트 루트 기준으로 작성�
 ### ✅ 올바른 예
 
 ```dockerfile
-# funding-arb Dockerfile
+# supertrend Dockerfile
 FROM python:3.11
 
 COPY cryptoengine/shared /app/shared
 COPY cryptoengine/services/strategies/base_strategy.py /app/
-COPY cryptoengine/services/strategies/funding-arb /app/strategy
+COPY cryptoengine/services/strategies/supertrend /app/strategy
 COPY cryptoengine/config /app/config
 
 WORKDIR /app
@@ -78,20 +78,20 @@ COPY ../../../config /app/config   # ← 상대경로 사용 금지
 ```bash
 # 1. 코드 수정
 cd ~/Data/Bit-Mania/cryptoengine
-vi services/strategies/funding-arb/strategy.py
+vi services/strategies/supertrend/strategy.py
 
 # 2. 이미지 재빌드 (깨끗한 빌드)
-docker compose build --no-cache funding-arb
+docker compose build --no-cache supertrend
 
 # 3. 서비스 재시작 (포지션 자동 복구)
-docker compose up -d --no-deps funding-arb
+docker compose up -d --no-deps supertrend
 
 # 4. 로그 확인 (1-2분 대기, 포지션 복구 시간)
 sleep 30
-docker compose logs --tail=50 funding-arb | grep -E "position|restored|recovered"
+docker compose logs --tail=50 supertrend | grep -E "position|restored|recovered"
 
 # 5. 정상 운영 확인
-docker compose logs -f funding-arb | head -20
+docker compose logs -f supertrend | head -20
 ```
 
 ---
@@ -106,7 +106,7 @@ docker compose logs -f funding-arb | head -20
 shared/ 변경
 ├─ market-data       (데이터 수집, logging)
 ├─ execution-engine  (주문 실행, logging)
-├─ funding-arb       (전략, logging)
+├─ supertrend        (전략, logging)
 ├─ strategy-orchestrator (오케스트레이션, logging)
 └─ telegram-bot      (메시징, logging)
 ```
@@ -120,7 +120,7 @@ shared/ 변경
         ↓
 3. strategy-orchestrator ← 오케스트레이터
         ↓
-4. funding-arb           ← 전략 (포지션 복구)
+4. supertrend            ← 전략 (포지션 복구)
         ↓
 5. telegram-bot          ← 알림
 ```
@@ -132,7 +132,7 @@ shared/ 변경
 docker compose build --no-cache \
   market-data \
   execution-engine \
-  funding-arb \
+  supertrend \
   strategy-orchestrator \
   telegram-bot
 
@@ -148,8 +148,8 @@ sleep 10
 docker compose up -d --no-deps strategy-orchestrator
 sleep 10
 
-# 5단계: funding-arb 시작 (포지션 복구)
-docker compose up -d --no-deps funding-arb
+# 5단계: supertrend 시작 (포지션 복구)
+docker compose up -d --no-deps supertrend
 sleep 60  # 포지션 복구 시간 충분히 확보
 
 # 6단계: telegram-bot 시작
@@ -164,7 +164,7 @@ docker compose ps
 # 9단계: 로그 확인 (에러 확인)
 docker compose logs --tail=20 market-data | grep -E "ERROR|ready"
 docker compose logs --tail=20 execution-engine | grep -E "ERROR|ready"
-docker compose logs --tail=20 funding-arb | grep -E "ERROR|recovered"
+docker compose logs --tail=20 supertrend | grep -E "ERROR|recovered"
 docker compose logs --tail=20 strategy-orchestrator | grep -E "ERROR|ready"
 ```
 
@@ -187,7 +187,7 @@ docker compose exec postgres pg_isready
 docker compose exec redis redis-cli ping
 
 # 이제 서비스 시작 가능
-docker compose up -d market-data execution-engine strategy-orchestrator funding-arb telegram-bot
+docker compose up -d market-data execution-engine strategy-orchestrator supertrend telegram-bot
 ```
 
 ---
@@ -211,7 +211,7 @@ sleep 120
 
 # 5. 상태 확인
 docker compose ps
-docker compose logs --tail=30 funding-arb | grep -E "position|recovered"
+docker compose logs --tail=30 supertrend | grep -E "position|recovered"
 ```
 
 ---
@@ -225,7 +225,7 @@ docker compose logs --tail=30 funding-arb | grep -E "position|recovered"
 make emergency
 
 # 또는 직접 명령
-docker compose kill funding-arb execution-engine strategy-orchestrator
+docker compose kill supertrend execution-engine strategy-orchestrator
 
 # 포지션 상태 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -258,16 +258,16 @@ docker compose up -d <서비스명>
 
 ```bash
 # Redis에서 저장된 상태 확인
-docker compose exec redis redis-cli GET strategy:saved_state:funding_arb | jq .
+docker compose exec redis redis-cli GET strategy:saved_state:supertrend-01 | jq .
 
 # TTL 확인 (1시간 이내인지)
-docker compose exec redis redis-cli TTL strategy:saved_state:funding_arb
+docker compose exec redis redis-cli TTL strategy:saved_state:supertrend-01
 
 # Bybit에서 포지션 확인
 # → 포지션 남아있으면 수동 정리 필요
 
 # 강제 상태 초기화
-docker compose exec redis redis-cli DEL strategy:saved_state:funding_arb
+docker compose exec redis redis-cli DEL strategy:saved_state:supertrend-01
 ```
 
 ---
@@ -303,25 +303,25 @@ docker compose exec redis redis-cli DEL strategy:saved_state:funding_arb
 docker compose ps
 
 # 특정 서비스 로그 (최근 50줄)
-docker compose logs --tail=50 funding-arb
+docker compose logs --tail=50 supertrend
 
 # 실시간 로그 (Ctrl+C로 종료)
 docker compose logs -f strategy-orchestrator
 
 # 서비스 재시작
-docker compose restart funding-arb
+docker compose restart supertrend
 
 # 서비스 정지
-docker compose stop funding-arb
+docker compose stop supertrend
 
 # 서비스 시작
-docker compose start funding-arb
+docker compose start supertrend
 
 # 이미지 재빌드 (깨끗하게)
-docker compose build --no-cache funding-arb
+docker compose build --no-cache supertrend
 
 # 컨테이너 삭제 후 재시작
-docker compose up -d --force-recreate funding-arb
+docker compose up -d --force-recreate supertrend
 
 # 전체 시스템 정지
 docker compose down

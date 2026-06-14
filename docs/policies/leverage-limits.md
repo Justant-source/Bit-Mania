@@ -5,7 +5,7 @@ related_code:
   - cryptoengine/shared/exchange/bybit.py (MAX_LEVERAGE=3)
   - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/orchestrator.yaml
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 when_to_update: |
   - 레버리지 설정 변경 시
   - 백테스트 결과 업데이트 시
@@ -37,10 +37,10 @@ graph TD
     C --> D["포지션 크기<br>~0.0060 BTC @ $95,000"]
     
     subgraph Performance["백테스트 성과 2017-2026"]
-        E["CAGR: +151.56% ✅"]
-        F["Sharpe: 1.37 ✅"]
-        G["MDD: -84.28% ⚠️"]
-        H["거래 수: 354회 ✅"]
+        E["CAGR: +137.64% ✅"]
+        F["Sharpe: 1.349 ✅"]
+        G["MDD: -73.29% ⚠️"]
+        H["거래 수: 360회 ✅"]
     end
     
     D --> Performance
@@ -60,13 +60,13 @@ graph TD
 | **Exchange SL** | entry × 0.7667 | catastrophic backstop (70% equity loss / 3x) |
 | **Strategy** | Long-only | 매수 포지션만 (숏 없음) |
 
-### 백테스트 성과 (9년: 2017-01 ~ 2026-05)
+### 백테스트 성과 (Bybit 네이티브 4h: 2017-08 ~ 2026-04)
 
 ```
-CAGR:           +151.56%    ✅ 매우 높음
-Sharpe 비율:    1.37        ⚠️ 적절 (> 1.0)
-최대낙폭(MDD):  -84.28%     ⚠️ 극한 위험 (사용자 승인)
-거래 수:        354회       ✅ 충분한 샘플
+CAGR:           +137.64%    ✅ 매우 높음
+Sharpe 비율:    1.349       ⚠️ 적절 (> 1.0)
+최대낙폭(MDD):  -73.29%     ⚠️ 극한 위험 (사용자 승인)
+거래 수:        360회       ✅ 충분한 샘플
 ```
 
 ### 포지션 사이징 공식
@@ -235,7 +235,7 @@ SL 발동 시:
 ```
 
 **결론**: 3x 레버리지는 exchange SL과 Kill Switch의 이중 보호를 받지만, 
-장기 누적 드로우다운(MDD -84.28%)은 시스템적 손실로 SL으로 막을 수 없음.
+장기 누적 드로우다운(MDD -73.29%)은 시스템적 손실로 SL으로 막을 수 없음.
 
 ---
 
@@ -248,7 +248,7 @@ SL 발동 시:
    - 높은 레버리지 = 높은 수익 + 높은 변동성
 
 2. **백테스트 결과**:
-   - 3x: CAGR +151.56%, MDD -84.28%
+   - 3x: CAGR +137.64%, MDD -73.29%
    - 2x: CAGR +73%, MDD -68% (미채택)
    - 1x: CAGR +25%, MDD -42% (미채택)
 

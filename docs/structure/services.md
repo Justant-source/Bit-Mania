@@ -4,7 +4,7 @@ category: structure
 related_code:
   - cryptoengine/docker-compose.yml
   - cryptoengine/services/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 note: |
   Supertrend 4h 3x 단일 전략 (Phase 5 메인넷).
   Funding Arb, Adaptive DCA, llm-advisor 제거.
@@ -37,7 +37,6 @@ graph TD
 
     subgraph strat["📈 Strategies"]
         ST[supertrend\n메인전략 4h 3x]
-        DCA[adaptive-dca\n보조전략\n현재 비활성]
     end
 
 
@@ -49,7 +48,6 @@ graph TD
 
     subgraph analysis["🔬 Analysis"]
         BT[backtester\n--profile backtest]
-        WF[wf-scheduler\n월 1일 02:00 KST]
     end
 
     PG & RD --> core
@@ -124,11 +122,6 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
 - **STRATEGY_ID**: supertrend-01
 - **배포**: service_shutdown 시 포지션 보존 (Redis 복구)
 
-#### adaptive-dca (보조 전략, 비활성)
-- **상태**: ⚠️ 현재 비활성 (orchestrator.yaml weight=0.0)
-- **역할**: Fear & Greed 지수 기반 적응형 평균단가 하락 매수
-- **언어**: Python 3.12
-- **참고**: 재활성화 검토 중
 
 #### strategy-orchestrator
 - **역할**: 고정 전략 할당 (Supertrend 100%), Kill Switch 조율
@@ -249,14 +242,14 @@ strategy:status:supertrend-01
   └─ Content: { "strategy_id": "supertrend-01", "is_running": true, ... }
 
 order:request
-  ├─ Publishers: supertrend, adaptive-dca
+  ├─ Publisher: supertrend
   ├─ Subscriber: execution-engine
   └─ Content: { "symbol": "BTC/USDT:USDT", "side": "buy|sell", "quantity": 0.003,
                "reduce_only": false, "stop_loss": 94000.0, ... }
 
 order:update
   ├─ Publisher: execution-engine
-  ├─ Subscribers: supertrend, adaptive-dca, strategy-orchestrator
+  ├─ Subscribers: supertrend, strategy-orchestrator
   └─ Content: { "status": "filled|canceled", "trade_id": "...", "pnl": 50, ... }
 
 kill_switch
@@ -282,13 +275,9 @@ flowchart LR
     RD[(redis\n헬스체크)] --> MD
     RD --> ORC
     RD --> ENG
-    RD --> FA
-    RD --> DCA
     RD --> TG
     MD[market-data\n헬스체크] --> ORC
-    MD --> FA
-    ORC[orchestrator] --> FA
-    ORC --> DCA
+    ORC[orchestrator] --> ST["supertrend"]
 
     style PG fill:#336791,color:#fff
     style RD fill:#dc382d,color:#fff
@@ -307,11 +296,8 @@ flowchart LR
 | **execution-engine** | 0.5 | 256M | 64M | 주문 실행 |
 | **supertrend** | 0.5 | 256M | 64M | 메인 전략 (4h 추세추종) |
 | **strategy-orchestrator** | 0.5 | 256M | 64M | 자본 배분 |
-| **adaptive-dca** | 0.3 | 128M | 32M | 보조 전략 |
 | **telegram-bot** | 0.2 | 128M | 32M | 알림 (경량) |
 | **dashboard** | 0.5 | 256M | 64M | 웹 대시보드 |
-| **llm-advisor** | 1.0 | 512M | 128M | Claude API 호출 |
-| **wf-scheduler** | 1.0 | 512M | 128M | 월간 Walk-Forward |
 | **backtester** | 2.0 | 1G | N/A | 백테스트 (고집약) |
 | **pg-backup** | 0.5 | 128M | N/A | DB 백업 |
 | **log-retention** | 0.2 | 64M | N/A | 로그 정리 |
@@ -347,7 +333,6 @@ Redis (6379)
   ├─ strategy-orchestrator (명령 발행, kill_switch 발행)
   ├─ execution-engine (order 구독)
   ├─ supertrend (ohlcv:4h confirmed 구독, order 발행)
-  ├─ adaptive-dca (command 구독, order 발행)
   └─ telegram-bot (kill_switch 구독, alerts 발행)
 
 Bybit API
@@ -378,7 +363,6 @@ telegram-bot (postgres 필수)
 
 # 3단계: 전략 (orchestrator 이후)
 supertrend (market-data, redis 필수)
-adaptive-dca (market-data, redis 필수)
 
 # 4단계: 보조 서비스 (독립적)
 dashboard (postgres, redis 옵션)
@@ -410,7 +394,7 @@ log-retention (postgres 필수)
 
 3. supertrend
    → `market:ohlcv:bybit:BTCUSDT:4h` 구독 (confirmed=true 봉만 처리)
-   → 300봉 버퍼에서 Supertrend / EMA(7/27/230) / ATR(14) 계산
+   → CANDLE_LOOKBACK=1000 에서 Supertrend / EMA(7/29/240) / ATR 계산
    → 진입 조건 확인: ST 상승 AND fast EMA > slow EMA AND price > dir EMA
    → 진입 주문 생성 (LONG, 3x, stop_loss = entry × 0.7667)
    → Redis `order:request` 발행
@@ -432,7 +416,7 @@ log-retention (postgres 필수)
 ```
 1. supertrend
    → 다음 confirmed 4h 봉 수신
-   → EMA(7) < EMA(27) 감지 (추세 반전)
+   → EMA(7) < EMA(29) 감지 (추세 반전)
    → 청산 주문 발행: sell, reduce_only=True
    → Redis `order:request` 발행
 
@@ -464,7 +448,7 @@ sequenceDiagram
     ORC->>Redis: 발행: strategy:command:supertrend-01 (capital: 100%)
     
     ST->>Redis: 구독: market:ohlcv:bybit:BTCUSDT:4h
-    ST->>ST: Supertrend / EMA / ATR 계산
+    ST->>ST: Supertrend / EMA(7/29/240) / ATR 계산
     Note over ST: 3중 조건 확인 → 진입 결정
     
     ST->>Redis: 발행: order:request<br>(buy, 3x, SL=entry×0.7667)
@@ -483,7 +467,7 @@ sequenceDiagram
     
     loop 다음 4h 봉마다
         MD->>Redis: ohlcv confirmed 발행
-        ST->>ST: EMA(7) < EMA(27) 또는 ATR 거리 확인
+        ST->>ST: EMA(7) < EMA(29) 또는 ATR 거리 확인
     end
     
     ST->>ST: EMA 교차 감지 → 청산 결정
@@ -509,14 +493,13 @@ sequenceDiagram
   strategy-orchestrator, telegram-bot, log-retention (cryptoengine 스택);
   dashboard (standalone: `cd dashboard && docker compose up -d`)
   (backtester: backtest/docker/docker-compose.yml --profile backtest 별도 실행)
-- **비활성**: adaptive-dca (weight=0.0), wf-scheduler (제거됨)
 - **메인넷**: `BYBIT_TESTNET=false`
 - **Phase 5 설정**:
   - `PHASE5_MODE=true` (절대값 Kill Switch 활성화)
-  - `EXPECTED_INITIAL_BALANCE_USD=200` (초기 잔고 검증)
+  - `EXPECTED_INITIAL_BALANCE_USD=185.31` (초기 잔고 검증)
   - `STOP_LOSS_PCT=0.2333` (entry × 0.7667 catastrophic backstop)
   - `STOP_LOSS_MODE=per_trade` (per-strategy SL)
 
 ---
 
-**최종 수정**: 2026-05-18
+**최종 수정**: 2026-06-14

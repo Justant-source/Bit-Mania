@@ -1,19 +1,19 @@
 ---
 title: 환경 설정 가이드
 category: env
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 ---
 
 # 환경 설정 가이드
 
-CryptoEngine 시스템의 환경 변수, Docker 설정, 의존성, Grafana 초기화 문서.
+CryptoEngine 시스템의 환경 변수, Docker 설정, 의존성 문서.
 
 ## 문서 목록
 
 ### 1. [환경 변수](./env-vars.md)
 - BYBIT_API_KEY, BYBIT_TESTNET 설정
 - 데이터베이스 자격증명
-- Phase 5 메인넷 전환 환경 변수
+- Phase 5 메인넷 운영 환경 변수
 - 초기화 및 검증 방법
 
 ### 2. [Docker 설정](./docker.md)
@@ -26,12 +26,6 @@ CryptoEngine 시스템의 환경 변수, Docker 설정, 의존성, Grafana 초�
 - asyncpg, ccxt, structlog, aiohttp, redis, jesse
 - 각 의존성 역할 및 버전 제약
 - requirements.txt 구조
-
-### 4. [Grafana 설정](./grafana-setup.md)
-- 로그인 및 초기화
-- 공개 대시보드 활성화
-- 대시보드 목록 및 기능
-- 보안 설정
 
 ## 빠른 시작
 
@@ -50,14 +44,11 @@ docker compose up -d
 docker compose ps
 ```
 
-### 3. Grafana 접속
-- URL: http://localhost:3002
-- 기본 로그인: admin / ***REMOVED***
 
-### 4. 데이터베이스 초기화
+### 3. 데이터베이스 초기화
 - 마이그레이션 자동 실행 (컨테이너 시작 시)
 - 확인: `docker compose exec postgres psql -U cryptoengine -d cryptoengine -c "\dt"`
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

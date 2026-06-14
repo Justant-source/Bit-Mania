@@ -3,7 +3,7 @@ title: 디렉토리 구조
 category: structure
 related_code:
   - cryptoengine/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 ---
 
 # 디렉토리 구조
@@ -29,7 +29,7 @@ graph TD
         end
 
         subgraph cfg["config/\n설정 파일"]
-            STRAT["strategies/\nfunding-arb.yaml\nadaptive-dca.yaml"]
+            STRAT["strategies/\nsupertrend.yaml"]
             EXCH["exchanges/\nbybit.yaml"]
             GRF["grafana/\ndashboards/"]
         end
@@ -56,11 +56,10 @@ graph TD
             TEST["test/\nbacktest-skillset.md\njesse-engine.md"]
         end
 
-        subgraph svc["services/\n19개 마이크로서비스"]
+        subgraph svc["services/\n마이크로서비스"]
             MD["market-data/"]
             ENG["execution-engine/"]
-            FA["funding-arb/\n(핵심 전략)"]
-            DCA["adaptive-dca/"]
+            ST["supertrend/\n(핵심 전략)"]
             ORC["strategy-orchestrator/"]
             TG["telegram-bot/"]
             DASH["dashboard/"]
@@ -78,7 +77,7 @@ graph TD
 
     style main fill:#e8f5e9,color:#1b5e20
     style shared fill:#f3e5f5,color:#4a148c
-    style FA fill:#ff9800,color:#fff
+    style ST fill:#ff9800,color:#fff
     style doc fill:#e3f2fd,color:#0d47a1
 ```
 
@@ -100,10 +99,7 @@ Bit-Mania/
     │
     ├── config/                         # 설정 파일 (YAML)
     │   ├── strategies/
-    │   │   ├── funding-arb.yaml        # 펀딩비 차익거래 전략 파라미터
-    │   │   ├── funding_arb.yaml        # (복사본, 언더스코어 버전)
-    │   │   ├── adaptive-dca.yaml       # DCA 전략 파라미터
-    │   │   └── adaptive_dca.yaml       # (복사본)
+    │   │   └── supertrend.yaml         # Supertrend 4h 전략 파라미터
     │   ├── orchestrator.yaml           # 자본 배분, Kill Switch 임계값
     │   ├── exchanges/
     │   │   └── bybit.yaml              # Bybit 거래소 설정 (페어 정의)
@@ -209,15 +205,10 @@ Bit-Mania/
         ├── strategies/                 # 전략 로직
         │   ├── base_strategy.py        # BaseStrategy ABC (모든 전략 상속)
         │   │
-        │   ├── funding-arb/            # 펀딩비 차익거래 (핵심 전략)
-        │   │   ├── Dockerfile
-        │   │   ├── main.py             # 전략 로직
-        │   │   ├── state_manager.py    # Redis 상태 저장/복구
-        │   │   └── requirements.txt
-        │   │
-        │   └── adaptive-dca/           # Fear & Greed DCA (보조 전략)
+        │   └── supertrend/             # Supertrend 4h 추세추종 (핵심 전략)
         │       ├── Dockerfile
-        │       ├── main.py
+        │       ├── main.py             # 전략 로직
+        │       ├── state_manager.py    # Redis 상태 저장/복구
         │       └── requirements.txt
         │
         ├── orchestrator/               # 자본 배분, Kill Switch 조율
@@ -278,18 +269,16 @@ Bit-Mania/
 ## 주요 파일 설명
 
 ### cryptoengine/docker-compose.yml
-전체 19개 서비스 정의:
+핵심 서비스 정의:
 1. postgres — 데이터 저장소
 2. redis — 메시지 큐 + 캐시
-3. grafana — 모니터링 대시보드
-4. market-data — 시장 데이터 수집
-5. execution-engine — 주문 실행
-6. funding-arb — 펀딩비 차익거래
-7. adaptive-dca — DCA 전략
-8. strategy-orchestrator — 자본 배분
-9. telegram-bot — 알림
-10. dashboard — 웹 대시보드
-11-18. 기타 서비스 (log-retention, wf-scheduler 등)
+3. market-data — 시장 데이터 수집
+4. execution-engine — 주문 실행
+5. supertrend — Supertrend 4h 추세추종 전략
+6. strategy-orchestrator — 자본 배분
+7. telegram-bot — 알림
+8. dashboard — 웹 대시보드
+9. log-retention — 로그 보존 정책
 (backtester는 backtest/docker/docker-compose.yml로 분리)
 
 **빌드 컨텍스트**: 프로젝트 루트 (`.`)
@@ -300,40 +289,32 @@ Bit-Mania/
 ```bash
 BYBIT_API_KEY=...
 BYBIT_SECRET_KEY=...
-BYBIT_TESTNET=true
+BYBIT_TESTNET=false
 
 DB_PASSWORD=***REMOVED***
 
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
 
-GRAFANA_PASSWORD=***REMOVED***
-
-# Phase 5 (메인넷 진입 시)
-EXPECTED_INITIAL_BALANCE_USD=200
+# Phase 5 (메인넷)
+EXPECTED_INITIAL_BALANCE_USD=185.31
 STRICT_MONITORING_HOURS=24
 PHASE5_MODE=true
 ```
 
 ### cryptoengine/config/
 
-#### strategies/funding-arb.yaml
-펀딩비 차익거래 전략 파라미터:
+#### strategies/supertrend.yaml
+Supertrend 4h 전략 파라미터:
 ```yaml
-pairs: [BTCUSDT]           # BTC 단일 운영
-leverage: 5                 # 5배 레버리지
-max_position_hours: 168     # 최대 보유 7일
-min_funding_rate: 0.0001    # 최소 진입 펀딩비
-consecutive_intervals: 3    # 연속 3회 양수 펀딩비
-basis_divergence_threshold: 0.005  # 기저 0.5% 이상 차이
-```
-
-#### strategies/adaptive-dca.yaml
-DCA 전략 파라미터:
-```yaml
-pairs: [BTCUSDT]
-fear_greed_threshold: 30    # 30 이하일 때만 매수
-allocation: 0.2             # 자본의 20% 배분
+pairs: [BTC/USDT:USDT]           # BTC 단일 운영
+leverage: 3                       # 3배 레버리지
+st_factor: 2.6                    # Supertrend factor
+st_period: 9                      # Supertrend period
+fast_ema: 7                       # 빠른 EMA
+slow_ema: 29                      # 느린 EMA
+dir_ema: 240                      # 방향 EMA
+atr_mult: 3.3                     # ATR 배수
 ```
 
 #### orchestrator.yaml
@@ -404,10 +385,10 @@ docker compose up -d
 docker compose up -d postgres redis grafana
 
 # 특정 서비스 재빌드
-docker compose up -d --build --no-deps funding-arb
+docker compose up -d --build --no-deps supertrend
 
 # 로그 확인
-docker compose logs -f funding-arb
+docker compose logs -f supertrend
 docker compose logs --tail=100 market-data
 
 # DB 접속
@@ -420,8 +401,8 @@ make emergency
 ### shared/ 수정 시
 ```bash
 # 모든 서비스 재빌드 (순서 중요)
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 
 ### 백테스트
@@ -438,4 +419,4 @@ docker compose -f backtest/docker/docker-compose.yml --profile backtest run --rm
 
 ---
 
-**최종 수정**: 2026-05-01
+**최종 수정**: 2026-06-14

@@ -5,7 +5,7 @@ related_code:
   - docker-compose.yml
   - Dockerfile
   - config/
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 when_to_update: |
   - Docker Compose 서비스 추가/제거 시
   - 환경 설정 변경 시
@@ -43,7 +43,7 @@ graph TB
     end
     
     subgraph strat["Strategy 1개"]
-        st["supertrend"]
+        st["supertrend<br>Supertrend 4h"]
     end
     
     subgraph iface["Interface 3개"]
@@ -161,8 +161,7 @@ CMD ["python", "main.py"]
 ```
 postgres (healthy) ─┬─ pg-backup, log-retention
                     ├─ market-data ─┬─ strategy-orchestrator
-                    │               ├─ funding-arb
-                    │               └─ adaptive-dca
+                    │               └─ supertrend
                     ├─ execution-engine
                     ├─ dashboard
                     ├─ telegram-bot
@@ -171,14 +170,14 @@ postgres (healthy) ─┬─ pg-backup, log-retention
                     └─ backtester
 
 redis (healthy) ──── market-data, strategy-orchestrator
-                     execution-engine, funding-arb, adaptive-dca
+                     execution-engine, supertrend
                      llm-advisor, telegram-bot, dashboard
 ```
 
 | 서비스 | depends_on 조건 | 의미 |
 |--------|-----------------|------|
 | pg-backup, log-retention | postgres: service_healthy | DB 완전 준비 후 시작 |
-| market-data, execution-engine, funding-arb | postgres/redis: healthy | 데이터 계층 완전 준비 |
+| market-data, execution-engine, supertrend | postgres/redis: healthy | 데이터 계층 완전 준비 |
 | strategy-orchestrator | market-data: service_started | 시장 데이터 수집 시작만 확인 |
 | grafana | prometheus: service_started | Prometheus 스크래핑 시작 확인 |
 | backtester | postgres: service_healthy | 온디맨드 실행 (항상 off) |
@@ -257,8 +256,7 @@ x-common-env: &common-env
 
 | 파일 | 용도 |
 |------|------|
-| `config/strategies/funding-arb.yaml` | 펀딩비 전략 파라미터 (임계값, 헤지 비율 등) |
-| `config/strategies/adaptive-dca.yaml` | DCA 전략 파라미터 (투자 주기, 비율 등) |
+| `config/strategies/supertrend.yaml` | Supertrend 4h 전략 파라미터 |
 | `config/orchestrator.yaml` | Kill Switch 임계값 |
 
 설정 로딩 시 환경 변수 치환을 지원한다:
@@ -395,8 +393,7 @@ graph TB
             end
 
             subgraph strat["Strategy Services"]
-                farb["funding-arb"]
-                dca["adaptive-dca"]
+                st["supertrend"]
             end
 
             subgraph intel["Intelligence"]
@@ -432,8 +429,7 @@ graph TB
     md --> pg
     md --> redis
     orch --> redis
-    farb --> redis
-    dca --> redis
+    st --> redis
     exec --> redis
     exec --> pg
     tbot --> redis
@@ -538,8 +534,7 @@ make up-dev
 | market-data | 5678 |
 | strategy-orchestrator | 5679 |
 | execution-engine | 5680 |
-| funding-arb | 5681 |
-| adaptive-dca | 5683 |
+| supertrend | 5681 |
 | llm-advisor | 5684 |
 | telegram-bot | 5685 |
 | dashboard | 5686 |
@@ -599,7 +594,7 @@ make up-dev
 
 ### 헬스체크 확대
 
-`market-data`, `execution-engine`, `funding-arb` 서비스에 healthcheck 적용 완료:
+`market-data`, `execution-engine`, `supertrend` 서비스에 healthcheck 적용 완료:
 
 ```yaml
 healthcheck:

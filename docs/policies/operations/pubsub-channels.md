@@ -4,7 +4,7 @@ category: policies/operations
 related_code:
   - cryptoengine/shared/redis_client.py
   - cryptoengine/services/*/
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 when_to_update: |
   - 채널 추가/삭제 시
   - 메시지 포맷 변경 시
@@ -102,12 +102,12 @@ OHLCV 캔들 데이터 배포. Market Data Collector → 전략 서비스
 ```json
 {
   "request_id": "abc123def456",
-  "strategy_id": "funding_arb_01",
+  "strategy_id": "supertrend-01",
   "exchange": "bybit",
   "symbol": "BTC/USDT:USDT",
   "side": "buy",
   "order_type": "limit",
-  "quantity": 0.1,
+  "quantity": 0.003,
   "price": 65000.0,
   "post_only": true,
   "reduce_only": false,
@@ -168,8 +168,8 @@ Strategy Orchestrator → 전략 자본 배분 명령
 
 ```json
 {
-  "strategy_id": "supertrend",
-  "allocated_capital": 10000.0,
+  "strategy_id": "supertrend-01",
+  "allocated_capital": 185.31,
   "weight": 1.0,
   "max_drawdown": 5.0,
   "timestamp": "2026-04-03T12:00:00Z"
@@ -177,8 +177,7 @@ Strategy Orchestrator → 전략 자본 배분 명령
 ```
 
 **수신자**:
-- funding-arb (자본 배분 조정)
-- adaptive-dca (자본 배분 조정)
+- supertrend (자본 배분 조정)
 
 ---
 
@@ -202,49 +201,10 @@ Kill Switch 발동 이벤트 → 모든 서비스 수신 (즉시 청산)
 
 **수신자**:
 - execution-engine (포지션 청산)
-- funding-arb (포지션 상태 저장 후 종료)
-- adaptive-dca (포지션 청산)
+- supertrend (포지션 상태 저장 후 종료)
 - telegram-bot (알림 전송)
 
 **대응 절차**: [../kill-switch.md](../kill-switch.md) 참조
-
----
-
-#### `llm:advisory`
-
-LLM 어드바이저 가중치 조정 제안
-
-**메시지 예시**:
-
-```json
-{
-  "rating": "buy",
-  "confidence": 0.72,
-  "weight_adjustments": {
-    "funding_arb": 0.05,
-    "adaptive_dca": 0.03,
-    "cash": -0.08
-  },
-  "reasoning": "시장 저점 구간으로 판단...",
-}
-```
-
-**수신자**: strategy-orchestrator (선택적 가중치 조정)
-
----
-
-#### `llm:request`
-
-LLM 분석 요청 (온디맨드)
-
-**메시지 예시**:
-
-```json
-{
-  "trigger": "on_demand",
-  "context": {}
-}
-```
 
 ---
 
@@ -252,14 +212,13 @@ LLM 분석 요청 (온디맨드)
 
 | 키 | 타입 | TTL | 설명 |
 |----|------|-----|------|
+| 키 | 타입 | TTL | 설명 |
+|----|------|-----|------|
 | `cache:portfolio_state` | String(JSON) | 300s | 포트폴리오 상태 |
-| `features:latest` | String(JSON) | 300s | ML 특성 벡터 |
 | `market:ticker:{symbol}` | String(JSON) | 60s | 최신 시세 |
-| `market:funding:{symbol}` | String(JSON) | 600s | 펀딩레이트 |
 | `orchestrator:state` | String(JSON) | 600s | 오케스트레이터 상태 |
 | `orchestrator:kill_switch` | String(JSON) | 7200s | Kill Switch 상태 |
-| `llm:latest_advisory` | String(JSON) | 28800s | 최신 LLM 어드바이저리 |
-| `strategy:saved_state:funding_arb` | String(JSON) | 3600s | Funding Arb 포지션 복구용 |
+| `strategy:saved_state:supertrend-01` | String(JSON) | 3600s | Supertrend 포지션 복구용 |
 
 ---
 
@@ -279,16 +238,16 @@ curl http://localhost:3000/api/internal/portfolio
 
 ```json
 {
-  "total_equity": 10000.0,
-  "unrealized_pnl": -50.0,
-  "realized_pnl_today": 120.0,
-  "daily_drawdown": -0.005,
+  "total_equity": 187.50,
+  "unrealized_pnl": 0.0,
+  "realized_pnl_today": 2.50,
+  "daily_drawdown": 0.0,
   "strategies": [
     {
-      "strategy_id": "funding_arb_01",
-      "allocated_capital": 2500.0,
-      "current_pnl": 80.0,
-      "position_count": 1
+      "strategy_id": "supertrend-01",
+      "allocated_capital": 187.50,
+      "current_pnl": 2.50,
+      "position_count": 0
     }
   ]
 }
@@ -306,12 +265,12 @@ curl http://localhost:3000/api/internal/positions
 
 ---
 
-#### `GET /api/internal/trades?limit=50&strategy=funding_arb`
+#### `GET /api/internal/trades?limit=50&strategy=supertrend`
 
 거래 이력 조회
 
 ```bash
-curl http://localhost:3000/api/internal/trades?limit=50
+curl http://localhost:3000/api/internal/trades?limit=50&strategy=supertrend-01
 ```
 
 ---
@@ -443,4 +402,4 @@ class PortfolioState(BaseModel):
 
 - [runbook.md](runbook.md) — 운영 매뉴얼
 - [../kill-switch.md](../kill-switch.md) — Kill Switch 정책
-- [../strategies/funding-arb.md](../strategies/funding-arb.md) — Funding Arb 전략
+- [../strategies/supertrend.md](../strategies/supertrend.md) — Supertrend 전략

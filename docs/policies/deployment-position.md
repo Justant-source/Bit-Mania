@@ -4,7 +4,7 @@ category: policies
 related_code:
   - cryptoengine/services/strategies/supertrend/strategy.py
   - cryptoengine/docker-compose.yml
-last_updated: 2026-05-18
+last_updated: 2026-06-14
 when_to_update: |
   - 배포 절차 변경 시
   - Redis TTL 변경 시
@@ -128,10 +128,10 @@ flowchart TD
 
 ```bash
 # 코드 수정
-vi cryptoengine/services/strategies/funding-arb/strategy.py
+vi cryptoengine/services/strategies/supertrend/strategy.py
 
 # 이미지 빌드
-docker compose build funding-arb
+docker compose build supertrend
 ```
 
 ### 2. 포지션 확인 (선택사항)
@@ -150,19 +150,19 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine \
 
 ```bash
 # 단일 서비스: 포지션 자동 유지됨
-docker compose up -d --build --no-deps funding-arb
+docker compose up -d --build --no-deps supertrend
 
 # shared/ 변경 시 (모든 서비스 영향): 
 #   공유 라이브러리 먼저 업데이트
-docker compose build market-data execution-engine funding-arb strategy-orchestrator telegram-bot
-docker compose up -d --no-deps market-data execution-engine funding-arb strategy-orchestrator telegram-bot
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 
 ### 4. 복구 확인
 
 ```bash
 # 로그에서 포지션 복구 메시지 확인 (1-2분 소요)
-docker compose logs --tail=50 funding-arb | grep -E "복구|recovered|Restored"
+docker compose logs --tail=50 supertrend | grep -E "복구|recovered|Restored"
 
 # 기대값:
 # [INFO] Position state restored from Redis: entry_price=65000.0, qty=0.15
@@ -172,7 +172,7 @@ docker compose logs --tail=50 funding-arb | grep -E "복구|recovered|Restored"
 
 ```bash
 # 신규 포지션 진입 로그 확인 (또는 기존 포지션 모니터링)
-docker compose logs -f funding-arb | head -20
+docker compose logs -f supertrend | head -20
 ```
 
 ---
@@ -188,7 +188,7 @@ graph TD
     A["shared/ 변경<br>예: kill_switch.py"]
     A --> B["market-data 영향"]
     A --> C["execution-engine 영향"]
-    A --> D["funding-arb 영향"]
+    A --> D["supertrend 영향"]
     A --> E["strategy-orchestrator 영향"]
     A --> F["telegram-bot 영향"]
     
@@ -214,7 +214,7 @@ graph TD
 shared/ 변경
 ├─ market-data (데이터 수집 영향)
 ├─ execution-engine (주문 실행 영향)
-├─ funding-arb (전략 실행 영향)
+├─ supertrend (전략 실행 영향)
 ├─ strategy-orchestrator (오케스트레이션 영향)
 └─ telegram-bot (메시징 영향)
 ```
@@ -224,13 +224,13 @@ shared/ 변경
 ```mermaid
 flowchart LR
     subgraph Phase1["1단계: 이미지 재빌드"]
-        B1["docker compose build<br>market-data<br>execution-engine<br>funding-arb<br>strategy-orchestrator<br>telegram-bot"]
+        B1["docker compose build<br>market-data<br>execution-engine<br>supertrend<br>strategy-orchestrator<br>telegram-bot"]
     end
     subgraph Phase2["2단계: 순차 재시작"]
         B2["market-data<br>데이터 수집"]
         B3["execution-engine<br>주문 실행"]
         B4["strategy-orchestrator<br>오케스트레이션"]
-        B5["funding-arb<br>전략 (포지션 복구)"]
+        B5["supertrend<br>전략 (포지션 복구)"]
         B6["telegram-bot<br>알림"]
     end
     subgraph Phase3["3-4단계: 검증"]
@@ -257,7 +257,7 @@ flowchart LR
 docker compose build \
   market-data \
   execution-engine \
-  funding-arb \
+  supertrend \
   strategy-orchestrator \
   telegram-bot
 
@@ -268,7 +268,7 @@ docker compose up -d --no-deps execution-engine            # 주문 엔진
 sleep 5
 docker compose up -d --no-deps strategy-orchestrator       # 오케스트레이터
 sleep 5
-docker compose up -d --no-deps funding-arb                 # 전략 (포지션 복구)
+docker compose up -d --no-deps supertrend                  # 전략 (포지션 복구)
 sleep 5
 docker compose up -d --no-deps telegram-bot                # 봇
 
@@ -277,15 +277,15 @@ sleep 120
 
 # 4단계: 모든 서비스 정상 확인
 docker compose ps
-docker compose logs --tail=20 funding-arb | grep -E "복구|ready|starting"
+docker compose logs --tail=20 supertrend | grep -E "복구|ready|starting"
 ```
 
 ### 주의
 
-- **market-data 먼저**: 펀딩비, OHLCV 데이터가 필요하므로 가장 먼저 시작
+- **market-data 먼저**: OHLCV 데이터가 필요하므로 가장 먼저 시작
 - **execution-engine 다음**: 주문 실행 준비
 - **strategy-orchestrator 다음**: 전략 조율
-- **funding-arb 마지막**: 포지션 복구 시간 필요
+- **supertrend 마지막**: 포지션 복구 시간 필요
 - **telegram-bot 마지막**: 알림 전송 준비
 
 ---
@@ -313,14 +313,14 @@ TTL:       1시간
 
 # 2. Redis에서 만료된 상태 삭제
 docker compose exec redis redis-cli -a ${REDIS_PASSWORD} \
-  DEL strategy:saved_state:funding_arb
+  DEL strategy:saved_state:supertrend-01
 
 # 3. DB 포지션 상태 정리
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
   "UPDATE positions SET status='stale' WHERE status='open' AND updated_at < NOW() - INTERVAL '2 hours';"
 
 # 4. 서비스 재시작 (신규 포지션부터 시작)
-docker compose up -d funding-arb
+docker compose up -d supertrend
 ```
 
 ---
@@ -331,7 +331,7 @@ docker compose up -d funding-arb
 
 ```bash
 # 터미널 1: 로그 실시간 모니터링
-docker compose logs -f funding-arb | grep -E "position|entry|exit"
+docker compose logs -f supertrend | grep -E "position|entry|exit"
 
 # 터미널 2: DB 실시간 확인
 watch -n 5 'docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
@@ -339,7 +339,7 @@ watch -n 5 'docker compose exec postgres psql -U cryptoengine -d cryptoengine -c
 
 # 터미널 3: Redis 상태 확인
 docker compose exec redis redis-cli -a ${REDIS_PASSWORD} \
-  GET strategy:saved_state:funding_arb | jq .
+  GET strategy:saved_state:supertrend-01 | jq .
 ```
 
 ---
@@ -355,7 +355,7 @@ docker compose exec redis redis-cli -a ${REDIS_PASSWORD} \
   - Kill Switch L2 발동: 14:37 (포트폴리오 -5%)
 
 동작:
-  1. funding-arb 즉시 중지 + 포지션 청산
+  1. supertrend 즉시 중지 + 포지션 청산
   2. saved_state 무시 (청산이 우선)
   3. 재시작 후 "청산됨" 상태로 시작
   4. 포지션 복구 불가 (이미 청산됨)

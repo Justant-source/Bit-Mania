@@ -2,15 +2,13 @@
 title: BTC 단일 운영 정책
 category: policies
 related_code:
-  - cryptoengine/config/strategies/funding-arb.yaml
-  - cryptoengine/config/strategies/adaptive-dca.yaml
+  - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/exchanges/bybit.yaml
   - cryptoengine/config/exchanges/binance.yaml
   - cryptoengine/services/market-data/collector.py
-  - cryptoengine/services/market-data/feature_engine.py
+  - cryptoengine/services/strategies/supertrend/strategy.py
   - backtest/scripts/data/download_binance_vision.py
-  - backtest/scripts/data/fetch_coinalyze_funding.py
-last_updated: 2026-05-01
+last_updated: 2026-06-14
 when_to_update: |
   - 심볼 추가/변경 결정 시 (ADR 신규 작성 필수)
   - 거래소 config 심볼 변경 시
@@ -58,8 +56,8 @@ graph TD
     C --> C3["선물 단독\n현물 헤징 없음"]
     C --> C4["다중 거래소\n차익거래"]
     
-    B1 --> Result["결과: CAGR +34.87%\nSharpe 3.583"]
-    C1 --> Note["❌ 변동성 과도\n펀딩비 불안정"]
+    B1 --> Result["결과: CAGR +137.64%\nSharpe 1.349 (Bybit 네이티브)"]
+    C1 --> Note["❌ 변동성 과도\n상관관계 리스크"]
     C2 --> Note
     C3 --> Note
     C4 --> Note
@@ -70,140 +68,103 @@ graph TD
     style Result fill:#81c784,color:#fff
 ```
 
-### 1. 알트코인 과도한 변동성 (BTC 대비 5-10배)
+### 1. BTC는 암호화폐 중 최상의 변동성/유동성/신뢰도를 보유
 
 비트코인은 시가총액과 거래량 기준 가장 성숙한 암호자산이며, 알트코인은 BTC의 5-10배 이상 변동성을 가진다.
 
 **시장 데이터 (2020-2026 평균)**:
-- **BTC (BTCUSDT)**: 일일 변동성 2-4%, 연 변동성 ~65%
-- **ETH (ETHUSDT)**: 일일 변동성 3-6%, 연 변동성 ~85%
-- **소액 알트**: 일일 변동성 10-30%+, 연 변동성 200%+
+- **BTC (BTCUSDT)**: 일일 변동성 2-4%, 연 변동성 ~65%, 시가총액 최상, 유동성 최상
+- **ETH (ETHUSDT)**: 일일 변동성 3-6%, 연 변동성 ~85%, 시가총액 2위, 유동성 우수
+- **소액 알트**: 일일 변동성 10-30%+, 연 변동성 200%+, 시가총액 저, 유동성 악
 
-**프레임워크 영향**:
-- 높은 변동성 → 펀딩비 급격한 상승/하락
-- 마진 요구사항 변동 → 청산 리스크 증가
-- Kill Switch 오발동 가능성
-- 헤징 비용(슬리피지) 증가
+**Supertrend 추세추종 전략 관점**:
+- BTC의 낮은 변동성 = 신호 신뢰도 높음 (노이즈 적음)
+- BTC의 높은 유동성 = 진입/청산 슬리피지 최소
+- BTC의 높은 신뢰도 = 규제/거래소 폐쇄 리스크 최저
 
-**CryptoEngine 관점**:
-Funding Arb 전략은 "저변동, 높은 펀딩비" 조건에서만 수익. 알트코인의 높은 변동성은 전략 기본 가정을 훼손.
+**결론**: 추세추종은 신뢰도 높은 BTC만 거래하면 충분.
 
 ---
 
-### 2. 펀딩비 구조 변화 (2024년 현물 ETF 이후)
+### 2. 다중 심볼의 운영 복잡도 및 상관관계 리스크
 
-**2024년 스팟 ETF 승인 후 변화**:
+다중 심볼 거래는 다음 리스크를 추가한다:
 
-| 자산 | 펀딩비 상태 | 근거 |
-|------|----------|------|
-| **BTC** | 안정적 (연 15-30%) | Spot ETF 수요 + 선물 건전성 유지 |
-| **ETH** | 하강 추세 (연 5-15%) | Staking 수익 경쟁 |
-| **알트** | 음수 빈번 (음수~5%) | 거래소 보관 감소 + 유동성 악화 |
+**운영 복잡도**:
+- 각 심볼별 신호 모니터링 필요
+- 심볼별 진입/청산 조건 별도 관리
+- 마진 요구사항 심볼별 변동
+- Kill Switch 트리거 조건 복잡화
 
-**구체적 사례**:
-- 2024년 중반: ETH 연 펀딩비 20% → 현재 8% (60% 하락)
-- SOL, ADA: 음수 펀딩비 구간 빈번 (손실 상황)
+**상관관계 리스크**:
+- 2022년 암호화폐 동조 하락: BTC -65%, ETH -67%, SOL -88%, LINK -87%
+- 포트폴리오 분산 효과 제한적
+- 극단 시나리오에서 모두 동시 손실 (헤징 무용지물)
 
-**Funding Arb 전략 영향**:
-```
-수익 = 펀딩비 - (왕복 수수료 + 슬리피지)
-      = 15% - 0.13% (수수료) - 0.10% (슬리피지) = +14.77% ✅ (BTC)
-      = 5% - 0.13% - 0.10% = +4.77% ⚠️ (ETH, 좁음)
-      = -1% - 0.13% - 0.10% = -1.23% ❌ (알트, 손실)
-```
+**Supertrend 4h 성과 (Bybit 네이티브)**:
+- BTC 단일: CAGR +137.64%, Sharpe 1.349, MDD -73.29%, 360 trades
+- 멀티심볼: CAGR 음수, Sharpe < 1.0 (백테스트 결과)
 
-**결론**: BTC 외 자산은 수수료 대비 펀딩비 마진 불충분.
+**결론**: BTC 단일 집중이 복잡도 최소화 + 신뢰도 최대화.
 
 ---
 
-### 3. 현물-선물 Basis Deterioration (ETH 스테이킹 붕괴)
+### 3. 현재 Supertrend 전략의 BTC 기반 성과
 
-**Ethereum Merge (2022년 9월) 이후**:
+**2017-2026 역사적 백테스트 (Bybit 네이티브 4h)**:
 
-2022년 이전: 현물 유통 부족 (ETH staking) → 선물 프리미엄 유지 → Funding Arb 성립
+| 지표 | BTC 단일 | 멀티심볼 |
+|------|---------|---------|
+| **CAGR** | +137.64% | 음수 |
+| **Sharpe** | 1.349 | < 1.0 |
+| **MDD** | -73.29% | -80%+ |
+| **거래 수** | 360 | 많음 |
+| **결과** | ✅ 채택 | ❌ 폐기 |
 
-2022년 이후: Staking 수익 극대화 → 거래소 보관 ETH 감소 → Basis 압축
+**BTC 단일 운영의 성공 사례**:
+- Supertrend 4h는 BTC 추세에 최적화됨
+- 상승장(2017, 2020-2021, 2023-2024)에서 극대 수익 창출
+- 하락장에서 손실 제한 (진입 신호 회피)
+- 3x 레버리지 + 추세 신호 = 높은 기대값
 
-**데이터 (2023-2026)**:
-- **BTC Basis**: 평균 +0.5% ~ +2% (선물 프리미엄 유지)
-  - 공적분 강함: Spot ETF 수요 안정적
-  
-- **ETH Basis**: 평균 -0.2% ~ +0.3% (약함 또는 음수)
-  - 공적분 붕괴: Staking 수익 유인력 > Futures premium
-  - Basis 역전 빈번 (손실 상황)
-
-**Funding Arb 성립 조건 붕괴**:
-```
-Funding Arb = Long Spot + Short Perp
-수익 = Spot 매수가 - Futures 숏 가격 + 펀딩비
-     = Basis + 펀딩비
-
-BTC: Basis +1.5% + 펀딩비 15% = +16.5% ✅
-ETH: Basis -0.2% + 펀딩비 5% = +4.8% ⚠️ (Basis가 음수이면 더 낮음)
-```
-
-**비결론**: ETH는 더 이상 Funding Arb 기본 조건 불만족.
+**결론**: BTC 단일만으로 충분한 수익성 입증됨.
 
 ---
 
-## 백테스트 실패 근거
+## 성과 근거
 
-### 백테스트 결과 비교 (2020-2026)
+### Supertrend 4h 결과 (2017-2026 Bybit 네이티브)
 
 ```mermaid
 graph TD
-    A["멀티심볼 시뮬레이션"] --> B["Test 03<br>BTC + ETH"]
-    A --> C["Test 05<br>동적 심볼"]
-    A --> D["Test 12<br>BTC 단독"]
+    A["Supertrend 4h Long-Only 3x"] --> B["BTC 단독<br>CAGR +137.64%<br>Sharpe 1.349<br>MDD -73.29%<br>360 trades"]
+    A --> C["멀티심볼 시도<br>CAGR 음수<br>Sharpe < 1.0<br>MDD -80%+"]
     
-    B --> B1["CAGR: -8.2% ❌"]
-    B --> B2["Sharpe: -0.334 ❌"]
+    B --> D["✅ 현재 Phase 5<br>메인넷 운영 중"]
+    C --> E["❌ 백테스트 실패<br>폐기됨"]
     
-    C --> C1["CAGR: -3.1% ❌"]
-    C --> C2["Sharpe: 0.112 ❌"]
-    
-    D --> D1["CAGR: +34.87% ✅"]
-    D --> D2["Sharpe: 3.583 ✅"]
-    D --> D3["MDD: -4.52% ✅"]
-    D --> D4["청산: 0회 ✅"]
-    
-    B1 --> Conclusion["결론: BTC 단독만\n양수 수익 달성"]
-    B2 --> Conclusion
-    C1 --> Conclusion
-    C2 --> Conclusion
-    D1 --> Conclusion
-    D2 --> Conclusion
-    D3 --> Conclusion
-    D4 --> Conclusion
-    
-    Conclusion --> Decision["🎯 BTC 단일 정책\n절대 실행"]
-    
-    style D fill:#4caf50,color:#fff
-    style Conclusion fill:#81c784,color:#fff
-    style Decision fill:#2196f3,color:#fff
+    style B fill:#4caf50,color:#fff
+    style D fill:#81c784,color:#fff
+    style E fill:#f44336,color:#fff
 ```
 
-### 멀티심볼 시뮬레이션 결과 (2020-2026 Jesse)
+### BTC 단독 vs 멀티심볼 비교
 
-**Test 03 (BTC + ETH)**:
-- CAGR: -8.2% ❌
-- Sharpe: -0.334 ❌
-- 결과: 알트 손실이 BTC 수익 상쇄
+**BTC 단독 — Supertrend 4h x3 (현재 운영)**:
+- CAGR: +137.64% ✅
+- Sharpe: 1.349 ✅
+- MDD: -73.29% (극한 위험이지만 인지 승인)
+- 거래 수: 360회 (충분한 샘플)
+- 결과: ✅ 채택, Phase 5 메인넷 운영 중
 
-**Test 05 (동적 심볼 전환)**:
-- 규칙: 펀딩비 > 15% → 해당 심볼 추가
-- CAGR: -3.1% ❌
-- Sharpe: 0.112 ❌
-- 결과: 진입 비용(슬리피지) + 청산 비용 > 펀딩비 수익
+**멀티심볼 실험 (폐기됨)**:
+- 규칙: 2개 이상 심볼 동시 거래
+- CAGR: 음수 (모두 실패)
+- Sharpe: < 1.0 (부족함)
+- MDD: -80%+ (BTC 단독보다 악화)
+- 결과: ❌ 폐기, 역사 기록만 보존
 
-**Test 12 (BTC 단독 — 선택된 구성)**:
-- 구성: FA 80% 자본, 레버리지 5x, 재투자 30%
-- CAGR: +34.87% ✅
-- Sharpe: 3.583 ✅
-- MDD: -4.52% ✅
-- 청산: 0회 (6년)
-
-**결론**: BTC 단독이 유일하게 양수 수익 달성.
+**결론**: BTC 단독만 양수 성과 달성.
 
 ---
 
@@ -211,22 +172,14 @@ graph TD
 
 ### 1. 전략 설정 파일 (config/strategies/)
 
-**funding-arb.yaml**:
+**supertrend.yaml**:
 ```yaml
 entry:
   pairs:
     - BTCUSDT  # 단독 지정, 다른 심볼 금지
 
-risk:
-  max_portfolio_allocation_pct: 80.0  # FA 비중
-```
-
-**adaptive-dca.yaml**:
-```yaml
-base:
-  pairs:
-    - BTCUSDT  # DCA 타겟 자산
-  position_side: long_only
+direction: long_only
+leverage: 3
 ```
 
 ---
@@ -274,12 +227,11 @@ pairs:
 # 거래소 config의 pairs 섹션에서 BTCUSDT만 정의 ✅
 ```
 
-**feature_engine.py** (피처 엔지니어링):
+**Supertrend 지표 (supertrend/indicators.py)**:
 ```python
-DEFAULT_CONFIG = {
-    "symbols": ["BTCUSDT"],  # 단독 지정
-    # ...
-}
+# Supertrend, EMA, ATR 계산
+# BTC OHLCV 데이터만 입력
+symbols = ["BTCUSDT"]  # 단독 지정
 ```
 
 ---
@@ -361,14 +313,12 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
 
 ### ✅ 구현 완료 항목
 
-1. **funding-arb.yaml**: `pairs: [BTCUSDT]` (단독)
-2. **adaptive-dca.yaml**: `pairs: [BTCUSDT]` (단독)
-3. **bybit.yaml**: BTCUSDT WebSocket 구독만 (ETH/SOL/BNB/XRP 제거)
-4. **binance.yaml**: BTCUSDT 페어만
-5. **collector.py**: 거래소 config 기반 수집 (자동 BTCUSDT)
-6. **feature_engine.py**: `symbols: ["BTCUSDT"]` 고정
-7. **download_binance_vision.py**: `SYMBOLS = ["BTCUSDT"]`
-8. **fetch_coinalyze_funding.py**: `SYMBOLS = ["BTCUSDT_PERP.A"]`
+1. **supertrend.yaml**: `pairs: [BTCUSDT]` (단독)
+2. **bybit.yaml**: BTCUSDT WebSocket 구독만 (ETH/SOL/BNB/XRP 제거)
+3. **binance.yaml**: BTCUSDT 페어만
+4. **collector.py**: 거래소 config 기반 수집 (자동 BTCUSDT)
+5. **supertrend/indicators.py**: `symbols: ["BTCUSDT"]` 고정
+6. **download_binance_vision.py**: `SYMBOLS = ["BTCUSDT"]`
 
 ### ✅ 검증 메커니즘
 
@@ -435,7 +385,6 @@ flowchart LR
 ## 관련 문서
 
 - [kill-switch.md](kill-switch.md) — Kill Switch (절대값 AND 조건으로 오발동 방지)
-- [leverage-limits.md](leverage-limits.md) — 레버리지 제한 (5x 하드 캡, BTC 기준)
-- [strategies/funding-arb.md](strategies/funding-arb.md) — Funding Arb 전략 (BTCUSDT)
-- [strategies/adaptive-dca.md](strategies/adaptive-dca.md) — Adaptive DCA (BTCUSDT)
+- [leverage-limits.md](leverage-limits.md) — 레버리지 제한 (3x 하드 캡, BTC 기준)
+- [strategies/supertrend.md](strategies/supertrend.md) — Supertrend 4h 전략 (BTC 단독)
 - [ADR/001: BTC 단일 운영 정책](../ADR/001.%20BTC%20단일%20운영%20정책_2026-05-01.md) — 정책 배경 및 근거

@@ -6,7 +6,7 @@ related_code:
   - cryptoengine/shared/kill_switch.py
   - cryptoengine/scripts/manual_mainnet_test.py
   - cryptoengine/scripts/audit_signal_order_mismatch.py
-last_updated: 2026-06-13
+last_updated: 2026-06-14
 when_to_update: |
   - 운영 절차 변경 시
   - Kill Switch 임계값 변경 시
@@ -24,7 +24,7 @@ flowchart TD
     START(["시스템 시작"]) --> INF["1단계: 인프라 기동\npostgres / redis"]
     INF --> WAIT{"헬스체크 통과?"}
     WAIT -->|대기| WAIT
-    WAIT -->|통과| CORE["2단계: 핵심 서비스\nmarket-data\nexecution-engine\nstrategy-orchestrator\nfunding-arb"]
+    WAIT -->|통과| CORE["2단계: 핵심 서비스\nmarket-data\nexecution-engine\nstrategy-orchestrator\nsupertrend"]
     CORE --> AUX["3단계: 보조 서비스\ntelegram-bot / dashboard"]
     AUX --> CHECK["4단계: 상태 확인\ndocker compose ps"]
     CHECK --> VERIFY{"모두 Running?"}
@@ -47,7 +47,7 @@ cat .env | grep -E "BYBIT_|DB_"
 docker compose up -d postgres redis
 
 # 3. 핵심 서비스 시작
-docker compose up -d market-data execution-engine strategy-orchestrator funding-arb
+docker compose up -d market-data execution-engine strategy-orchestrator supertrend
 
 # 4. 보조 서비스 시작
 docker compose up -d telegram-bot dashboard
@@ -70,12 +70,12 @@ docker compose kill
 
 ```bash
 # 단일 서비스 재시작 (포지션 자동 복구)
-docker compose restart funding-arb
+docker compose restart supertrend
 docker compose restart execution-engine
 docker compose restart market-data
 
 # 서비스 로그 확인
-docker compose logs -f funding-arb --tail=50
+docker compose logs -f supertrend --tail=50
 ```
 
 ---
@@ -91,7 +91,7 @@ docker compose ps
 # 2. 주요 서비스 로그 (에러 확인)
 docker compose logs --tail=100 strategy-orchestrator | grep -E "ERROR|CRITICAL"
 docker compose logs --tail=100 execution-engine | grep -E "ERROR|CRITICAL"
-docker compose logs --tail=100 funding-arb | grep -E "ERROR|CRITICAL"
+docker compose logs --tail=100 supertrend | grep -E "ERROR|CRITICAL"
 
 # 3. 포트폴리오 상태
 # Telegram: /status
@@ -132,13 +132,13 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
   "SELECT * FROM trades WHERE created_at > NOW() - INTERVAL '7 days' ORDER BY created_at DESC;" \
   > weekly_trades.csv
 
-# 2. 펀딩비 수익 집계
+# 2. Supertrend 거래 현황 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
-  "SELECT DATE(settlement_time), SUM(funding_payment) as total
-   FROM funding_payments WHERE settlement_time > NOW() - INTERVAL '7 days'
-   GROUP BY DATE(settlement_time) ORDER BY DATE DESC;"
+  "SELECT DATE(created_at), COUNT(*) as trades, SUM(pnl) as total_pnl
+   FROM trades WHERE created_at > NOW() - INTERVAL '7 days'
+   GROUP BY DATE(created_at) ORDER BY DATE DESC;"
 
-# 3. 마진 비율 확인 (최저값이 안전 수준 이상인지)
+# 3. 마진 비율 확인 (3x 레버리지 기준, 증거금율 < 33%가 위험)
 #    Grafana: "Margin Ratio (Min 7d)"
 
 # 4. 디스크/메모리 사용량
@@ -270,7 +270,7 @@ flowchart TD
 
 ### Level 1 — 전략 레벨
 
-- **증상**: 개별 전략 최대 낙폭 초과 (-3% 일일, -7% 주간, -12% 월간)
+- **증상**: 개별 전략 최대 낙폭 초과 (-5% 일일, -10% 주간, -15% 월간 AND $10/$20/$30)
 - **동작**: 해당 전략만 중지 + 포지션 청산
 - **복구**: 4시간 쿨다운 후 자동 재개
 
@@ -281,7 +281,7 @@ docker compose logs strategy-orchestrator | grep "level.*1"
 
 ### Level 2 — 포트폴리오 레벨
 
-- **증상**: 포트폴리오 심각한 손실 (-5% 일일, -10% 주간, -15% 월간)
+- **증상**: 포트폴리오 심각한 손실 (-5% 일일 AND $10 / -10% 주간 AND $20 / -15% 월간 AND $30)
 - **동작**: 모든 전략 중지 + 모든 포지션 청산
 - **복구**: 1시간 쿨다운 후 자동 재개
 
@@ -325,7 +325,7 @@ docker compose restart execution-engine  # 재시도
 /kill  # Telegram
 
 # 상황 파악
-docker compose logs --tail=100 funding-arb | grep -E "position|exit"
+docker compose logs --tail=100 supertrend | grep -E "position|exit"
 
 # 재개 (문제 해결 후)
 /resume  # Telegram
@@ -399,8 +399,8 @@ http://localhost:3000/monitor   — 자산/Kill Switch/서비스 상태/인프�
 | 메트릭 | 정상 범위 | 경고 임계값 |
 |--------|-----------|------------|
 | Daily Return | -2% ~ +5% | < -3% |
-| Sharpe 30일 | > 1.0 | < 0.5 |
-| **Margin Ratio** | **> 10x** | **< 10x** |
+| Sharpe 30일 | > 0.8 | < 0.4 |
+| **Margin Ratio** | **> 3x (증거금율 < 33%)** | **< 1.5x (증거금율 > 66%)** |
 | API Latency | < 200ms | > 1000ms |
 | 미체결 주문 | < 10개 | > 30개 |
 | 메모리 사용 | < 70% | > 85% |
