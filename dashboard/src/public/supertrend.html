@@ -125,6 +125,48 @@
       </div>
     </div>
 
+    <!-- Entry Conditions (전략 설명 — 차트 색과 동일) -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">언제 매수(롱)하나요? — 3가지 조건이 동시에 충족될 때</div>
+          <div class="card-sub">위 ‘BTC/USDT · 4h’ 차트에 그려진 선·캔들 색 그대로입니다. 셋 다 맞으면 그 4h 봉이 마감될 때 진입하고, 하나라도 어긋나면 진입하지 않습니다.</div>
+        </div>
+      </div>
+      <div style="padding:6px 16px 18px;display:flex;flex-direction:column;gap:14px">
+
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="flex:none;width:22px;height:22px;border-radius:50%;background:var(--c-success);color:#fff;font:700 12px/22px var(--font-sans);text-align:center">1</span>
+          <div>
+            <div style="font:600 14px/1.45 var(--font-sans)">슈퍼트렌드(ST) 선이 <span style="color:var(--c-success);font-weight:700">초록색</span>일 때</div>
+            <div class="card-sub">가격이 ST선 위에 있는 <b>상승 추세</b>를 뜻합니다. ST선이 <span style="color:var(--c-danger);font-weight:700">빨간색</span>(하락)으로 바뀌면 매수하지 않습니다.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="flex:none;width:22px;height:22px;border-radius:50%;background:var(--c-success);color:#fff;font:700 12px/22px var(--font-sans);text-align:center">2</span>
+          <div>
+            <div style="font:600 14px/1.45 var(--font-sans)"><span style="display:inline-block;width:16px;height:3px;background:var(--text-muted);vertical-align:middle;margin-right:3px"></span> 회색 EMA7 선이 <span style="display:inline-block;width:16px;height:3px;background:var(--c-info);vertical-align:middle;margin:0 3px"></span> 파란색 EMA29 선보다 <b>위</b>에 있을 때</div>
+            <div class="card-sub">단기 평균(<span style="color:var(--text-muted);font-weight:700">회색 EMA7</span>)이 중기 평균(<span style="color:var(--c-info);font-weight:700">파란 EMA29</span>)을 넘어선 <b>상승 모멘텀</b> 상태입니다.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="flex:none;width:22px;height:22px;border-radius:50%;background:var(--c-success);color:#fff;font:700 12px/22px var(--font-sans);text-align:center">3</span>
+          <div>
+            <div style="font:600 14px/1.45 var(--font-sans)">현재가(캔들)가 <span style="display:inline-block;width:16px;height:3px;background:var(--c-gauge-orange);vertical-align:middle;margin:0 3px"></span> 주황색 EMA240 선보다 <b>위</b>에 있을 때</div>
+            <div class="card-sub">현재 가격이 <span style="color:var(--c-gauge-orange);font-weight:700">주황색 EMA240</span>(장기 추세선) 위에 있어 큰 흐름도 상승이라는 뜻입니다. 가격이 이 선 <b>아래</b>면 이 조건이 막혀 매수하지 않습니다.</div>
+          </div>
+        </div>
+
+        <div style="margin-top:2px;padding:10px 12px;background:color-mix(in srgb,var(--c-success) 8%,var(--surface));border-radius:var(--r-sm,8px);border:1px solid var(--border);font:500 13px/1.55 var(--font-sans)">
+          ✅ 위 <b>1 · 2 · 3 이 모두</b> 충족되는 4h 봉 마감에 <b style="color:var(--c-success)">롱(매수) 진입</b>합니다 (자본 95% × 3배 레버리지). 하나라도 어긋나면 진입하지 않고 대기합니다.<br>
+          청산은 <b>회색 EMA7이 파란 EMA29 아래로 교차</b>하거나, <b>가격이 진입가에서 ATR(14)×3.3 만큼</b> 벗어날 때 이루어집니다.
+        </div>
+
+      </div>
+    </div>
+
     <!-- Equity Curve -->
     <div class="card">
       <div class="card-head">
