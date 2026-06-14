@@ -23,7 +23,7 @@ when_to_update: |
 ### 기본 구조
 
 ```
-Supertrend 상승 신호 감지 (ST > Close)
+Supertrend 상승 신호 감지 (Close > ST선)
         +
 빠른 EMA > 느린 EMA (모멘텀 확인)
         +
@@ -79,20 +79,20 @@ supertrend:
   
   indicators:
     supertrend:
-      period: 8
-      multiplier: 2.4
+      period: 9
+      multiplier: 2.6
     
     ema_fast: 7
-    ema_slow: 27
-    ema_trend: 230
+    ema_slow: 29
+    ema_trend: 240
     
-    atr_exit_multiplier: 3.2
+    atr_exit_multiplier: 3.3
 
 position:
-  sizing_mode: fixed_notional      # Phase 5: 고정액
-  fixed_notional_usd: 150          # $200 × 75% 안전
+  sizing_mode: pct_equity          # 비율 기반 배분 (고정액 아님)
+  pct_equity: 95.0                 # 할당자본 95% × 3x
   max_concurrent_positions: 1
-  min_position_usd: 50
+  min_position_usd: 65
 ```
 
 ---
@@ -104,7 +104,7 @@ position:
 ### 1. Supertrend 상승 신호
 
 ```
-Current Close > Supertrend Upper Band
+Current Close > Supertrend 선 (ST line)
 ```
 
 - ST선이 가격 아래에 있고 상승 추세 진행 중
@@ -112,7 +112,7 @@ Current Close > Supertrend Upper Band
 ### 2. EMA 모멘텀 확인
 
 ```
-EMA(7) > EMA(27)
+EMA(7) > EMA(29)
 ```
 
 - 단기 추세가 중기 추세보다 강함
@@ -121,10 +121,10 @@ EMA(7) > EMA(27)
 ### 3. EMA 추세 필터
 
 ```
-Current Close > EMA(230)
+Current Close > EMA(240)
 ```
 
-- 장기 추세(230 EMA)보다 위에 있음
+- 장기 추세(240 EMA)보다 위에 있음
 - 큰 틀의 상승 추세 확인
 
 **모든 3가지 조건이 동시에 만족해야 진입**
@@ -138,7 +138,7 @@ Current Close > EMA(230)
 ### 1. EMA 하강 교차 (최우선)
 
 ```
-EMA(7) < EMA(27)
+EMA(7) < EMA(29)
 → 즉시 청산 (타임프레임 무관)
 ```
 
@@ -148,18 +148,18 @@ EMA(7) < EMA(27)
 ### 2. ATR 기반 손절/익절
 
 ```
-진입가 - ATR(14) × 3.2 ≤ 현재가 ≤ 진입가 + ATR(14) × 3.2
+진입가 - ATR(14) × 3.3 ≤ 현재가 ≤ 진입가 + ATR(14) × 3.3
 → 자동 청산 + 4h 진입 금지
 ```
 
-- 손절: 진입가 이하 3.2×ATR 위치에서 자동 청산
-- 익절: 진입가 이상 3.2×ATR 위치에서 자동 청산
-- 청산 후 60분 cooldown 기간 신규 진입 차단
+- 손절: 진입가 이하 3.3×ATR 위치에서 자동 청산
+- 익절: 진입가 이상 3.3×ATR 위치에서 자동 청산
+- ATR 청산 후 1봉(4h) 동안 신규 진입 차단
 
 ### 3. 추세 필터 이탈
 
 ```
-Current Close ≤ EMA(230)
+Current Close ≤ EMA(240)
 → 방향 필터 조건 미충족 — 신규 진입 억제 (청산 조건은 EMA cross만)
 ```
 
@@ -215,7 +215,7 @@ phase5:
   sizing_mode: fixed_notional
   fixed_notional_usd: 150              # $200 × 75% (25% 안전 버퍼)
   max_concurrent_positions: 1          # 동시 1개만
-  min_position_usd: 50                 # Bybit 최소 주문
+  min_position_usd: 65                 # Bybit 최소 주문
 ```
 
 ### 주문 실행 방식 (2026-05-21~)
@@ -263,13 +263,13 @@ Equity Stop (−70%/−75%/−80%) 검증 결과:
 ```mermaid
 flowchart TD
     A["4h 캔들 신규 생성<br>(00:00, 04:00, 08:00 ...)"] --> B["Supertrend 계산<br>ST_upper, ST_lower"]
-    B --> C["EMA(7), EMA(27), EMA(230) 계산"]
+    B --> C["EMA(7), EMA(29), EMA(240) 계산"]
     C --> D{["진입 조건 체크\n3가지 모두?"]}
     
     D -->|"No"| Z["신호 대기"]
     D -->|"Yes"| E{["기존 포지션\n있음?"]}
     
-    E -->|"Yes"| F["EMA(7) < EMA(27)<br>확인"]
+    E -->|"Yes"| F["EMA(7) < EMA(29)<br>확인"]
     E -->|"No"| G["신규 Long 진입<br>3x 레버리지"]
     
     F -->|"Yes"| H["즉시 청산<br>시장가"]
