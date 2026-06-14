@@ -116,8 +116,8 @@ Grafana 컨테이너가 제거되었습니다. 모니터링 기능은 dashboard 
   - Redis `strategy:command:supertrend-01` (자본 배분)
 - **출력**: Redis `order:request` (주문 요청)
 - **파라미터**: `config/strategies/supertrend.yaml`
-  - st_factor: 2.4, st_period: 8
-  - fast_ema: 7, slow_ema: 27, dir_ema: 230, atr_mult: 3.2
+  - st_factor: 2.6, st_period: 9
+  - fast_ema: 7, slow_ema: 29, dir_ema: 240, atr_mult: 3.3
   - leverage: 3, symbol: BTC/USDT:USDT
 - **진입/청산**: 4h 봉 마감 시만 신호 계산; EMA 교차 또는 ATR 거리 초과 시 청산
 - **안전장치**: 진입 시 exchange-native SL (entry × 0.7667), Kill Switch 4계층

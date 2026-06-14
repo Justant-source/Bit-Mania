@@ -131,9 +131,9 @@ Supertrend 전략은 **4시간 봉 확정 시**에만 신호를 계산합니다:
 
 Supertrend 신호 판단:
 - **시장 데이터**: `market:ohlcv:bybit:BTCUSDT:4h` 수신 (confirmed=true만)
-- **신호 계산**: Supertrend(period=8, mult=2.4) + EMA(7,27,230) 조건
-- **진입 조건**: ST 상승 + EMA(7) > EMA(27) + Price > EMA(230)
-- **청산 조건**: EMA 하강 교차 또는 ATR×3.2 거리 초과
+- **신호 계산**: Supertrend(period=9, mult=2.6) + EMA(7,29,240) 조건
+- **진입 조건**: ST 상승 + EMA(7) > EMA(29) + Price > EMA(240)
+- **청산 조건**: EMA 하강 교차 또는 ATR×3.3 거리 초과
 - **주문 발행**: 신호 확인 후 즉시 `order:request` 채널 발행
 
 Supertrend 포지션 보유 시:

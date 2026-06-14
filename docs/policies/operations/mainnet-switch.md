@@ -282,12 +282,12 @@ phase5:
   # Supertrend 지표 유지 (테스트넷과 동일)
   indicators:
     supertrend:
-      period: 8
-      multiplier: 2.4
+      period: 9
+      multiplier: 2.6
     ema_fast: 7
-    ema_slow: 27
-    ema_trend: 230
-    atr_exit_multiplier: 3.2
+    ema_slow: 29
+    ema_trend: 240
+    atr_exit_multiplier: 3.3
 ```
 
 ### 이전 FA 설정 (참고, 더 이상 사용 안 함)

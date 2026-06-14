@@ -113,19 +113,19 @@ STRATEGY_META: dict[str, dict] = {
     },
     'supertrend': {
         'name_ko': '슈퍼트렌드', 'name_en': 'Supertrend',
-        'summary_ko': 'Supertrend + EMA 정렬 + 방향 EMA 필터로 추세 추종. v2.0은 파라미터 스윕 최적화 버전 (sweet_spot_score 92.6, PLATEAU)',
-        'summary_en': 'Trend-following with Supertrend, EMA alignment, direction EMA filter. v2.0 = sweep-optimized params (sweet_spot_score 92.6, PLATEAU)',
+        'summary_ko': 'Supertrend + EMA 정렬 + 방향 EMA 필터로 추세 추종. combo #7908 (라이브 채택, 파라미터 스윕 최적화)',
+        'summary_en': 'Trend-following with Supertrend, EMA alignment, direction EMA filter. combo #7908 (live, sweep-optimized)',
         'entry_long_ko': [
             'Supertrend = 상승 추세 (가격 > Supertrend 라인)',
             'fast EMA > slow EMA (황금 교차)',
             '가격 > direction EMA (장기 상승 추세)',
-            '★ v2.0 파라미터: ST(9, 2.5) · EMA(8/25) · dir_EMA(230) · ATR×3.2',
+            '★ 파라미터(combo #7908): ST(9, 2.6) · EMA(7/29) · dir_EMA(240) · ATR×3.3',
         ],
         'entry_long_en': [
             'Supertrend = uptrend (price above Supertrend line)',
             'fast EMA > slow EMA (bullish EMA cross)',
             'Price above direction EMA (long-term uptrend)',
-            '★ v2.0 params: ST(9, 2.5) · EMA(8/25) · dir_EMA(230) · ATR×3.2',
+            '★ params (combo #7908): ST(9, 2.6) · EMA(7/29) · dir_EMA(240) · ATR×3.3',
         ],
         'entry_short_ko': [
             'Supertrend = 하락 추세',
@@ -137,8 +137,8 @@ STRATEGY_META: dict[str, dict] = {
             'fast EMA < slow EMA (bearish EMA cross)',
             'Price below direction EMA',
         ],
-        'exit_ko': ['fast/slow EMA 교차 시 청산 (추세 반전)', 'ATR(14) × atr_mult 손절 (v2.0: ×3.2)'],
-        'exit_en': ['Exit on fast/slow EMA crossover (trend reversal)', 'Stop-loss: ATR(14) × atr_mult (v2.0: ×3.2)'],
+        'exit_ko': ['fast/slow EMA 교차 시 청산 (추세 반전)', 'ATR(14) × 3.3 손절/익절 (#7908)'],
+        'exit_en': ['Exit on fast/slow EMA crossover (trend reversal)', 'Stop/take: ATR(14) × 3.3 (#7908)'],
         'indicators': ['Supertrend (period, factor)', 'fast EMA / slow EMA / direction EMA', 'ATR (14)'],
     },
     'trendtype': {
