@@ -3,25 +3,34 @@
 #7908 was backtested on Binance 1h→4h (Jesse's expand→re-aggregate produced a
 02계열 fill grid). The live system trades Bybit *native* 4h (00계열). This re-runs
 the strategy on Bybit 4h with the LIVE (fixed) indicators and the #7908 entry/exit
-rules, producing both the trade series and headline stats (CAGR / MDD / PF /
-win-rate) for an apples-to-apples comparison with the original #7908 result — now
-on the same exchange and grid the live system actually uses.
+rules, producing the trade series + headline stats on the same exchange and grid
+the live system actually uses.
 
 Indicators: full-history via the live functions (compute_ema / _atr_jesse) + the
 live supertrend algorithm (verified == Jesse in test_supertrend_parity). Fills at
-bar close; 95% × 3x sizing; taker fee 0.055% per side (matches the sweep FEE).
-Stats are realized-trade compounded (Jesse marks intrabar) → headline approximation.
+bar close; 95% × 3x sizing; taker fee 0.055% per side. Equity is marked-to-market
+each 4h bar (open position included) so Sharpe/Sortino/Calmar approximate Jesse's
+daily-MTM metrics rather than realized-only.
+
+Modes:
+  (no args)         → print headline stats + #7908 comparison (quick check)
+  --out <dir>       → also write dashboard-format stats.json / trades.csv /
+                      monthly_returns.csv into <dir> (for build_strategy_dashboard.py)
 
 Run: docker run --rm -v "$PWD/cryptoengine:/work" -w /work \
-       --entrypoint python cryptoengine-supertrend:latest tests/fixtures/_replay_supertrend.py
+       --entrypoint python cryptoengine-supertrend:latest \
+       tests/fixtures/_replay_supertrend.py [--out /path/to/results_dir]
 """
 
 from __future__ import annotations
 
+import argparse
 import bisect
 import csv
+import json
+import math
 import sys
-from collections import Counter
+from collections import Counter, OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,7 +49,7 @@ FAST, SLOW, DIR = 7, 29, 240
 ATR_MULT = 3.3
 LEVERAGE = 3
 ALLOC = 0.95
-FEE = 0.00055            # taker per side (matches backtest sweep pg_worker FEE)
+FEE = 0.00055
 START_BAL = 10_000.0
 _4H_MS = 4 * 3600 * 1000
 FX = Path(__file__).resolve().parent
@@ -55,7 +64,6 @@ def _u(ms) -> str:
 
 
 def _st_seq(high, low, close, period, factor):
-    """Full-array supertrend direction — same algorithm as live compute_supertrend."""
     atr = _atr_jesse(high, low, close, period)
     n = len(close)
     mid = (high + low) / 2.0
@@ -78,34 +86,8 @@ def _st_seq(high, low, close, period, factor):
     return np.where(close > st, 1, -1)
 
 
-def _backtest_stats(trades):
-    """Compound equity over realized trades → CAGR / MDD / PF."""
-    bal = START_BAL
-    peak = bal
-    mdd = 0.0
-    gp = gl = 0.0
-    for (et, ep, xt, xp, r) in trades:
-        notional = bal * ALLOC * LEVERAGE
-        size = notional / ep
-        gross = size * (xp - ep)
-        fee = (size * ep + size * xp) * FEE
-        net = gross - fee
-        bal += net
-        if net >= 0:
-            gp += net
-        else:
-            gl += -net
-        peak = max(peak, bal)
-        if peak > 0:
-            mdd = min(mdd, (bal - peak) / peak)
-    days = (trades[-1][2] - trades[0][0]) / 86_400_000 if trades else 1
-    years = max(days / 365.0, 1e-9)
-    cagr = ((bal / START_BAL) ** (1 / years) - 1) * 100 if bal > 0 else -100.0
-    pf = (gp / gl) if gl > 0 else float("inf")
-    return {"final": bal, "cagr": cagr, "mdd": mdd * 100, "pf": pf}
-
-
-def main() -> None:
+def run_backtest():
+    """Returns (trades, equity_4h, df, ts) where trades carry full fill detail."""
     rows = list(csv.DictReader(open(FX / "btc_4h.csv")))
     ts = np.array([int(r["timestamp"]) for r in rows])
     o = np.array([float(r["open"]) for r in rows])
@@ -123,57 +105,159 @@ def main() -> None:
     _d, _ = compute_supertrend(df, ST_PERIOD, ST_FACTOR)
     assert _d == d[-1], f"st_seq mismatch: {_d} {d[-1]}"
 
+    balance = START_BAL
     pos = False
     entry = 0.0
     entry_ts = 0
+    size = 0.0
     last_liq = -1
     atr_exit = -(10 ** 18)
-    trades = []
-    WARMUP = DIR  # dir_ema(240) convergence — Jesse evaluates once enough candles exist
+    trades = []           # (open_ts, entry, close_ts, exit, qty, pnl, fee, reason)
+    equity_4h = []        # (ts, mark-to-market equity)
+    WARMUP = DIR
     for i in range(WARMUP, n):
         price = c[i]
         t = int(ts[i])
+        # mark-to-market equity (include open position's unrealized)
+        unreal = size * (price - entry) if pos else 0.0
+        equity_4h.append((t, balance + unreal))
         if not pos:
-            if t <= last_liq:
-                continue
-            if t <= atr_exit + _4H_MS:
+            if t <= last_liq or t <= atr_exit + _4H_MS:
                 continue
             if d[i] == 1 and ema7[i] > ema29[i] and price > ema240[i]:
                 pos, entry, entry_ts = True, price, t
+                size = (balance * ALLOC * LEVERAGE) / entry
         else:
             a = atr14[i] * ATR_MULT
             if np.isnan(a):
                 continue
+            reason = None
             if ema7[i] < ema29[i]:
-                trades.append((entry_ts, entry, t, price, "ema"))
-                last_liq, pos = t, False
+                reason = "ema"
             elif abs(price - entry) >= a:
-                trades.append((entry_ts, entry, t, price, "atr"))
-                last_liq, atr_exit, pos = t, t, False
+                reason = "atr"
+            if reason:
+                gross = size * (price - entry)
+                fee = (size * entry + size * price) * FEE
+                net = gross - fee
+                balance += net
+                trades.append((entry_ts, entry, t, price, size, net, fee, reason))
+                last_liq = t
+                if reason == "atr":
+                    atr_exit = t
+                pos = False
+                size = 0.0
+    return trades, equity_4h, df, ts
 
-    wins = sum(1 for (_, ep, _, xp, _) in trades if xp > ep)
-    wr = 100 * wins / max(1, len(trades))
-    st = _backtest_stats(trades)
+
+def _metrics(trades, equity_4h):
+    final = equity_4h[-1][1] if equity_4h else START_BAL
+    gp = sum(t[5] for t in trades if t[5] >= 0)
+    gl = -sum(t[5] for t in trades if t[5] < 0)
+    wins = sum(1 for t in trades if t[3] > t[1])
+    # daily MTM series → returns
+    daily = OrderedDict()
+    for t, eq in equity_4h:
+        day = datetime.fromtimestamp(t / 1000, timezone.utc).strftime("%Y-%m-%d")
+        daily[day] = eq  # last bar of the day wins
+    dvals = list(daily.values())
+    rets = [(dvals[i] / dvals[i - 1] - 1.0)
+            for i in range(1, len(dvals)) if dvals[i - 1] > 0]
+    mdd = 0.0
+    peak = dvals[0] if dvals else START_BAL
+    for v in dvals:
+        peak = max(peak, v)
+        if peak > 0:
+            mdd = min(mdd, (v - peak) / peak)
+    mean = sum(rets) / len(rets) if rets else 0.0
+    std = math.sqrt(sum((r - mean) ** 2 for r in rets) / len(rets)) if rets else 0.0
+    dn = [r for r in rets if r < 0]
+    dstd = math.sqrt(sum(r * r for r in dn) / len(rets)) if rets and dn else 0.0
+    sharpe = (mean / std * math.sqrt(365)) if std > 0 else 0.0
+    sortino = (mean / dstd * math.sqrt(365)) if dstd > 0 else 0.0
+    days = (equity_4h[-1][0] - equity_4h[0][0]) / 86_400_000 if equity_4h else 1
+    years = max(days / 365.0, 1e-9)
+    cagr = ((final / START_BAL) ** (1 / years) - 1) * 100 if final > 0 else -100.0
+    calmar = (cagr / abs(mdd * 100)) if mdd < 0 else 0.0
+    return {
+        "final": final, "cagr": cagr, "mdd": mdd * 100, "pf": (gp / gl) if gl > 0 else float("inf"),
+        "win_rate": 100 * wins / max(1, len(trades)), "sharpe": sharpe, "sortino": sortino,
+        "calmar": calmar, "gp": gp, "gl": gl, "net_pct": (final / START_BAL - 1) * 100,
+    }
+
+
+def write_dashboard_results(out_dir: Path, trades, m, ts):
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # trades.csv (dashboard schema)
+    with open(out_dir / "trades.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["opened_at", "closed_at", "side", "entry_price",
+                    "exit_price", "qty", "pnl", "fee"])
+        for (ot, ep, ct, xp, qty, pnl, fee, r) in trades:
+            w.writerow([float(ot), float(ct), "long", ep, xp, qty, pnl, fee])
+    # monthly_returns.csv (month, pnl_usdt)
+    monthly = OrderedDict()
+    for (ot, ep, ct, xp, qty, pnl, fee, r) in trades:
+        mo = datetime.fromtimestamp(ct / 1000, timezone.utc).strftime("%Y-%m")
+        monthly[mo] = monthly.get(mo, 0.0) + pnl
+    with open(out_dir / "monthly_returns.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["month", "pnl_usdt"])
+        for mo in sorted(monthly):
+            w.writerow([mo, round(monthly[mo], 6)])
+    # stats.json (dashboard-consumed fields)
+    pf = m["pf"] if math.isfinite(m["pf"]) else 0.0
+    stats = {
+        "cagr_pct": round(m["cagr"], 4),
+        "annual_return_pct": round(m["cagr"], 4),
+        "sharpe_ratio": round(m["sharpe"], 4),
+        "max_drawdown_pct": round(m["mdd"], 4),
+        "total_trades": len(trades),
+        "win_rate_pct": round(m["win_rate"], 4),
+        "profit_factor": round(pf, 4),
+        "net_profit_pct": round(m["net_pct"], 4),
+        "starting_balance": START_BAL,
+        "leverage": LEVERAGE,
+        "variant": "long_only",
+        "timeframe": "4h",
+        "strategy": "SupertrendStrategy",
+        "data_source": "bybit_native_4h_00grid_live_logic",
+        "start": _u(ts[0]),
+        "end": _u(ts[-1]),
+        "raw_metrics": {
+            "finishing_balance": round(m["final"], 6),
+            "sortino_ratio": round(m["sortino"], 4),
+            "calmar_ratio": round(m["calmar"], 4),
+            "gross_profit": round(m["gp"], 4),
+            "gross_loss": round(-m["gl"], 4),
+        },
+    }
+    (out_dir / "stats.json").write_text(json.dumps(stats, indent=2))
+    print(f"  wrote {out_dir}/stats.json, trades.csv, monthly_returns.csv")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=None, help="results dir for dashboard-format output")
+    args = ap.parse_args()
+
+    trades, equity_4h, df, ts = run_backtest()
+    m = _metrics(trades, equity_4h)
 
     print("=== Bybit native 4h (00계열) backtest — LIVE strategy (fixed indicators) ===")
-    print("bars=%d  (%s ~ %s)" % (n, _u(ts[0]), _u(ts[-1])))
-    print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  final=$%.0f"
-          % (len(trades), wr, st["cagr"], st["mdd"], st["pf"], st["final"]))
-    print("exit reasons:", dict(Counter(r for *_, r in trades)))
+    print("bars=%d  (%s ~ %s)" % (len(df), _u(ts[0]), _u(ts[-1])))
+    print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f  final=$%.0f"
+          % (len(trades), m["win_rate"], m["cagr"], m["mdd"], m["pf"], m["sharpe"], m["final"]))
+    print("exit reasons:", dict(Counter(t[7] for t in trades)))
 
     print("\n=== #7908 reference (Binance 1h→4h, 02계열) ===")
     print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
           % (REF["trades"], REF["winrate"], REF["cagr"], REF["mdd"], REF["pf"], REF["sharpe"]))
 
-    print("\n=== Δ (Bybit live − Binance #7908) ===")
-    print("trades %+d | win %+.1f%%p | CAGR %+.1f%%p | MDD %+.1f%%p | PF %+.3f"
-          % (len(trades) - REF["trades"], wr - REF["winrate"], st["cagr"] - REF["cagr"],
-             st["mdd"] - REF["mdd"], st["pf"] - REF["pf"]))
-
-    # entry-timing overlap (ref 02계열 vs sim 00계열, ±1bar+grid tolerance)
+    # entry-timing overlap vs #7908
     ref = list(csv.DictReader(open(FX / "trades_7908.csv")))
     ref_open = sorted(int(float(r["opened_at"])) for r in ref)
-    sim_open = sorted(et for et, *_ in trades)
+    sim_open = sorted(t[0] for t in trades)
     tol = _4H_MS + 2 * 3600 * 1000
     matched = 0
     for so in sim_open:
@@ -181,10 +265,12 @@ def main() -> None:
         cand = [abs(so - ref_open[k]) for k in (j - 1, j) if 0 <= k < len(ref_open)]
         if cand and min(cand) <= tol:
             matched += 1
-    print("\nentry-timing overlap vs #7908: %d/%d (%.1f%%)"
+    print("entry-timing overlap vs #7908: %d/%d (%.1f%%)"
           % (matched, len(sim_open), 100 * matched / max(1, len(sim_open))))
-    print("NOTE: CAGR/MDD는 realized-trade 복리 근사(Jesse는 intrabar MTM). "
-          "거래소·격자가 라이브와 동일(Bybit native 4h 00계열)해진 결과 — 격자 갭 해소.")
+
+    if args.out:
+        print("\nWriting dashboard-format results…")
+        write_dashboard_results(Path(args.out), trades, m, ts)
 
 
 if __name__ == "__main__":

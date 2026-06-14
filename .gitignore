@@ -23,6 +23,8 @@ backtest/runtime/
 # supertrend parity audit data (large / re-generatable from jesse_db & backtest results)
 cryptoengine/tests/fixtures/btc_4h.csv
 cryptoengine/tests/fixtures/trades_7908.csv
+# 로컬 백업 (Binance #7908 결과 — 원본은 git 히스토리에 보존됨)
+backtest/results/**/*_binance_bak/
 
 # dashboard HTML (generated artifact)
 backtest/results/**/dashboard_v2.html
