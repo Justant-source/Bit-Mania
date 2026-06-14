@@ -5,12 +5,13 @@ related_code:
   - cryptoengine/services/strategies/supertrend/
   - cryptoengine/config/strategies/supertrend.yaml
   - cryptoengine/config/orchestrator.yaml
-last_updated: 2026-06-13
+last_updated: 2026-06-14
 when_to_update: |
   - supertrend.yaml 파라미터 변경 시
   - 백테스트 결과 업데이트 시
   - orchestrator.yaml 자본 배분 변경 시
   - 주문 확정/재시도/동기화 동작 변경 시 (strategy.py)
+  - 지표 계산/lookback 변경 시 (indicators.py, CANDLE_LOOKBACK)
 ---
 
 # Supertrend 4h Long-Only 3x (combo #7908)
@@ -58,6 +59,13 @@ Long 진입 (3x 레버리지 적용)
 | **느린 EMA** | 29 | 중기 방향 필터 |
 | **방향 EMA** | 240 | 장기 추세 필터 |
 | **ATR 청산 배수** | 3.3 | 손절/익절 배수 (ATR × 3.3) |
+| **봉 lookback** | 1000 | 지표 계산용 보유 봉 — dir_ema(240) 시드 정합 (2026-06-14 300→1000) |
+
+> **지표 구현 정합 (2026-06-14)**: 라이브 EMA·ATR·Supertrend는 백테스트 엔진(Jesse 2.1.2 = combo
+> #7908)과 수치 일치하도록 구현됨 — EMA는 `close[0]` 시드 재귀(≡ `jesse_rust.ema`), ATR은 Wilder
+> `_atr_jesse`(≡ `jesse_rust.atr`), Supertrend는 정본 포팅. **TA-Lib 미사용** (SMA 시드 차이로
+> 진입필터가 경계 봉에서 발산하던 것을 수정). 검증: `cryptoengine/tests/unit/test_supertrend_parity.py` (5/5).
+> 백테스트와 라이브는 거래소·격자가 다름(#7908 Binance 1h→4h 02계열, 라이브 Bybit 네이티브 4h 00계열) → `.result/supertrend_7908_parity_audit.md`.
 
 ### 구성 파일
 

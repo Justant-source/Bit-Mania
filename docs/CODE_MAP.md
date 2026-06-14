@@ -13,8 +13,9 @@ last_updated: 2026-06-13 (미체결 사고 재발 방지: 전략 상태 확정 �
 |------|------|
 | `services/strategies/base_strategy.py` | [test/strategies/](test/strategies/) |
 | `services/strategies/supertrend/**` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) · [policies/btc-only.md](policies/btc-only.md) |
-| `services/strategies/supertrend/indicators.py` | Jesse `ta.supertrend` 정본 포팅 — `_atr_jesse`(Wilder ATR, period-1 시드) + 밴드 리셋 절 + gated flip; `compute_supertrend` → `(trend_dir, st_line)` 반환 |
-| `services/strategies/supertrend/strategy.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) §주문 확정·상태 동기화 — pending 추적·`order:result:{id}` 구독·`_sync_position_from_exchange`(매 봉 신호 전)·exit 거부 60s 후 1회 재시도·봉 워치독/갭 백필·`min(할당자본, equity)` 사이징. `supertrend_signals` 테이블에 `st_line` 컬럼 저장; `entry_ok=bool(...)` numpy bool_ → Python bool 변환 필수 (asyncpg DataError 방지) |
+| `services/strategies/supertrend/indicators.py` | Jesse 2.1.2 정본 포팅 — `_atr_jesse`(Wilder ATR, period-1 시드) + 밴드 리셋 절 + gated flip → `compute_supertrend`; `compute_ema`(close[0] 시드 재귀 ≡ jesse_rust.ema), `compute_atr`(≡ `_atr_jesse` ≡ jesse_rust.atr). **TA-Lib 제거**(2026-06-14 백테스트 정합) |
+| `tests/unit/test_supertrend_parity.py` | 라이브 지표 ↔ Jesse 2.1.2(#7908) 골든 5체크(supertrend·EMA·ATR·deque(1000) 윈도우·진입필터); 골든 `tests/fixtures/golden_supertrend.json`은 `_gen_golden_supertrend.py`로 backtester 이미지(Jesse 2.1.2)에서 생성 |
+| `services/strategies/supertrend/strategy.py` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) §주문 확정·상태 동기화 — pending 추적·`order:result:{id}` 구독·`_sync_position_from_exchange`(매 봉 신호 전)·exit 거부 60s 후 1회 재시도·봉 워치독/갭 백필·`min(할당자본, equity)` 사이징. `supertrend_signals` 테이블에 `st_line` 컬럼 저장; `entry_ok=bool(...)` numpy bool_ → Python bool 변환 필수 (asyncpg DataError 방지); `CANDLE_LOOKBACK=1000`(dir_ema 240 시드 정합, 2026-06-14 300→1000) |
 | `scripts/backfill_supertrend_signals.py` | 정본 ST 재계산 후 `st_dir`·`st_line` upsert (DO UPDATE) |
 | `config/strategies/supertrend.yaml` | [policies/strategies/supertrend.md](policies/strategies/supertrend.md) |
 

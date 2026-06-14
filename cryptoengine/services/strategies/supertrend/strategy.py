@@ -54,7 +54,11 @@ LEVERAGE = 3
 
 SYMBOL = "BTC/USDT:USDT"
 TIMEFRAME = "4h"
-CANDLE_LOOKBACK = 300
+# dir_ema(240) 시드는 (1-k)^L 로 감쇠한다 — L=300이면 ~8% 잔존해 dir_ema가
+# 백테스트(전체 히스토리)와 최대 ~3.8% 어긋나고 진입필터가 갈린다. L=1000이면
+# 잔차 <0.03%로 사실상 정합 (Bybit get_ohlcv 단일요청 최대치이기도 하다).
+# 검증: tests/unit/test_supertrend_parity.py::window_stability
+CANDLE_LOOKBACK = 1000
 _4H_MS = 14_400_000  # Redis ts is in milliseconds
 
 # 주문 확정 추적 (execution-engine ORDER_TIMEOUT=420s와 정렬)

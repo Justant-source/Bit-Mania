@@ -1,35 +1,59 @@
-"""Supertrend and EMA indicators.
+"""Supertrend, EMA, and ATR indicators.
 
-compute_supertrend is a direct port of Jesse framework's ta.supertrend
-(atr_loop + supertrend_fast) so that live signals match the backtest exactly.
+All three are ports of Jesse 2.1.2 (the combo #7908 backtest engine) so live
+signals match the backtest:
+  * compute_supertrend — atr_loop + supertrend_fast (numba)
+  * compute_atr        — atr_loop  (== jesse_rust.atr; Wilder, SMA seed at period-1)
+  * compute_ema        — jesse_rust.ema (recursive, seeded at close[0])
+
+TA-Lib is intentionally NOT used here: its EMA (SMA seed, warmup NaNs) and ATR
+seed differently from Jesse and caused entry-filter divergence vs the backtest
+(quantified in tests/unit/test_supertrend_parity.py).
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import talib
 
 
 def compute_atr(df: pd.DataFrame, period: int = 14) -> float:
-    """Compute ATR (Average True Range) and return the latest value."""
+    """Latest ATR — Jesse atr_loop (Wilder, SMA seed at period-1), not talib.
+
+    Matches the exit-distance ATR used by combo #7908: jesse_rust.atr is
+    bit-identical to atr_loop (verified), which `_atr_jesse` ports. talib.ATR
+    seeds differently and would shift ATR-distance exits off the backtest.
+    """
     if len(df) < period:
         return 0.0
 
-    high = df["high"].values
-    low = df["low"].values
-    close = df["close"].values
+    high = df["high"].values.astype(np.float64)
+    low = df["low"].values.astype(np.float64)
+    close = df["close"].values.astype(np.float64)
 
-    atr = talib.ATR(high, low, close, timeperiod=period)
+    atr = _atr_jesse(high, low, close, period)
     latest = atr[-1]
 
     return float(latest) if not np.isnan(latest) else 0.0
 
 
 def compute_ema(df: pd.DataFrame, period: int) -> pd.Series:
-    """Compute EMA (Exponential Moving Average) of close prices."""
-    close = df["close"].values
-    ema = talib.EMA(close, timeperiod=period)
+    """EMA seeded at close[0] with recursive smoothing — matches jesse_rust.ema.
+
+    k = 2/(period+1);  ema[0] = close[0];  ema[i] = close[i]*k + ema[i-1]*(1-k).
+    No warmup NaNs (unlike talib's SMA-seeded EMA), so values track the #7908
+    backtest. The seed's influence decays as (1-k)^i, so the caller must supply
+    enough lookback (esp. for the 240-period direction EMA) for it to wash out.
+    """
+    close = df["close"].values.astype(np.float64)
+    n = len(close)
+    ema = np.empty(n, dtype=np.float64)
+    if n == 0:
+        return pd.Series(ema, index=df.index)
+    k = 2.0 / (period + 1.0)
+    ema[0] = close[0]
+    for i in range(1, n):
+        ema[i] = close[i] * k + ema[i - 1] * (1.0 - k)
     return pd.Series(ema, index=df.index)
 
 

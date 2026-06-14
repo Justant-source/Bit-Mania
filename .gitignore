@@ -20,6 +20,10 @@ backtest/runtime/
 # project-root data/ dir (wrong path artifacts, should be backtest/data/)
 /data/
 
+# supertrend parity audit data (large / re-generatable from jesse_db & backtest results)
+cryptoengine/tests/fixtures/btc_4h.csv
+cryptoengine/tests/fixtures/trades_7908.csv
+
 # dashboard HTML (generated artifact)
 backtest/results/**/dashboard_v2.html
 
