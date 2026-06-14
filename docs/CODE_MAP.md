@@ -1,6 +1,6 @@
 ---
 title: Code → Docs 역인덱스
-last_updated: 2026-06-13 (미체결 사고 재발 방지: 전략 상태 확정 기반 전환 — pending 추적·order:result 구독·거래소 진실 동기화·봉 워치독; 엔진 거부 ERROR 알림 + strategy_id 전파; 재페그 부분체결 누적·고아 주문 정리; 신호-주문 감사 스크립트)
+last_updated: 2026-06-14 (Bybit 네이티브 4h 재빌드: 메트릭 갱신 137.64%/1.349/-73.29%, 360 trades)
 ---
 
 # Code → Docs 역인덱스

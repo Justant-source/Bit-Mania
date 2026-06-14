@@ -1,7 +1,7 @@
 ---
 title: CryptoEngine 문서 홈
 category: root
-last_updated: 2026-05-25
+last_updated: 2026-06-14
 ---
 
 # CryptoEngine 문서
@@ -10,7 +10,7 @@ last_updated: 2026-05-25
 >
 > **현재 상태 (Phase 5)**: 메인넷 소액 실전 운영 중
 > - 채택 설정: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x 레버리지, combo #7908)
-> - 백테스트 성과: CAGR +151.56% | Sharpe 1.37 | MDD -84.28% (극한 위험, 사용자 승인)
+> - 백테스트 성과: CAGR +137.64% | Sharpe 1.349 | MDD -73.29% (Bybit 네이티브 4h, 360 trades, 2026-06-14 재빌드)
 > - 운영 모드: 메인넷 (`BYBIT_TESTNET=false`)
 
 이 디렉토리(`docs/`)가 프로젝트의 **유일한 문서 source-of-truth**이다.
@@ -83,7 +83,7 @@ last_updated: 2026-05-25
 | [policies/](policies/) | 정책 — BTC-only, Kill Switch, 운영 규칙 | btc-only.md, kill-switch.md |
 | [policies/operations/](policies/operations/) | 운영 매뉴얼 — Runbook, 모니터링, 배포 | runbook.md, monitoring.md, mainnet-switch.md |
 | [policies/strategies/](policies/strategies/) | 전략 사양 — Supertrend (활성), FA/DCA (폐기/비활성) | supertrend.md, README.md |
-| [structure/](structure/) | 코드 레이아웃 — 19개 서비스, 디렉토리 트리 | — |
+| [structure/](structure/) | 코드 레이아웃 — 19개 서비스, 디렉토리 구조 | [directory-layout.md](structure/directory-layout.md) |
 | [../backtest/docs/](../backtest/docs/) | 백테스트 & 검증 — Jesse, 스킬셋, Phase 4 체크 | methodology/backtest-skillset.md, phase4-checklist.md |
 
 ---
@@ -92,9 +92,9 @@ last_updated: 2026-05-25
 
 | 항목 | 현재값 | 정상 범위 | 경고 |
 |------|--------|-----------|------|
-| **CAGR** (연환산) | +151.56% | > +15% | < 0% |
-| **Sharpe Ratio** | 1.37 | > 1.0 | < 0.5 |
-| **Max Drawdown** | -84.28% | ⚠️ **극한 위험** | > -50% (경고) |
+| **CAGR** (연환산) | +137.64% | > +15% | < 0% |
+| **Sharpe Ratio** | 1.349 | > 1.0 | < 0.5 |
+| **Max Drawdown** | -73.29% | ⚠️ **고위험** | > -50% (경고) |
 | **Daily P&L** | -5% ~ +10% | -5% ~ +10% | < -10% |
 | **Margin Ratio** (Phase 5) | > 2.0x (기준) | > 1.5x | 1.0x ~ 1.5x (경고), < 1.0x (긴급) |
 | **Kill Switch Events** | 0회 (7일) | 0회 | 1회 이상 |
@@ -141,18 +141,14 @@ docs/
 │   │
 │   ├── strategies/
 │   │   ├── supertrend.md — Supertrend 4h 3x (현재 live 전략 사양)
-│   │   ├── funding-arb.md — 펀딩비 차익거래 (archived)
-│   │   ├── adaptive-dca.md — Fear&Greed 기반 DCA (보조)
-│   │   └── README.md — 전략 인덱스
+│   │   └── README.md — 전략 인덱스 (폐기 전략: FA/DCA는 ADR-004/005 참조)
 │   │
 │   └── README.md — 정책 인덱스
 │
-├── strategies/
-│   └── 016_supertrend.md — Supertrend 4h 3x (현재 live 전략 백테스트 사양)
-│
 ├── structure/
 │   ├── services.md — 19개 서비스 상세
-│   └── directory-tree.md — 전체 프로젝트 구조
+│   ├── directory-layout.md — 전체 프로젝트 구조
+│   └── shared-libraries.md — 공유 라이브러리 매핑
 │
 └── backtest/docs/
     ├── README.md — 백테스트 문서 홈
