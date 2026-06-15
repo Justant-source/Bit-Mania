@@ -1,4 +1,4 @@
-.PHONY: up down logs test test-unit backtest status migrate emergency monthly-report
+.PHONY: up down logs test test-unit backtest status migrate emergency monthly-report lint-docs
 
 COMPOSE := docker compose
 DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
@@ -114,6 +114,9 @@ backup-restore: ## Restore from latest backup (DESTRUCTIVE — confirm first)
 	@echo "!!! WARNING: This will overwrite the current database !!!"
 	@read -p "Latest backup to restore (filename only, e.g. cryptoengine_20260406_170000.sql.gz): " f; \
 	$(COMPOSE) exec pg-backup sh -c "gunzip -c /backups/$$f | psql -h postgres -U cryptoengine -d cryptoengine"
+
+lint-docs: ## Lint docs/ tree against C4 SSOT standard (6 checks, stdlib only)
+	cd .. && python3 scripts/lint_docs.py
 
 # ── Help ──────────────────────────────────────────────────────
 

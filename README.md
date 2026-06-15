@@ -10,9 +10,9 @@
 
 모든 프로젝트 문서는 `docs/` 에서 관리됩니다.
 
-**시작하기**: [`docs/README.md`](docs/README.md) (Map of Content)
+**시작하기**: [`docs/_index.md`](docs/_index.md) — Doc-Sync 트리거 맵 + 계층 인덱스
 
-**작업 가이드**: [`CLAUDE.md`](CLAUDE.md) (루트 가이드 + 진입 규칙)
+**작업 가이드**: [`CLAUDE.md`](CLAUDE.md) — 루트 가이드 + 불변 규칙 + SSOT 게이트
 
 ---
 
@@ -50,4 +50,4 @@ docker compose ps
 
 ## 세부 정보
 
-더 많은 정보는 `docs/README.md` 를 참조하세요.
+더 많은 정보는 [`docs/_index.md`](docs/_index.md) 를 참조하세요.

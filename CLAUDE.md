@@ -10,7 +10,7 @@
   - 전략: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x, combo #7908)
   - 백테스트 (Bybit 네이티브 4h 정본): CAGR +137.64% | Sharpe 1.349 | MDD -73.29% | 360 trades | 2017-08-17~2026-04-30
   - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=185.31`
-  - ⚠️ execution-engine 재시작 전 잔고 게이트 현행화 필수 → `docs/policies/operations/runbook.md` §문제 해결
+  - ⚠️ execution-engine 재시작 전 잔고 게이트 현행화 필수 → `docs/70-policy/operations.md` §실행엔진 재시작
 
 ## 전략 파라미터 — combo #7908 (SSOT)
 
@@ -70,32 +70,50 @@
 
 정본: `cryptoengine/config/orchestrator.yaml` §phase5
 
-## 문서 관리 규칙 ★ 필수
+## 🚨 절대 규칙: SSOT Doc-Sync 게이트 (commit/push 전 필수)
 
 **모든 프로젝트 문서는 `docs/` 단일 트리에서 관리한다.**
 
-새 컨텍스트 진입 시: `docs/README.md` (Map of Content)를 먼저 읽는다.
+새 컨텍스트 진입 시: `docs/_index.md`를 **첫 번째**로 읽는다. (Doc-Sync 트리거 맵 포함)
 
-### 코드 ↔ 문서 동기화
-코드 수정 시 같은 커밋에서 관련 문서를 업데이트한다:
-1. `docs/CODE_MAP.md` 역인덱스에서 변경 코드 경로 검색
-2. 해당 doc의 `last_updated` frontmatter 갱신
-3. 신규 영역은 같은 커밋에서 doc 신규 작성 + CODE_MAP.md 행 추가
+### 코드 변경 시 Doc-Sync 절차
 
-문서 미업데이트는 작업 미완으로 간주한다.
+코드 수정 시 **같은 커밋**에서 아래 절차를 수행한다:
 
-### 참고 문서
-- `docs/README.md` — MOC (시작점)
-- `docs/CODE_MAP.md` — 코드 경로 → 문서 역인덱스
-- `docs/glossary.md` — 용어집
-- `docs/architecture/` — 시스템 설계
-- `docs/policies/` — 정책 + Kill Switch
-- `docs/policies/strategies/supertrend.md` — 전략 사양 (SSOT)
-- `docs/policies/operations/runbook.md` — Docker 운영 가이드
+```bash
+# 1. 스테이징된 파일 확인
+git diff --staged --name-only
+
+# 2. docs/_index.md 트리거 맵에서 변경 코드 경로 검색
+#    → 대응 문서를 동시 갱신, last_updated frontmatter 업데이트
+
+# 3. 신규 영역이면 해당 계층 문서 + _index.md 행 추가
+
+# 4. lint gate PASS 확인
+make -C cryptoengine lint-docs   # 6항목 모두 PASS여야 커밋 가능
+```
+
+문서 미업데이트 + lint FAIL = 작업 미완으로 간주한다.
+
+## 문서 계층 (C4 줌 순서)
+
+| 계층 | 경로 | 내용 |
+|---|---|---|
+| 10 Context | `docs/10-context/system-context.md` | L1 외부 액터·3 서브시스템 경계 |
+| 20 Container | `docs/20-containers/containers.md` | 배포 단위·포트·볼륨·env-vars |
+| 30 Component | `docs/30-components/components.md` | 서비스 내부 모듈·클래스 책임 |
+| 40 Data | `docs/40-data/data-model.md` | PG 스키마·ER·마이그레이션 트랙 |
+| 50 API | `docs/50-api/pubsub-catalog.md` | Redis pub/sub 채널·Dashboard REST |
+| 60 Runtime | `docs/60-runtime/state-machines.md` | OrderState·KillLevel·복구 플로우 |
+| 70 Policy | `docs/70-policy/safety.md` | Kill Switch·레버리지·포지션 보호 |
+| 70 Policy | `docs/70-policy/operations.md` | 운영 Runbook·배포·모니터링 |
+| 70 Policy | `docs/70-policy/strategy.md` | Supertrend SSOT·백테스트 방법론 |
+| 90 ADR | `docs/90-adr/README.md` | 아키텍처 결정 인덱스 |
+| 용어집 | `docs/glossary.md` | 도메인 용어 정의 |
 
 ## 배포 및 운영
 
-→ `docs/policies/operations/runbook.md` 참조
+→ `docs/70-policy/operations.md` 참조
 
 포지션 보호 원칙: 배포(재시작)는 포지션을 청산하지 않는다. `service_shutdown` 사유로 종료될 때 Redis에 상태를 저장한 뒤, 1시간 내 재시작 시 자동 복구된다.
 
@@ -110,7 +128,7 @@ docker compose build market-data execution-engine supertrend strategy-orchestrat
 
 ## Docker 및 공유 라이브러리
 
-→ `docs/policies/operations/runbook.md` + `docs/structure/README.md` 참조
+→ `docs/70-policy/operations.md` + `docs/30-components/components.md` 참조
 
 **빌드 컨텍스트**: 프로젝트 루트(`.`)에서 COPY 경로는 `cryptoengine/` 프리픽스 사용.
 ```dockerfile
@@ -124,15 +142,20 @@ docker compose up -d postgres redis        # 인프라만 기동
 docker compose up -d --build --no-deps <s> # 특정 서비스 재빌드
 docker compose logs -f supertrend          # 실시간 로그
 make emergency                              # 비상 청산
+make -C cryptoengine lint-docs             # 문서 lint (6항목)
 ```
 
-## 참고 문서
+## 빠른 참조
 
-**프로젝트 구조**: `docs/structure/services.md`
-**Redis Pub/Sub 채널**: `docs/architecture/data-flow.md`
-**PostgreSQL 테이블**: `docs/structure/README.md`
-**환경 변수**: `docs/env/env-vars.md`
-**백테스트 진입점**: `backtest/README.md` (전략 R&D 통합 트리)
-**백테스트 스킬셋**: `backtest/docs/methodology/backtest-skillset.md`
-**백테스트 스크립트**: `backtest/scripts/` (카테고리별 분류: runners/sweep/analysis/reports/audit/data)
-**백테스트 인프라**: `backtest/docker/docker-compose.yml` (별도 backtest-postgres, port 5433)
+| 목적 | 경로 |
+|---|---|
+| 시스템 전체 그림 | `docs/10-context/system-context.md` |
+| 포트·볼륨·env-vars | `docs/20-containers/containers.md` |
+| 서비스 구조·클래스 | `docs/30-components/components.md` |
+| DB 스키마 | `docs/40-data/data-model.md` |
+| Redis 채널·REST API | `docs/50-api/pubsub-catalog.md` |
+| 상태머신·복구 | `docs/60-runtime/state-machines.md` |
+| Kill Switch·안전 정책 | `docs/70-policy/safety.md` |
+| 운영 Runbook·배포 | `docs/70-policy/operations.md` |
+| 전략 사양·백테스트 | `docs/70-policy/strategy.md` |
+| 백테스트 진입점 | `backtest/README.md` |

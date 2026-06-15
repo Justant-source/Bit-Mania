@@ -1,11 +1,11 @@
 ---
 title: 프로젝트 용어집
-last_updated: 2026-06-14
+last_updated: 2026-06-15
 ---
 
 # 프로젝트 용어집
 
-95개 이상의 거래, 기술, 운영 용어를 정의합니다. 용어는 카테고리별로 정렬되어 있습니다.
+60개 이상의 현재 활성 거래, 기술, 운영 용어를 정의합니다. 용어는 카테고리별로 정렬되어 있습니다.
 
 ## 거래 & 전략 용어
 
@@ -60,20 +60,6 @@ Supertrend 4h 3x long-only 전략의 파라미터 조합 번호. 매개변수 �
 - 장점: 구조적 상승 편향, 청산 비용 낮음 (1회 진입/청산)
 - 단점: 약세장에서 수익 불가 (현금 대기)
 
-### FA (Funding Arb / 펀딩비 차익거래) — 폐기됨
-
-**이전 핵심 전략** (2026-05-18 폐기). Bybit 선물 시장에서 델타 뉴트럴 포지션으로 펀딩비를 수취하는 전략. 
-- 6년 백테스트: CAGR +34.87%, Sharpe 3.583, MDD -4.52% (매우 안정적)
-- 폐기 사유: 장기 실전 운영 결과 수익성 하락 + Supertrend 채택 (더 높은 CAGR)
-- 히스토리 참조: [ADR-004](../ADR/004. Funding Arbitrage 전략 폐기_2026-05-18.md)
-
-### DCA (Dollar Cost Averaging / 적응형 적립식) — 폐기됨
-
-**폐기된 보조 전략** (2026-05-18 폐기). Fear & Greed Index 기반 적응형 분할 매수 전략. 시장 공포 시 적극 매수, 탐욕 시 위축.
-- 폐기 사유: Walk-Forward 일관성 낮음 (consistency 0.409) + Supertrend 단일 전략 채택
-- 재활성화: 계획 없음
-- 히스토리 참조: [ADR-005](../ADR/005. Adaptive DCA 전략 폐기_2026-05-18.md)
-
 ## 설정 / 파라미터 (Configuration)
 
 ### supertrend_4h_x3_7908
@@ -118,20 +104,7 @@ Bybit 거래소 모드 플래그:
 
 **절대 규칙**: Phase 4 완료 전까지는 반드시 `true`
 
-**변경 절차**: [policies/operations/mainnet-switch.md](policies/operations/mainnet-switch.md) 참조
-
-### PHASE5_MODE
-
-Phase 5 실전 모드 활성화 플래그. `true`일 때:
-- fixed_notional 사이징 활성화
-- 절대값 AND Kill Switch 활성화
-- STRICT_MONITORING_HOURS 강제 모니터링
-
-### EXPECTED_INITIAL_BALANCE_USD
-
-Phase 5 초기 자본 잔고. 메인넷 진입 시 실제 잔고와 대비하여 검증.
-
-기본값: $185.31 USDT (2026-05-18 시작, 2026-06-14 현재 ~$185)
+**변경 절차**: `docs/policies/operations/mainnet-switch.md` 참조
 
 ### STRICT_MONITORING_HOURS
 
@@ -139,15 +112,7 @@ Phase 5 강화 모니터링 시간. 설정값만큼 매시간 상태 리포트 �
 
 기본값: 24시간
 
-### consecutive_intervals
-
-FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
-
-- **Phase 4**: 3회 (기본)
-- **Phase 5**: 4회 (더 보수적)
-
 ## 시장 & 데이터 (Market & Data)
-
 
 ### ADX (Average Directional Index)
 
@@ -195,32 +160,14 @@ FA 진입 조건: 연속으로 펀딩비 임계값을 초과한 횟수.
 
 | 레벨 | 이름 | 트리거 | 동작 | 복구 |
 |------|------|--------|------|------|
-| 1 | STRATEGY | 개별 전략 손절 (일 -3%, 주 -7%, 월 -12%) | 해당 전략만 중지 + 포지션 청산 | 4시간 쿨다운 후 자동 재개 |
-| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5%, 주 -10%, 월 -15%) | **모든 전략 중지** + **전체 포지션 청산** | 1시간 쿨다운 후 재개 |
+| 1 | STRATEGY | 개별 전략 손절 (일 -5%, 주 -10%, 월 -15%) | 해당 전략만 중지 + 포지션 청산 | 4시간 쿨다운 후 자동 재개 |
+| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5% AND $10, 주 -10% AND $20, 월 -15% AND $30) | **모든 전략 중지** + **전체 포지션 청산** | 1시간 쿨다운 후 재개 |
 | 3 | SYSTEM | API 연결 실패, DB/Redis 다운 | 시장가 청산 시도 → 실패 시 수동 개입 대기 | 자동 불가 (수동) |
 | 4 | MANUAL | Telegram 명령 또는 SSH | 즉시 **모든 포지션 청산** | 수동 `/resume` |
 
 **Phase 5 특수**: Level 2는 퍼센트 AND 절대값 USD 둘 다 조건 (예: -5% AND $10 손실)
 
 **임계값 확인**: `redis-cli GET ce:kill_switch:active`
-
-```mermaid
-graph TD
-    KS["KillSwitch<br>shared/kill_switch.py"] --> L1["L1 STRATEGY<br>전략 단위 정지"]
-    KS --> L2["L2 PORTFOLIO<br>전체 포트폴리오 정지"]
-    KS --> L3["L3 SYSTEM<br>시스템 장애 감지"]
-    KS --> L4["L4 MANUAL<br>운영자 수동 발동"]
-
-    L1 -->|"4h 쿨다운"| AUTO["자동 재개"]
-    L2 -->|"4h 쿨다운"| AUTO
-    L3 -->|"수동 reset"| MANUAL_R["운영자 /reset"]
-    L4 -->|"수동 reset만"| MANUAL_R
-
-    style L4 fill:#b71c1c,color:#fff
-    style L3 fill:#e53935,color:#fff
-    style L2 fill:#ef6c00,color:#fff
-    style L1 fill:#f9a825,color:#000
-```
 
 ### KillLevel (IntEnum)
 
@@ -267,7 +214,6 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 **특징** (과거):
 - Bybit 테스트넷 (`BYBIT_TESTNET=true`)
-- Funding Arb 운영 (이제 폐기됨)
 - 현금 50% 버퍼 (포지션 축소 용이)
 - pct_equity 포지션 사이징
 - 상대값 Kill Switch (절대값 무관)
@@ -289,20 +235,18 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 **진입 조건**: Phase 4 완료 + phase5_preflight.py 8개 항목 PASS + 사용자 승인
 
-**변환 절차**: [policies/operations/mainnet-switch.md](policies/operations/mainnet-switch.md)
-
 ### Walk-Forward (WF / 월간 포워드 테스트)
 
-월간 자동 파라미터 재최적화 및 검증 프로세스 (아카이브됨, 수동 검토로 변경).
+월간 자동 파라미터 재최적화 및 검증 프로세스 (현재 수동 검토로 변경).
 
-**이전 동작** (Phase 4):
+**이전 동작** (아카이브됨):
 - **일시**: 매월 1일 02:00 KST
 - **데이터**: 최근 6개월 (IS 3개월 + OOS 3개월)
 - **최적화**: IS에서 파라미터 재최적화
 - **검증**: OOS에서 성과 검증
 - **결과**: Telegram 자동 전송
 
-**목표**: 과최적화 방지, 파라미터 드리프트 감지 (현재는 수동 분석)
+**목표**: 과최적화 방지, 파라미터 드리프트 감지
 
 ### OOS / IS (Out-of-Sample / In-Sample)
 
@@ -342,13 +286,11 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 ### PostgreSQL
 
-영구 데이터 저장소. 거래, 포지션, 펀딩비, 이벤트 로그 등 모든 이력 기록.
+영구 데이터 저장소. 거래, 포지션, 이벤트 로그 등 모든 이력 기록.
 
 **핵심 테이블**:
 - `trades` — 체결 거래 이력
 - `positions` — 포지션 상태 스냅샷
-- `funding_payments` — 펀딩비 수령 기록
-- `funding_rate_history` — 펀딩레이트 히스토리
 - `ohlcv_history` — OHLCV 캔들 (90일 보존)
 - `kill_switch_events` — Kill Switch 발동 이력
 - `service_logs` — 구조화 이벤트 로그 (모든 서비스)
@@ -417,7 +359,6 @@ docker compose logs -f <svc>       # 실시간 로그
 **계산**: ((최종값 / 초기값) ^ (1/년수)) - 1
 
 **Supertrend 4h 3x (Phase 5)**: +137.64% (Bybit 네이티브 4h, 2017-08-17~2026-04-30)
-**이전 Funding Arb**: +34.87% (6년 데이터, 2019-2025)
 
 **목표**: > 15% (연환산 기본 기준)
 
@@ -432,7 +373,6 @@ docker compose logs -f <svc>       # 실시간 로그
 - < 1.0: 미흡
 
 **Supertrend 4h 3x (Phase 5)**: 1.349 (보통, 고위험으로 인한 표준편차 증가)
-**이전 Funding Arb**: 3.583 (매우 우수, 안정적 수익)
 
 ### MDD (Maximum Drawdown)
 
@@ -444,13 +384,11 @@ docker compose logs -f <svc>       # 실시간 로그
 - 사용자 승인: 고수익성(+137.64% CAGR)과 고위험(-73.29% MDD)의 트레이드오프 명시 수용
 - 포지션 보호: Kill Switch 4단계 + 강화 모니터링으로 실제 손실 제한
 
-**이전 Funding Arb 설정**: -4.52% (매우 안정적)
-
 ### Win Rate (승률)
 
 수익 거래 / 전체 거래 × 100%
 
-**현재 설정**: > 60% (예상)
+**현재 설정**: > 48% (Supertrend combo #7908)
 
 **해석**: 거래 빈도 대비 수익률 안정성 지표
 
@@ -459,5 +397,3 @@ docker compose logs -f <svc>       # 실시간 로그
 Sharpe과 유사하나, 하락 변동성만 고려 (상승 변동성 무시).
 
 **특징**: 변동성 자체보다 손실 리스크에 중점
-
-**현재 설정**: 더 높은 값 (MDD 작으므로)
