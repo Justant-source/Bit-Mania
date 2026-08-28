@@ -1,6 +1,6 @@
 ---
 title: L2 Containers — 배포 단위 · 포트 · 네트워크
-last_updated: 2026-06-15
+last_updated: 2026-08-28
 ---
 
 # L2 Containers — 배포 단위 · 포트 · 네트워크
@@ -40,7 +40,6 @@ flowchart TB
 
     subgraph iface["Interface + Observability"]
       telegram["<b>telegram-bot</b><br/>Alert dispatcher<br/>/kill · /positions<br/>Telegram API"]
-      dashboard["<b>dashboard</b><br/>Vite + Express<br/>:3000 internal<br/>:3001 public"]
       grafana["<b>grafana (future)</b><br/>:3002 planned<br/>Prometheus datasource"]
     end
   end
@@ -83,7 +82,7 @@ flowchart TB
 - 유지보수 작업: 백업, 로그 정리, 캔들 데이터 롤링 보존
 
 **Core + Strategy Layer** — 비즈니스 로직:
-- `market-data`: Bybit 메인넷에서 OHLCV 수집 (4h/1h), Redis Pub/Sub으로 broadcast
+- `market-data`: Bybit 메인넷에서 OHLCV 수집 (4h/1h), Redis Pub/Sub으로 broadcast. Track C 분기물은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음)
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
@@ -91,8 +90,9 @@ flowchart TB
 
 **Interface + Observability**:
 - `telegram-bot`: Telegram 알림 (trade, alert, /kill, /positions)
-- `dashboard`: 실시간 매매 대시보드 (Vite + Express, 내부/공개)
 - `grafana`: 미래 계획 (Prometheus 데이터소스)
+
+> 대시보드는 `cryptoengine/docker-compose.yml`에 포함되지 않는다 — 독립 프로젝트 `bitmania-dashboard`(§9)로 분리 운영됨.
 
 ---
 
@@ -115,7 +115,6 @@ flowchart TB
 | **execution-engine** | cryptoengine/execution | — | — | redis, postgres | 0.5 | 256M | always |
 | **supertrend** | cryptoengine/supertrend | — | — | redis, postgres, market-data | 0.5 | 256M | always |
 | **telegram-bot** | cryptoengine/telegram-bot | — | — | redis, postgres | 0.2 | 128M | always |
-| **dashboard** | cryptoengine/dashboard | 0.0.0.0:3000 | 3000 | — | 0.5 | 256M | always |
 
 ### 재시작 정책
 
@@ -137,7 +136,7 @@ flowchart TB
     end
 
     subgraph bt_svc["Services (profiles: backtest)"]
-      backtester["<b>backtester</b><br/>Jesse 2.1.2<br/>CPU: 6.0 · Memory: 8G<br/>run-or-interactive"]
+      backtester["<b>backtester</b><br/>Jesse 2.1.2<br/>CPU cap 4.0 · Mem 5G<br/>low-prio overlay when sweeping"]
       wf_sched["<b>wf-scheduler</b><br/>Walk-Forward Monthly<br/>CPU: 1.0 · Memory: 512M<br/>MONTHLY_WF_CRON<br/>0 17 1 * *"]
     end
   end
@@ -177,7 +176,7 @@ flowchart TB
 - **jesse_db**: 백테스트 결과 저장 (메인 cryptoengine DB와 분리)
 
 **서비스**:
-- **backtester**: 대용량 계산 리소스 할당 (6 CPU, 8GB RAM). 실행 후 idle 또는 명령행 모드
+- **backtester**: 기본 상한 4 CPU / 5GB. ATR-SL 재스윕은 `compose.sweep-day.yml`(주간 2워커, cpuset 6–7) / `compose.sweep-night.yml`(00–06 KST 6워커, cpuset 3–7) + `nice 19`로 운영 Docker보다 양보한다.
 - **wf-scheduler**: 월단위 Walk-Forward 자동 실행 (00:17 UTC = 09:17 KST)
 
 ---
@@ -232,8 +231,7 @@ flowchart TB
 | **9090** | prometheus | 0.0.0.0:9090 | 메트릭 쿼리 · UI | 호스트 접근 가능 |
 | **9100** | node-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
 | **9121** | redis-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
-| **3000** | dashboard | 0.0.0.0:3000 | 내부 대시보드 | 호스트 접근 가능 |
-| **3001** | dashboard (future) | 0.0.0.0:3001 | 공개 대시보드 | 호스트 접근 가능 |
+| **3000** | dashboard (bitmania-dashboard, §9) | 0.0.0.0:3000 | 실시간 매매 대시보드 | 호스트 접근 가능 |
 | **3002** | grafana (future) | 0.0.0.0:3002 | Grafana UI | 호스트 접근 가능 |
 
 ### 보안 주의
@@ -287,7 +285,7 @@ flowchart TB
 |------|--------|-----|------|
 | **BYBIT_TESTNET** | market-data, execution-engine, supertrend | **false** | ⚠️ 메인넷 실전. 절대 true로 전환 금지 (포지션 손실) |
 | **PHASE5_MODE** | strategy-orchestrator, execution-engine, supertrend | **true** | Phase 5 안전 모드 활성화 |
-| **EXPECTED_INITIAL_BALANCE_USD** | strategy-orchestrator, execution-engine, supertrend | **185.31** | 잔고 게이트 임계값 |
+| **EXPECTED_INITIAL_BALANCE_USD** | strategy-orchestrator, execution-engine, supertrend | **159.74** | 잔고 게이트 폴백 임계값 (Redis `ce:phase5:equity_baseline` 우선) |
 
 ### Bybit API
 
@@ -406,7 +404,6 @@ services:
 │        ├─ execution-engine
 │        ├─ supertrend
 │        ├─ telegram-bot
-│        ├─ dashboard
 │        ├─ pg-backup
 │        ├─ log-retention
 │        ├─ ohlcv-retention
@@ -459,8 +456,10 @@ docker compose up -d --build --no-deps market-data
 docker compose build \
   market-data market-data-binance market-data-okx \
   strategy-orchestrator execution-engine supertrend \
-  telegram-bot dashboard
+  telegram-bot
 ```
+
+> `dashboard`는 별도 프로젝트(`/home/justant/Data/Bit-Mania/dashboard`)이므로 여기 재빌드 목록에 포함되지 않는다. §9 참조.
 
 ### 모니터링
 

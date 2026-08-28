@@ -259,3 +259,9 @@ services:
 **작성일**: 2026-05-18  
 **최종 승인**: Phase 5 메인넷 전환 확정  
 **폐기일**: 2026-05-18
+
+---
+
+## Addendum (2026-08-28)
+
+`cryptoengine/docker-compose.yml`에서는 이미 제거됐으나, `docker-compose.dev.yml`에 `adaptive-dca` 서비스 오버라이드가 누락 없이 삭제되지 않고 남아있던 것을 발견 — 제거 완료. 이 leftover 정의로 인해 예전에 생성된 `cryptoengine-adaptive-dca-1` 컨테이너가 orphan 상태로 계속 크래시 재시작 중이었음(설정 파일 부재 → `shared/config_loader.py`의 에러 처리 버그로 `UnboundLocalError`) — 컨테이너 정지 완료(제거는 수동 승인 대기, 아래 참고).

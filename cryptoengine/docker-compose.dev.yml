@@ -53,16 +53,6 @@ services:
     ports:
       - "5681:5678"   # debugpy
 
-  adaptive-dca:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/strategies/adaptive-dca/src:/app/src:ro
-    ports:
-      - "5683:5678"   # debugpy
-
   llm-advisor:
     build:
       target: development
