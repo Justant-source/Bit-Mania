@@ -13,7 +13,7 @@ publish 해 execution-engine → SafetyGuard → Bybit 메인넷 전체 파이�
       python scripts/manual_mainnet_test.py [--dry-run] [--yes]
 
 환경변수 (선택적 오버라이드):
-  REDIS_URL                     기본값: redis://:***REMOVED***@127.0.0.1:6379
+  REDIS_URL                     미지정 시 REDIS_PASSWORD로 구성 (둘 중 하나 필수)
   BYBIT_TESTNET                 반드시 "false" 여야 실행됨
   EXPECTED_INITIAL_BALANCE_USD  Phase 5 표식 확인용
 
@@ -39,7 +39,11 @@ import redis.asyncio as aioredis
 # ────────────────────────────────────────────────────────────────────
 # 상수
 # ────────────────────────────────────────────────────────────────────
-DEFAULT_REDIS_URL = "redis://:***REMOVED***@127.0.0.1:6379"
+# 자격증명 하드코딩 제거 (2026-08-29). REDIS_PASSWORD 또는 REDIS_URL 필요.
+_REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
+DEFAULT_REDIS_URL = (
+    f"redis://:{_REDIS_PASSWORD}@127.0.0.1:6379" if _REDIS_PASSWORD else ""
+)
 EXCHANGE = "bybit"
 SYMBOL = "BTC/USDT:USDT"
 STRATEGY_ID = "manual-test-01"  # supertrend-01 과 분리된 ID

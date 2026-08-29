@@ -4,7 +4,7 @@ x-common-env: &common-env
   DB_NAME: cryptoengine
   DB_USER: cryptoengine
   DB_PASSWORD: ${DB_PASSWORD}
-  REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:-***REMOVED***}@redis:6379}
+  REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   ENVIRONMENT: ${ENVIRONMENT:-testnet}
 
@@ -109,11 +109,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-***REMOVED***}
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-***REMOVED***}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -317,7 +317,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      REDIS_ADDR: redis://:${REDIS_PASSWORD:-***REMOVED***}@redis:6379
+      REDIS_ADDR: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379
     expose:
       - "9121"
     deploy:

@@ -38,7 +38,9 @@ DB_USER = os.getenv("DB_USER", "cryptoengine")
 DB_NAME = os.getenv("DB_NAME", "cryptoengine")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "***REMOVED***")
+DB_PASSWORD = os.getenv("DB_PASSWORD")  # 하드코딩 제거 (2026-08-29)
+if not DB_PASSWORD:
+    raise SystemExit("DB_PASSWORD 환경변수가 필요하다 (cryptoengine/.env 참조)")
 
 RESTART_TIMEOUT_SEC = 90   # max seconds to wait for a service to return to Running
 BACKFILL_WAIT_SEC = 15     # seconds to wait after restart before checking backfill

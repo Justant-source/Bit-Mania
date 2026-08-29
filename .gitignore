@@ -2,8 +2,6 @@ node_modules/
 .idea/
 /.request/
 /.result/
-/cryptoengine/.env
-/dashboard/.env
 
 # Python
 **/__pycache__/
@@ -39,3 +37,8 @@ cryptoengine/services/llm-advisor/cache/
 !cryptoengine/services/llm-advisor/alerts/.gitkeep
 !cryptoengine/services/llm-advisor/logs/.gitkeep
 !cryptoengine/services/llm-advisor/cache/.gitkeep
+
+# 실제 자격증명 파일은 절대 추적하지 않는다 (2026-08-29 노출 사고 대응)
+# .env.example 만 추적하고, 실값이 든 .env 계열은 전부 제외한다
+**/.env
+!**/.env.example

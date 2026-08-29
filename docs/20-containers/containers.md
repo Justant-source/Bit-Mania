@@ -266,7 +266,7 @@ flowchart TB
 | `DB_NAME` | cryptoengine | 데이터베이스 명 |
 | `DB_USER` | cryptoengine | 데이터베이스 사용자 |
 | `DB_PASSWORD` | (required) | 데이터베이스 암호 |
-| `REDIS_URL` | redis://:***REMOVED***@redis:6379 | Redis 연결 URI |
+| `REDIS_URL` | redis://:${REDIS_PASSWORD}@redis:6379 | Redis 연결 URI |
 | `LOG_LEVEL` | INFO | 로깅 레벨 (DEBUG, INFO, WARN, ERROR) |
 | `ENVIRONMENT` | testnet | 환경 구분 (testnet, mainnet) |
 

@@ -18,12 +18,29 @@ import uuid
 from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser
 
+import os
+
 import asyncpg
 import redis.asyncio as aioredis
 
 # ── Connection config ─────────────────────────────────────────────────────
-REDIS_URL = "redis://:***REMOVED***@localhost:6379"
-PG_DSN = "postgresql://cryptoengine:***REMOVED***@localhost:5432/cryptoengine"
+# 자격증명은 환경변수에서만 읽는다 (2026-08-29: 소스 하드코딩 제거).
+# 미설정 시 즉시 중단한다 — 잘못된 접속으로 조용히 실패하는 것보다 낫다.
+_REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
+_DB_PASSWORD = os.environ.get("DB_PASSWORD")
+if not _REDIS_PASSWORD or not _DB_PASSWORD:
+    raise SystemExit(
+        "REDIS_PASSWORD / DB_PASSWORD 환경변수가 필요하다.\n"
+        "  예: set -a && . cryptoengine/.env && set +a && python scripts/manual_close_delayed.py"
+    )
+
+REDIS_URL = os.environ.get(
+    "REDIS_URL", f"redis://:{_REDIS_PASSWORD}@localhost:6379"
+)
+PG_DSN = os.environ.get(
+    "PG_DSN",
+    f"postgresql://cryptoengine:{_DB_PASSWORD}@localhost:5432/cryptoengine",
+)
 
 # ── Exit order parameters ─────────────────────────────────────────────────
 STRATEGY_ID   = "supertrend-01"
