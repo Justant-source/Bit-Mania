@@ -29,6 +29,7 @@ from shared.kill_switch import (
     KillSwitch,
     KILL_SWITCH_ACK_CHANNEL,
     KILL_SWITCH_ACK_TIME_KEY,
+    KILL_SWITCH_CHANNEL,
 )
 from shared.models.strategy import StrategyCommand
 from shared.log_events import *
@@ -71,6 +72,7 @@ class StrategyOrchestrator:
         self._running = False
         self._task: asyncio.Task[None] | None = None
         self._watchdog_task: asyncio.Task[None] | None = None
+        self._kill_listen_task: asyncio.Task[None] | None = None
         self._heartbeat_timeout_seconds: float = 300.0  # 5분
         self._monitored_services: list[str] = [
             "execution-engine",
@@ -135,6 +137,9 @@ class StrategyOrchestrator:
         self._watchdog_task = asyncio.create_task(
             self._watchdog_loop(), name="service-watchdog"
         )
+        self._kill_listen_task = asyncio.create_task(
+            self._listen_external_kill(), name="kill-switch-listener"
+        )
         log.info(SERVICE_STARTED, message="orchestrator started", interval=self._loop_interval)
 
     async def stop(self) -> None:
@@ -146,7 +151,7 @@ class StrategyOrchestrator:
                 await self._config_reload_task
             except asyncio.CancelledError:
                 pass
-        for task in (self._task, self._watchdog_task):
+        for task in (self._task, self._watchdog_task, self._kill_listen_task):
             if task and not task.done():
                 task.cancel()
                 try:
@@ -417,6 +422,73 @@ class StrategyOrchestrator:
                 weight=weight,
                 capital=allocated,
             )
+
+    async def _listen_external_kill(self) -> None:
+        """외부(텔레그램 /emergency_close, CLI)가 발행한 킬스위치 요청을 수신한다.
+
+        2026-08-29 이전에는 ``ce:kill_switch`` 채널에 **구독자가 없었다**. 텔레그램이
+        발행해도 아무도 듣지 않아, 신규 주문 차단(``ce:kill_switch:active``)만 걸리고
+        기존 포지션은 그대로 남았다 — 운영자 수동 청산 경로가 실효 상태였다.
+        ACK 또한 이 콜백 체인에서만 발행되므로 텔레그램은 항상 ACK 타임아웃을 겪었다.
+
+        이 루프가 그 공백을 메운다. 수신 시 ``KillSwitch.trigger_manual()``을 호출하면
+        기존 ``_on_kill_switch_trigger`` 콜백이 그대로 실행되어 전략에 stop이 발행되고
+        ``on_stop()``이 포지션을 청산하며, ACK도 정상 발행된다.
+
+        ``shared/kill_switch.py``는 수정하지 않는다 — 기존 공개 API만 호출한다.
+        """
+        assert self._redis is not None
+
+        pubsub = self._redis.pubsub()
+        await pubsub.subscribe(KILL_SWITCH_CHANNEL)
+        log.info(
+            SERVICE_STARTED,
+            message="외부 킬스위치 채널 구독 시작",
+            channel=KILL_SWITCH_CHANNEL,
+        )
+
+        try:
+            async for message in pubsub.listen():
+                if not self._running:
+                    break
+                if message["type"] != "message":
+                    continue
+
+                try:
+                    payload = json.loads(message["data"])
+                except (json.JSONDecodeError, TypeError):
+                    payload = {}
+
+                reason = payload.get("trigger_reason", "external_kill_switch")
+                triggered_by = payload.get("triggered_by", "unknown")
+
+                # 이미 발동 중이면 재발동하지 않는다 (dead-man 스위치와 동일한 방침)
+                if self._kill_switch.is_triggered:
+                    log.warning(
+                        KILL_SWITCH_TRIGGERED,
+                        message="외부 킬스위치 수신 — 이미 발동 상태, 재발동 생략",
+                        reason=reason,
+                        triggered_by=triggered_by,
+                    )
+                    continue
+
+                log.critical(
+                    KILL_SWITCH_TRIGGERED,
+                    message="외부 킬스위치 수신 — 수동 발동 실행",
+                    reason=reason,
+                    triggered_by=triggered_by,
+                )
+                await self._kill_switch.trigger_manual(
+                    f"External kill switch: {reason} (by {triggered_by})"
+                )
+        except asyncio.CancelledError:
+            pass
+        finally:
+            try:
+                await pubsub.unsubscribe(KILL_SWITCH_CHANNEL)
+                await pubsub.aclose()
+            except Exception:  # noqa: BLE001 — 종료 경로, 실패해도 무시
+                pass
 
     async def _cache_orchestrator_state(self) -> None:
         """Cache current orchestrator state in Redis."""

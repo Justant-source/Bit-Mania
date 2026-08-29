@@ -200,6 +200,32 @@ git checkout legacy-archive-2026-08-29 -- backtest/docs/strategies/
 - git 이력으로 복구 가능해 실질적 손실 없음
 ```
 
+## 부수 발견 — 수동 킬스위치 경로 단절 (2026-08-29)
+
+정리 과정에서 레거시와 무관한 **실전 안전 결함**을 발견해 함께 수정했다. 기록으로 남긴다.
+
+**증상**: 운영자가 수동으로 포지션을 즉시 청산할 수단이 없었다.
+
+| 경로 | 실제 동작 |
+|---|---|
+| Telegram `/emergency_close` | `ce:kill_switch` 발행 → **구독자 없음**. `ce:kill_switch:active`만 SET되어 신규 주문은 차단되나 **기존 포지션은 잔존**. ACK는 오케스트레이터 내부 `_trigger`에서만 발행되므로 항상 타임아웃 |
+| `make emergency` | 존재하지 않는 모듈 `engine.emergency_close_all` 호출 → `ModuleNotFoundError`로 즉시 실패 |
+
+`trigger_manual()`은 테스트에서만 호출되고 운영 코드에 호출처가 없었다. 프로덕션에서
+`trigger()`를 부르는 곳은 `core.py`의 dead-man 스위치 하나뿐이었다. 즉 **자동 발동은
+정상이었고 수동 발동만 끊겨 있었다.**
+
+**조치**
+1. `services/orchestrator/core.py`에 `_listen_external_kill()` 추가 — `ce:kill_switch` 구독 후
+   `KillSwitch.trigger_manual()` 호출. 기존 콜백 체인이 그대로 동작해 청산·ACK가 정상화된다.
+2. `scripts/emergency_close_all.py` 신설 — 전략에 stop을 직접 발행해 오케스트레이터를 우회하는
+   최후 수단. `make emergency`가 stdin 주입으로 실행하므로 이미지 재빌드 없이 동작한다.
+   청산을 `ce:positions:all`로 검증(최대 60초)한 뒤에만 성공으로 종료한다.
+3. `shared/kill_switch.py`는 **수정하지 않았다** — 불변 규칙 2 준수, 기존 공개 API만 호출.
+
+②는 즉시 유효하나 ①은 `strategy-orchestrator` 재빌드가 필요하다 →
+`.request/legacy-cleanup-deferred-20260829.md` §8 (D7).
+
 ## References
 
 - `.request/legacy-cleanup-plan-20260829.md` (Q3, Q4, Q6, Q7, Q8)

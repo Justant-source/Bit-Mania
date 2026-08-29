@@ -65,11 +65,13 @@ migrate: ## Run database migrations
 
 emergency: ## EMERGENCY: Close all positions and halt trading immediately
 	@echo "!!! EMERGENCY SHUTDOWN !!!"
-	@echo "Sending kill signal to all strategy services..."
-	$(COMPOSE) exec execution-engine python -m engine.emergency_close_all
+	@echo "긴급 청산 스크립트를 execution-engine 안에서 실행한다 (stdin 주입 — 재빌드 불필요)"
+	@echo "청산이 확인되어야만 서비스 정지 단계로 넘어간다. 미확인 시 여기서 중단된다."
+	$(COMPOSE) exec -T execution-engine python - < scripts/emergency_close_all.py
+	@echo "청산 확인됨. 전략·오케스트레이터를 정지한다 (execution-engine은 모니터링 위해 유지)."
 	$(COMPOSE) stop supertrend strategy-orchestrator
-	@echo "All strategies stopped. Execution engine still running for position monitoring."
-	@echo "Review positions at http://localhost:3000"
+	@echo "완료. 대시보드에서 확인: http://localhost:3000/supertrend"
+	@echo "재개하려면 ce:kill_switch:active 키를 삭제한 뒤 서비스를 기동할 것."
 
 resilience-test: ## Run automated resilience tests (kill+restart each core service, verify recovery)
 	@echo "=== CryptoEngine Resilience Test ==="

@@ -297,12 +297,38 @@ shared/ 변경
 
 ### 5.1 언제 사용하는가
 
-| 상황 | 1차 시도 | 이 절차 사용 |
+| 상황 | 1차 시도 | 이 절차(거래소 직접 청산) 사용 |
 |------|---------|-----------|
 | 봇 응답 없음 | Telegram `/emergency_close` | ACK 5초 내 미수신 |
-| Docker 응답 없음 | `make emergency` 실행 | 명령어 실패 시 |
+| 텔레그램 불통 | `make -C cryptoengine emergency` | 명령 실패 또는 청산 미확인 |
 | 서버 완전 다운 | SSH 접속 후 `make emergency` | SSH 접속 불가 시 |
 | Bybit 봇 API 장애 | 자동 retry → Kill Switch L3 | 거래소 장애 지속 시 |
+
+#### 수동 청산 경로의 실제 동작 (2026-08-29 정정)
+
+두 경로 모두 최종적으로 **동일한 체인**을 탄다:
+
+```
+KillSwitch.trigger_manual()
+  → _on_kill_switch_trigger 콜백
+  → strategy:command:supertrend-01 에 StrategyCommand(action="stop", reason="kill_switch")
+  → supertrend.on_stop() → 거래소 상태 동기화 → 시장가 청산
+  → ACK 발행 (ce:kill_switch:ack / :ack_time)
+```
+
+| 경로 | 체인 진입 방식 | 오케스트레이터 의존 |
+|---|---|---|
+| Telegram `/emergency_close` | `ce:kill_switch` 발행 → 오케스트레이터 구독자가 `trigger_manual()` 호출 | **있음** |
+| `make emergency` | 위와 동일하게 발행하되, **전략에 stop을 직접 발행**해 오케스트레이터를 우회 | 없음 (최후 수단) |
+
+> **이력**: 2026-08-29 이전에는 `ce:kill_switch` 채널에 구독자가 없어서 두 경로 모두
+> 포지션을 청산하지 못했다. 신규 주문 차단(`ce:kill_switch:active`)만 걸리고 기존
+> 포지션은 남았으며, ACK도 영영 오지 않아 텔레그램은 항상 타임아웃됐다.
+> `make emergency`는 존재하지 않는 모듈(`engine.emergency_close_all`)을 호출해
+> `ModuleNotFoundError`로 즉시 실패했다.
+> 2026-08-29 수정: 오케스트레이터에 `_listen_external_kill()` 구독 추가 +
+> `cryptoengine/scripts/emergency_close_all.py` 신설. `shared/kill_switch.py`는 무수정.
+> 상세: ADR-0009, `.request/legacy-cleanup-deferred-20260829.md` D7
 
 ### 5.2 비상 청산 프로세스
 

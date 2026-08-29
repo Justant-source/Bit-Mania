@@ -65,9 +65,21 @@ docker compose logs --tail=100 execution-engine | grep -E "ERROR|WARN|CRITICAL"
 ### 비상 청산
 
 ```bash
-# 전 포지션 강제 청산 (Kill Switch L4 발동)
-make emergency                       # 또는 docker compose kill supertrend execution-engine
+# 전 포지션 시장가 청산 + 신규 주문 차단
+make -C cryptoengine emergency
 ```
+
+`scripts/emergency_close_all.py`를 execution-engine 안에서 stdin 주입으로 실행한다
+(이미지 재빌드 불필요). 신규 주문 차단 → 전략에 `stop(reason=kill_switch)` 발행 →
+`on_stop()`이 청산 → `ce:positions:all`로 청산 확인(최대 60초). **청산이 확인되어야만**
+전략·오케스트레이터 정지 단계로 넘어가며, 미확인 시 중단하고 수동 확인을 요구한다.
+
+> ⚠️ `docker compose kill supertrend`로는 **청산되지 않는다.** SIGKILL이라 `on_stop()`이
+> 실행되지 않으며, 정상 종료(`stop`)를 하더라도 사유가 `service_shutdown`이면
+> `_SHUTDOWN_NO_LIQUIDATE`에 걸려 포지션을 보존한다(배포 시 포지션 보호 원칙).
+> 청산이 목적이면 반드시 `make emergency` 또는 Telegram `/emergency_close`를 쓸 것.
+
+재개하려면 `ce:kill_switch:active` 키를 삭제한 뒤 서비스를 기동한다.
 
 ---
 
