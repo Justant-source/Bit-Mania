@@ -20,7 +20,13 @@ parent: 40-data
 | 마이그레이션 (운영) | raw SQL 단일 트랙 (`shared/db/migrations/NNN_*.sql` through **018**) — `sql_migrations.py` + `scripts/init_db.py` (ADR-0006). Alembic 제거됨 (D4) |
 | 마이그레이션 (백테스트) | Jesse 내장 마이그레이션 |
 | 초기 스키마 | `cryptoengine/shared/db/init_schema.sql` |
-| 포트 (운영) | 5432 (내부) |
+| 포트 (운영) | 5432 (`127.0.0.1` 바인딩) |
+| 포트 (백테스트) | 5433 **`127.0.0.1` only** (D8). 예전 `0.0.0.0` 노출 제거 |
+| 라이브 크기 (018 후) | **~306MB** (이전 ~9.4GB, 대부분 `quarterly_perp_spread`) |
+
+### 4h 캔들 시각
+
+운영 정본은 `ohlcv_history`에서 `exchange='bybit' AND symbol='BTCUSDT' AND timeframe='4h'`. `timestamp`는 Bybit kline **start**. 종가 UTC 08:00인 봉의 키는 **04:00 UTC**. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md) · [strategy.md](../70-policy/strategy.md) §1.1.
 
 ---
 

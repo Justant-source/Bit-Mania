@@ -13,7 +13,7 @@ related_code:
 
 ## Status
 
-Accepted (2026-06-15)
+Accepted (2026-06-15). **2026-08-29**: C4 트리·`lint-docs` 6항목 게이트 유지. 당일 대규모 운영 변경의 문서 정본은 [ADR-0010](0010-ops-cleanup-20260829.md) 및 각 계층 `last_updated: 2026-08-29`.
 
 ## Context
 

@@ -18,7 +18,8 @@ related_code:
 ## Status
 
 Accepted (2026-05-18) — Phase 5 메인넷 전환 시 완전 폐기  
-**Supersedes**: ADR-002 (Multi-symbol FA 도입 검토)
+**Supersedes**: ADR-002 (Multi-symbol FA 도입 검토)  
+**2026-08-29**: 소스 삭제(ADR-0009). 복구 태그 `2ee11756`. D9 이후 정리 커밋 해시는 `6f33efba`.
 
 ## Context
 

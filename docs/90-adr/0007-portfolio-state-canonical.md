@@ -12,7 +12,7 @@ related_code:
 
 ## Status
 
-Proposed (2026-06-15)
+Proposed (2026-06-15). **2026-08-29 운영 창에서 구현하지 않음** — 포트폴리오 캐시는 여전히 orchestrator `portfolio_monitor` + Redis `cache:wallet_balance`.
 
 ## Context
 

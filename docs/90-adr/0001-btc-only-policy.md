@@ -14,7 +14,7 @@ related_code:
 
 ## Status
 
-Accepted (2026-05-01)
+Accepted (2026-05-01). **2026-08-29**: 아래 `related_code`의 funding-arb / adaptive-dca yaml·`feature_engine.py`는 저장소에서 삭제됨(ADR-0009). 정책 자체는 Supertrend `BTCUSDT` 단일로 **계속 유효**.
 
 ## Context
 

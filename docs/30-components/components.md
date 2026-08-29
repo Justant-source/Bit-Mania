@@ -11,13 +11,13 @@ CryptoEngine의 **C4 L3 Component** 계층 문서입니다. 각 마이크로서�
 
 ## Diagram E: StrategyOrchestrator 내부
 
-<!-- last-verified: 2026-08-04 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: cryptoengine/services/orchestrator/core.py, weight_manager.py, portfolio_monitor.py -->
 
 ```mermaid
 flowchart LR
   subgraph orch["strategy-orchestrator"]
-    core["StrategyOrchestrator<br/>core.py:46"]
+    core["StrategyOrchestrator<br/>core.py"]
     wm["WeightManager<br/>weight_manager.py<br/>FIXED_WEIGHTS = supertrend:1.0"]
     pm["PortfolioMonitor<br/>portfolio_monitor.py<br/>class PortfolioMonitor"]
   end
@@ -36,7 +36,7 @@ flowchart LR
 
 | 모듈 | 파일 | 핵심 책임 |
 |---|---|---|
-| StrategyOrchestrator | services/orchestrator/core.py:46 | Kill Switch 4단계 모니터링 · 전략 자본 배분 명령 발행 |
+| StrategyOrchestrator | services/orchestrator/core.py | 자본 배분(`start` 300s) · **`_listen_external_kill()`** (`ce:kill_switch` 구독 → `trigger_manual`) · dead-man 하트비트 |
 | WeightManager | services/orchestrator/weight_manager.py | FIXED_WEIGHTS = {"supertrend": 1.0, "cash": 0.0} 고정 배분 |
 | PortfolioMonitor | services/orchestrator/portfolio_monitor.py | 포트폴리오 P&L 추적 · class PortfolioState · daily/weekly/monthly peak는 **해당 기간** equity만으로 복원 (전체 history max 사용 금지) |
 
@@ -215,8 +215,9 @@ class KillLevel(IntEnum):
 
 | 모듈 | 파일 | 핵심 책임 |
 |---|---|---|
-| KillSwitch | shared/kill_switch.py:50 | 4단계 리스크 계층 관리 · 절대값+퍼센트 혼합 체크 (Phase 5) · 60분 쿨다운 |
-| RedisClient | shared/redis_client.py | asyncpg 자동 재연결 (3회·지수 백오프) · Pub/Sub 헬퍼 |
+| KillSwitch | shared/kill_switch.py | 4단계 리스크 · Phase 5 AND 임계값 · **공개 API만 호출** (2026-08-29 KS 수신은 orchestrator. 이 파일 수정 금지) |
+| required_env | shared/required_env.py | `require_env()` fail-closed · `redact_url()` 로그 마스킹 (2026-08-29) |
+| RedisClient | shared/redis_client.py | Redis 자동 재연결 · Pub/Sub 헬퍼 · URL에 비밀번호 필수 |
 | ExchangeConnector | shared/exchange/bybit.py | REST/WebSocket 통합 · MainNet/TestNet 전환 · rate limit 관리 |
 | models | shared/models/ | 서비스 간 메시지 스키마 (Pydantic) |
 | db | shared/db/ | `init_schema.sql` + numbered `migrations/NNN_*.sql` (through 018, ADR-0006). 적용기: `sql_migrations.py` / `scripts/init_db.py`. Alembic 없음. 커넥션 풀은 각 서비스 개별 관리 |

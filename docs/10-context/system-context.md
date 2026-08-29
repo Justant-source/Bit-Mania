@@ -15,7 +15,7 @@ flowchart TB
         bybit_mainnet["☁ Bybit Mainnet<br/>REST + WebSocket"]
         bybit_testnet["☁ Bybit Testnet<br/>개발·검증 전용"]
         telegram_api["☁ Telegram Bot API<br/>알림 + 명령 채널"]
-        coinglass["☁ CoinGlass API<br/>멀티 거래소 펀딩비"]
+        coinglass["☁ CoinGlass API<br/>펀딩 비교 (키 있을 때만)"]
         grafana_am["☁ Grafana AlertManager<br/>ce:alerts:grafana webhook"]
     end
 
@@ -37,7 +37,7 @@ flowchart TB
     telegram_api -->|"Bot API"| ce_bot
     bybit_mainnet -->|"WebSocket OHLCV<br/>REST 주문 실행"| ce_core
     bybit_testnet -.->|"BYBIT_TESTNET=true 시만"| ce_core
-    coinglass -->|"펀딩비 REST"| ce_core
+    coinglass -.->|"COINGLASS_API_KEY 있을 때만<br/>펀딩 비교 REST"| ce_core
     grafana_am -->|"Alert webhook"| ce_bot
     ce_core -->|"주문 REST"| bybit_mainnet
     ce_core -->|"알림"| telegram_api
@@ -46,7 +46,7 @@ flowchart TB
     dashboard -->|"PostgreSQL · Redis 읽기"| cryptoengine
 ```
 
-> **Track-C(멀티거래소) 폐지 (2026-08-29)**: Binance·OKX 보조 데이터 수집(외부 액터 + `market-data-binance`/`market-data-okx`)은 전량 삭제되었다. Bybit 단독 운영. `wf-scheduler`(월간 Walk-Forward)도 함께 삭제 — `backtester`만 남음. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
+> **Track-C 폐지 · 2026-08-29 운영 창**: Binance·OKX 수집기는 삭제. 같은 날 분기물 파이프라인·레거시 테이블 DROP·자격증명 fail-closed·git 히스토리 재작성은 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md). Bybit 단독 + Supertrend 4h.
 
 ---
 
@@ -57,7 +57,7 @@ flowchart TB
 | Bybit Mainnet | 양방향 | WebSocket + REST | `BYBIT_TESTNET=false` (Phase 5) |
 | Bybit Testnet | 양방향 | WebSocket + REST | `BYBIT_TESTNET=true` 시만 사용 |
 | Telegram Bot API | 양방향 | HTTPS Long-poll | 알림 발송 + /kill · /positions 수신 |
-| CoinGlass API | 인바운드 | REST (HTTPS) | 멀티 거래소 펀딩비 폴링 |
+| CoinGlass API | 인바운드 (선택) | REST | `COINGLASS_API_KEY` 없으면 비교 폴링 비활성. Track-C 삭제와 별개 |
 | Grafana AlertManager | 인바운드 | HTTP webhook | `ce:alerts:grafana` 채널 경유 |
 
 ---

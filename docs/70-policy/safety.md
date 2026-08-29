@@ -34,20 +34,20 @@ Kill Switch는 CryptoEngine의 **자금 보호 최후 방어선**이다. 포트�
 | Level | 이름 | 발동 조건 | 동작 | 자동 재개 |
 |---|---|---|---|---|
 | 0 | NONE | — | 정상 운영 | — |
-| 1 | STRATEGY | 전략 손실 > 임계값 | 해당 전략 포지션 청산 | 4h cooldown 후 |
-| 2 | PORTFOLIO | 일일/주간/월간 손실 AND 절대값 | 전체 포지션 청산 | 4h cooldown 후 |
+| 1 | STRATEGY | 전략 손실 > 임계값 | 해당 전략 포지션 청산 | 60분 cooldown 후 |
+| 2 | PORTFOLIO | 일일/주간/월간 손실 AND 절대값 | 전체 포지션 청산 | 60분 cooldown 후 |
 | 3 | SYSTEM | 시스템 장애 (API 오류, 하트비트 5분 미수신) | 즉시 시장가 청산 | **불가** |
-| 4 | MANUAL | 운영자 `/kill` 명령 | 즉시 시장가 청산 | **절대 불가** |
+| 4 | MANUAL | `/emergency_close` · `ce:kill_switch` 외부 발행 | 즉시 시장가 청산 | **절대 불가** (프로세스 재생성 또는 `reset_manual`) |
 
 ### 1.3 Kill Switch Trigger Flow
 
-<!-- last-verified: 2026-06-15 -->
-<!-- code-ref: cryptoengine/shared/kill_switch.py, cryptoengine/config/orchestrator.yaml -->
+<!-- last-verified: 2026-08-29 -->
+<!-- code-ref: cryptoengine/shared/kill_switch.py, cryptoengine/config/orchestrator.yaml, cryptoengine/services/orchestrator/core.py -->
 
 ```mermaid
 flowchart TD
     A["포트폴리오 P&L 체크<br>60초 주기"] --> B{{"is_triggered?"}}
-    B -->|Yes| C{{"cooldown 만료?<br>4시간"}}
+    B -->|Yes| C{{"cooldown 만료?<br>60분"}}
     C -->|Yes| D["_reset() 호출<br>Level NONE으로 복귀"]
     C -->|No| E["현재 Level 유지"]
     B -->|No| F{{"system_healthy?"}}
@@ -91,26 +91,32 @@ flowchart TD
 | 주간 | -10.0% | -$20 | AND | 60분 |
 | 월간 | -15.0% | -$30 | AND | 60분 |
 
-**핵심**: 소액 운영($185 USDT 기준)에서 노이즈 발동을 방지한다.
+**핵심**: 소액 운영(2026-08-29 기준 지갑 ≈ **$238.88** USDT, Phase 5 개시 $185.31)에서 노이즈 발동을 방지한다.
 
 **예시**:
 - 시나리오 A: -3% 상대 손실이지만 $4 절대 손실 → 발동 ❌ (절대값 미달)
 - 시나리오 B: -5.5% 상대 + $15 절대 손실 → 발동 ✅ (둘 다 만족)
 - 시나리오 C: -6% 상대이지만 $9 절대 손실 → 발동 ❌ (절대값 미달)
 
-### 1.5 ACK 프로토콜
+### 1.5 ACK 프로토콜과 외부 수신 (2026-08-29)
+
+내부 자동 경로(드로다운·dead-man)는 오케스트레이터가 `KillSwitch.trigger*`를 호출하고 `ce:kill_switch`를 **발행**한다.
+
+**외부 수동 경로**는 반대 방향이다: Telegram/`make emergency`가 `ce:kill_switch`를 **발행**하면 오케스트레이터 `_listen_external_kill()`이 구독해 `trigger_manual()`을 부른다. 2026-08-29 이전에는 이 구독이 없어 수동 청산이 공회전했다.
 
 Kill Switch 발동 → execution-engine 포지션 청산 확인:
 
-1. orchestrator: Kill Switch 발동
-2. on_trigger 콜백: Redis `ce:kill_switch` 채널 메시지 발행
-3. execution-engine: 구독 → 포지션 청산 실행
-4. execution-engine: Redis `ce:kill_switch:ack` 채널 ACK 발행
-5. orchestrator: ACK 수신 (5초 타임아웃, 최대 3회 재시도)
+1. orchestrator: Kill Switch 발동 (`trigger_manual` 또는 자동 check)
+2. on_trigger 콜백: Redis `ce:kill_switch` 채널 메시지 발행 (이미 외부에서 온 메시지와 별개로 콜백이 다시 발행할 수 있음)
+3. execution-engine: `ce:kill_switch:active` 게이트로 신규 주문 차단
+4. 전략 `stop(reason=kill_switch)` → `on_stop()` 시장가 청산
+5. ACK: `ce:kill_switch:ack` / `ce:kill_switch:ack_time`
 
-**상수** (shared/kill_switch.py):
+**상수** (`shared/kill_switch.py`):
 - `KILL_SWITCH_ACK_TIMEOUT_SECONDS = 5`
 - `KILL_SWITCH_ACK_MAX_RETRIES = 3`
+
+검증: `PUBSUB NUMSUB ce:kill_switch` ≥ 1. 실발동은 포지션 없을 때만. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md).
 
 ---
 
@@ -328,7 +334,7 @@ KillSwitch.trigger_manual()
 > `ModuleNotFoundError`로 즉시 실패했다.
 > 2026-08-29 수정: 오케스트레이터에 `_listen_external_kill()` 구독 추가 +
 > `cryptoengine/scripts/emergency_close_all.py` 신설. `shared/kill_switch.py`는 무수정.
-> 상세: ADR-0009, `.request/legacy-cleanup-deferred-20260829.md` D7
+> 상세: [ADR-0009](../90-adr/0009-legacy-strategy-retirement.md), [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md)
 
 ### 5.2 비상 청산 프로세스
 
@@ -450,8 +456,8 @@ execution-engine 재시작 시 Phase 5 잔고 게이트는 다음 순서로 기�
 
 ```bash
 # Redis baseline 이 없거나 게이트 실패 시에만 .env 현행화
-# 현재 잔고 확인 (Bybit 대시보드 또는 로그 actual_usdt)
-EXPECTED_INITIAL_BALANCE_USD=159.74  # 실제 잔고
+# 2026-08-29 청산 후 실잔고 예:
+EXPECTED_INITIAL_BALANCE_USD=238.88
 ```
 
 하트비트 단절로 Dead Man's Switch가 발동했다면 `strategy-orchestrator` 재시작으로 인메모리 Kill 상태를 초기화한다.
@@ -460,7 +466,8 @@ EXPECTED_INITIAL_BALANCE_USD=159.74  # 실제 잔고
 
 ## 관련 문서
 
-- [state-machines.md](../60-runtime/state-machines.md) — KillLevel 상태머신 · OrderState
+- [state-machines.md](../60-runtime/state-machines.md) — KillLevel 상태머신 · OrderState · 외부 KS 수신
 - [operations.md](operations.md) — 운영 Runbook · 배포 · 모니터링
 - [strategy.md](strategy.md) — Supertrend 전략 사양 · 백테스트
 - [system-context.md](../10-context/system-context.md) — L1 외부 액터 · 서브시스템 경계
+- [0010-ops-cleanup-20260829.md](../90-adr/0010-ops-cleanup-20260829.md) — 2026-08-29 운영 창 결정

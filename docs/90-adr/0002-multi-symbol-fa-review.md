@@ -16,7 +16,8 @@ related_code:
 
 ## Status
 
-Superseded by ADR-004 (2026-05-18) — 백테스트 Track B 결과 합격 기준 미충족으로 완전 폐기
+Superseded by ADR-004 (2026-05-18) — 백테스트 Track B 결과 합격 기준 미충족으로 완전 폐기.  
+**2026-08-29**: `related_code` 경로의 전략·fetch 스크립트는 ADR-0009로 저장소에서 삭제. 복구는 태그 `legacy-archive-2026-08-29` (`2ee11756`). 히스토리 재작성(ADR-0010 D9)으로 구 커밋 해시 `3da55859`는 `6f33efba`.
 
 ## Context
 

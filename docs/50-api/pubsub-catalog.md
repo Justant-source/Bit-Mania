@@ -37,9 +37,11 @@ sequenceDiagram
     ENG->>ST: order:result (filled/cancelled/rejected)
     ENG->>ST: order:result:supertrend-01 (전략 전용)
 
-    Note over ORCH,TG: Kill Switch
-    ORCH->>ENG: ce:kill_switch (KillLevel 1~4)
-    ORCH->>TG: ce:kill_switch
+    Note over ORCH,TG: Kill Switch (2026-08-29: 오케스트레이터가 ce:kill_switch 구독)
+    TG->>ORCH: ce:kill_switch (Telegram /emergency_close)
+    Note over ORCH: _listen_external_kill → trigger_manual
+    ORCH->>ST: strategy:command:supertrend-01 stop
+    ORCH->>ENG: ce:kill_switch:active (신규 주문 차단)
     ENG->>TG: ce:alerts:anomaly
     ENG->>TG: ce:alerts:entry
     ENG->>TG: ce:alerts:exit
@@ -53,7 +55,7 @@ sequenceDiagram
 
 | 채널 | 상수 정의 | 파일 |
 |---|---|---|
-| `ce:kill_switch` | `KILL_SWITCH_CHANNEL` | `shared/kill_switch.py:32` |
+| `ce:kill_switch` | orchestrator `_listen_external_kill` (구독자 ≥1), 발행: telegram / emergency 스크립트 / KS 콜백 | `shared/kill_switch.py:32` |
 | `ce:kill_switch:ack` | `KILL_SWITCH_ACK_CHANNEL` | `shared/kill_switch.py:34` |
 | `ce:alerts:anomaly` | `_ERROR_ALERT_CHANNEL` | `shared/logging_config.py:154` |
 | `position:reconcile_event` | `RECONCILE_CHANNEL` | `services/execution/position_tracker.py:37` |
@@ -72,7 +74,7 @@ sequenceDiagram
 | `order:request` | supertrend | execution-engine |
 | `order:result` | execution-engine | supertrend |
 | `order:result:{strategy_id}` | execution-engine | supertrend (전략 전용) |
-| `strategy:command:{strategy_id}` | orchestrator | supertrend |
+| `strategy:command:{strategy_id}` | orchestrator | supertrend (`tick_interval` 60s drain) |
 | `ce:strategy:command` | telegram-bot | orchestrator |
 | `ce:alerts:{type}` | 전 서비스 | telegram-bot |
 | `llm:advisory` | ⚠️ **DEAD** — 발행자 없음 | — |
@@ -109,9 +111,16 @@ Dashboard(`dashboard/src/routes/`) 제공 엔드포인트:
 | POST | `/api/internal/resume` | Kill Switch 해제 |
 | GET | `/api/internal/supertrend/candles` | 4h OHLCV만 (`ohlcv_history`). 차트 EMA는 라이브 `supertrend_signals` 우선 |
 | GET | `/api/internal/supertrend/candles/in-progress` | 미확정 4h 봉 (`cache:ohlcv:bybit:BTCUSDT:4h`) |
+| GET | `/api/internal/supertrend/status` | `is_running`, 할당 자본, `last_tick`, 최신 신호. **권위 상태** |
 | GET | `/compare` | 신호 vs 체결 비교 |
 | GET | `/equity` | 자산 곡선 |
 | GET | `/status` | 전략 상태 |
+
+**알려진 깨진 계약 (2026-08-29 실사, D3와 무관)**:
+- `GET /api/pnl` — `FROM daily_pnl` 테이블이 없어 **500**. Supertrend UI는 호출하지 않음.
+- `GET /api/internal/monitor/positions` — `positions`/`strategy_states` 스키마 불일치로 **500**일 수 있음. `/api/positions`는 Redis 캐시 히트 시 200.
+
+`llm_judgments` / `llm_reports`는 DROP하면 `/api/llm*`가 500이 된다 — 018에서 유지.
 
 ### 4.2 공개 API (포트 3001)
 

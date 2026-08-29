@@ -217,7 +217,7 @@ flowchart TB
 | 포트 | 서비스 | 호스트 바인딩 | 용도 | 접근성 |
 |------|--------|-------------|------|--------|
 | **5432** | postgres | 127.0.0.1 | 운영 데이터베이스 | 로컬 (localhost) |
-| **5433** | backtest-postgres | 0.0.0.0 (기본) | 백테스트 jesse_db | 로컬 (백테스트용) |
+| **5433** | backtest-postgres | **127.0.0.1 only** (D8, 2026-08-29. 이전 0.0.0.0 노출) | jesse_db | 로컬 전용 |
 | **6379** | redis | 127.0.0.1 | Pub/Sub 브로커 | 로컬 (컨테이너 내부) |
 | **9090** | prometheus | 0.0.0.0:9090 | 메트릭 쿼리 · UI | 호스트 접근 가능 |
 | **9100** | node-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
@@ -265,10 +265,12 @@ flowchart TB
 | `DB_PORT` | 5432 | 데이터베이스 포트 |
 | `DB_NAME` | cryptoengine | 데이터베이스 명 |
 | `DB_USER` | cryptoengine | 데이터베이스 사용자 |
-| `DB_PASSWORD` | (required) | 데이터베이스 암호 |
+| `DB_PASSWORD` | **필수** (`${DB_PASSWORD:?}`). 소스 기본값 없음. 미설정 시 compose 기동 거부 |
 | `REDIS_URL` | redis://:${REDIS_PASSWORD}@redis:6379 | Redis 연결 URI. 미설정 시 기동 거부(fail-closed). 로그에는 비밀번호를 남기지 않는다 |
 | `LOG_LEVEL` | INFO | 로깅 레벨 (DEBUG, INFO, WARN, ERROR) |
 | `ENVIRONMENT` | testnet | 환경 구분 (testnet, mainnet) |
+
+> **fail-closed (2026-08-29)**: `DB_PASSWORD`·`REDIS_PASSWORD` 미설정 시 compose는 기동하지 않는다. 애플리케이션은 `shared/required_env.py`의 `require_env()`. 셸에서 `source .env` 하면 compose가 **파일보다 셸 export를 우선**한다 — 로테이션 직후 옛 값이 남을 수 있음. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md).
 
 ### Phase 5 (운영 모드) — ⚠️ Critical
 
@@ -276,7 +278,7 @@ flowchart TB
 |------|--------|-----|------|
 | **BYBIT_TESTNET** | market-data, execution-engine, supertrend | **false** | ⚠️ 메인넷 실전. 절대 true로 전환 금지 (포지션 손실) |
 | **PHASE5_MODE** | strategy-orchestrator, execution-engine, supertrend | **true** | Phase 5 안전 모드 활성화 |
-| **EXPECTED_INITIAL_BALANCE_USD** | strategy-orchestrator, execution-engine, supertrend | **159.74** | 잔고 게이트 폴백 임계값 (Redis `ce:phase5:equity_baseline` 우선) |
+| **EXPECTED_INITIAL_BALANCE_USD** | strategy-orchestrator, execution-engine, supertrend | **238.88** (2026-08-29 청산 후; gitignore `.env`) | 잔고 게이트 폴백 (Redis `ce:phase5:equity_baseline` 우선, 허용 5%) |
 
 ### Bybit API
 

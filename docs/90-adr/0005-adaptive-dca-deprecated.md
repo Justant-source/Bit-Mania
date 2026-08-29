@@ -12,7 +12,8 @@ related_code:
 
 ## Status
 
-Accepted (2026-05-18) — Phase 5 메인넷 전환 시 완전 폐기
+Accepted (2026-05-18) — Phase 5 메인넷 전환 시 완전 폐기.  
+**2026-08-29**: `adaptive_dca` 소스·문서는 ADR-0009로 삭제. 복구 태그 `legacy-archive-2026-08-29` = `2ee11756`.
 
 ## Context
 

@@ -5,6 +5,26 @@ last_updated: 2026-08-29
 
 # 운영 Runbook · 배포 · 모니터링
 
+> **2026-08-29 일자 SSOT**: 레거시 DB DROP, fail-closed 자격증명, 킬스위치 수신, 히스토리 재작성, 배포 순서 교정은 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md)에 모아 두었다. 이 문서는 그 결정을 **매일 쓰는 명령**으로 풀어 쓴다.
+
+## §0. 2026-08-29 운영자가 알아야 할 것
+
+| 항목 | 현재 값 / 규칙 |
+|---|---|
+| 지갑 / 할당 | ≈ **238.88 USDT** (당일 청산 후). 게이트 폴백 `EXPECTED_INITIAL_BALANCE_USD=238.88` |
+| 포지션 | 플랫 (17:19 KST 청산). 다음 평가 창은 4h 종가 |
+| 4h 종가 (KST) | 01:00 / 05:00 / 09:00 / **13:00** / **17:00** / **21:00** (UTC 00/04/08/12/16/20) |
+| `ohlcv_history` 4h `timestamp` | **봉 시작**. 17:00 KST에 마감된 봉 = **04:00 UTC** 행 |
+| 배포 순서 | 이미지 `build` 먼저 → ST를 orch **앞**에 `up` (60s 틱) |
+| compose env | 셸에 `DB_PASSWORD` 등이 export돼 있으면 `.env` 파일보다 이긴다. **source .env 금지**, 필요 시 `unset` |
+| 킬스위치 수신 | `PUBSUB NUMSUB ce:kill_switch` ≥ 1 (orchestrator). Redis CLI는 호스트 `.env`의 `REDIS_PASSWORD` |
+| Git | `origin/main` = `9f5b116f`. 복구 태그 `legacy-archive-2026-08-29` = `2ee11756`. D9로 **모든 옛 해시 무효** |
+| DB 크기 | ~306MB (018 적용). 분기물 테이블 DROP됨 |
+
+당일 청산 누락 원인: Redis 재시작 후 EE/ST가 **죽은 pub/sub**을 유지 → `order:request` NUMSUB=0. 배포는 `--force-recreate`로 소켓을 새로 열 것.
+
+---
+
 ## §1. 핵심 명령 (Makefile)
 
 ### 라이프사이클
@@ -36,16 +56,17 @@ docker compose build --no-cache \
   strategy-orchestrator \
   telegram-bot
 
-# 순차 재시작 (의존성 순서)
-docker compose up -d --no-deps market-data        # 1. 데이터 제공자
-sleep 15
-docker compose up -d --no-deps execution-engine   # 2. 주문 엔진
+# 순차 재시작 (의존성 + start 레이스 — 2026-08-29)
+# 이미지를 먼저 빌드해 EE 다운타임을 5분 미만으로 유지 (dead-man)
+docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
+docker compose up -d --no-deps market-data execution-engine telegram-bot
 sleep 10
-docker compose up -d --no-deps strategy-orchestrator  # 3. 오케스트레이터
-sleep 10
-docker compose up -d --no-deps supertrend         # 4. 전략 (포지션 복구)
+docker compose up -d --no-deps supertrend   # 3. 전략이 커맨드 채널을 구독
+sleep 8
+docker compose up -d --no-deps strategy-orchestrator  # 4. 그다음 start 발행
+# 60초 안에 command_received / strategy_started 가 없으면 ST 로그 확인
 sleep 60
-docker compose up -d --no-deps telegram-bot       # 5. 알림
+docker compose logs --since=3m supertrend | grep -E "command_received|strategy_started"
 ```
 
 ### 로그 및 모니터링
@@ -79,7 +100,14 @@ make -C cryptoengine emergency
 > `_SHUTDOWN_NO_LIQUIDATE`에 걸려 포지션을 보존한다(배포 시 포지션 보호 원칙).
 > 청산이 목적이면 반드시 `make emergency` 또는 Telegram `/emergency_close`를 쓸 것.
 
-재개하려면 `ce:kill_switch:active` 키를 삭제한 뒤 서비스를 기동한다.
+재개하려면 `ce:kill_switch:active` 키를 삭제한 뒤 Supertrend를 올리고 오케스트레이터를 기동한다 (ADR-0010). 구독 확인:
+
+```bash
+set -a && source cryptoengine/.env && set +a
+docker exec cryptoengine-redis-1 redis-cli -a "$REDIS_PASSWORD" --no-auth-warning PUBSUB NUMSUB ce:kill_switch
+unset DB_PASSWORD REDIS_PASSWORD REDIS_URL
+# 기대: 1 이상
+```
 
 ---
 
@@ -108,7 +136,7 @@ make -C cryptoengine emergency
 2. **.env 갱신** (Redis baseline 없거나 게이트 실패 시)
    ```bash
    # cryptoengine/.env
-   EXPECTED_INITIAL_BALANCE_USD=<실잔고>    # 예: 159.74
+   EXPECTED_INITIAL_BALANCE_USD=<실잔고>    # 2026-08-29 청산 후 예: 238.88
    ```
 
 3. **사전 확인**
@@ -252,7 +280,10 @@ git diff HEAD
 ```bash
 # Step 1: 코드 변경 적용
 cd ~/Data/Bit-Mania
-git pull
+git fetch origin
+git status -sb
+# 2026-08-29 D9 이후 히스토리가 재작성됐다. 다른 클론이 옛 main이면
+# git pull 은 병합 재앙이다 — 재클론하거나 reset --hard origin/main.
 git log --oneline -5
 
 # Step 2: shared/ 변경 여부 판단
@@ -454,10 +485,10 @@ docker compose restart postgres
 
 | 레벨 | 이름 | 트리거 | 동작 | 복구 |
 |------|------|--------|------|------|
-| 1 | STRATEGY | 개별 전략 손절 (일 -5%, 주 -10%, 월 -15%) | 해당 전략만 중지 + 포지션 청산 | 4시간 쿨다운 후 자동 재개 |
-| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5% AND $10, 주 -10% AND $20, 월 -15% AND $30) | **모든 전략 중지** + **전체 포지션 청산** | 1시간 쿨다운 후 재개 |
-| 3 | SYSTEM | API 연결 실패, DB/Redis 다운 | 시장가 청산 시도 → 실패 시 수동 개입 대기 | 자동 불가 (수동) |
-| 4 | MANUAL | Telegram 명령 또는 SSH | 즉시 **모든 포지션 청산** | 수동 `/resume` |
+| 1 | STRATEGY | 개별 전략 손절 (일 -5%, 주 -10%, 월 -15%) | 해당 전략만 중지 + 포지션 청산 | **60분** cooldown 후 auto_resume (`orchestrator.yaml`) |
+| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5% AND $10, 주 -10% AND $20, 월 -15% AND $30) | **모든 전략 중지** + **전체 포지션 청산** | **60분** cooldown |
+| 3 | SYSTEM | API 연결 실패, 하트비트 5분 미수신 | 시장가 청산 시도 | 자동 불가 — orch 재시작으로 인메모리 상태 초기화 |
+| 4 | MANUAL | `ce:kill_switch` 외부 발행 / Telegram `/emergency_close` / `make emergency` | 즉시 청산 + 주문 차단 | **auto-resume 불가**. `ce:kill_switch:active` 삭제 + 서비스 재기동 |
 
 ### Kill Switch 발동 시 대응
 

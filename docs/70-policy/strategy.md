@@ -17,8 +17,23 @@ last_updated: 2026-08-29
 | 레버리지 | 3x 하드캡 (`SAFETY_LEVERAGE_LIMIT=3.0`) |
 | 배분 | 보유자본 100% → 전략 내 95%×3x |
 | 운영 상태 | Phase 5 메인넷 실전 중 (2026-05-18~) |
-| 초기 잔고 | $185.31 USDT (2026-06-14 기준) |
+| 자본 (역사) | Phase 5 개시 $185.31 (2026-05-18). 중간 스냅샷 $181.99. **2026-08-29 청산 후 지갑 ≈ $238.88** |
 | 채택 설정 | combo #7908 (매개변수 스윕 최적값) |
+
+---
+
+## §1.1 4h 종가에서만 평가 (운영 SSOT)
+
+라이브 Supertrend는 **확정 4h 봉의 close**로만 진입/청산을 판단한다. ST 선이 빨개져도 EMA 데드크로스가 아니면 청산하지 않는다.
+
+| 항목 | 규칙 |
+|---|---|
+| 종가 시각 | UTC 00/04/08/12/16/20 (= KST 09/13/17/21/01/05) |
+| DB `ohlcv_history.timestamp` | 봉 **open**. UTC 08:00에 마감된 봉 = **04:00 UTC** 행 |
+| 형성 중 봉 | Redis `cache:ohlcv:bybit:BTCUSDT:4h`, API `/candles/in-progress` |
+| 평가 지연 | 마감 후 market-data가 confirm kline을 pub → ST 구독. Redis 재시작 후 ST/EE를 recreate하지 않으면 pub/sub이 죽어 **종가 청산이 빠질 수 있음** (2026-08-29 17:00 KST 사례) |
+
+`tick_interval: 60`은 봉 사이 대기·커맨드 drain용이지 1분봉 매매가 아니다.
 
 ---
 
@@ -67,7 +82,7 @@ last_updated: 2026-08-29
 
 ## §4. 진입/청산 Flowchart
 
-<!-- last-verified: 2026-08-20 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py, cryptoengine/config/strategies/supertrend.yaml -->
 
 ```mermaid
@@ -207,7 +222,9 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 
 ---
 
-## §10. 극단 시나리오 분석
+## §10. 극단 시나리오 분석 (채택 당시 자본 $185.31 가정)
+
+숫자는 **2026-05~06 스냅샷**이다. 라이브 지갑은 2026-08-29 이후 ≈ $238.88. 공식(95%×3x)은 동일하다.
 
 ### Scenario 1: BTC +30% 급등
 

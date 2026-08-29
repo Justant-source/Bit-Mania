@@ -77,9 +77,9 @@ Supertrend 4h 3x long-only 전략의 파라미터 조합 번호. 매개변수 �
 ### PHASE5_MODE
 
 Phase 5 실전 모드 활성화 플래그. `true`일 때:
-- fixed_notional 사이징 활성화 ($150)
 - 절대값 AND Kill Switch 활성화
-- STRICT_MONITORING_HOURS 강제 모니터링
+- 잔고 게이트(Redis baseline / `EXPECTED_INITIAL_BALANCE_USD`) 적용
+- 사이징은 전략 yaml의 **pct_equity 95% × 레버리지 3x** (구 문서의 fixed_notional $150은 폐기)
 
 ### EXPECTED_INITIAL_BALANCE_USD
 
@@ -89,21 +89,19 @@ Phase 5 잔고 게이트의 **폴백** 기준 자본. 메인넷 기동 시 실�
 1. Redis `ce:phase5:equity_baseline` (execution-engine이 운영 중 자동 갱신)
 2. 이 환경 변수 (콜드스타트 / Redis wipe)
 
-현재 운영값 예: $159.74 USDT (2026-08-04 현행화). 최초 Phase 5 시작은 2026-05-18($185.31).
+현재 운영값: **$238.88 USDT** (2026-08-29 청산 후 `.env` 현행화, gitignore).  
+역사: Phase 5 개시 2026-05-18 $185.31 → 중간 스냅샷 $181.99(2026-08-04 무렵) → 당일 익절 청산 후 $238.88.
 
 ### ce:phase5:equity_baseline
 
 전원 장애 후 자동 복구용 Redis 영속 키. JSON `{"equity", "updated_at", "source"}`.
 TTL 없음. `source`는 `runtime` / `startup_ok`.
 
-### fixed_notional vs pct_equity
+### pct_equity (Phase 5 사이징)
 
-**Phase 4 (테스트넷)**: `pct_equity` — 전체 자본의 일정 비율로 포지션 사이징
+**정본**: 오케스트레이터가 배분한 `allocated_capital`의 **95%** 를 레버리지 3x와 곱해 명목 수량을 만든다 (`supertrend.yaml` `sizing.pct_equity`). 최소 명목 $65.
 
-**Phase 5 (메인넷)**: `fixed_notional` — 고정 명목가($150)로 사이징
-- 자본 규모 변화에 불감
-- 매 거래 크기 예측 용이
-- 소액($200) 운영에 최적화
+구 서술 `fixed_notional $150`은 Phase 5 초안 잔재이며 **사용하지 않는다**.
 
 ### BYBIT_TESTNET (환경 변수)
 
@@ -113,7 +111,7 @@ Bybit 거래소 모드 플래그:
 
 **절대 규칙**: Phase 4 완료 전까지는 반드시 `true`
 
-**변경 절차**: `docs/policies/operations/mainnet-switch.md` 참조
+**변경 절차**: `docs/70-policy/operations.md` (메인넷 전환 절)
 
 ### STRICT_MONITORING_HOURS
 
@@ -141,7 +139,7 @@ Phase 5 강화 모니터링 시간. 설정값만큼 매시간 상태 리포트 �
 - **V**olume: 거래량
 
 **저장 위치**: PostgreSQL `ohlcv_history` 테이블
-**보존 정책**: 타임프레임별 자동 삭제 (90일 이상 자동 정리)
+**보존 정책**: 운영 수집은 **4h만 영구**. 기타 타임프레임 잔여는 retention 잡이 삭제. `timestamp`는 봉 **시작 시각**(UTC). 17:00 KST에 마감된 4h 봉 = `2026-08-29 04:00:00+00` 형태의 행.
 
 ### TWAP (Time-Weighted Average Price)
 
@@ -169,10 +167,10 @@ Phase 5 강화 모니터링 시간. 설정값만큼 매시간 상태 리포트 �
 
 | 레벨 | 이름 | 트리거 | 동작 | 복구 |
 |------|------|--------|------|------|
-| 1 | STRATEGY | 개별 전략 손절 (일 -5%, 주 -10%, 월 -15%) | 해당 전략만 중지 + 포지션 청산 | 4시간 쿨다운 후 자동 재개 |
-| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5% AND $10, 주 -10% AND $20, 월 -15% AND $30) | **모든 전략 중지** + **전체 포지션 청산** | 1시간 쿨다운 후 재개 |
-| 3 | SYSTEM | API 연결 실패, DB/Redis 다운 | 시장가 청산 시도 → 실패 시 수동 개입 대기 | 자동 불가 (수동) |
-| 4 | MANUAL | Telegram 명령 또는 SSH | 즉시 **모든 포지션 청산** | 수동 `/resume` |
+| 1 | STRATEGY | 개별 전략 손절 (일 -5%, 주 -10%, 월 -15%) | 해당 전략만 중지 + 포지션 청산 | 60분 cooldown |
+| 2 | PORTFOLIO | 포트폴리오 손실 (일 -5% AND $10, 주 -10% AND $20, 월 -15% AND $30) | **모든 전략 중지** + **전체 포지션 청산** | 60분 cooldown |
+| 3 | SYSTEM | API 연결 실패, DB/Redis 다운, EE 하트비트 5분 미수신 | 시장가 청산 시도 | 자동 불가 (수동/재시작) |
+| 4 | MANUAL | `ce:kill_switch` 외부 발행 / Telegram `/emergency_close` | 즉시 **모든 포지션 청산** | auto-resume 불가 |
 
 **Phase 5 특수**: Level 2는 퍼센트 AND 절대값 USD 둘 다 조건 (예: -5% AND $10 손실)
 
@@ -235,12 +233,11 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 **현황**:
 - Bybit 메인넷 (`BYBIT_TESTNET=false`)
-- `PHASE5_MODE=true` (고급 설정 활성)
-- fixed_notional 포지션 사이징 ($150 = $200 × 75%)
-- 절대값 AND Kill Switch (상대값 + USD 둘 다)
-- STRICT_MONITORING_HOURS=24 (첫 24시간 강화)
-- 레버리지 3x (Supertrend 전략 기본값)
-- 시작: 2026-05-18
+- `PHASE5_MODE=true`
+- **pct_equity 95% × 3x** (고정 $150 명목 아님)
+- 절대값 AND Kill Switch
+- 레버리지 3x
+- 시작: 2026-05-18 ($185.31). **2026-08-29 청산 후 지갑 ≈ $238.88**
 
 **진입 조건**: Phase 4 완료 + phase5_preflight.py 8개 항목 PASS + 사용자 승인
 
@@ -291,18 +288,32 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 
 **대응**: 요청 배치, 재시도 로직 (`retry_backoff`)
 
-## 데이터베이스 & 로깅 (Database & Logging)
+### fail-closed env (`require_env`)
+
+2026-08-29부터 서비스·스크립트는 `DB_PASSWORD` / `REDIS_URL`(또는 `REDIS_PASSWORD`)이 없으면 **기동 거부**. compose는 `${DB_PASSWORD:?...}`. 소스·문서에 실비밀번호를 넣지 않는다. 구현: `cryptoengine/shared/required_env.py`. 로그 URL은 `redact_url()`.
+
+### 018 / D9 (2026-08-29)
+
+- **018**: `018_drop_legacy_tables.sql` — 레거시·분기물 테이블 DROP. 라이브 DB ~306MB.
+- **D9**: `git filter-repo`로 히스토리 평문 자격증명 제거. 모든 커밋 해시 변경. 정본 `origin/main` = `9f5b116f`. 태그 `legacy-archive-2026-08-29` = `2ee11756`.
+
+---
 
 ### PostgreSQL
 
 영구 데이터 저장소. 거래, 포지션, 이벤트 로그 등 모든 이력 기록.
 
-**핵심 테이블**:
-- `trades` — 체결 거래 이력
-- `positions` — 포지션 상태 스냅샷
-- `ohlcv_history` — OHLCV 캔들 (90일 보존)
-- `kill_switch_events` — Kill Switch 발동 이력
-- `service_logs` — 구조화 이벤트 로그 (모든 서비스)
+**핵심 테이블** (018 DROP 이후, ~306MB):
+- `trades` — 체결 로그 (텔레그램 `/report`가 SELECT. DROP 금지)
+- `positions` / `orders` / `supertrend_signals`
+- `ohlcv_history` — 4h 정본 캔들
+- `funding_rate_history` / `funding_payments`
+- `kill_switch_events` / `service_logs` / `portfolio_snapshots` / `strategy_states`
+- `llm_judgments` / `llm_reports` (대시보드 API. 행이 비어도 DROP 금지)
+- `daily_reports` — 컬럼 `daily_pnl` 있음. **`daily_pnl` 테이블은 없음** (`GET /api/pnl` 500은 기존 버그)
+- `open_interest_history` — 빈 껍데기일 수 있음 (OI는 Redis 위주)
+
+분기·레짐·멀티거래소 테이블은 2026-08-29 `018`으로 DROP. 상세 ADR-0006 · ADR-0010.
 
 ### Redis
 

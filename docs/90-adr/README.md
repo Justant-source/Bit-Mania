@@ -23,6 +23,7 @@ CryptoEngine의 번복하기 어려운 아키텍처·정책·전략 결정을 �
 | [0007](0007-portfolio-state-canonical.md) | PortfolioState 정본 통일 | Proposed | 2026-06-15 |
 | [0008](0008-c4-ssot-adoption.md) | C4 SSOT 문서 구조 채택 | Accepted | 2026-06-15 |
 | [0009](0009-legacy-strategy-retirement.md) | 레거시 전략 계보 일괄 폐기 (001~016·018~021 + Track-C) | Accepted | 2026-08-29 |
+| [0010](0010-ops-cleanup-20260829.md) | 운영 창: DB DROP · fail-closed env · KS 수신 · 히스토리 재작성 | Accepted | 2026-08-29 |
 
 ---
 

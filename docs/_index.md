@@ -19,8 +19,8 @@ last_updated: 2026-08-29
 | 30 Component | [30-components/components.md](30-components/components.md) | 서비스 내부 모듈 · 클래스 책임 · shared/ | 2026-08-29 |
 | 40 Data | [40-data/data-model.md](40-data/data-model.md) | PG 스키마 · ER · 마이그레이션 트랙 | 2026-08-29 |
 | 50 API | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-08-29 |
-| 60 Runtime | [60-runtime/state-machines.md](60-runtime/state-machines.md) | OrderState · KillLevel · service_shutdown 복구 | 2026-06-15 |
-| 70 Policy (안전) | [70-policy/safety.md](70-policy/safety.md) | Kill Switch · 레버리지 · BTC-only · 긴급 청산 | 2026-06-15 |
+| 60 Runtime | [60-runtime/state-machines.md](60-runtime/state-machines.md) | OrderState · KillLevel · service_shutdown 복구 · 외부 KS 수신 | 2026-08-29 |
+| 70 Policy (안전) | [70-policy/safety.md](70-policy/safety.md) | Kill Switch · 레버리지 · BTC-only · 긴급 청산 | 2026-08-29 |
 | 70 Policy (운영) | [70-policy/operations.md](70-policy/operations.md) | Runbook · 모니터링 · 메인넷 전환 · 배포 절차 | 2026-08-29 |
 | 70 Policy (전략) | [70-policy/strategy.md](70-policy/strategy.md) | Supertrend SSOT · 백테스트 방법론 | 2026-08-29 |
 | 90 ADR | [90-adr/README.md](90-adr/README.md) | 아키텍처 의사결정 인덱스 | 2026-08-29 |
@@ -51,6 +51,7 @@ last_updated: 2026-08-29
 
 | 코드 영역 (glob) | 갱신 대상 문서 |
 |---|---|
+| `cryptoengine/shared/required_env.py` | `20-containers/containers.md` §환경변수, `70-policy/operations.md` |
 | `cryptoengine/docker-compose*.yml` | `20-containers/containers.md` (포트/서비스/볼륨 표), `README.md` |
 | `dashboard/docker-compose.yml` | `20-containers/containers.md` §Dashboard |
 | `backtest/docker/docker-compose.yml` | `20-containers/containers.md` §Backtest |
@@ -89,6 +90,7 @@ last_updated: 2026-08-29
 | `shared/kill_switch.py` | [70-policy/safety.md](70-policy/safety.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
 | `shared/exchange/**` | [30-components/components.md](30-components/components.md) |
 | `shared/models/**` | [30-components/components.md](30-components/components.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
+| `shared/required_env.py` | [20-containers/containers.md](20-containers/containers.md) · [90-adr/0010-ops-cleanup-20260829.md](90-adr/0010-ops-cleanup-20260829.md) |
 | `shared/db/**` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
 | `scripts/init_db.py` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
 | `config/orchestrator.yaml` | [70-policy/safety.md](70-policy/safety.md) §Kill Switch 임계값 |
