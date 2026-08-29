@@ -85,7 +85,7 @@ def update_position():
 구 파일 기반 결과 트리(`backtest/results/7-strategies/supertrend/`)의 combo_18 / combo #7908은
 동일 알고리즘의 파라미터 변형이었고, 이 문서 하나로 통합 관리한다.
 해당 트리는 2026-08-29 레거시 정리에서 삭제되었다 (Binance 기준·pre-Bybit-native 수치라 현행 정본과 상충).
-복구 필요 시 git 태그 `legacy-archive-2026-08-29` (commit 8d6f1b79) 참조 — ADR-0009.
+복구 필요 시 git 태그 `legacy-archive-2026-08-29` (commit 2ee11756) 참조 — ADR-0009.
 
 ## 파라미터 스윕 이력 (v2/v3, 2021-04~2026-04 기준)
 

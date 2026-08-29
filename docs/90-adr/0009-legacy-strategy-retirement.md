@@ -50,7 +50,7 @@ R&D 문서와, 일부는 대응 전략 코드(`backtest/strategies/*.py`)를 저
   작성 도중 병렬 작업 결과로 전달받음, 아래 표에 전부 반영함)
 
 A3가 원문에서 직접 추출한 값만 표에 반영했고, 그 외 지어낸 수치는 없다. 남은 공란은
-"—"로 표기했다. 원문 전체는 삭제 이후에도 git 이력, 커밋 `8d6f1b79`
+"—"로 표기했다. 원문 전체는 삭제 이후에도 git 이력, 커밋 `2ee11756`
 (태그 예정: `legacy-archive-2026-08-29`) 기준으로 복구 가능하다.
 
 **번호 체계 주의사항 (A3 확인)**: 018~021 문서는 파일 자체의 내부 헤딩·상호 참조에
@@ -142,7 +142,7 @@ Track-C는 Bybit 외 거래소(Binance, OKX)로 시세 수집·차익거래를 �
 | Track-C Docker 이미지 | `cryptoengine-market-data-binance`, `cryptoengine-market-data-okx` | Opus가 직접 삭제 (Q1 범위: 저장소 소유 이미지만, 전역 빌드 캐시 제외) |
 
 **복구 참조**: 위 전체 삭제분의 유일한 영구 복구 지점은 git 태그
-`legacy-archive-2026-08-29`(커밋 `8d6f1b79`)다. 부가적으로 `git bundle`과 논리 DB
+`legacy-archive-2026-08-29`(커밋 `2ee11756`)다. 부가적으로 `git bundle`과 논리 DB
 백업이 `cryptoengine_pg-backups` 볼륨에 생성되었으나 **7일 후(2026-09-05경) 자동
 만료**된다. 7일 경과 후 영구 복구 수단은 git 태그 하나뿐이다.
 
@@ -169,10 +169,10 @@ Track-C는 Bybit 외 거래소(Binance, OKX)로 시세 수집·차익거래를 �
 
 ```bash
 # 개별 파일 복구 예시 (특정 전략 R&D 문서)
-git show 8d6f1b79:backtest/docs/strategies/006_volatility_squeeze_hmm.md
+git show 2ee11756:backtest/docs/strategies/006_volatility_squeeze_hmm.md
 
 # 삭제된 디렉토리 전체를 별도 워크트리로 복구
-git worktree add /tmp/legacy-recovery 8d6f1b79 --detach
+git worktree add /tmp/legacy-recovery 2ee11756 --detach
 # 또는 태그 생성 후
 git checkout legacy-archive-2026-08-29 -- backtest/docs/strategies/
 ```
@@ -232,7 +232,8 @@ git checkout legacy-archive-2026-08-29 -- backtest/docs/strategies/
 - ADR-0001 (BTC 단일 운영 정책), ADR-0002 (Multi-symbol FA 검토, Superseded by 0004),
   ADR-0003 (Supertrend 단일 전략 채택), ADR-0004 (FA 폐기), ADR-0005 (Adaptive DCA 폐기)
 - `docs/70-policy/strategy.md` — 017 Supertrend SSOT (combo #7908)
-- 복구 지점: git 태그 `legacy-archive-2026-08-29` = 커밋 `8d6f1b79`
+- 복구 지점: git 태그 `legacy-archive-2026-08-29` = 커밋 `2ee11756`
+- 2026-08-29 D9: `git filter-repo`로 히스토리의 평문 자격증명을 `***REMOVED***`로 치환했다. 모든 커밋 해시가 바뀌었고, 위 태그는 재작성 후 ATR 익절 제거 커밋(`2ee11756`)을 가리킨다.
 
 ---
 

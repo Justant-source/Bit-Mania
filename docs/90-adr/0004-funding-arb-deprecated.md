@@ -327,7 +327,7 @@ status: Superseded by ADR-004  # (이전: PROPOSED)
 
 1. **"보존 대상 (역사 학습)" 절이 허위였다.** `backtest/strategies/multi_symbol_funding_arb.py`,
    `cross_exchange_fa.py`, `dynamic_threshold_fa.py`는 "보존"으로 기록되었으나, `git log`
-   확인 결과 이미 커밋 `3da55859`("chore(backtest): scripts 대규모 정리 + jesse_engine
+   확인 결과 이미 커밋 `6f33efba`("chore(backtest): scripts 대규모 정리 + jesse_engine
    이동 + 레거시 결과 삭제")에서 삭제되어 2026-08-29 시점 저장소에 존재하지 않는다.
    정정: 위 3개 파일은 **삭제됨** (보존되지 않음).
 2. **`backtest/docs/strategies/001_funding_arb.md` 삭제 체크(`[x]`)가 허위였다.** 실제로는
@@ -336,4 +336,4 @@ status: Superseded by ADR-004  # (이전: PROPOSED)
 
 두 항목 모두 결과적으로는 "최종적으로 삭제됨"에 수렴하지만, 본 ADR이 주장한 시점·상태
 (2026-05-18에 이미 완료)는 사실이 아니었다. 상세 폐기 계보는 ADR-0009(레거시 전략 계보
-일괄 폐기) 참조. 복구 지점: git 태그 `legacy-archive-2026-08-29`(커밋 `8d6f1b79`).
+일괄 폐기) 참조. 복구 지점: git 태그 `legacy-archive-2026-08-29`(커밋 `2ee11756`).
