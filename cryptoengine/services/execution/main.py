@@ -24,6 +24,7 @@ from shared.log_events import *
 from engine import ExecutionEngine
 from position_tracker import PositionTracker
 from shared.exchange.factory import exchange_factory
+from shared.required_env import redact_url, require_env
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -31,12 +32,12 @@ from shared.exchange.factory import exchange_factory
 
 DB_DSN = (
     f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
-    f":{os.getenv('DB_PASSWORD', 'cryptoengine')}"
+    f":{require_env('DB_PASSWORD')}"
     f"@{os.getenv('DB_HOST', 'localhost')}"
     f":{os.getenv('DB_PORT', '5432')}"
     f"/{os.getenv('DB_NAME', 'cryptoengine')}"
 )
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = require_env("REDIS_URL")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 EXCHANGE = os.getenv("EXCHANGE", "bybit")
@@ -188,7 +189,7 @@ async def main() -> None:
 
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await redis_client.ping()
-    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=REDIS_URL)
+    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=redact_url(REDIS_URL))
 
     await _create_tables(db_pool)
 

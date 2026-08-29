@@ -38,7 +38,7 @@ log = structlog.get_logger("export_trades")
 
 DB_DSN = (
     f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
-    f":{os.getenv('DB_PASSWORD', 'cryptoengine')}"
+    f":{os.environ['DB_PASSWORD']}"
     f"@{os.getenv('DB_HOST', 'localhost')}"
     f":{os.getenv('DB_PORT', '5432')}"
     f"/{os.getenv('DB_NAME', 'cryptoengine')}"

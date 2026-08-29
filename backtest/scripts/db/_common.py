@@ -16,12 +16,15 @@ def _to_pg_json(v):
 
 def connect():
     """Connect to backtest PostgreSQL database."""
+    password = os.environ.get('JESSE_DB_PASSWORD')
+    if not password:
+        raise RuntimeError('JESSE_DB_PASSWORD is required (fail-closed)')
     return psycopg2.connect(
         host=os.environ.get('JESSE_DB_HOST', 'backtest-postgres'),
         port=int(os.environ.get('JESSE_DB_PORT', 5432)),
         dbname='jesse_db',
         user='jesse',
-        password='***REMOVED***'
+        password=password,
     )
 
 

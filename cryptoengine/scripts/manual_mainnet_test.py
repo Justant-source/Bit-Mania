@@ -44,6 +44,8 @@ _REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 DEFAULT_REDIS_URL = (
     f"redis://:{_REDIS_PASSWORD}@127.0.0.1:6379" if _REDIS_PASSWORD else ""
 )
+if not os.environ.get("REDIS_URL") and not _REDIS_PASSWORD:
+    raise SystemExit("REDIS_URL 또는 REDIS_PASSWORD 환경변수가 필요하다")
 EXCHANGE = "bybit"
 SYMBOL = "BTC/USDT:USDT"
 STRATEGY_ID = "manual-test-01"  # supertrend-01 과 분리된 ID

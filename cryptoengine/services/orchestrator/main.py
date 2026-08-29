@@ -18,6 +18,7 @@ import yaml
 from services.orchestrator.core import StrategyOrchestrator
 from shared.logging_config import setup_logging
 from shared.log_events import *
+from shared.required_env import redact_url, require_env
 
 SERVICE_NAME = "strategy-orchestrator"
 
@@ -35,11 +36,11 @@ def _load_config() -> dict[str, Any]:
         cfg = {}
 
     # Environment variable overrides
-    cfg.setdefault("redis", {})["url"] = os.getenv("REDIS_URL", "redis://localhost:6379")
+    cfg.setdefault("redis", {})["url"] = require_env("REDIS_URL")
     cfg.setdefault("postgres", {})["dsn"] = os.getenv(
         "DATABASE_URL",
         f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}:"
-        f"{os.getenv('DB_PASSWORD', '')}@"
+        f"{require_env('DB_PASSWORD')}@"
         f"{os.getenv('DB_HOST', 'localhost')}:"
         f"{os.getenv('DB_PORT', '5432')}/"
         f"{os.getenv('DB_NAME', 'cryptoengine')}",

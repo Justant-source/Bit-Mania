@@ -659,7 +659,7 @@ def run(args):
     from jesse.services.env import ENV_VALUES as _jenv
     _jenv['POSTGRES_NAME']     = os.environ.get('JESSE_DB_NAME', 'jesse_db')
     _jenv['POSTGRES_USERNAME'] = os.environ.get('JESSE_DB_USER', 'jesse')
-    _jenv['POSTGRES_PASSWORD'] = os.environ.get('JESSE_DB_PASSWORD', '')
+    _jenv['POSTGRES_PASSWORD'] = os.environ['JESSE_DB_PASSWORD']
     _jenv['POSTGRES_HOST']     = os.environ.get('JESSE_DB_HOST', 'localhost')
     _jenv['POSTGRES_PORT']     = os.environ.get('JESSE_DB_PORT', '5432')
     _jenv['PASSWORD']          = 'backtest'

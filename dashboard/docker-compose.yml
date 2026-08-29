@@ -11,7 +11,7 @@ services:
       DB_PORT: 5432
       DB_NAME: cryptoengine
       DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379
       PROMETHEUS_URL: http://prometheus:9090
       DASHBOARD_PORT: ${DASHBOARD_PORT:-3000}

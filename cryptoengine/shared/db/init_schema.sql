@@ -77,18 +77,6 @@ CREATE TABLE IF NOT EXISTS portfolio_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_snapshots_time ON portfolio_snapshots(snapshot_at);
 
--- ──────────────── market_regime_history ────────────────
-CREATE TABLE IF NOT EXISTS market_regime_history (
-    id          BIGSERIAL PRIMARY KEY,
-    symbol      VARCHAR(20) NOT NULL DEFAULT 'BTCUSDT',
-    regime      VARCHAR(20) NOT NULL,  -- 'trending', 'ranging', 'volatile'
-    confidence  DECIMAL(5, 3),
-    indicators  JSONB,                 -- {"atr_ratio": 0.02, "adx": 28.5, "bb_width": 0.15}
-    detected_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_regime_history_time ON market_regime_history(detected_at);
-CREATE INDEX IF NOT EXISTS idx_regime_history_symbol ON market_regime_history(symbol, detected_at);
-
 -- ──────────────── daily_reports ────────────────
 CREATE TABLE IF NOT EXISTS daily_reports (
     id              BIGSERIAL PRIMARY KEY,
@@ -182,21 +170,6 @@ CREATE TABLE IF NOT EXISTS funding_rate_history (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_funding_rate_lookup
     ON funding_rate_history(exchange, symbol, timestamp);
 
--- ──────────────── dca_purchases ────────────────
-CREATE TABLE IF NOT EXISTS dca_purchases (
-    id              BIGSERIAL PRIMARY KEY,
-    fear_greed_index INTEGER NOT NULL,
-    multiplier      DECIMAL(5, 2) NOT NULL,
-    amount_usdt     DECIMAL(20, 2) NOT NULL,
-    btc_quantity    DECIMAL(20, 8) NOT NULL,
-    btc_price       DECIMAL(20, 2) NOT NULL,
-    avg_cost_basis  DECIMAL(20, 2),
-    total_btc_held  DECIMAL(20, 8),
-    purchased_at    TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_dca_purchased ON dca_purchases(purchased_at);
-
 -- ──────────────── llm_reports ────────────────
 -- LLM 분석 리포트 전문 저장 (대시보드에서 리스트/상세 조회)
 CREATE TABLE IF NOT EXISTS llm_reports (
@@ -227,11 +200,3 @@ CREATE TABLE IF NOT EXISTS llm_reports (
 
 CREATE INDEX IF NOT EXISTS idx_llm_reports_created ON llm_reports(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_reports_symbol ON llm_reports(symbol, created_at DESC);
-
--- ──────────────── market_regime_history 컬럼 추가 (확정 로직) ────────────────
-DO $$ BEGIN
-  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS consecutive_count INTEGER DEFAULT 1;
-  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN DEFAULT FALSE;
-  ALTER TABLE market_regime_history ADD COLUMN IF NOT EXISTS change_reason TEXT;
-END $$;
-CREATE INDEX IF NOT EXISTS idx_regime_confirmed ON market_regime_history(is_confirmed, detected_at DESC);

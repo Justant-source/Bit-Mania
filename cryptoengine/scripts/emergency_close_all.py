@@ -43,7 +43,9 @@ from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("REDIS_URL")
+if not REDIS_URL:
+    raise SystemExit("REDIS_URL is required (fail-closed)")
 
 KILL_SWITCH_CHANNEL = "ce:kill_switch"
 KILL_SWITCH_ACTIVE_KEY = "ce:kill_switch:active"
@@ -91,7 +93,8 @@ async def _open_position_count(redis) -> int | None:
 async def main() -> int:
     triggered_by = os.getenv("USER", "cli")
     _log("=== 긴급 청산 시작 ===")
-    _log(f"REDIS_URL={REDIS_URL}  triggered_by={triggered_by}")
+    from shared.required_env import redact_url
+    _log(f"REDIS_URL={redact_url(REDIS_URL)}  triggered_by={triggered_by}")
 
     try:
         redis = aioredis.from_url(REDIS_URL, decode_responses=True)

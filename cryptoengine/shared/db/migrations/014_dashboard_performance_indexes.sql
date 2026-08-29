@@ -12,8 +12,14 @@ CREATE INDEX IF NOT EXISTS idx_daily_reports_date_range
 CREATE INDEX IF NOT EXISTS idx_trades_created_range
   ON trades (created_at DESC) WHERE filled_at IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_regime_transitions_detected
-  ON regime_transitions (detected_at DESC);
+-- regime_transitions is a drop target in 018; skip if the table is absent
+-- (SQL-only bootstrap never creates it after Alembic 004 was removed).
+DO $$ BEGIN
+  IF to_regclass('public.regime_transitions') IS NOT NULL THEN
+    EXECUTE $i$CREATE INDEX IF NOT EXISTS idx_regime_transitions_detected
+      ON regime_transitions (detected_at DESC)$i$;
+  END IF;
+END $$;
 
 -- C. Strategies & Positions 대시보드 (Task 5) — 오픈 포지션 필터
 CREATE INDEX IF NOT EXISTS idx_positions_closed_at_filter
@@ -30,8 +36,13 @@ CREATE INDEX IF NOT EXISTS idx_service_logs_error_filter
   ON service_logs (timestamp DESC) WHERE level_no >= 40;
 
 -- 공통 — 대시보드 제너럴 시계열 쿼리
-CREATE INDEX IF NOT EXISTS idx_ohlcv_timestamp_range
-  ON ohlcv (timestamp DESC) WHERE timeframe = '1h';
+-- Legacy ``ohlcv`` (not ohlcv_history) is dropped in 018; skip if absent.
+DO $$ BEGIN
+  IF to_regclass('public.ohlcv') IS NOT NULL THEN
+    EXECUTE $i$CREATE INDEX IF NOT EXISTS idx_ohlcv_timestamp_range
+      ON ohlcv (timestamp DESC) WHERE timeframe = '1h'$i$;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_funding_payments_collected
   ON funding_payments (collected_at DESC);

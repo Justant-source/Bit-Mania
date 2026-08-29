@@ -33,6 +33,7 @@ from shared.kill_switch import (
 )
 from shared.models.strategy import StrategyCommand
 from shared.log_events import *
+from shared.required_env import redact_url
 
 log = structlog.get_logger(__name__)
 
@@ -118,10 +119,12 @@ class StrategyOrchestrator:
 
     async def start(self) -> None:
         """Initialize connections and begin the orchestration loop."""
-        redis_url = self._config.get("redis", {}).get("url", "redis://localhost:6379")
+        redis_url = self._config.get("redis", {}).get("url")
+        if not redis_url:
+            raise RuntimeError("REDIS_URL is required (fail-closed)")
         self._redis = aioredis.from_url(redis_url, decode_responses=True)
         await self._redis.ping()
-        log.info(REDIS_CONNECTED, message="redis connected", url=redis_url)
+        log.info(REDIS_CONNECTED, message="redis connected", url=redact_url(redis_url))
 
         pg_dsn = self._config.get("postgres", {}).get("dsn")
         snapshot_interval = self._config.get("portfolio_snapshot_interval_seconds", 900)

@@ -3,8 +3,9 @@
 
 Steps:
   1. Connect to PostgreSQL; create the database if it does not exist.
-  2. Run Alembic migrations (``alembic upgrade head``).
-  3. Verify all expected tables are present.
+  2. Apply ``init_schema.sql`` then numbered ``*.sql`` in
+     ``shared/db/migrations/`` in version order (ADR-0006).
+  3. Verify expected tables are present.
 
 Usage:
   python scripts/init_db.py                        # use defaults
@@ -15,17 +16,22 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 
-import logging
-
 import asyncpg
 import structlog
+from shared.db.sql_migrations import (
+    INIT_SCHEMA_PATH,
+    MIGRATIONS_DIR,
+    MigrationError,
+    list_sql_migration_files,
+    strip_psql_meta,
+)
 from shared.timezone_utils import kst_timestamper
-# Project root — one level above /scripts
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 structlog.configure(
@@ -41,7 +47,7 @@ structlog.configure(
 )
 log = structlog.get_logger("init_db")
 
-# Expected tables after migration
+# Tables created by init_schema + numbered SQL after 018 (not drop targets).
 EXPECTED_TABLES = {
     "trades",
     "positions",
@@ -51,38 +57,46 @@ EXPECTED_TABLES = {
     "strategy_states",
     "kill_switch_events",
     "llm_judgments",
+    "llm_reports",
     "ohlcv_history",
     "funding_rate_history",
-    "dca_purchases",
+    "service_logs",
+    "supertrend_signals",
 }
 
 DEFAULT_DB_NAME = os.getenv("DB_NAME", "cryptoengine")
 DEFAULT_DB_USER = os.getenv("DB_USER", "cryptoengine")
-DEFAULT_DB_PASSWORD = os.getenv("DB_PASSWORD", "cryptoengine")
 DEFAULT_DB_HOST = os.getenv("DB_HOST", "localhost")
 DEFAULT_DB_PORT = int(os.getenv("DB_PORT", "5432"))
 
 
+def _db_password() -> str:
+    password = os.getenv("DB_PASSWORD")
+    if not password:
+        raise SystemExit("DB_PASSWORD is required (fail-closed)")
+    return password
+
+
 def _build_dsn(
     *,
-    user: str = DEFAULT_DB_USER,
-    password: str = DEFAULT_DB_PASSWORD,
-    host: str = DEFAULT_DB_HOST,
-    port: int = DEFAULT_DB_PORT,
-    dbname: str = DEFAULT_DB_NAME,
+    user: str | None = None,
+    password: str | None = None,
+    host: str | None = None,
+    port: int | None = None,
+    dbname: str | None = None,
 ) -> str:
-    return f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+    return (
+        f"postgresql://{user or DEFAULT_DB_USER}:"
+        f"{password if password is not None else _db_password()}"
+        f"@{host or DEFAULT_DB_HOST}:{port or DEFAULT_DB_PORT}/"
+        f"{dbname or DEFAULT_DB_NAME}"
+    )
 
-
-# ------------------------------------------------------------------
-# Step 1 — Create database if it does not exist
-# ------------------------------------------------------------------
 
 async def _ensure_database(dsn: str) -> None:
     """Connect to the *postgres* maintenance database and CREATE DATABASE
     if the target does not exist.
     """
-    # Parse the target db name from DSN
     parts = dsn.rsplit("/", 1)
     db_name = parts[-1].split("?")[0] if len(parts) == 2 else DEFAULT_DB_NAME
     maintenance_dsn = parts[0] + "/postgres" if len(parts) == 2 else dsn
@@ -102,76 +116,48 @@ async def _ensure_database(dsn: str) -> None:
         if exists:
             log.info("database_exists", database=db_name)
         else:
-            # CREATE DATABASE cannot run inside a transaction block
             await conn.execute(f'CREATE DATABASE "{db_name}"')
             log.info("database_created", database=db_name)
     finally:
         await conn.close()
 
 
-# ------------------------------------------------------------------
-# Step 2 — Run Alembic migrations
-# ------------------------------------------------------------------
+def _load_sql_file(path: Path) -> str:
+    if not path.is_file():
+        raise MigrationError(f"SQL file missing: {path}")
+    sql = strip_psql_meta(path.read_text(encoding="utf-8")).strip()
+    if not sql:
+        raise MigrationError(f"SQL file empty after stripping psql meta: {path}")
+    return sql
 
-def _run_alembic_migrations() -> None:
-    """Run ``alembic upgrade head`` from the migrations directory."""
-    migrations_dir = PROJECT_ROOT / "shared" / "db" / "migrations"
-    alembic_ini = migrations_dir / "alembic.ini"
 
-    if not alembic_ini.exists():
-        log.warning(
-            "alembic_ini_not_found",
-            path=str(alembic_ini),
-            fallback="running init_schema.sql directly",
-        )
-        return
+async def _apply_sql_migrations(dsn: str) -> None:
+    """Apply init_schema.sql then numbered migrations. Fail-closed on missing files."""
+    if not INIT_SCHEMA_PATH.is_file():
+        raise MigrationError(f"schema file missing: {INIT_SCHEMA_PATH}")
 
-    log.info("running_alembic_migrations", cwd=str(migrations_dir))
-    result = subprocess.run(
-        ["alembic", "upgrade", "head"],
-        cwd=str(migrations_dir),
-        capture_output=True,
-        text=True,
+    files = list_sql_migration_files(MIGRATIONS_DIR)
+    log.info(
+        "applying_sql_migrations",
+        init_schema=str(INIT_SCHEMA_PATH),
+        count=len(files),
+        first=files[0].name,
+        last=files[-1].name,
     )
 
-    if result.returncode != 0:
-        log.error(
-            "alembic_migration_failed",
-            returncode=result.returncode,
-            stderr=result.stderr[:2000],
-        )
-        # Fallback: apply SQL schema directly
-        log.info("falling_back_to_sql_schema")
-        _apply_sql_schema()
-    else:
-        log.info("alembic_migrations_complete", stdout=result.stdout.strip()[:500])
-
-
-async def _apply_sql_schema_async(dsn: str) -> None:
-    """Apply the raw SQL schema file directly via asyncpg."""
-    schema_path = PROJECT_ROOT / "shared" / "db" / "init_schema.sql"
-    if not schema_path.exists():
-        log.error("schema_file_not_found", path=str(schema_path))
-        return
-
-    sql = schema_path.read_text(encoding="utf-8")
     conn = await asyncpg.connect(dsn)
     try:
-        await conn.execute(sql)
-        log.info("sql_schema_applied")
+        await conn.execute(_load_sql_file(INIT_SCHEMA_PATH))
+        log.info("sql_schema_applied", path=str(INIT_SCHEMA_PATH))
+
+        for path in files:
+            sql = _load_sql_file(path)
+            log.info("applying_sql_file", file=path.name)
+            await conn.execute(sql)
+            log.info("sql_file_applied", file=path.name)
     finally:
         await conn.close()
 
-
-def _apply_sql_schema() -> None:
-    """Synchronous wrapper for SQL schema application."""
-    dsn = _build_dsn()
-    asyncio.get_event_loop().run_until_complete(_apply_sql_schema_async(dsn))
-
-
-# ------------------------------------------------------------------
-# Step 3 — Verify tables
-# ------------------------------------------------------------------
 
 async def _verify_tables(dsn: str) -> bool:
     """Check that all expected tables exist in the database."""
@@ -190,7 +176,7 @@ async def _verify_tables(dsn: str) -> bool:
         await conn.close()
 
     missing = EXPECTED_TABLES - existing
-    extra = existing - EXPECTED_TABLES - {"alembic_version"}
+    extra = existing - EXPECTED_TABLES
 
     if missing:
         log.warning("missing_tables", tables=sorted(missing))
@@ -200,29 +186,19 @@ async def _verify_tables(dsn: str) -> bool:
     if extra:
         log.info("extra_tables_found", tables=sorted(extra))
 
-    for table in sorted(existing & EXPECTED_TABLES):
-        log.debug("table_ok", table=table)
-
     return len(missing) == 0
 
 
-# ------------------------------------------------------------------
-# Main
-# ------------------------------------------------------------------
-
 async def init_db(dsn: str) -> bool:
     """Run all initialisation steps.  Returns True on success."""
-    # Step 1: ensure database
     await _ensure_database(dsn)
 
-    # Step 2: run migrations (or raw SQL fallback)
     try:
-        _run_alembic_migrations()
-    except Exception:
-        log.exception("migration_error_falling_back_to_sql")
-        await _apply_sql_schema_async(dsn)
+        await _apply_sql_migrations(dsn)
+    except MigrationError:
+        log.exception("sql_migration_failed")
+        return False
 
-    # Step 3: verify
     ok = await _verify_tables(dsn)
 
     if ok:
@@ -238,12 +214,13 @@ def main() -> None:
     parser.add_argument(
         "--dsn",
         type=str,
-        default=_build_dsn(),
+        default=None,
         help="PostgreSQL connection string",
     )
     args = parser.parse_args()
+    dsn = args.dsn if args.dsn else _build_dsn()
 
-    success = asyncio.run(init_db(args.dsn))
+    success = asyncio.run(init_db(dsn))
     sys.exit(0 if success else 1)
 
 

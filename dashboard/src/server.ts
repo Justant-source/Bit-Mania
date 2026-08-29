@@ -8,18 +8,26 @@ import { createSupertrendRouter } from "./routes/supertrend";
 import { createMonitorRouter } from "./routes/monitor";
 import { startAlertEvaluator } from "./alertEvaluator";
 
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) {
+    throw new Error(`${name} is required (fail-closed; set in dashboard/.env)`);
+  }
+  return v;
+}
+
 const DB_CONFIG = {
   host: process.env.DB_HOST || "localhost",
   port: parseInt(process.env.DB_PORT || "5432", 10),
   database: process.env.DB_NAME || "cryptoengine",
   user: process.env.DB_USER || "cryptoengine",
-  password: process.env.DB_PASSWORD || "cryptoengine",
+  password: requireEnv("DB_PASSWORD"),
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 };
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = requireEnv("REDIS_URL");
 const PORT = parseInt(process.env.DASHBOARD_PORT || "3000", 10);
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
 

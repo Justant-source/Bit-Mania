@@ -4,8 +4,8 @@ adr_number: "0006"
 status: Accepted
 date: 2026-08-29
 related_code:
-  - cryptoengine/shared/db/migrations/versions/
-  - cryptoengine/shared/db/migrations/003_asset_report.py
+  - cryptoengine/shared/db/migrations/
+  - cryptoengine/shared/db/sql_migrations.py
   - cryptoengine/shared/db/init_schema.sql
   - cryptoengine/scripts/init_db.py
 ---
@@ -14,7 +14,7 @@ related_code:
 
 ## Status
 
-Accepted (2026-08-29) — **결정만 확정, 구현은 미착수(다음 세션으로 지연)**.
+Accepted (2026-08-29) — **구현 완료 (D4)**. **018은 라이브 Postgres에 적용됨 (D3, 2026-08-29)**.
 원안(2026-06-15, Proposed)에서는 Alembic을 SSOT로 채택하는 방향이었으나, 2026-08-29
 레거시 정리 작업(Q18)에서 실측 결과를 근거로 **반대 방향(raw SQL 단일 트랙, Alembic
 제거)으로 결론을 뒤집어 Accepted로 확정**했다. 아래 Decision 절 참조.
@@ -68,7 +68,7 @@ CI 등)에서 `init_db.py`를 실행하면 실제 운영 스키마와 다른, �
 유일한 SSOT로 공식화하는 편이 낮은 리스크로 같은 목표(단일 트랙, 번호 충돌 제거)를
 달성한다.
 
-구체적으로 (구현은 아래 "구현 상태" 절 참조):
+구체적으로 (구현은 아래 "구현 완료" 절):
 
 1. `shared/db/migrations/versions/` (Alembic 리비전 5개) + `alembic.ini`, `env.py`,
    `script.py.mako` 제거.
@@ -79,25 +79,23 @@ CI 등)에서 `init_db.py`를 실행하면 실제 운영 스키마와 다른, �
 4. `shared/db/init_schema.sql`에서 레거시 테이블 정의 제거, raw SQL 트랙과 정합화.
 5. `Makefile`의 `migrate` 타깃을 raw SQL 순차 적용 기준으로 갱신.
 
-## 구현 상태 — DEFERRED (미착수)
+## 구현 완료 (D4, 2026-08-29)
 
-**본 ADR은 결정만 Accepted이며, 구현은 오늘(2026-08-29) 착수하지 않는다.**
+코드 트랙은 raw SQL로 단일화했고, **018은 라이브에 적용됐다** (D3, 2026-08-29). DB ~9.4GB → ~306MB.
 
-사유: 구현(Alembic 트랙 제거, `init_db.py` 로직 변경, `018_drop_legacy_tables.sql`
-작성 및 적용)은 **컨테이너 재시작·DB 마이그레이션 실행을 필요로 하는 작업**이며,
-오늘의 정리 범위는 "무중단 작업만"으로 한정되어 있다(`.request/legacy-cleanup-plan-20260829.md`
-Q14: "오늘 = 무중단 작업만. 재빌드·DB 수술은 분리"). 실행 계획은
-`.request/legacy-cleanup-deferred-20260829.md`의 **작업 D4 — 마이그레이션 트랙
-단일화 (Q18 / ADR-0006)**로 인수인계되어 **다음 세션에서 실행**된다(Q19). 실행
-시점은 Q20에 따라 봉 마감 직후(포지션 청산 여부와 무관하게, 다음 평가까지 3시간
-50분의 여유가 있는 시점)로 계획되어 있다.
+1. Alembic 산출물 삭제: `migrations/versions/*.py`, `alembic.ini`, `env.py`,
+   `script.py.mako`.
+2. `cryptoengine/scripts/init_db.py`는 `alembic upgrade head` 대신
+   `init_schema.sql` 후 `migrations/NNN_*.sql`을 번호 순으로 적용한다 (`sql_migrations.py`).
+   파일 없음·빈 디렉터리·버전 번호 중복은 fail-closed. leftover `versions/`는 건너뛴다.
+3. `018_drop_legacy_tables.sql` — D2/D3 DROP IF EXISTS. keep-list 및 운영
+   `trades` / `funding_payments` / `llm_*` / `daily_reports`는 DROP하지 않음.
+   `daily_pnl` 테이블은 존재하지 않았다.
+4. `init_schema.sql`에서 `market_regime_history`, `dca_purchases` CREATE 제거.
+5. `Makefile` `migrate` 타깃 → `python3 scripts/init_db.py`.
 
-**정직하게 남기는 갭**: 본 ADR이 Accepted로 전환된 지금부터 D4가 실제로 실행되기
-전까지, `cryptoengine/scripts/init_db.py`는 여전히 (이제는 공식적으로 폐기 결정된)
-`alembic upgrade head`를 호출하는 코드 그대로 남아 있다. 즉 **"결정은 내려졌지만
-코드는 아직 옛 상태"**인 과도기이며, 이 기간 동안 신규 환경 부트스트랩을 시도하면
-위에서 서술한 잠재적 파손이 여전히 발생한다. D4 완료 전까지는 신규 환경 구축 시
-raw SQL 마이그레이션(`001`~`017`)을 수동으로 순서대로 적용해야 한다.
+D1: 018 직전 pgdata tar (`~/legacy-cleanup-20260829_pgdata.tar.gz` ~1.5G). Postgres ~3분 정지.
+D2: `quarterly_lifecycle.py` 삭제, collector quarterly write 중단, DROP 후 market-data 재빌드.
 
 ## Consequences
 
@@ -108,10 +106,7 @@ raw SQL 마이그레이션(`001`~`017`)을 수동으로 순서대로 적용해�
 - Alembic 의존성(별도 CLI, 버전 관리 개념) 제거로 운영 단순화
 
 **부정/위험**:
-- Alembic이 제공하던 프로그래매틱 downgrade(역방향 마이그레이션) 기능 상실 — raw SQL
-  트랙은 순방향 적용만 지원. 롤백이 필요하면 수동 역-SQL 작성 필요
-- D4 실행 전까지 위 "구현 상태" 절의 갭이 존재 — 신규 환경 구축 시 수동 개입 필요
-- `018_drop_legacy_tables.sql` 작성 시 DROP 대상 테이블 실사용 여부 재검증 필요 (D2/D3와 조율)
+- Alembic이 제공하던 프로그래매틱 downgrade(역방향 마이그레이션) 기능 상실 — raw SQL은 순방향만. 롤백은 D1 pgdata tar 또는 수동 역-SQL
+- 018 DROP은 비가역(라이브 적용 완료). keep-list·`trades`/`funding_payments`/`llm_*`/`daily_reports`는 유지됨
 
-**후속 작업**: `.request/legacy-cleanup-deferred-20260829.md` 작업 D4에서 코드 변경
-수행 (다음 세션, 컨테이너 재시작 가능한 시점).
+**후속 작업**: D5 이미지 재빌드가 남아 있으면 운영 창에서 수행. 마이그레이션 트랙 자체는 완료.

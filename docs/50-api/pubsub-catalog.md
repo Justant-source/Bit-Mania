@@ -14,7 +14,7 @@ last_updated: 2026-08-29
 ★ **중요**: 기존 문서의 `order:update`는 **코드 드리프트**입니다.
 코드 실제 채널: `order:result` + `order:result:{strategy_id}` (execution/engine.py:257,262,312,314)
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: cryptoengine/shared/kill_switch.py:32-35, cryptoengine/services/execution/engine.py, cryptoengine/services/strategies/supertrend/strategy.py, cryptoengine/services/telegram-bot/main.py:72-80 -->
 
 ```mermaid
@@ -66,17 +66,9 @@ sequenceDiagram
 | 패턴 | 발행자 | 구독자 |
 |---|---|---|
 | `market:ohlcv:{exchange}:{symbol}:{tf}` | market-data | supertrend, orchestrator |
-| `market:ohlcv:{exchange}:{quarterly}:{tf}` | market-data (분기물, quarterly futures — optional) | analytics |
-| `market:ticker:{exchange}:{quarterly}` | market-data (분기물, quarterly futures — optional) | analytics |
 | `market:funding:{exchange}:{symbol}` | market-data, funding_monitor | orchestrator |
 | `market:open_interest:...` | market-data | orchestrator |
 | `market:liquidations:...` | market-data | orchestrator |
-
-> 분기물(quarterly futures) 심볼은 하드코딩하지 않는다. `quarterly_lifecycle.resolve_quarterly_symbols()`가
-> Bybit `instruments-info`에서 `BTCUSDT-{dd}{MAR|JUN|SEP|DEC}{yy}` Trading 계약만 골라 구독한다.
-> core BTCUSDT 토픽과 분기물 토픽은 **별도 subscribe 배치**로 보내 만기 심볼이 OHLCV 본선을 끊지 않게 한다.
-> ⚠️ 이 분기물 파이프라인 자체는 write-only(`quarterly_perp_spread` 8.9GB/무독자)이며 제거 대기 중이다 —
-> `.request/legacy-cleanup-deferred-20260829.md` D2, `docs/40-data/data-model.md` §3.6 참조. Track-C(멀티거래소, Binance/OKX)와는 별개다 — Track-C는 2026-08-29 전량 삭제됨.
 | `order:request` | supertrend | execution-engine |
 | `order:result` | execution-engine | supertrend |
 | `order:result:{strategy_id}` | execution-engine | supertrend (전략 전용) |
@@ -86,6 +78,8 @@ sequenceDiagram
 | `llm:advisory` | ⚠️ **DEAD** — 발행자 없음 | — |
 
 > `llm:advisory`: `llm-advisor` 서비스와 orchestrator의 `_subscribe_llm_advisory()` 구독 로직이 2026-08-29 전량 삭제되었다. 채널 상수만 코드에 잔존할 수 있으나 발행자가 없어 죽은 채널이다.
+
+> 분기물 Redis 채널(`market:ohlcv:{exchange}:{quarterly}:{tf}`, `market:ticker:{exchange}:{quarterly}`)과 `quarterly_lifecycle.py`는 2026-08-29 D2에서 제거됨. 라이브 구독은 Bybit **BTCUSDT 4h**만. Track-C(Binance/OKX)도 2026-08-29 전량 삭제.
 
 ---
 

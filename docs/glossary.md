@@ -346,7 +346,7 @@ docker compose logs -f <svc>       # 실시간 로그
 - Prometheus: CPU, 메모리, Redis, API 레이턴시
 - Redis: 실시간 메트릭
 
-**포트**: http://localhost:3002 (admin / ***REMOVED***)
+**포트**: http://localhost:3002 (admin / `$GRAFANA_ADMIN_PASSWORD`)
 
 ### Prometheus
 

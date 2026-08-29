@@ -80,7 +80,7 @@ flowchart TB
 - 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 Binance/OKX 수집분)은 7일 후 삭제.
 
 **Core + Strategy Layer** — 비즈니스 로직:
-- `market-data`: Bybit 메인넷에서 **4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. 분기물(quarterly futures) 심볼은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음). 분기물 파이프라인 자체는 write-only이며 제거 대기 중(`.request/legacy-cleanup-deferred-20260829.md` D2, 지연 세션에서 실행)
+- `market-data`: Bybit 메인넷 **BTCUSDT perpetual 4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. `quarterly_lifecycle.py`와 분기물 구독·적재는 2026-08-29 D2에서 삭제됨. 수집 심볼은 `SYMBOL` env(기본 BTCUSDT) 단일.
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
@@ -266,7 +266,7 @@ flowchart TB
 | `DB_NAME` | cryptoengine | 데이터베이스 명 |
 | `DB_USER` | cryptoengine | 데이터베이스 사용자 |
 | `DB_PASSWORD` | (required) | 데이터베이스 암호 |
-| `REDIS_URL` | redis://:${REDIS_PASSWORD}@redis:6379 | Redis 연결 URI |
+| `REDIS_URL` | redis://:${REDIS_PASSWORD}@redis:6379 | Redis 연결 URI. 미설정 시 기동 거부(fail-closed). 로그에는 비밀번호를 남기지 않는다 |
 | `LOG_LEVEL` | INFO | 로깅 레벨 (DEBUG, INFO, WARN, ERROR) |
 | `ENVIRONMENT` | testnet | 환경 구분 (testnet, mainnet) |
 
@@ -317,7 +317,7 @@ flowchart TB
 | `JESSE_DB_PORT` | backtester | 5432 | 백테스트 DB 포트 |
 | `JESSE_DB_NAME` | backtester | jesse_db | 백테스트 DB 명 |
 | `JESSE_DB_USER` | backtester | jesse | 백테스트 DB 사용자 |
-| `JESSE_DB_PASSWORD` | backtester | ***REMOVED*** | 백테스트 DB 암호 |
+| `JESSE_DB_PASSWORD` | backtester | (required, `.env`) | 백테스트 DB 암호. 호스트 포트는 `127.0.0.1:5433` |
 
 > `wf-scheduler` 및 관련 `MONTHLY_WF_CRON`/`WF_CAPITAL`/`WF_LOOKBACK_DAYS`/`WF_TRAIN_DAYS`/`WF_TEST_DAYS`/`WF_LEVERAGE` 환경변수는 2026-08-29 서비스 삭제와 함께 제거되었다.
 

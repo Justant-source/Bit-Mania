@@ -60,8 +60,8 @@ status: ## Show status of all services
 	@echo "=== Resource Usage ==="
 	@docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" $$($(COMPOSE) ps -q 2>/dev/null) 2>/dev/null || true
 
-migrate: ## Run database migrations
-	$(COMPOSE) run --rm execution-engine alembic upgrade head
+migrate: ## Apply numbered SQL in shared/db/migrations/ (init_db.py; ADR-0006)
+	python3 scripts/init_db.py
 
 emergency: ## EMERGENCY: Close all positions and halt trading immediately
 	@echo "!!! EMERGENCY SHUTDOWN !!!"

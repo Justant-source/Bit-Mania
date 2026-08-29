@@ -21,6 +21,7 @@ import structlog
 from shared.logging_config import setup_logging
 from shared.log_writer import init_log_writer, close_log_writer
 from shared.log_events import *
+from shared.required_env import redact_url, require_env
 from collector import MarketDataCollector
 from funding_monitor import FundingMonitor
 
@@ -30,12 +31,12 @@ from funding_monitor import FundingMonitor
 
 DB_DSN = (
     f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
-    f":{os.getenv('DB_PASSWORD', 'cryptoengine')}"
+    f":{require_env('DB_PASSWORD')}"
     f"@{os.getenv('DB_HOST', 'localhost')}"
     f":{os.getenv('DB_PORT', '5432')}"
     f"/{os.getenv('DB_NAME', 'cryptoengine')}"
 )
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = require_env("REDIS_URL")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 EXCHANGE = os.getenv("EXCHANGE", "bybit")
@@ -55,20 +56,6 @@ async def _create_tables(pool: asyncpg.Pool) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS ohlcv (
-                id            BIGSERIAL PRIMARY KEY,
-                exchange      TEXT        NOT NULL,
-                symbol        TEXT        NOT NULL,
-                timeframe     TEXT        NOT NULL,
-                ts            TIMESTAMPTZ NOT NULL,
-                open          DOUBLE PRECISION NOT NULL,
-                high          DOUBLE PRECISION NOT NULL,
-                low           DOUBLE PRECISION NOT NULL,
-                close         DOUBLE PRECISION NOT NULL,
-                volume        DOUBLE PRECISION NOT NULL,
-                UNIQUE (exchange, symbol, timeframe, ts)
-            );
-
             CREATE TABLE IF NOT EXISTS funding_rate_history (
                 id                 BIGSERIAL PRIMARY KEY,
                 exchange           TEXT        NOT NULL,
@@ -98,7 +85,7 @@ async def main() -> None:
 
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await redis_client.ping()
-    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=REDIS_URL)
+    log.info(REDIS_CONNECTED, message="Redis 연결 성공", redis=redact_url(REDIS_URL))
 
     await _create_tables(db_pool)
 

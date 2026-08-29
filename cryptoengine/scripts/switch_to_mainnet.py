@@ -89,9 +89,14 @@ async def check_db_positions(env: dict[str, str]) -> int:
         warn("asyncpg 없음 — DB 포지션 확인 건너뜀")
         return -1
 
+    pw = env.get("DB_PASSWORD")
+    if not pw:
+        warn("DB_PASSWORD 없음 — DB 포지션 확인 건너뜀")
+        return -1
+
     dsn = (
         f"postgresql://{env.get('DB_USER', 'cryptoengine')}"
-        f":{env.get('DB_PASSWORD', 'cryptoengine')}"
+        f":{pw}"
         f"@{env.get('DB_HOST', 'localhost')}"
         f":{env.get('DB_PORT', '5432')}"
         f"/{env.get('DB_NAME', 'cryptoengine')}"
@@ -116,7 +121,10 @@ async def clear_redis_position_cache(env: dict[str, str]) -> None:
         warn("redis 패키지 없음 — Redis 캐시 클리어 건너뜀")
         return
 
-    redis_url = env.get("REDIS_URL", "redis://localhost:6379")
+    redis_url = env.get("REDIS_URL")
+    if not redis_url:
+        warn("REDIS_URL 없음 — Redis 캐시 클리어 건너뜀")
+        return
     try:
         r = aioredis.from_url(redis_url, decode_responses=True)
         patterns = ["cache:position:*", "strategy:saved_state:*", "cache:stoploss:*"]

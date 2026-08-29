@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — 운영 Runbook · 배포 · 모니터링
-last_updated: 2026-08-11
+last_updated: 2026-08-29
 ---
 
 # 운영 Runbook · 배포 · 모니터링
@@ -290,7 +290,7 @@ docker compose logs --tail=20 supertrend | grep -E "복구|recovered|restored"
 
 **증상**: Telegram `WebSocket subscription failed` + `OHLCV 수집 중단: 마지막 업데이트 N분 전`.
 
-**대표 원인**: 만기된 분기물(예: `BTCUSDT-26JUN26`)을 core BTCUSDT와 **같은 subscribe 배치**에 넣어 Bybit이 전체 구독을 거부.
+**대표 원인 (과거)**: 만기 분기물을 core BTCUSDT와 같은 subscribe 배치에 넣어 Bybit이 전체 구독을 거부. **2026-08-29 D2** 이후 `quarterly_lifecycle.py` 삭제, 구독은 **BTCUSDT 4h만**.
 
 **확인**:
 ```bash
@@ -303,11 +303,8 @@ docker compose exec -T postgres psql -U cryptoengine -d cryptoengine -c \
 **복구** (포지션 청산 없음 — market-data만 재빌드):
 ```bash
 docker compose up -d --build --no-deps market-data
-# 구독에 만기 심볼이 없고 core/quarterly가 분리됐는지 확인
-docker compose logs --tail=30 market-data | grep -E 'subscribed|quarterly symbols resolved|subscription failed'
+docker compose logs --tail=30 market-data | grep -E 'subscribed|BTCUSDT|subscription failed'
 ```
-
-코드 쪽 방어: 기동 시 instruments-info로 활성 분기물만 해석, core/분기물 구독 분리, 일 1회 lifecycle sync.
 
 ---
 
@@ -358,6 +355,10 @@ docker compose logs --tail=30 market-data | grep -E 'subscribed|quarterly symbol
 ```bash
 # 자동 백업 (매일 02:00 KST)
 # pg-backup 서비스가 자동으로 실행 — 7일 보존
+
+# D1 (2026-08-29) 018 DROP 직전 pgdata 볼륨 tar:
+#   compose 볼륨 백업 디렉터리 + ~/legacy-cleanup-20260829_pgdata.tar.gz (~1.5G)
+# Postgres는 tar 동안 ~3분 정지됨.
 
 # 수동 백업 (즉시)
 docker compose exec postgres pg_dump -U cryptoengine cryptoengine > backup_manual_$(date +%Y%m%d).sql

@@ -17,7 +17,7 @@ parent: 40-data
 | DB명 (운영) | `cryptoengine` |
 | DB명 (백테스트) | `jesse_db` (포트 5433, 별도 compose) |
 | 연결 | asyncpg 비동기 풀 min=2 max=10 |
-| 마이그레이션 (운영) | Alembic (`shared/db/migrations/versions/`) + 수동 `.sql` (병행) |
+| 마이그레이션 (운영) | raw SQL 단일 트랙 (`shared/db/migrations/NNN_*.sql` through **018**) — `sql_migrations.py` + `scripts/init_db.py` (ADR-0006). Alembic 제거됨 (D4) |
 | 마이그레이션 (백테스트) | Jesse 내장 마이그레이션 |
 | 초기 스키마 | `cryptoengine/shared/db/init_schema.sql` |
 | 포트 (운영) | 5432 (내부) |
@@ -26,8 +26,8 @@ parent: 40-data
 
 ## §2. ER 다이어그램
 
-<!-- last-verified: 2026-06-15 -->
-<!-- code-ref: cryptoengine/shared/db/init_schema.sql, cryptoengine/shared/db/migrations/versions/001_initial_schema.py -->
+<!-- last-verified: 2026-08-29 -->
+<!-- code-ref: cryptoengine/shared/db/init_schema.sql, cryptoengine/shared/db/migrations/003_service_logs.sql, cryptoengine/shared/db/migrations/016_supertrend_signals.sql, cryptoengine/shared/db/migrations/018_drop_legacy_tables.sql, cryptoengine/services/execution/main.py -->
 
 ```mermaid
 erDiagram
@@ -38,6 +38,7 @@ erDiagram
     KILL_SWITCH_EVENTS ||--o{ STRATEGY_STATES : "strategy_id"
     OHLCV_HISTORY ||--o{ SUPERTREND_SIGNALS : "symbol"
     SUPERTREND_SIGNALS ||--o{ POSITIONS : "bar_ts"
+    ORDERS ||--o{ TRADES : "request_id"
 
     TRADES {
         bigserial id PK
@@ -188,16 +189,26 @@ erDiagram
         double precision expected_stop_loss
     }
 
-    %% 폐기 예정 (DROP 예정) — Q11/D3, .request/legacy-cleanup-deferred-20260829.md 참조
-    MARKET_REGIME_HISTORY {
+    ORDERS {
         bigserial id PK
-        varchar symbol
-        varchar regime
-        decimal confidence
-        jsonb indicators
-        boolean is_confirmed
-        integer consecutive_count
-        timestamptz detected_at
+        text request_id UK
+        text order_id
+        text exchange
+        text symbol
+        text side
+        text order_type
+        double precision quantity
+        text status
+        text strategy_id
+        timestamptz created_at
+    }
+
+    OPEN_INTEREST_HISTORY {
+        bigserial id PK
+        text exchange
+        text symbol
+        double precision open_interest
+        timestamptz timestamp
     }
 ```
 
@@ -209,12 +220,14 @@ erDiagram
 
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
-| `trades` | 모든 주문 기록 | strategy_id, symbol, side, status, request_id (UK), filled_at |
+| `trades` | 모든 주문 기록 (유지 — 018 미DROP) | strategy_id, symbol, side, status, request_id (UK), filled_at |
+| `orders` | 실행엔진 주문 추적 (기동 시 CREATE, keep-list) | request_id (UK), order_id, status, strategy_id |
 | `positions` | 현재/과거 포지션 | strategy_id, opened_at, closed_at, close_reason, leverage |
 | `supertrend_signals` | Supertrend 4h 신호 로그 | bar_ts (UK), entry_ok, exit_signal, expected_action, allocated_capital |
 
 **인덱스**: 
 - `trades`: (strategy_id, created_at), (filled_at), (request_id)
+- `orders`: (request_id), (status), (strategy_id)
 - `positions`: (strategy_id, opened_at), (strategy_id) WHERE closed_at IS NULL
 - `supertrend_signals`: (bar_ts), (computed_at DESC), (expected_action, bar_ts DESC)
 
@@ -223,7 +236,7 @@ erDiagram
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
 | `portfolio_snapshots` | 시간당/일일 포트폴리오 스냅샷 | total_equity, unrealized_pnl, sharpe_ratio_30d, snapshot_at |
-| `daily_reports` | 일일 P&L 리포트 | date (UK), starting_equity, daily_pnl, funding_income, trade_count |
+| `daily_reports` | 일일 P&L 리포트 (유지). **`daily_pnl` 테이블은 존재하지 않음** | date (UK), starting_equity, daily_pnl, funding_income, trade_count |
 | `strategy_states` | 전략 실행 상태 | strategy_id (UK), is_running, allocated_capital, position_count |
 | `kill_switch_events` | Kill Switch 트리거 기록 | level (1~4), reason, positions_closed, triggered_at |
 
@@ -233,126 +246,110 @@ erDiagram
 
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
-| `ohlcv_history` | 캔들 데이터 | exchange, symbol, timeframe, timestamp (UK with exchange, symbol, timeframe) |
+| `ohlcv_history` | 캔들 데이터. 라이브 수집은 **Bybit BTCUSDT 4h만** | exchange, symbol, timeframe, timestamp (UK with exchange, symbol, timeframe) |
 | `funding_rate_history` | 펀딩비 이력 | exchange, symbol, rate, timestamp (UK with exchange, symbol) |
-| `funding_payments` | 수취한 펀딩비 | exchange, symbol, funding_rate, payment, collected_at |
-| `market_regime_history` | 시장 레짐 분류 ⚠️ **폐기 예정 (DROP 예정)** | symbol, regime, is_confirmed, consecutive_count, detected_at |
+| `funding_payments` | 수취한 펀딩비 (유지 — 018 미DROP) | exchange, symbol, funding_rate, payment, collected_at |
+| `open_interest_history` | OI 이력 (라이브에 잔존). collector는 Redis `market:open_interest:...` 발행 | exchange, symbol, open_interest, timestamp |
 
-**OHLCV 보존 정책** (`ohlcv_retention.py` 관리):
-- 1m: 30일
-- 5m: 90일
-- 15m: 180일
-- 1h: 365일
-- 4h: 730일 (2년)
+**OHLCV 보존 정책** (`ohlcv_retention.py` / ohlcv-retention 컨테이너):
+- 운영 수집: **4h만**, 영구 보존
+- 잔여 단기봉(구 수집분): 7일 후 삭제
 
 ### 3.4 LLM 분석
 
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
-| `llm_judgments` | 단일 판정 (평가용) | rating, confidence, regime, actual_outcome, accuracy_score |
-| `llm_reports` | 전문 리포트 (조회/아카이브) | title, rating, confidence, technical_summary, debate_conclusion, asset_report |
+| `llm_judgments` | 단일 판정 (평가용). **라이브 스키마 유지** | rating, confidence, regime, actual_outcome, accuracy_score |
+| `llm_reports` | 전문 리포트 (조회/아카이브). **라이브 스키마 유지** | title, rating, confidence, technical_summary, debate_conclusion, asset_report |
 
 ### 3.5 인프라·로깅
 
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
 | `service_logs` | 서비스 로그 집계 | service, level, event, message, data (JSONB) |
-| `dca_purchases` | DCA 구매 이력 (레거시) ⚠️ **폐기 예정 (DROP 예정)** | fear_greed_index, amount_usdt, btc_price, purchased_at |
 
 **보존 정책**: 30일 자동 삭제 (log-retention cronjob)
 
-### 3.6 레거시 테이블 — 폐기 예정 (DROP 예정, 미실행)
+### 3.6 레거시 테이블 — DROPPED (2026-08-29 D2/D3)
 
-> ⚠️ **이 표는 삭제 계획이지 현재 상태가 아니다.** 아래 테이블은 2026-08-29 기준 **DB에 여전히 존재**하며 코드도 이들을 참조할 수 있다.
-> DROP은 별도 지연 세션(작업 D3, 봉 마감 직후 실행 창)에서 수행된다. 실행 전까지는 문서·코드 어디에서도 이 테이블들을 삭제된 것으로 취급하지 말 것.
-> 근거: `.request/legacy-cleanup-deferred-20260829.md` §작업 D3 (Q11 — 레거시 DB 테이블 전부 DROP + 사전 백업 필수)
+> **018 적용 완료.** `018_drop_legacy_tables.sql`을 라이브 Postgres에 적용했다. DB 크기 **~9.4GB → ~306MB**.
+> D1: pgdata 볼륨 tar (`~/legacy-cleanup-20260829_pgdata.tar.gz` ~1.5G + compose 볼륨 백업). Postgres ~3분 정지.
+> D2: `quarterly_lifecycle.py` 삭제, collector가 quarterly 테이블에 쓰지 않음, DROP 후 market-data 재빌드.
+> **018이 DROP하지 않은 것**: `trades`, `funding_payments`, `llm_judgments`, `llm_reports`, keep-list, `daily_reports`.
+> **`daily_pnl` 테이블은 원래 없음** (keep-list 주석에만 등장). 일일 P&L은 `daily_reports`.
+
+**라이브 user 테이블 (018 이후)**: `service_logs`, `ohlcv_history`, `funding_rate_history`, `portfolio_snapshots`, `supertrend_signals`, `llm_reports`, `orders`, `positions`, `strategy_states`, `open_interest_history`, `trades`, `daily_reports`, `funding_payments`, `llm_judgments`, `kill_switch_events`.
 
 | 테이블 | 상태 | 비고 |
 |---|---|---|
-| `dca_purchases` | 폐기 예정 | DCA 전략 폐지 잔재 (FA→Supertrend 전환, 2026-05) |
-| `market_regime_history` | 폐기 예정 | 레짐 분류 데이터 12,776행. 레짐 배분 폐지(2026-05-25)로 미사용 |
-| `regime_raw_log` | 폐기 예정 | 12,776행. `market_regime_history` 원시 로그 |
-| `regime_transitions` | 폐기 예정 | 550행. 레짐 전이 이력 |
-| 빈 껍데기 테이블 약 20개 | 폐기 예정 | `grid_orders`, `market_regimes`, `etf_flow_history`, `etf_flow_results`, `xgboost_ensemble_results`, `calendar_spread_results`, `volatility_squeeze_results`, `funding_extreme_reversal_results`, `regime_accuracy_results`, `liquidation_history`, `macro_events`, `fear_greed_history`, `strategy_variant_results`, `weight_optimization_results`, `walk_forward_results`, `test12_results`, `backtest_results`, 구`ohlcv`, 구`funding_rates`, 구`trades` 등 — 전량 빈 테이블 |
+| `quarterly_perp_spread`, `quarterly_futures_history` | **DROPPED** | D2. 구 8.9GB write-only 캘린더 스프레드 잔재 |
+| `dca_purchases` | **DROPPED** | D3. DCA 폐지 잔재 |
+| `market_regime_history`, `regime_raw_log`, `regime_transitions` | **DROPPED** | D3. 레짐 배분 폐지 잔재 |
+| `macro_indicators`, `onchain_metrics`, `multi_exchange_ohlcv`, `multi_exchange_funding` | **DROPPED** | D3 |
+| 빈 껍데기 | **DROPPED** | `grid_orders`, `market_regimes`, `etf_flow_*`, `xgboost_ensemble_results`, `calendar_spread_results`, `volatility_squeeze_results`, `funding_extreme_reversal_results`, `regime_accuracy_results`, `liquidation_history`, `macro_events`, `fear_greed_history`, `strategy_variant_results`, `weight_optimization_results`, `walk_forward_results`, `test12_results`, `backtest_results`, 구`ohlcv`, 구`funding_rates` |
 
-**DROP 제외(대시보드 의존, 유지)**: `supertrend_signals`, `orders`, `service_logs`, `portfolio_snapshots`, `ohlcv_history`, `positions`, `strategy_states`, `kill_switch_events`, `daily_pnl`, `llm_judgments`, `llm_reports`, `funding_rate_history`
-> `llm_judgments`/`llm_reports`는 비어 있으나 대시보드가 SELECT함 — DROP 시 `dashboard/src/routes/internal.ts` 동시 수정 필요.
-
-**참고 (D2, 별도 트랙)**: `quarterly_perp_spread`는 **8.9GB / 약 2,791만 행** — 저장소 전체에 `SELECT`가 하나도 없는 write-only 테이블이며, 라이브 `market-data`가 하루 약 30만 행씩 계속 적재 중이다(폐기된 캘린더 스프레드 전략의 잔재, migration 007/012/015). 코드 제거(`quarterly_lifecycle.py` 등) + 테이블 DROP은 D2에서 함께 처리된다 — §4.2 `quarterly_perp_spread` 참조.
+**유지 (keep-list + 운영 코어)**: `supertrend_signals`, `orders`, `service_logs`, `portfolio_snapshots`, `ohlcv_history`, `positions`, `strategy_states`, `kill_switch_events`, `llm_judgments`, `llm_reports`, `funding_rate_history`, `trades`, `funding_payments`, `daily_reports`.
 
 ---
 
-## §4. 마이그레이션 트랙 (이중 트랙)
+## §4. 마이그레이션 트랙 (raw SQL 단일 — ADR-0006)
 
-<!-- last-verified: 2026-06-15 -->
-<!-- code-ref: cryptoengine/shared/db/migrations/versions/, cryptoengine/shared/db/migrations/ -->
+<!-- last-verified: 2026-08-29 -->
+<!-- code-ref: cryptoengine/shared/db/sql_migrations.py, cryptoengine/scripts/init_db.py, cryptoengine/shared/db/migrations/018_drop_legacy_tables.sql -->
 
 ```mermaid
 flowchart LR
-    subgraph alembic["Alembic versions/ (Python)"]
-        a1["001_initial_schema.py"]
-        a2["002_llm_reports.py"]
-        a3["003_asset_report.py"]
-        a4["004_regime_dashboard.py"]
-        a5["007_quarterly_futures.py"]
+    subgraph sql["raw SQL SSOT"]
+        init["init_schema.sql"]
+        s3["003_service_logs.sql"]
+        hist["005~015 historical CREATE"]
+        s16["016_supertrend_signals.sql"]
+        s17["017_drop_ohlcv_1m_longterm.sql"]
+        s18["018_drop_legacy_tables.sql"]
     end
-    subgraph sql["수동 .sql (순번 prefix)"]
-        s1["003_service_logs.sql ⚠️"]
-        s2["005_etf_flow.sql"]
-        s3["008~015_..."]
-        s4["016_supertrend_signals.sql ✓"]
-        s5["017_drop_ohlcv_1m_longterm.sql"]
-    end
+    runner["init_db.py<br/>make migrate"]
     pg[("PostgreSQL<br/>cryptoengine")]
-    alembic -->|upgrade head| pg
-    sql -->|direct psql| pg
+    init --> runner
+    s3 --> runner
+    hist --> runner
+    s16 --> runner
+    s17 --> runner
+    s18 --> runner
+    runner -->|번호 순 적용| pg
 ```
 
-### 4.1 Alembic 버전 (운영)
+Alembic (`versions/*.py`, `alembic.ini`, `env.py`, `script.py.mako`)은 **D4에서 저장소에서 제거**됐다. 현행 트랙이 아니다.
 
-| 버전 | 파일 | 주요 추가 테이블 |
-|---|---|---|
-| 001 | `001_initial_schema.py` | trades, positions, funding_payments, portfolio_snapshots, daily_reports, strategy_states, kill_switch_events, llm_judgments, ohlcv_history, funding_rate_history, dca_purchases, market_regime_history |
-| 002 | `002_llm_reports.py` | llm_reports |
-| 003 | `003_asset_report.py` | asset_report 컬럼 추가 (llm_reports) |
-| 004 | `004_regime_dashboard.py` | 마켓 레짐 관련 인덱스 최적화 ⚠️ 대상 테이블 폐기 예정 (§3.6) |
-| 007 | `007_quarterly_futures.py` | (미지정 — 코드 검증 필요) |
+### 4.1 numbered `.sql` (운영 SSOT)
 
-### 4.2 수동 .sql 마이그레이션 (운영)
+Greenfield: `init_schema.sql` 후 `migrations/NNN_*.sql`을 번호 순으로 적용 (`sql_migrations.py`). leftover `versions/` 디렉터리는 건너뜀. 파일 없음·빈 디렉터리·버전 번호 중복은 fail-closed.
 
-| 순번 | 파일 | 용도 | 상태 |
+| 순번 | 파일 | 용도 | 상태 (라이브 2026-08-29) |
 |---|---|---|---|
-| 003 | `003_service_logs.sql` | service_logs 테이블 신설 | ⚠️ Alembic 003과 충돌 |
-| 005 | `005_etf_flow.sql` | (레거시 — 현재 미사용) | deprecated |
-| 007 | `007_quarterly_futures.sql` | quarterly_futures 테이블 | active |
-| 008 | `008_liquidations.sql` | liquidations 테이블 | active |
-| 009 | `009_onchain_metrics.sql` | onchain_metrics 테이블 | active |
-| 010 | `010_macro_indicators.sql` | macro_indicators 테이블 | active |
-| 011 | `011_ohlcv_1m_longterm.sql` | ohlcv_1m_longterm (이후 DROP) | deprecated |
-| 012 | `012_quarterly_perp_spread.sql` | quarterly_perp_spread 테이블 | active ⚠️ write-only 8.9GB/2,791만 행, 제거 대기 (D2, §3.6) |
-| 013 | `013_multi_exchange.sql` | multi_exchange_ohlcv 테이블 | active |
-| 014 | `014_dashboard_performance_indexes.sql` | 성능 인덱스 추가 | active |
-| 015 | `015_quarterly_perp_spread_unique.sql` | quarterly_perp_spread UNIQUE 제약 | active |
-| 016 | `016_supertrend_signals.sql` | **supertrend_signals 테이블 신설** | ✓ 현행 |
-| 017 | `017_drop_ohlcv_1m_longterm.sql` | ohlcv_1m_longterm DROP | ✓ 현행 |
+| 003 | `003_service_logs.sql` | service_logs | ✓ 현행 |
+| 005 | `005_etf_flow.sql` | etf/macro CREATE | 객체가 018로 DROP됨 (파일은 이력) |
+| 007 | `007_quarterly_futures.sql` | quarterly_futures_history | **DROPPED** (018 / D2) |
+| 008 | `008_liquidations.sql` | liquidation_history | **DROPPED** (018) |
+| 009 | `009_onchain_metrics.sql` | onchain / fear_greed | **DROPPED** (018) |
+| 010 | `010_macro_indicators.sql` | macro_indicators | **DROPPED** (018) |
+| 011 | `011_ohlcv_1m_longterm.sql` | ohlcv_1m_longterm | 017에서 DROP |
+| 012 | `012_quarterly_perp_spread.sql` | quarterly_perp_spread | **DROPPED** (018 / D2) |
+| 013 | `013_multi_exchange.sql` | multi_exchange_* | **DROPPED** (018) |
+| 014 | `014_dashboard_performance_indexes.sql` | keep-list 인덱스 | ✓ 현행 |
+| 015 | `015_quarterly_perp_spread_unique.sql` | quarterly UNIQUE | 대상 테이블 018 DROP |
+| 016 | `016_supertrend_signals.sql` | supertrend_signals | ✓ 현행 |
+| 017 | `017_drop_ohlcv_1m_longterm.sql` | 1m longterm DROP | ✓ 현행 |
+| 018 | `018_drop_legacy_tables.sql` | 레거시 DROP IF EXISTS | ✓ **라이브 적용** (D3) |
 
-### 4.3 실행 순서 및 커맨드
+### 4.2 실행 커맨드
 
 ```bash
-# 1. Alembic 마이그레이션 (자동)
 make -C cryptoengine migrate
-# → alembic upgrade head (versions/001~007)
-
-# 2. 수만 .sql 실행 (수동, 파일명 순)
-# 프로젝트 루트 또는 shared/db/migrations/에서:
-for sql in $(ls -1 *.sql | sort); do
-  psql "$DB_URL" -f "$sql"
-done
+# → python3 scripts/init_db.py
+# → init_schema.sql 후 numbered SQL 순차 적용 (003…018)
 ```
 
-> **번호 충돌 주의**: `003_asset_report.py` (Alembic) vs `003_service_logs.sql` (수동)
-> - 현재: 실제로 두 개 모두 존재 (마이그레이션 트랙 독립)
-> - 향후 (ADR-0006): Alembic 단일 SSOT 수렴 예정 (향후 PR)
+신규 스키마 변경은 **다음 번호 `.sql`만** 추가한다. Alembic 리비전은 만들지 않는다.
 
 ---
 
@@ -465,6 +462,8 @@ DELETE FROM service_logs WHERE created_at < NOW() - INTERVAL '30 days';
 # 전체 덤프
 pg_dump -h postgres -U cryptoengine_user cryptoengine > backup_$(date +%Y%m%d).sql
 
+# D1 (2026-08-29) 018 직전 pgdata tar: ~/legacy-cleanup-20260829_pgdata.tar.gz (~1.5G)
+
 # 복구
 psql -h postgres -U cryptoengine_user cryptoengine < backup_20260615.sql
 ```
@@ -480,8 +479,8 @@ psql -h postgres -U cryptoengine_user cryptoengine < backup_20260615.sql
    - **같은 커밋에서** 이 문서 §2~4 업데이트 + `last_updated` 갱신
 
 2. **마이그레이션 순서 변경**:
-   - Alembic 또는 .sql 파일 변경 후
-   - 이 문서 §4 업데이트
+   - numbered `.sql` / `init_db.py` / `sql_migrations.py` 변경 후
+   - 이 문서 §4 + ADR-0006 업데이트
 
 3. **캐시 키/쿼리 추가**:
    - Redis 또는 SQL 로직 변경 후
@@ -491,8 +490,7 @@ psql -h postgres -U cryptoengine_user cryptoengine < backup_20260615.sql
 
 ## 참고 문서
 
-- **운영 가이드**: `docs/policies/operations/runbook.md`
-- **전략 사양**: `docs/policies/strategies/supertrend.md`
-- **시스템 아키텍처**: `docs/architecture/data-flow.md`
-- **환경 변수**: `docs/env/env-vars.md`
-- **코드 경로 인덱스**: `docs/CODE_MAP.md`
+- **운영 가이드**: [70-policy/operations.md](../70-policy/operations.md)
+- **전략 사양**: [70-policy/strategy.md](../70-policy/strategy.md)
+- **마이그레이션 ADR**: [90-adr/0006-db-migration-tracks.md](../90-adr/0006-db-migration-tracks.md)
+- **코드 경로 인덱스**: [_index.md](../_index.md)

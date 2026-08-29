@@ -24,6 +24,7 @@ from handlers import BotHandlers
 from shared.log_events import *
 from shared.logging_config import setup_logging
 from shared.log_writer import init_log_writer, close_log_writer
+from shared.required_env import redact_url, require_env
 
 log = structlog.get_logger(__name__)
 
@@ -61,12 +62,12 @@ SCHEDULE_UTC: list[str] = _schedule_cfg.get("schedule_utc", ["08:00", "20:00"])
 
 DB_DSN = (
     f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
-    f":{os.getenv('DB_PASSWORD', 'cryptoengine')}"
+    f":{require_env('DB_PASSWORD')}"
     f"@{os.getenv('DB_HOST', 'localhost')}"
     f":{os.getenv('DB_PORT', '5432')}"
     f"/{os.getenv('DB_NAME', 'cryptoengine')}"
 )
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = require_env("REDIS_URL")
 
 # Redis channels to subscribe to for alerts
 ALERT_CHANNELS = [
@@ -422,7 +423,7 @@ async def main() -> None:
 
     redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
     await redis_client.ping()
-    log.info(REDIS_CONNECTED, message="Redis 연결 완료", redis=REDIS_URL)
+    log.info(REDIS_CONNECTED, message="Redis 연결 완료", redis=redact_url(REDIS_URL))
 
     # --- Handlers (dispatcher wired in after bot is available) ---
     handlers = BotHandlers(redis_client=redis_client, db_pool=db_pool)

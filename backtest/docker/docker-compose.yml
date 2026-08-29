@@ -19,9 +19,9 @@ services:
     environment:
       POSTGRES_DB: jesse_db
       POSTGRES_USER: jesse
-      POSTGRES_PASSWORD: ***REMOVED***
+      POSTGRES_PASSWORD: ${JESSE_DB_PASSWORD:?JESSE_DB_PASSWORD required in .env}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"   # localhost only — was 0.0.0.0 (D8)
     volumes:
       - pg_backtest:/var/lib/postgresql/data
     networks:
@@ -55,7 +55,7 @@ services:
       JESSE_DB_PORT: 5432
       JESSE_DB_NAME: jesse_db
       JESSE_DB_USER: jesse
-      JESSE_DB_PASSWORD: ***REMOVED***
+      JESSE_DB_PASSWORD: ${JESSE_DB_PASSWORD:?JESSE_DB_PASSWORD required in .env}
       # 경로 설정
       BACKTEST_DATA_ROOT: /data
       DATA_DIR: /data

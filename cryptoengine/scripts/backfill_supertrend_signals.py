@@ -54,7 +54,7 @@ def get_db_conn() -> psycopg2.extensions.connection:
         port=int(os.environ.get("DB_PORT", "5432")),
         dbname=os.environ.get("DB_NAME", "cryptoengine"),
         user=os.environ.get("DB_USER", "cryptoengine"),
-        password=os.environ.get("DB_PASSWORD", "cryptoengine"),
+        password=os.environ["DB_PASSWORD"],
     )
 
 

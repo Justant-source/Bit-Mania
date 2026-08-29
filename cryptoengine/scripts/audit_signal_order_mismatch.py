@@ -56,7 +56,7 @@ def _load_env_file() -> None:
 def _pg_dsn() -> str:
     return (
         f"postgresql://{os.getenv('DB_USER', 'cryptoengine')}"
-        f":{os.getenv('DB_PASSWORD', 'cryptoengine')}"
+        f":{os.environ['DB_PASSWORD']}"
         f"@{os.getenv('DB_HOST', '127.0.0.1')}"
         f":{os.getenv('DB_PORT', '5432')}"
         f"/{os.getenv('DB_NAME', 'cryptoengine')}"
@@ -68,7 +68,9 @@ async def _publish_alert(message: str) -> None:
     try:
         import redis.asyncio as aioredis
 
-        url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
+        url = os.getenv("REDIS_URL")
+        if not url:
+            return
         client = aioredis.from_url(url, decode_responses=True)
         await client.publish(
             "ce:alerts:anomaly",

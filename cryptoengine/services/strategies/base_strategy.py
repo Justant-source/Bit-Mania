@@ -25,6 +25,7 @@ import structlog
 from shared.models.order import OrderRequest
 from shared.models.strategy import StrategyCommand, StrategyStatus
 from shared.redis_client import RedisClient
+from shared.required_env import require_env
 
 logger = structlog.get_logger()
 
@@ -101,7 +102,7 @@ class BaseStrategy(ABC):
         db_port = os.environ.get("DB_PORT", "5432")
         db_name = os.environ.get("DB_NAME", "cryptoengine")
         db_user = os.environ.get("DB_USER", "cryptoengine")
-        db_pass = os.environ.get("DB_PASSWORD", "cryptoengine")
+        db_pass = require_env("DB_PASSWORD")
         db_url = os.environ.get(
             "DATABASE_URL",
             f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}",

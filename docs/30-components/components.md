@@ -145,10 +145,46 @@ flowchart LR
 
 ---
 
+## Diagram G: market-data 내부
+
+<!-- last-verified: 2026-08-29 -->
+<!-- code-ref: cryptoengine/services/market-data/main.py, cryptoengine/services/market-data/collector.py, cryptoengine/services/market-data/funding_monitor.py -->
+
+```mermaid
+flowchart LR
+  subgraph md["market-data"]
+    main["main.py"]
+    col["MarketDataCollector<br/>collector.py<br/>BTCUSDT 4h only"]
+    fm["FundingMonitor<br/>funding_monitor.py"]
+  end
+  bybit["Bybit WS/REST"]
+  redis[("Redis Pub/Sub")]
+  pg[("PostgreSQL<br/>ohlcv_history · funding_rate_history")]
+  bybit --> col
+  col --> redis
+  col --> pg
+  fm --> redis
+  fm --> pg
+  main --> col
+  main --> fm
+```
+
+**모듈 책임**
+
+| 모듈 | 파일 | 핵심 책임 |
+|---|---|---|
+| entry | services/market-data/main.py | Redis/PG 풀, collector + funding_monitor 기동 |
+| MarketDataCollector | services/market-data/collector.py | Bybit **BTCUSDT 4h** WS/REST 수집 · Redis 발행 · PG persist |
+| FundingMonitor | services/market-data/funding_monitor.py | 펀딩비 추적 |
+
+**제거됨 (D2, 2026-08-29)**: `quarterly_lifecycle.py` 및 분기물 테이블 write. collector는 quarterly 심볼을 구독하지 않는다.
+
+---
+
 ## Diagram H: shared/ 핵심 모듈
 
 <!-- last-verified: 2026-08-29 -->
-<!-- code-ref: cryptoengine/shared/kill_switch.py, redis_client.py, exchange/bybit.py, models/, db/init_schema.sql -->
+<!-- code-ref: cryptoengine/shared/kill_switch.py, redis_client.py, exchange/bybit.py, models/, db/init_schema.sql, db/sql_migrations.py -->
 
 ```mermaid
 flowchart TB
@@ -157,7 +193,7 @@ flowchart TB
     rc["redis_client.py<br/>자동 재연결(3회·지수 백오프)<br/>publish/subscribe 헬퍼"]
     bybit_ex["exchange/bybit.py<br/>ExchangeConnector<br/>MainNet/TestNet 전환<br/>Bybit 단독(2026-08-29 Track-C 제거)"]
     models["models/<br/>OrderRequest · OrderResult<br/>PortfolioState* · StrategyStatus"]
-    db["db/<br/>init_schema.sql · migrations/<br/>(스키마 정의만, 커넥션 풀 없음)"]
+    db["db/<br/>init_schema.sql · sql_migrations.py<br/>NNN_*.sql through 018"]
     log["logging_config.py<br/>structlog JSON · KST<br/>_ERROR_ALERT_CHANNEL=ce:alerts:anomaly"]
   end
 ```
@@ -183,7 +219,7 @@ class KillLevel(IntEnum):
 | RedisClient | shared/redis_client.py | asyncpg 자동 재연결 (3회·지수 백오프) · Pub/Sub 헬퍼 |
 | ExchangeConnector | shared/exchange/bybit.py | REST/WebSocket 통합 · MainNet/TestNet 전환 · rate limit 관리 |
 | models | shared/models/ | 서비스 간 메시지 스키마 (Pydantic) |
-| db | shared/db/ | `init_schema.sql`(스키마 SSOT) + `migrations/`(순번 .sql). 커넥션 풀·리포지토리 모듈은 2026-08-29 삭제(각 서비스가 개별 관리) |
+| db | shared/db/ | `init_schema.sql` + numbered `migrations/NNN_*.sql` (through 018, ADR-0006). 적용기: `sql_migrations.py` / `scripts/init_db.py`. Alembic 없음. 커넥션 풀은 각 서비스 개별 관리 |
 | logging_config | shared/logging_config.py | structlog JSON 출력 · KST 타임존 · 이벤트 기반 로깅 |
 
 **PortfolioState** 정보:

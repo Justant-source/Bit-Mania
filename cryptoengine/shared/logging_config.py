@@ -165,7 +165,9 @@ def _publish_error_alert(payload: str) -> None:
         import redis.asyncio as aioredis
 
         if _error_alert_redis is None:
-            url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+            url = os.environ.get("REDIS_URL")
+            if not url:
+                return
             _error_alert_redis = aioredis.from_url(url, decode_responses=True)
 
         asyncio.ensure_future(_error_alert_redis.publish(_ERROR_ALERT_CHANNEL, payload))

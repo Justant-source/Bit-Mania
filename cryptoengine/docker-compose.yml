@@ -3,7 +3,7 @@ x-common-env: &common-env
   DB_PORT: 5432
   DB_NAME: cryptoengine
   DB_USER: cryptoengine
-  DB_PASSWORD: ${DB_PASSWORD}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
   REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   ENVIRONMENT: ${ENVIRONMENT:-testnet}
@@ -16,7 +16,7 @@ services:
     environment:
       POSTGRES_DB: cryptoengine
       POSTGRES_USER: cryptoengine
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -45,7 +45,7 @@ services:
       DB_HOST: postgres
       DB_NAME: cryptoengine
       DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
       BACKUP_CRON: ${BACKUP_CRON:-0 17 * * *}   # 매일 02:00 KST
       RUN_ON_STARTUP: ${BACKUP_ON_STARTUP:-false}
     volumes:
@@ -69,7 +69,7 @@ services:
       DB_HOST: postgres
       DB_NAME: cryptoengine
       DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
       LOG_RETENTION_CRON: ${LOG_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
       RETENTION_ON_STARTUP: ${RETENTION_ON_STARTUP:-false}
     volumes:
@@ -92,7 +92,7 @@ services:
       DB_HOST: postgres
       DB_NAME: cryptoengine
       DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
       OHLCV_RETENTION_CRON: ${OHLCV_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
       OHLCV_RETENTION_DAYS: ${OHLCV_RETENTION_DAYS:-7}            # 잔여 비-4h 행만 정리
       OHLCV_RETENTION_ON_STARTUP: ${OHLCV_RETENTION_ON_STARTUP:-false}
@@ -109,6 +109,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}
     command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}
     volumes:
       - redisdata:/data

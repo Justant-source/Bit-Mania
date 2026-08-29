@@ -21,9 +21,9 @@ last_updated: 2026-08-29
 | 50 API | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-08-29 |
 | 60 Runtime | [60-runtime/state-machines.md](60-runtime/state-machines.md) | OrderState · KillLevel · service_shutdown 복구 | 2026-06-15 |
 | 70 Policy (안전) | [70-policy/safety.md](70-policy/safety.md) | Kill Switch · 레버리지 · BTC-only · 긴급 청산 | 2026-06-15 |
-| 70 Policy (운영) | [70-policy/operations.md](70-policy/operations.md) | Runbook · 모니터링 · 메인넷 전환 · 배포 절차 | 2026-06-15 |
+| 70 Policy (운영) | [70-policy/operations.md](70-policy/operations.md) | Runbook · 모니터링 · 메인넷 전환 · 배포 절차 | 2026-08-29 |
 | 70 Policy (전략) | [70-policy/strategy.md](70-policy/strategy.md) | Supertrend SSOT · 백테스트 방법론 | 2026-08-29 |
-| 90 ADR | [90-adr/README.md](90-adr/README.md) | 아키텍처 의사결정 인덱스 | 2026-06-15 |
+| 90 ADR | [90-adr/README.md](90-adr/README.md) | 아키텍처 의사결정 인덱스 | 2026-08-29 |
 | 용어집 | [glossary.md](glossary.md) | 도메인 용어 정의 | 2026-08-29 |
 
 ---
@@ -54,8 +54,11 @@ last_updated: 2026-08-29
 | `cryptoengine/docker-compose*.yml` | `20-containers/containers.md` (포트/서비스/볼륨 표), `README.md` |
 | `dashboard/docker-compose.yml` | `20-containers/containers.md` §Dashboard |
 | `backtest/docker/docker-compose.yml` | `20-containers/containers.md` §Backtest |
-| `cryptoengine/shared/db/migrations/**` | `40-data/data-model.md` (ER + 마이그레이션 표) |
+| `cryptoengine/shared/db/migrations/**` | `40-data/data-model.md` (ER + 마이그레이션 표), `90-adr/0006-db-migration-tracks.md` |
 | `cryptoengine/shared/db/init_schema.sql` | `40-data/data-model.md` |
+| `cryptoengine/shared/db/sql_migrations.py` | `40-data/data-model.md`, `90-adr/0006-db-migration-tracks.md` |
+| `cryptoengine/scripts/init_db.py` | `40-data/data-model.md`, `90-adr/0006-db-migration-tracks.md` |
+| `cryptoengine/Makefile` | `40-data/data-model.md` (`migrate` 타깃), `90-adr/0006-db-migration-tracks.md` |
 | `cryptoengine/shared/kill_switch.py` | `60-runtime/state-machines.md`, `70-policy/safety.md` |
 | `cryptoengine/services/execution/order_manager.py` | `60-runtime/state-machines.md` (OrderState) |
 | `cryptoengine/services/execution/**` | `50-api/pubsub-catalog.md`, `60-runtime/state-machines.md` |
@@ -86,7 +89,8 @@ last_updated: 2026-08-29
 | `shared/kill_switch.py` | [70-policy/safety.md](70-policy/safety.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
 | `shared/exchange/**` | [30-components/components.md](30-components/components.md) |
 | `shared/models/**` | [30-components/components.md](30-components/components.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
-| `shared/db/**` | [40-data/data-model.md](40-data/data-model.md) |
+| `shared/db/**` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
+| `scripts/init_db.py` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
 | `config/orchestrator.yaml` | [70-policy/safety.md](70-policy/safety.md) §Kill Switch 임계값 |
 | `config/strategies/supertrend.yaml` | [70-policy/strategy.md](70-policy/strategy.md) §파라미터 |
 | `docker-compose.yml` | [20-containers/containers.md](20-containers/containers.md) |

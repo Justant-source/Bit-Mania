@@ -1,7 +1,7 @@
 ---
 title: 70 Policy — 안전 정책 (Kill Switch · 레버리지 · BTC-only · 긴급 청산)
 category: policies
-last_updated: 2026-08-20
+last_updated: 2026-08-29
 ---
 
 # 70 Policy — 안전 정책
@@ -411,7 +411,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 
 ### 6.3 Grafana 대시보드
 
-http://localhost:3002 (기본 로그인: admin / ***REMOVED***)
+http://localhost:3002 (로그인: admin / `$GRAFANA_ADMIN_PASSWORD`)
 
 대시보드 패널:
 - **Kill Switch Status**: 현재 활성 레벨

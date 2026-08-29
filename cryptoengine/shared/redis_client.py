@@ -17,6 +17,7 @@ from shared.log_events import (
     REDIS_PUBLISH_FAILED,
     REDIS_RECONNECTING,
 )
+from shared.required_env import redact_url
 
 log = structlog.get_logger(__name__)
 
@@ -29,7 +30,7 @@ class RedisClient:
         url: str | None = None,
         decode_responses: bool = True,
     ) -> None:
-        self._url = url or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        self._url = url or os.environ.get("REDIS_URL") or ""
         self._decode = decode_responses
         self._redis: aioredis.Redis | None = None
         self._pubsub: aioredis.client.PubSub | None = None
@@ -39,12 +40,14 @@ class RedisClient:
     async def connect(self) -> None:
         if self._redis is not None:
             return
+        if not self._url:
+            raise RuntimeError("REDIS_URL is required (fail-closed)")
         self._redis = aioredis.from_url(
             self._url,
             decode_responses=self._decode,
         )
         await self._redis.ping()
-        log.info(REDIS_CONNECTED, message="Redis 연결 성공", url=self._url)
+        log.info(REDIS_CONNECTED, message="Redis 연결 성공", url=redact_url(self._url))
 
     async def disconnect(self) -> None:
         if self._pubsub is not None:
