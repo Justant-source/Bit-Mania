@@ -8,7 +8,7 @@
 
 - **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $185.31 USDT 운영 (2026-06-14 기준)
   - 전략: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x, combo #7908)
-  - 백테스트 (Bybit 네이티브 4h 정본): CAGR +137.64% | Sharpe 1.349 | MDD -73.29% | 360 trades | 2017-08-17~2026-04-30
+  - 백테스트 (Bybit 네이티브 4h 정본): CAGR +219.06% | Sharpe 1.667 | MDD -66.70% | 198 trades | 2017-08-17~2026-04-30 (ATR 익절 없음, 2026-08-20)
   - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=185.31`
   - ⚠️ execution-engine 재시작 전 잔고 게이트 현행화 필수 → `docs/70-policy/operations.md` §실행엔진 재시작
 
@@ -21,7 +21,7 @@
 | fast_ema | 7 | 빠른 EMA |
 | slow_ema | 29 | 느린 EMA |
 | dir_ema | 240 | 방향 필터 EMA |
-| atr_mult | 3.3 | ATR 손절·익절 배수 |
+| atr_mult | 3.3 | ATR 손절 배수 (익절 없음) |
 | 레버리지 | 3x | 하드캡 (SAFETY_LEVERAGE_LIMIT=3.0) |
 | 타임프레임 | 4h | |
 | 방향 | Long-only | Short 없음 |
@@ -37,7 +37,7 @@
 **청산 조건**:
 - `EMA(7) < EMA(29)` → 즉시 청산 (데드크로스)
 - `가격 ≤ 진입가 − ATR(14)×3.3` → 손절
-- `가격 ≥ 진입가 + ATR(14)×3.3` → 익절
+- ATR 익절 없음 (상승은 EMA 데드크로스까지 보유)
 - 청산 후 1봉(4h) 재진입 금지
 - 안전 stop: 진입가 − 70%/lev (시장가)
 

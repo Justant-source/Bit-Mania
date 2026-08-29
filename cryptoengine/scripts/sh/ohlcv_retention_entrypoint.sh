@@ -12,7 +12,7 @@ echo "${CRON_SCHEDULE} /scripts/ohlcv_retention.sh >> /var/log/ohlcv_retention.l
 
 echo "[$(date)] ohlcv-retention service started"
 echo "[$(date)] Schedule: ${CRON_SCHEDULE}"
-echo "[$(date)] Retention days: ${OHLCV_RETENTION_DAYS:-7}"
+echo "[$(date)] Retention days (non-4h): ${OHLCV_RETENTION_DAYS:-7}; 4h candles are never deleted"
 
 # 컨테이너 시작 시 즉시 한 번 실행 (최초 기동 확인용)
 if [ "${OHLCV_RETENTION_ON_STARTUP:-false}" = "true" ]; then

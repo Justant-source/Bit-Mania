@@ -54,9 +54,9 @@ START_BAL = 10_000.0
 _4H_MS = 4 * 3600 * 1000
 FX = Path(__file__).resolve().parent
 
-# #7908 (Bybit 네이티브 4h, 00계열 정본, 2026-06-14 재빌드) — stats.json 기준
-REF = {"trades": 360, "winrate": 48.61, "cagr": 137.64, "mdd": -73.29,
-       "pf": 1.184, "sharpe": 1.349}
+# #7908 (Bybit 네이티브 4h, ATR 손절만·익절 없음, 2026-08-20)
+REF = {"trades": 198, "winrate": 42.42, "cagr": 219.06, "mdd": -66.70,
+       "pf": 1.507, "sharpe": 1.667}
 
 
 def _u(ms) -> str:
@@ -134,7 +134,7 @@ def run_backtest():
             reason = None
             if ema7[i] < ema29[i]:
                 reason = "ema"
-            elif abs(price - entry) >= a:
+            elif price <= entry - a:
                 reason = "atr"
             if reason:
                 gross = size * (price - entry)
@@ -250,9 +250,9 @@ def main():
           % (len(trades), m["win_rate"], m["cagr"], m["mdd"], m["pf"], m["sharpe"], m["final"]))
     print("exit reasons:", dict(Counter(t[7] for t in trades)))
 
-    print("\n=== #7908 reference (Binance 1h→4h, 02계열) ===")
+    print("\n=== prior ATR-TP series (Bybit native 4h, 2026-06-14) ===")
     print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
-          % (REF["trades"], REF["winrate"], REF["cagr"], REF["mdd"], REF["pf"], REF["sharpe"]))
+          % (360, 48.61, 137.64, -73.29, 1.184, 1.349))
 
     # entry-timing overlap vs #7908
     ref = list(csv.DictReader(open(FX / "trades_7908.csv")))

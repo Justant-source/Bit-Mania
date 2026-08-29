@@ -329,6 +329,12 @@ assert config['direction'] == 'long_only'
 
 ---
 
+## Addendum — 2026-08-20 ATR 익절 제거
+
+라이브·Jesse Supertrend 청산에서 대칭 ATR 익절(`가격 ≥ 진입가 + ATR×3.3`)을 제거했다. ATR은 하방 손절만 사용하고, 상승 포지션은 EMA 데드크로스까지 보유한다. combo #7908 파라미터는 유지. Bybit 네이티브 4h 재실행: CAGR +219.06%, Sharpe 1.667, MDD −66.70%, 198 trades.
+
+---
+
 ## References
 
 - **ADR-001**: BTC 단일 운영 정책 (2026-05-01)

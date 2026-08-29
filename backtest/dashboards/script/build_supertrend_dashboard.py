@@ -32,30 +32,48 @@ def connect():
     )
 
 
-def load_data(conn):
+def load_data(conn, sweep_ids=None):
     """
-    Query all st_combos, sorted by sweet_spot_score DESC then mean_cagr DESC.
+    Query st_combos, sorted by sweet_spot_score DESC then mean_cagr DESC.
     Returns: (list of row dicts, dict of sweep metadata)
     """
     with conn.cursor() as cur:
-        # Get all combos with required columns
-        cur.execute("""
-            SELECT
-              sweep_id, combo_id, st_factor, st_period, fast_ema_len, slow_ema_len,
-              direction_ema_len, atr_mult, mean_cagr, std_cagr, worst_window, worst_mdd,
-              worst_mdd_recent, mean_cagr_recent, tier_pass, plateau_quality, plateau_score,
-              sweet_spot_score
-            FROM st_combos
-            ORDER BY sweet_spot_score DESC NULLS LAST, mean_cagr DESC NULLS LAST
-        """)
+        if sweep_ids:
+            cur.execute("""
+                SELECT
+                  sweep_id, combo_id, st_factor, st_period, fast_ema_len, slow_ema_len,
+                  direction_ema_len, atr_mult, mean_cagr, std_cagr, worst_window, worst_mdd,
+                  worst_mdd_recent, mean_cagr_recent, tier_pass, plateau_quality, plateau_score,
+                  sweet_spot_score
+                FROM st_combos
+                WHERE sweep_id = ANY(%s)
+                ORDER BY sweet_spot_score DESC NULLS LAST, mean_cagr DESC NULLS LAST
+            """, (sweep_ids,))
+        else:
+            cur.execute("""
+                SELECT
+                  sweep_id, combo_id, st_factor, st_period, fast_ema_len, slow_ema_len,
+                  direction_ema_len, atr_mult, mean_cagr, std_cagr, worst_window, worst_mdd,
+                  worst_mdd_recent, mean_cagr_recent, tier_pass, plateau_quality, plateau_score,
+                  sweet_spot_score
+                FROM st_combos
+                ORDER BY sweet_spot_score DESC NULLS LAST, mean_cagr DESC NULLS LAST
+            """)
         rows = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
 
-        # Get sweep metadata
-        cur.execute("""
-            SELECT sweep_id, n_combos, description
-            FROM st_sweeps
-            ORDER BY sweep_id
-        """)
+        if sweep_ids:
+            cur.execute("""
+                SELECT sweep_id, n_combos, description
+                FROM st_sweeps
+                WHERE sweep_id = ANY(%s)
+                ORDER BY sweep_id
+            """, (sweep_ids,))
+        else:
+            cur.execute("""
+                SELECT sweep_id, n_combos, description
+                FROM st_sweeps
+                ORDER BY sweep_id
+            """)
         sweeps = {}
         for sweep_id, n_combos, description in cur.fetchall():
             sweeps[str(sweep_id)] = {
@@ -262,6 +280,8 @@ def main():
     parser = argparse.ArgumentParser(description='Build unified dashboard from PostgreSQL data')
     parser.add_argument('--out', type=str, default='/dashboards/supertrend_sweep_dashboard.html',
                         help='Output HTML file path')
+    parser.add_argument('--sweeps', type=str, default='',
+                        help='Comma-separated sweep_ids to include (default: all)')
     args = parser.parse_args()
 
     out_path = Path(args.out)
@@ -286,7 +306,8 @@ def main():
 
     # Load data from database
     try:
-        rows, sweeps = load_data(conn)
+        sweep_ids = [s.strip() for s in args.sweeps.split(',') if s.strip()] or None
+        rows, sweeps = load_data(conn, sweep_ids=sweep_ids)
         conn.close()
         print(f"[✓] Loaded {len(rows)} combos from {len(sweeps)} sweeps", file=sys.stderr)
     except Exception as e:

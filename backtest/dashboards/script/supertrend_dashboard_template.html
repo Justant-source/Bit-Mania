@@ -206,6 +206,7 @@
 
 <div class="panel">
   <h2 style="margin-top:0">필터된 combo 표 (compound_ratio 기준 Top 100)</h2>
+  <div class="info-box">2026-08-20부터 정본 청산은 ATR 손절만(익절 없음). CAGR%는 역사 스윕(익절 포함). CAGR_new%는 동일 Jesse 8-window mean을 익절 없이 재실행한 값(compound_ratio Top 15).</div>
   
   <!-- 표 내부 multi-select 필터 (요청 8) -->
   <div class="pc-param-filters" id="table-param-filters" style="margin-bottom:12px">
@@ -223,6 +224,7 @@
         <th data-sort="de">dir</th>
         <th data-sort="at">atr</th>
         <th data-sort="mc">CAGR%</th>
+        <th title="ATR 익절 제거 · Jesse 8-window mean(cagr_adj). CAGR%와 동일 정의.">CAGR_new%</th>
         <th data-sort="wm">worst_MDD%</th>
         <th data-sort="wmr">recent_MDD%</th>
         <th data-sort="ww">worst_window%</th>
@@ -247,6 +249,7 @@ const HEADER = V5_2_DATA.h;
 const ROWS = V5_2_DATA.r.map(r => Object.fromEntries(HEADER.map((k,i) => [k, r[i]])));
 
 const TOP15_IDS = [173, 176, 164, 167, 245, 254, 175, 166, 272, 191, 244, 596, 569, 92, 174];
+const CAGR_NEW = {"12708":311.32,"8508":266.8,"12713":324.56,"8583":270.01,"7908":281.36,"12658":282.34,"12703":305.11,"12723":329.88,"7983":281.81,"8513":279.03,"8588":283.15,"12783":291.7,"12108":288.33,"7913":293.06,"12758":280.14}; // ATR TP off, Jesse 8-window mean(cagr_adj)
 
 // Parameter unique values
 const PARAM_VALUES = {
@@ -1076,6 +1079,7 @@ function renderTable() {
       <td class="num">${r.de}</td>
       <td class="num">${r.at}</td>
       <td class="num ${r.mc >= 0 ? 'pos' : 'neg'}">${r.mc.toFixed(1)}</td>
+      <td class="num ${CAGR_NEW[r.i] == null ? '' : (CAGR_NEW[r.i] >= 0 ? 'pos' : 'neg')}">${CAGR_NEW[r.i] == null ? '—' : CAGR_NEW[r.i].toFixed(1)}</td>
       <td class="num neg">${r.wm.toFixed(1)}</td>
       <td class="num neg">${r.wmr.toFixed(1)}</td>
       <td class="num ${r.ww >= 0 ? 'pos' : 'neg'}">${r.ww.toFixed(1)}</td>

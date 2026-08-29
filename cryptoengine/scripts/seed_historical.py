@@ -40,11 +40,11 @@ structlog.configure(
 log = structlog.get_logger("seed_historical")
 
 DEFAULT_SYMBOLS = ["BTCUSDT"]
-DEFAULT_TIMEFRAMES = ["1h"]
+DEFAULT_TIMEFRAMES = ["4h"]
 EXCHANGE = "bybit"
 
-# Bybit REST API limits
-OHLCV_BATCH_SIZE = 200
+# Bybit REST API limits (v5 kline max 1000)
+OHLCV_BATCH_SIZE = 1000
 FUNDING_BATCH_SIZE = 200
 
 # Timeframe to milliseconds
@@ -101,29 +101,27 @@ async def _fetch_ohlcv(
     """Fetch OHLCV candles from Bybit v5 API in batches."""
     url = "https://api.bybit.com/v5/market/kline"
     all_candles: list[dict[str, Any]] = []
-    cursor_ms = start_ms
-
     interval_map = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D"}
     interval = interval_map.get(timeframe, "60")
-    tf_ms = TF_MS.get(timeframe, 3_600_000)
+    cursor_end = end_ms
 
-    while cursor_ms < end_ms:
+    # Newest-first pages: walk `end` backward until we pass start_ms.
+    while cursor_end > start_ms:
         params = {
             "category": "linear",
             "symbol": symbol,
             "interval": interval,
-            "start": cursor_ms,
-            "end": min(cursor_ms + tf_ms * OHLCV_BATCH_SIZE, end_ms),
+            "start": start_ms,
+            "end": cursor_end,
             "limit": OHLCV_BATCH_SIZE,
         }
         result = await _fetch_json(session, url, params)
         candles = result.get("list", [])
-
         if not candles:
             break
 
+        oldest_ts = min(int(c[0]) for c in candles)
         for c in candles:
-            # Bybit returns [ts, open, high, low, close, volume, turnover]
             ts = int(c[0])
             if start_ms <= ts <= end_ms:
                 all_candles.append({
@@ -135,15 +133,12 @@ async def _fetch_ohlcv(
                     "volume": float(c[5]),
                 })
 
-        # Bybit returns newest first, so advance cursor
-        oldest_ts = min(int(c[0]) for c in candles)
-        newest_ts = max(int(c[0]) for c in candles)
-
-        if newest_ts <= cursor_ms:
+        if oldest_ts <= start_ms:
             break
-        cursor_ms = newest_ts + tf_ms
-
-        # Rate limiting
+        next_end = oldest_ts - 1
+        if next_end >= cursor_end:
+            break
+        cursor_end = next_end
         await asyncio.sleep(0.1)
 
     # Deduplicate by timestamp
@@ -307,22 +302,29 @@ async def seed(
     timeframes: list[str],
     months: int,
     dry_run: bool = False,
+    from_date: str | None = None,
+    skip_funding: bool = False,
 ) -> None:
     """Seed historical data for all symbol/timeframe combinations."""
     import aiohttp
 
     now = datetime.now(timezone.utc)
-    start = now - timedelta(days=months * 30)
+    if from_date:
+        start = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+    else:
+        start = now - timedelta(days=months * 30)
     start_ms = int(start.timestamp() * 1000)
-    end_ms = int(now.timestamp() * 1000)
+    # Exclude the in-progress 4h bar (align down to closed-bar boundary).
+    end_ms = (int(now.timestamp() * 1000) // TF_MS["4h"]) * TF_MS["4h"] - 1
 
     log.info(
         "seeding_historical_data",
         symbols=symbols,
         timeframes=timeframes,
         start=start.isoformat(),
-        end=now.isoformat(),
+        end=datetime.fromtimestamp(end_ms / 1000, tz=timezone.utc).isoformat(),
         months=months,
+        from_date=from_date,
     )
 
     pool: asyncpg.Pool | None = None
@@ -332,14 +334,16 @@ async def seed(
 
     async with aiohttp.ClientSession() as session:
         for symbol in symbols:
-            # Fetch funding rates
-            log.info("fetching_funding_rates", symbol=symbol)
-            funding = await _fetch_funding_rates(session, symbol, start_ms, end_ms)
-            log.info("funding_rates_fetched", symbol=symbol, count=len(funding))
+            if not skip_funding:
+                log.info("fetching_funding_rates", symbol=symbol)
+                funding = await _fetch_funding_rates(session, symbol, start_ms, end_ms)
+                log.info("funding_rates_fetched", symbol=symbol, count=len(funding))
 
-            if not dry_run and pool:
-                count = await _upsert_funding_rates(pool, symbol, funding)
-                log.info("funding_rates_inserted", symbol=symbol, count=count)
+                if not dry_run and pool:
+                    count = await _upsert_funding_rates(pool, symbol, funding)
+                    log.info("funding_rates_inserted", symbol=symbol, count=count)
+            else:
+                log.info("skipping_funding_rates", symbol=symbol)
 
             # Fetch OHLCV per timeframe
             for tf in timeframes:
@@ -371,7 +375,7 @@ def main() -> None:
         "--timeframes",
         nargs="+",
         default=DEFAULT_TIMEFRAMES,
-        help="OHLCV timeframes (default: 1h)",
+        help="OHLCV timeframes (default: 4h)",
     )
     parser.add_argument(
         "--months",
@@ -384,9 +388,28 @@ def main() -> None:
         action="store_true",
         help="Fetch data but do not write to database",
     )
+    parser.add_argument(
+        "--from-date",
+        default=None,
+        help="UTC start date YYYY-MM-DD (overrides --months)",
+    )
+    parser.add_argument(
+        "--skip-funding",
+        action="store_true",
+        help="Do not fetch funding history",
+    )
     args = parser.parse_args()
 
-    asyncio.run(seed(args.symbols, args.timeframes, args.months, args.dry_run))
+    asyncio.run(
+        seed(
+            args.symbols,
+            args.timeframes,
+            args.months,
+            args.dry_run,
+            from_date=args.from_date,
+            skip_funding=args.skip_funding,
+        )
+    )
 
 
 if __name__ == "__main__":

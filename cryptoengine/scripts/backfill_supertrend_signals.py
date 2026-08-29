@@ -200,7 +200,7 @@ def main() -> None:
         else:
             ema_cross_exit = fast_ema < slow_ema
             atr_stop = atr_14 * ATR_MULT
-            atr_distance_exit = abs(price - entry_price) >= atr_stop
+            atr_distance_exit = price <= entry_price - atr_stop
             if ema_cross_exit or atr_distance_exit:
                 exit_signal = True
                 exit_reason = "ema_cross" if ema_cross_exit else "atr_distance"

@@ -137,8 +137,8 @@ STRATEGY_META: dict[str, dict] = {
             'fast EMA < slow EMA (bearish EMA cross)',
             'Price below direction EMA',
         ],
-        'exit_ko': ['fast/slow EMA 교차 시 청산 (추세 반전)', 'ATR(14) × 3.3 손절/익절 (#7908)'],
-        'exit_en': ['Exit on fast/slow EMA crossover (trend reversal)', 'Stop/take: ATR(14) × 3.3 (#7908)'],
+        'exit_ko': ['fast/slow EMA 교차 시 청산 (추세 반전)', 'ATR(14) × 3.3 손절만 (#7908, 익절 없음)'],
+        'exit_en': ['Exit on fast/slow EMA crossover (trend reversal)', 'Stop-loss only: ATR(14) × 3.3 (#7908, no ATR TP)'],
         'indicators': ['Supertrend (period, factor)', 'fast EMA / slow EMA / direction EMA', 'ATR (14)'],
     },
     'trendtype': {

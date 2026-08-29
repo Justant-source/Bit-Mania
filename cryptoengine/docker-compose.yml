@@ -94,7 +94,7 @@ services:
       DB_USER: cryptoengine
       DB_PASSWORD: ${DB_PASSWORD}
       OHLCV_RETENTION_CRON: ${OHLCV_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
-      OHLCV_RETENTION_DAYS: ${OHLCV_RETENTION_DAYS:-7}            # 롤링 보존 기간 (기본 7일)
+      OHLCV_RETENTION_DAYS: ${OHLCV_RETENTION_DAYS:-7}            # 잔여 비-4h 행만 정리
       OHLCV_RETENTION_ON_STARTUP: ${OHLCV_RETENTION_ON_STARTUP:-false}
     volumes:
       - ./scripts/sh/ohlcv_retention.sh:/scripts/ohlcv_retention.sh:ro
@@ -103,13 +103,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: 64M
+          cpus: "0.1"
+          memory: 32M
 
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-***REMOVED***}
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-***REMOVED***}
     volumes:
       - redisdata:/data
     healthcheck:
@@ -123,10 +123,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 320M
+          cpus: "0.25"
+          memory: 96M
         reservations:
-          memory: 128M
+          memory: 32M
 
   # ── Core Services ───────────────────────────────────────────
   market-data:
@@ -156,10 +156,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "0.25"
+          memory: 128M
         reservations:
-          memory: 64M
+          memory: 48M
 
   strategy-orchestrator:
     build:
@@ -357,6 +357,7 @@ services:
     build:
       context: .
       dockerfile: services/market-data/Dockerfile
+    profiles: ["track-c"]
     restart: unless-stopped
     depends_on:
       redis:
@@ -381,13 +382,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: 128M
+          cpus: "0.1"
+          memory: 64M
 
   market-data-okx:
     build:
       context: .
       dockerfile: services/market-data/Dockerfile
+    profiles: ["track-c"]
     restart: unless-stopped
     depends_on:
       redis:
@@ -412,8 +414,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: 128M
+          cpus: "0.1"
+          memory: 64M
 
 volumes:
   pgdata:

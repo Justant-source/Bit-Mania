@@ -1,7 +1,7 @@
 """Market Data Collector — WebSocket + REST ingestion for Bybit perpetual futures.
 
 Responsibilities:
-  - WebSocket streams: orderbook (depth 25, 100ms), trades, kline (1m/5m/15m/1h/4h), funding rate
+  - WebSocket streams: orderbook (depth 25, 100ms), trades, kline (4h only), funding rate
   - REST polling (1-5 min): open interest, long/short ratio, liquidation data
   - Publish all data to Redis pub/sub channels
   - Persist to PostgreSQL
@@ -25,6 +25,11 @@ import websockets
 import websockets.exceptions
 
 from shared.log_events import *
+from quarterly_lifecycle import (
+    FALLBACK_QUARTERLY_SYMBOLS,
+    resolve_quarterly_symbols,
+    run_lifecycle_check,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -37,19 +42,10 @@ WS_TESTNET = "wss://stream-testnet.bybit.com/v5/public/linear"
 REST_MAINNET = "https://api.bybit.com"
 REST_TESTNET = "https://api-testnet.bybit.com"
 
-KLINE_TIMEFRAMES = ["1", "5", "15", "60", "240"]  # Bybit notation
+KLINE_TIMEFRAMES = ["240"]  # Bybit notation — live trading + dashboard use 4h only
 TF_MAP = {"1": "1m", "5": "5m", "15": "15m", "60": "1h", "240": "4h"}
-# Reverse: standard tf → Bybit interval string
-TF_BYBIT_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "4h": "240"}
-# Candle duration in seconds per timeframe
+TF_BYBIT_INTERVAL = {"4h": "240"}
 TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400}
-
-# Track C Phase C1: 분기물 OHLCV + ticker
-QUARTERLY_SYMBOLS_USDT: list[str] = [
-    "BTCUSDT-26JUN26",  # 2026 June quarterly
-    "BTCUSDT-25SEP26",  # 2026 September quarterly
-    "BTCUSDT-25DEC26",  # 2026 December quarterly
-]
 
 MAX_RECONNECT_DELAY = 120  # seconds
 BASE_RECONNECT_DELAY = 1
@@ -57,6 +53,7 @@ BASE_RECONNECT_DELAY = 1
 REST_POLL_INTERVAL_OI = 60         # seconds — open interest
 REST_POLL_INTERVAL_RATIO = 300     # seconds — long/short ratio
 REST_POLL_INTERVAL_LIQ = 120       # seconds — liquidations
+QUARTERLY_LIFECYCLE_INTERVAL = 86_400  # seconds — daily quarterly sync
 
 # Gap recovery: only backfill up to this many hours on startup
 BACKFILL_MAX_HOURS = 48
@@ -88,6 +85,13 @@ class MarketDataCollector:
         self._rest_base = REST_TESTNET if testnet else REST_MAINNET
         self._reconnect_delay = BASE_RECONNECT_DELAY
         self._last_heartbeat: float = 0.0
+        # Track C: mutable active quarterlies — NEVER hardcode expired contracts into
+        # the same subscribe batch as BTCUSDT (Bybit rejects the whole batch).
+        self._quarterly_symbols: list[str] = list(FALLBACK_QUARTERLY_SYMBOLS)
+        self._ws: Any | None = None
+        self._force_reconnect = False
+        self._pending_core_sub = False
+        self._pending_quarterly_topics: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public
@@ -96,12 +100,19 @@ class MarketDataCollector:
     async def run(self, shutdown: asyncio.Event) -> None:
         """Top-level loop: run WS + REST pollers concurrently."""
         log.info(SERVICE_STARTED, message="collector starting", symbol=self.symbol)
+        self._quarterly_symbols = await resolve_quarterly_symbols(rest_base=self._rest_base)
+        log.info(
+            MARKET_WS_CONNECTED,
+            message="active quarterly symbols resolved",
+            symbols=self._quarterly_symbols,
+        )
         await self.backfill_ohlcv_gaps()
         tasks = [
             asyncio.create_task(self._ws_loop(shutdown), name="ws_loop"),
             asyncio.create_task(self._rest_poll_loop(shutdown, self._poll_open_interest, REST_POLL_INTERVAL_OI), name="poll_oi"),
             asyncio.create_task(self._rest_poll_loop(shutdown, self._poll_long_short_ratio, REST_POLL_INTERVAL_RATIO), name="poll_ratio"),
             asyncio.create_task(self._rest_poll_loop(shutdown, self._poll_liquidations, REST_POLL_INTERVAL_LIQ), name="poll_liq"),
+            asyncio.create_task(self._quarterly_lifecycle_loop(shutdown), name="quarterly_lifecycle"),
         ]
         try:
             await asyncio.gather(*tasks)
@@ -118,6 +129,7 @@ class MarketDataCollector:
     async def _ws_loop(self, shutdown: asyncio.Event) -> None:
         """Connect to WebSocket with exponential-backoff reconnection."""
         while not shutdown.is_set():
+            self._force_reconnect = False
             try:
                 async with websockets.connect(
                     self._ws_url,
@@ -126,12 +138,13 @@ class MarketDataCollector:
                     close_timeout=5,
                     max_size=10 * 1024 * 1024,
                 ) as ws:
+                    self._ws = ws
                     self._reconnect_delay = BASE_RECONNECT_DELAY
                     await self._subscribe(ws)
                     log.info(MARKET_WS_CONNECTED, message="WebSocket connected", url=self._ws_url)
 
                     async for raw in ws:
-                        if shutdown.is_set():
+                        if shutdown.is_set() or self._force_reconnect:
                             break
                         await self._handle_message(raw)
 
@@ -158,32 +171,158 @@ class MarketDataCollector:
                 )
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(self._reconnect_delay * 2, MAX_RECONNECT_DELAY)
+            finally:
+                self._ws = None
+                self._pending_core_sub = False
+                self._pending_quarterly_topics.clear()
 
-    async def _subscribe(self, ws: websockets.WebSocketClientProtocol) -> None:
-        """Send subscription messages to Bybit V5 public WS."""
-        topics: list[str] = []
-
-        # Orderbook depth-1, 100ms push (testnet supports depth 1, not 25)
-        topics.append(f"orderbook.1.{self.symbol}")
-
-        # Public trades
-        topics.append(f"publicTrade.{self.symbol}")
-
-        # Kline / candles for each timeframe
+    def _core_topics(self) -> list[str]:
+        """BTCUSDT topics required for trading — never mixed with quarterlies."""
+        topics = [
+            f"orderbook.1.{self.symbol}",
+            f"publicTrade.{self.symbol}",
+        ]
         for tf in KLINE_TIMEFRAMES:
             topics.append(f"kline.{tf}.{self.symbol}")
-
-        # Tickers (includes funding rate, mark price, etc.)
         topics.append(f"tickers.{self.symbol}")
+        return topics
 
-        # Track C Phase C1: Subscribe to quarterly symbols (kline + tickers)
-        for qsym in QUARTERLY_SYMBOLS_USDT:
+    def _quarterly_topics(self, symbols: list[str] | None = None) -> list[str]:
+        topics: list[str] = []
+        for qsym in symbols if symbols is not None else self._quarterly_symbols:
             topics.append(f"kline.1.{qsym}")
             topics.append(f"tickers.{qsym}")
+        return topics
 
-        subscribe_msg = {"op": "subscribe", "args": topics}
-        await ws.send(json.dumps(subscribe_msg))
-        log.info(MARKET_WS_CONNECTED, message="WebSocket subscribed", topics=topics)
+    async def _subscribe(self, ws: websockets.WebSocketClientProtocol) -> None:
+        """Subscribe core BTCUSDT first, then quarterlies in a separate batch.
+
+        Bybit rejects an entire subscribe args list when any topic is invalid
+        (e.g. expired quarterly). Keeping core separate protects OHLCV feed.
+        """
+        core = self._core_topics()
+        self._pending_core_sub = True
+        await ws.send(json.dumps({"op": "subscribe", "args": core}))
+        log.info(MARKET_WS_CONNECTED, message="WebSocket subscribed (core)", topics=core)
+
+        quarterly = self._quarterly_topics()
+        if quarterly:
+            self._pending_quarterly_topics = set(quarterly)
+            await ws.send(json.dumps({"op": "subscribe", "args": quarterly}))
+            log.info(
+                MARKET_WS_CONNECTED,
+                message="WebSocket subscribed (quarterly)",
+                topics=quarterly,
+            )
+
+    async def _ws_subscribe_topic(self, topic: str) -> None:
+        ws = self._ws
+        if ws is None:
+            return
+        self._pending_quarterly_topics.add(topic)
+        await ws.send(json.dumps({"op": "subscribe", "args": [topic]}))
+
+    async def _ws_unsubscribe_topic(self, topic: str) -> None:
+        ws = self._ws
+        if ws is None:
+            return
+        await ws.send(json.dumps({"op": "unsubscribe", "args": [topic]}))
+
+    async def _quarterly_lifecycle_loop(self, shutdown: asyncio.Event) -> None:
+        """Daily sync: drop expired quarterlies, subscribe newly listed ones."""
+        while not shutdown.is_set():
+            try:
+                await asyncio.wait_for(shutdown.wait(), timeout=QUARTERLY_LIFECYCLE_INTERVAL)
+                break
+            except asyncio.TimeoutError:
+                pass
+            if shutdown.is_set():
+                break
+            try:
+                updated = await run_lifecycle_check(
+                    self._quarterly_symbols,
+                    self._ws_subscribe_topic,
+                    self._ws_unsubscribe_topic,
+                    rest_base=self._rest_base,
+                )
+                self._quarterly_symbols = updated
+            except Exception as exc:
+                log.warning(
+                    SERVICE_HEALTH_FAIL,
+                    message="quarterly lifecycle check failed",
+                    exc=str(exc),
+                )
+
+    async def _handle_subscribe_ack(self, data: dict[str, Any]) -> None:
+        """Handle subscribe/unsubscribe ack. Core failure forces reconnect."""
+        if data.get("success") is not False:
+            # Successful ack: clear the pending batch that was waiting.
+            # Core and quarterly are sent as separate ops; prefer clearing
+            # core first when both markers could still be set.
+            if self._pending_core_sub:
+                self._pending_core_sub = False
+            elif self._pending_quarterly_topics:
+                self._pending_quarterly_topics.clear()
+            return
+
+        ret_msg = str(data.get("ret_msg", ""))
+        log.error(MARKET_WS_RECONNECTING, message="WebSocket subscription failed", data=data)
+
+        # Expired/invalid quarterly topic — drop it and retry remaining quarterlies.
+        # Never reconnect-loop solely for Track C optional feeds.
+        bad_topic = None
+        if "topic:" in ret_msg:
+            bad_topic = ret_msg.rsplit("topic:", 1)[-1].strip()
+
+        is_quarterly_topic = bool(
+            bad_topic and (
+                bad_topic in self._pending_quarterly_topics
+                or any(bad_topic.endswith(f".{s}") for s in self._quarterly_symbols)
+            )
+        )
+
+        if is_quarterly_topic and bad_topic:
+            bad_symbol = bad_topic.split(".", 2)[-1] if bad_topic.count(".") >= 2 else None
+            if bad_symbol and bad_symbol in self._quarterly_symbols:
+                self._quarterly_symbols = [s for s in self._quarterly_symbols if s != bad_symbol]
+                log.warning(
+                    MARKET_WS_RECONNECTING,
+                    message="dropped invalid quarterly symbol from subscribe set",
+                    symbol=bad_symbol,
+                    remaining=self._quarterly_symbols,
+                )
+            self._pending_quarterly_topics.discard(bad_topic)
+            remaining = [t for t in self._quarterly_topics() if t != bad_topic]
+            self._pending_quarterly_topics = set(remaining)
+            if remaining and self._ws is not None:
+                await self._ws.send(json.dumps({"op": "subscribe", "args": remaining}))
+            return
+
+        if self._pending_core_sub or (bad_topic and bad_topic in set(self._core_topics())):
+            log.error(
+                MARKET_WS_RECONNECTING,
+                message="core WebSocket subscription failed — forcing reconnect",
+                data=data,
+            )
+            self._force_reconnect = True
+            if self._ws is not None:
+                await self._ws.close()
+            return
+
+        # Unknown failure while quarterly pending — drop all pending quarterlies, keep core.
+        if self._pending_quarterly_topics:
+            log.warning(
+                MARKET_WS_RECONNECTING,
+                message="quarterly subscribe batch failed; continuing with core only",
+                data=data,
+            )
+            self._pending_quarterly_topics.clear()
+            return
+
+        # Ambiguous failure with no pending markers — reconnect to restore core feed.
+        self._force_reconnect = True
+        if self._ws is not None:
+            await self._ws.close()
 
     async def _handle_message(self, raw: str | bytes) -> None:
         """Route incoming WS messages to the appropriate handler."""
@@ -195,8 +334,9 @@ class MarketDataCollector:
 
         # Pong / subscription confirmations
         if "op" in data:
-            if data.get("success") is False:
-                log.error(MARKET_WS_RECONNECTING, message="WebSocket subscription failed", data=data)
+            op = data.get("op")
+            if op in ("subscribe", "unsubscribe"):
+                await self._handle_subscribe_ack(data)
             return
 
         topic: str | None = data.get("topic")
@@ -221,8 +361,8 @@ class MarketDataCollector:
     # ------------------------------------------------------------------
 
     def _is_quarterly_symbol(self, symbol: str) -> bool:
-        """Check if symbol is a quarterly future."""
-        return symbol in QUARTERLY_SYMBOLS_USDT
+        """Check if symbol is a tracked quarterly future."""
+        return symbol in self._quarterly_symbols
 
     async def _on_orderbook(self, msg: dict[str, Any]) -> None:
         """Process orderbook snapshot / delta."""
@@ -310,12 +450,13 @@ class MarketDataCollector:
             # Cache latest bar in Redis hash for quick lookups
             cache_key = f"cache:ohlcv:{self.exchange}:{symbol}:{tf}"
             await self.redis.hset(cache_key, mapping={
-                "open": ohlcv["open"],
-                "high": ohlcv["high"],
-                "low": ohlcv["low"],
-                "close": ohlcv["close"],
-                "volume": ohlcv["volume"],
-                "ts": ohlcv["ts"],
+                "open": str(ohlcv["open"]),
+                "high": str(ohlcv["high"]),
+                "low": str(ohlcv["low"]),
+                "close": str(ohlcv["close"]),
+                "volume": str(ohlcv["volume"]),
+                "ts": str(ohlcv["ts"]),
+                "confirmed": "1" if confirmed else "0",
             })
 
             # Persist only confirmed (closed) candles

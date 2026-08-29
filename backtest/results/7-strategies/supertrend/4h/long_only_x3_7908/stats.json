@@ -1,12 +1,12 @@
 {
-  "cagr_pct": 137.6426,
-  "annual_return_pct": 137.6426,
-  "sharpe_ratio": 1.3488,
-  "max_drawdown_pct": -73.2897,
-  "total_trades": 360,
-  "win_rate_pct": 48.6111,
-  "profit_factor": 1.1837,
-  "net_profit_pct": 170746.4418,
+  "cagr_pct": 219.0645,
+  "annual_return_pct": 219.0645,
+  "sharpe_ratio": 1.6673,
+  "max_drawdown_pct": -66.6971,
+  "total_trades": 198,
+  "win_rate_pct": 42.4242,
+  "profit_factor": 1.5067,
+  "net_profit_pct": 2152160.5087,
   "starting_balance": 10000.0,
   "leverage": 3,
   "variant": "long_only",
@@ -16,10 +16,10 @@
   "start": "2017-08-17",
   "end": "2026-04-30",
   "raw_metrics": {
-    "finishing_balance": 17084644.183043,
-    "sortino_ratio": 2.168,
-    "calmar_ratio": 1.8781,
-    "gross_profit": 110042693.1904,
-    "gross_loss": -92968049.0074
+    "finishing_balance": 215226050.871656,
+    "sortino_ratio": 2.9485,
+    "calmar_ratio": 3.2845,
+    "gross_profit": 639961099.1482,
+    "gross_loss": -424745048.2765
   }
 }

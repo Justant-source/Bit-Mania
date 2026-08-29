@@ -77,8 +77,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "6.0"
-          memory: 8G
+          # Hard ceiling. Sweep scheduler overlays pin cpuset + lower shares
+          # so this service cannot starve production Docker on the same host.
+          cpus: "4.0"
+          memory: 5G
 
   # ── Walk-Forward 월간 스케줄러 ────────────────────────────────
   wf-scheduler:

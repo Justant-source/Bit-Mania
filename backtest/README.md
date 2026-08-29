@@ -1,6 +1,6 @@
 ---
 title: Backtest — 전략 R&D 통합 트리
-last_updated: 2026-06-14
+last_updated: 2026-08-20
 ---
 
 # Backtest
@@ -8,7 +8,7 @@ last_updated: 2026-06-14
 전략 R&D 전용 영역. 운영 코드(`cryptoengine/`)와 완전히 격리됨.
 
 **메인넷 현활 전략**: Supertrend 4h 3x long-only (combo #7908)  
-- CAGR: +137.64%, Sharpe: 1.349, MDD: -73.29% (Bybit 네이티브 4h 정본, 2026-06-14)
+- CAGR: +219.06%, Sharpe: 1.667, MDD: -66.70% (Bybit 네이티브 4h 정본, ATR 손절만, 2026-08-20)
 - 구 Binance 스윕 값(151.56%/1.37/-84.28%)은 폐기됨
 - 배포: 2026-05-18~ (Phase 5)
 
@@ -64,9 +64,13 @@ last_updated: 2026-06-14
 
 **최적화 (PG-native)**:
 - `pg_generate_grid.py` — 파라미터 그리드 생성 및 PG 삽입
+- `pg_clone_sweep.py` — 기존 sweep combo 파라미터만 새 sweep_id로 복사 (window 결과는 복사하지 않음)
 - `pg_worker.py` — 개별 combo 처리 워커
-- `pg_master.py` — 다중 워커 오케스트레이션 (6 workers)
+- `pg_master.py` — 다중 워커 오케스트레이션
 - `pg_aggregate.py` — 통계 계산 및 파레토 마킹
+- `sweep_scheduler.py` — KST 00–06 6워커 / 그 외 2워커, cpuset·nice로 운영 Docker 양보
+
+**ATR-SL 재스윕 (v10_notp, 2026-08-20~)**: v7_st 15,000 combo를 현재 SupertrendStrategy(익절 없음)로 8윈도우 재실행. 기존 v6_st/v7_st 행은 덮어쓰지 않음. 완료 후 `pg_aggregate` + `build_supertrend_dashboard.py --sweeps v10_notp`.
 
 **데이터 + 유틸**:
 - `download_binance_vision.py`, `fetch_bybit_funding_history.py`, `resample_4h_from_1h.py`, `validate_data_quality.py`

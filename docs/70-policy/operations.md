@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — 운영 Runbook · 배포 · 모니터링
-last_updated: 2026-06-15
+last_updated: 2026-08-11
 ---
 
 # 운영 Runbook · 배포 · 모니터링
@@ -73,9 +73,19 @@ make emergency                       # 또는 docker compose kill supertrend exe
 
 ## §2. execution-engine 재시작 게이트 (필수)
 
-⚠️ **실사례 (2026-06-13)**: 잔고 게이트 미현행화 → Dead Man's Kill Switch 연쇄 발동
+⚠️ **실사례 (2026-06-13)**: 잔고 게이트 미현행화 → Dead Man's Kill Switch 연쇄 발동  
+⚠️ **실사례 (2026-08-04)**: 전원 장애 후 구식 `.env` 잔고 → 기동 거부 → Dead Man's 연쇄
 
-### 재시작 전 체크리스트
+### 자동 복구 (Redis equity baseline)
+
+운영 중 `execution-engine`은 실잔고를 Redis `ce:phase5:equity_baseline`(TTL 없음)에 60초마다 저장한다.  
+재기동 시 잔고 게이트는 **Redis 기준선 우선**, 없으면 `.env`의 `EXPECTED_INITIAL_BALANCE_USD` 폴백(허용 오차 5%).
+
+- 전원 장애 후 Redis 볼륨이 살아 있으면 → 기준선 ≈ 장애 직전 잔고 → 자동 통과
+- Redis wipe / 콜드스타트 → `.env` 수동 현행화 필요
+- 다운타임 중 잔고가 기준선 대비 **5% 초과** 변동(입출금 등) → 여전히 시작 거부
+
+### 재시작 전 체크리스트 (수동 / Redis 없을 때)
 
 1. **현재 실잔고 확인**
    ```bash
@@ -83,16 +93,16 @@ make emergency                       # 또는 docker compose kill supertrend exe
    # actual_usdt 값 메모
    ```
 
-2. **.env 갱신**
+2. **.env 갱신** (Redis baseline 없거나 게이트 실패 시)
    ```bash
    # cryptoengine/.env
-   EXPECTED_INITIAL_BALANCE_USD=<실잔고>    # 예: 185.31
+   EXPECTED_INITIAL_BALANCE_USD=<실잔고>    # 예: 159.74
    ```
 
 3. **사전 확인**
    ```bash
    docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
-     "SELECT status FROM positions WHERE status='open';"
+     "SELECT id, symbol, size, entry_price, opened_at FROM positions WHERE closed_at IS NULL;"
    
    # Telegram
    /positions          # 현재 포지션 확인
@@ -101,7 +111,7 @@ make emergency                       # 또는 docker compose kill supertrend exe
 
 4. **환경 변수 검증**
    ```bash
-   grep "BYBIT_TESTNET\|PHASE5_MODE" cryptoengine/.env
+   grep "BYBIT_TESTNET\|PHASE5_MODE\|EXPECTED_INITIAL_BALANCE" cryptoengine/.env
    # BYBIT_TESTNET=false  (메인넷)
    # PHASE5_MODE=true     (고급 모드)
    ```
@@ -113,7 +123,12 @@ make emergency                       # 또는 docker compose kill supertrend exe
 
 6. **복구 확인** (1-2분 대기)
    ```bash
-   docker compose logs --tail=20 execution-engine | grep -E "복구|검증|ready"
+   docker compose logs --tail=20 execution-engine | grep -E "검증|baseline|ready|tasks launched"
+   ```
+
+7. **Dead Man's / Kill Switch 해제** (하트비트 단절로 KS가 발동된 경우)
+   ```bash
+   docker compose restart strategy-orchestrator
    ```
 
 ### Dead Man's Switch 대응
@@ -121,8 +136,11 @@ make emergency                       # 또는 docker compose kill supertrend exe
 execution-engine 하트비트(TTL 300s)가 5분 이상 끊기면 orchestrator가 Kill Switch L3 자동 발동.
 
 - **발동 상황**: 잔고 게이트 등으로 재시작이 5분 초과
-- **자동 해제**: 4시간 쿨다운 후 (인메모리 상태)
+- **자동 해제**: 쿨다운 후 (인메모리 상태, Phase 5 기본 60분)
 - **즉시 복구**: `docker compose restart strategy-orchestrator` (인메모리 kill 상태 초기화)
+  - 주의: equity history 상 **당일** 손실 한도(5% AND $10)를 이미 넘긴 상태면 재시작 직후 KS가 다시 발동할 수 있음
+  - daily/weekly/monthly peak는 해당 기간 샘플로만 복원됨 (전체 history 최고가 사용 금지 — 2026-08-04 수정)
+- **알림**: KS 신규 발동만 CRITICAL→Telegram. 쿨다운 유지 중 재로깅/Dead Man's 재_trigger 없음
 
 ---
 
@@ -145,7 +163,7 @@ docker compose logs --since=1h execution-engine | grep -E "ERROR|CRITICAL"
 
 # 4. 열린 포지션 확인
 docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
-  "SELECT id, symbol, size, entry_price, updated_at FROM positions WHERE status='open';"
+  "SELECT id, symbol, size, entry_price, opened_at FROM positions WHERE closed_at IS NULL;"
 
 # 5. 대시보드 확인
 # http://localhost:3000/supertrend    — Supertrend 신호 vs 실제 거래
@@ -254,6 +272,30 @@ docker compose logs --tail=20 supertrend | grep -E "복구|recovered|restored"
 | `position_state_divergence` | 전략 믿음 ≠ 거래소 실포지션 — 자동으로 실제값으로 교정됨 | 직전 거부/유실 이력 확인 (`orders` 테이블). 교정 후 다음 봉부터 정상 동작 |
 | `pending_order_unresolved` | 주문 결과를 450초 내 확인 못 함 — 재동기화 수행됨 | execution-engine 로그 확인, 거래소 주문 내역 대조 |
 | `bar_feed_stall` / `bar_gap_detected` | 4h 봉 마감 메시지 누락 — REST 백필 자동 수행 | market-data 서비스 상태 확인 |
+| `market_ws_reconnecting` / `OHLCV 수집 중단` | WS 구독 실패 또는 수집 갭 >10분 | 아래 §5.1 절차 |
+
+### §5.1 OHLCV 중단 / `market_ws_reconnecting` (2026-08-11)
+
+**증상**: Telegram `WebSocket subscription failed` + `OHLCV 수집 중단: 마지막 업데이트 N분 전`.
+
+**대표 원인**: 만기된 분기물(예: `BTCUSDT-26JUN26`)을 core BTCUSDT와 **같은 subscribe 배치**에 넣어 Bybit이 전체 구독을 거부.
+
+**확인**:
+```bash
+docker compose logs --tail=50 market-data | grep -E 'subscription failed|handler not found|ohlcv'
+docker compose exec -T postgres psql -U cryptoengine -d cryptoengine -c \
+  "SELECT timeframe, MAX(timestamp), EXTRACT(EPOCH FROM (NOW()-MAX(timestamp)))/60 AS gap_min
+   FROM ohlcv_history WHERE exchange='bybit' AND symbol='BTCUSDT' GROUP BY 1 ORDER BY 1;"
+```
+
+**복구** (포지션 청산 없음 — market-data만 재빌드):
+```bash
+docker compose up -d --build --no-deps market-data
+# 구독에 만기 심볼이 없고 core/quarterly가 분리됐는지 확인
+docker compose logs --tail=30 market-data | grep -E 'subscribed|quarterly symbols resolved|subscription failed'
+```
+
+코드 쪽 방어: 기동 시 instruments-info로 활성 분기물만 해석, core/분기물 구독 분리, 일 1회 lifecycle sync.
 
 ---
 

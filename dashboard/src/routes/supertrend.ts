@@ -7,7 +7,7 @@
  * GET /api/internal/supertrend/equity     — expected vs actual equity curve
  * GET /api/internal/supertrend/status     — live position + latest signal
  * GET /api/internal/supertrend/candles    — 4h OHLCV for charting
- * GET /api/internal/supertrend/candles/in-progress — partial 4h candle from 1m bars + Redis
+ * GET /api/internal/supertrend/candles/in-progress — unconfirmed 4h bar from Redis
  */
 
 import { Router, Request, Response } from "express";
@@ -524,72 +524,29 @@ export function createSupertrendRouter(pool: Pool, redis: Redis): Router {
     }
   });
 
-  // ── GET /candles/in-progress ──────────────────────────────────────
-  // Synthesizes the current in-progress 4h candle from 1m bars + Redis cache.
-  // Called every 60 s by the dashboard front-end.
+  // Current in-progress 4h bar from Redis (Bybit unconfirmed kline.240).
   router.get("/candles/in-progress", async (_req: Request, res: Response) => {
     try {
       const now = Date.now();
       const bucketStartMs = Math.floor(now / (4 * 3600_000)) * (4 * 3600_000);
-      const bucketStart   = new Date(bucketStartMs).toISOString();
-
-      // 1) Confirmed 1m bars within the current 4h bucket
-      const dbRes = await pool.query(`
-        SELECT timestamp AS ts, open, high, low, close, volume
-          FROM ohlcv_history
-         WHERE exchange  = 'bybit'
-           AND symbol    = 'BTCUSDT'
-           AND timeframe = '1m'
-           AND timestamp >= $1::timestamptz
-         ORDER BY timestamp ASC
-      `, [bucketStart]);
-
-      // 2) In-progress 1m bar from Redis (not yet written to DB)
-      const cache = await redis.hgetall("cache:ohlcv:bybit:BTCUSDT:1m");
-      const bars: Array<{ts:number; open:number; high:number; low:number; close:number; volume:number}> = [];
-
-      for (const r of dbRes.rows) {
-        bars.push({
-          ts:     new Date(r.ts).getTime(),
-          open:   parseFloat(r.open),
-          high:   parseFloat(r.high),
-          low:    parseFloat(r.low),
-          close:  parseFloat(r.close),
-          volume: parseFloat(r.volume),
-        });
-      }
-      if (cache && cache.ts && cache.close) {
-        const cacheTs = parseInt(cache.ts, 10);
-        const inBucket    = cacheTs >= bucketStartMs;
-        const dupOfLastDb = bars.length > 0 && bars[bars.length - 1].ts === cacheTs;
-        if (inBucket && !dupOfLastDb) {
-          bars.push({
-            ts:     cacheTs,
-            open:   parseFloat(cache.open),
-            high:   parseFloat(cache.high),
-            low:    parseFloat(cache.low),
-            close:  parseFloat(cache.close),
-            volume: parseFloat(cache.volume || "0"),
-          });
-        }
-      }
-
-      if (bars.length === 0) {
+      const cache = await redis.hgetall("cache:ohlcv:bybit:BTCUSDT:4h");
+      if (!cache || !cache.ts || !cache.close) {
         return res.json({ candle: null, source: "empty" });
       }
-
+      const cacheTs = parseInt(cache.ts, 10);
+      if (cacheTs !== bucketStartMs) {
+        return res.json({ candle: null, source: "empty" });
+      }
       const candle = {
         ts:             bucketStartMs,
-        open:           bars[0].open,
-        high:           Math.max(...bars.map(b => b.high)),
-        low:            Math.min(...bars.map(b => b.low)),
-        close:          bars[bars.length - 1].close,
-        volume:         bars.reduce((s, b) => s + b.volume, 0),
-        bar_count:      bars.length,
-        last_minute_ts: bars[bars.length - 1].ts,
+        open:           parseFloat(cache.open),
+        high:           parseFloat(cache.high),
+        low:            parseFloat(cache.low),
+        close:          parseFloat(cache.close),
+        volume:         parseFloat(cache.volume || "0"),
+        confirmed:      cache.confirmed === "1",
       };
-      const fromRedis = cache?.ts && bars[bars.length - 1].ts === parseInt(cache.ts, 10);
-      return res.json({ candle, source: fromRedis ? "redis+db" : "db" });
+      return res.json({ candle, source: "redis" });
     } catch (err) {
       console.error("[supertrend] /candles/in-progress error:", err);
       return res.status(500).json({ error: "Failed to fetch in-progress candle" });

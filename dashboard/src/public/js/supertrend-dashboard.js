@@ -23,20 +23,17 @@ const ST = { factor: 2.6, period: 9, fastEma: 7, slowEma: 29, dirEma: 240, atrMu
 
 // ── Indicator helpers (port of cryptoengine/services/strategies/supertrend/indicators.py) ──
 
+// Jesse/live EMA: ema[0]=close[0], then close*k + prev*(1-k). Not SMA-seeded (TA-Lib).
 function computeEma(values, len) {
   const k = 2 / (len + 1);
   const result = new Array(values.length).fill(null);
-  let sum = 0, count = 0, seedIdx = -1;
+  if (!values.length) return result;
+  let ema = null;
   for (let i = 0; i < values.length; i++) {
     const v = parseFloat(values[i]);
-    if (isNaN(v)) continue;
-    sum += v; count++;
-    if (count === len) { result[i] = sum / len; seedIdx = i; break; }
-  }
-  if (seedIdx === -1) return result;
-  for (let i = seedIdx + 1; i < values.length; i++) {
-    const v = parseFloat(values[i]);
-    result[i] = isNaN(v) ? result[i - 1] : v * k + result[i - 1] * (1 - k);
+    if (isNaN(v)) { result[i] = ema; continue; }
+    ema = ema == null ? v : v * k + ema * (1 - k);
+    result[i] = ema;
   }
   return result;
 }
@@ -156,9 +153,18 @@ function fmtKST(isoStr) {
   if (!isoStr) return '—';
   return new Date(isoStr).toLocaleString('ko-KR', {
     timeZone: 'Asia/Seoul',
+    year: 'numeric',
     month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
-  });
+    hour12: false,
+  }) + ' KST';
+}
+
+function fmtUnixKST(unixSec, extraOpts) {
+  return new Date(unixSec * 1000).toLocaleString('ko-KR', Object.assign({
+    timeZone: 'Asia/Seoul',
+    hour12: false,
+  }, extraOpts)) + ' KST';
 }
 
 // bar_ts is bar OPEN time; signal fires at bar CLOSE (+4h)
@@ -269,7 +275,9 @@ async function updateStatus() {
     const sbNext = document.getElementById('sb-nextbar');
     if (sbNext && data.next_bar_eta_ms !== null) sbNext.textContent = `${Math.ceil(data.next_bar_eta_ms / 60_000)}분 후`;
 
-    setKpi('last-updated', `갱신: ${new Date().toLocaleTimeString('ko-KR')}`);
+    setKpi('last-updated', `갱신: ${new Date().toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    })} KST`);
   } catch (err) {
     console.warn('[supertrend] status error:', err);
   }
@@ -363,14 +371,27 @@ function lwcThemeOpts() {
     },
     rightPriceScale: { borderColor: gridColor },
     timeScale:       { borderColor: gridColor, timeVisible: true, secondsVisible: false,
-      tickMarkFormatter: (t) => new Date(t * 1000).toLocaleString('ko-KR', {
-        timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
-      }),
+      tickMarkFormatter: (t, tickMarkType) => {
+        const d = new Date(t * 1000);
+        const base = { timeZone: 'Asia/Seoul', hour12: false };
+        const TMT = (typeof LightweightCharts !== 'undefined' && LightweightCharts.TickMarkType) || {};
+        if (tickMarkType === TMT.Year) {
+          return d.toLocaleString('ko-KR', { ...base, year: 'numeric' });
+        }
+        if (tickMarkType === TMT.Month) {
+          return d.toLocaleString('ko-KR', { ...base, year: 'numeric', month: '2-digit' });
+        }
+        if (tickMarkType === TMT.DayOfMonth) {
+          return d.toLocaleString('ko-KR', { ...base, month: '2-digit', day: '2-digit' });
+        }
+        return d.toLocaleString('ko-KR', {
+          ...base, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+      },
     },
     localization: {
-      timeFormatter: (t) => new Date(t * 1000).toLocaleString('ko-KR', {
-        timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit',
+      timeFormatter: (t) => fmtUnixKST(t, {
+        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
       }),
     },
     handleScale: true,
@@ -391,8 +412,8 @@ async function renderPriceChart() {
 
   try {
     const p = palette();
-    const CANDLES_FROM = '2026-01-01';
-    const SIGNALS_FROM = CANDLES_FROM;  // signals DB starts 2026-04-20; fetch everything
+    const CANDLES_FROM = '2025-01-01';
+    const SIGNALS_FROM = '2025-01-01';
 
     const [candlesData, expData, cmpData] = await Promise.all([
       apiFetch(`/api/internal/supertrend/candles?from=${CANDLES_FROM}`),
@@ -414,10 +435,19 @@ async function renderPriceChart() {
     // ── Compute indicators ─────────────────────────────────────────
     const closes = candles.map(c => parseFloat(c.close));
     const unixTs = candles.map(c => Math.floor(new Date(c.ts).getTime() / 1000));
-
-    const ema7   = computeEma(closes, ST.fastEma);   // EMA7
-    const ema27  = computeEma(closes, ST.slowEma);   // EMA29
-    const ema230 = computeEma(closes, ST.dirEma);    // EMA240
+    const tsToIdx = new Map(unixTs.map((t, i) => [t, i]));
+    const ema7   = computeEma(closes, ST.fastEma);
+    const ema27  = computeEma(closes, ST.slowEma);
+    const ema230 = computeEma(closes, ST.dirEma);
+    // Overlay live strategy values so the chart matches trading decisions.
+    for (const s of signals) {
+      const t = Math.floor(new Date(s.bar_ts).getTime() / 1000);
+      const i = tsToIdx.get(t);
+      if (i == null) continue;
+      if (s.fast_ema != null) ema7[i]   = parseFloat(s.fast_ema);
+      if (s.slow_ema != null) ema27[i]  = parseFloat(s.slow_ema);
+      if (s.dir_ema  != null) ema230[i] = parseFloat(s.dir_ema);
+    }
     // ST line built from DB signals (canonical: matches live strategy + backtest Jesse)
     const _stSigMap = new Map(
       signals
@@ -427,7 +457,6 @@ async function renderPriceChart() {
     );
 
     // Store indicator data for legend functions (module-level access)
-    const tsToIdx  = new Map(unixTs.map((t, i) => [t, i]));
     const candleMap = new Map(candles.map((c, i) => [unixTs[i], {
       open: parseFloat(c.open), close: parseFloat(c.close),
     }]));
@@ -568,9 +597,9 @@ async function renderPriceChart() {
       if (e7v   != null) rows.push({ label:'EMA7',   color: p2.muted, price: e7v });
       if (cand) rows.push({ label:'Close', color: cand.close>=cand.open?p2.success:p2.danger, price: cand.close });
       rows.sort((a, b) => b.price - a.price);
-      const barLabel = new Date(time * 1000).toLocaleString('ko-KR',
-        { timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
-        + (isLive ? ' (진행중)' : '');
+      const barLabel = fmtUnixKST(time, {
+        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+      }) + (isLive ? ' (진행중)' : '');
       _tooltip.innerHTML =
         `<div style="color:rgba(255,255,255,.5);font-size:10px;margin-bottom:5px">${barLabel}</div>` +
         rows.map(r =>

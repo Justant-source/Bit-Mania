@@ -1,0 +1,15 @@
+# Low-priority daytime overlay for ATR-SL-only re-sweep.
+# 07:00–24:00 KST: 2 workers on the last 2 cores. Production keeps cores 0–5.
+services:
+  backtester:
+    cpus: 1.50
+    cpu_shares: 128
+    cpuset: "6,7"
+    mem_limit: 3g
+    memswap_limit: 3g
+    oom_score_adj: 800
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 3G

@@ -1,6 +1,6 @@
 ---
 title: L5 API — Redis Pub/Sub 채널 카탈로그 + Dashboard REST
-last_updated: 2026-06-15
+last_updated: 2026-08-29
 ---
 
 # L5 API — Redis Pub/Sub 채널 카탈로그 + Dashboard REST
@@ -66,9 +66,15 @@ sequenceDiagram
 | 패턴 | 발행자 | 구독자 |
 |---|---|---|
 | `market:ohlcv:{exchange}:{symbol}:{tf}` | market-data | supertrend, orchestrator |
+| `market:ohlcv:{exchange}:{quarterly}:{tf}` | market-data (Track C, optional) | analytics |
+| `market:ticker:{exchange}:{quarterly}` | market-data (Track C, optional) | analytics |
 | `market:funding:{exchange}:{symbol}` | market-data, funding_monitor | orchestrator |
 | `market:open_interest:...` | market-data | orchestrator |
 | `market:liquidations:...` | market-data | orchestrator |
+
+> Track C 분기물 심볼은 하드코딩하지 않는다. `quarterly_lifecycle.resolve_quarterly_symbols()`가
+> Bybit `instruments-info`에서 `BTCUSDT-{dd}{MAR|JUN|SEP|DEC}{yy}` Trading 계약만 골라 구독한다.
+> core BTCUSDT 토픽과 분기물 토픽은 **별도 subscribe 배치**로 보내 만기 심볼이 OHLCV 본선을 끊지 않게 한다.
 | `order:request` | supertrend | execution-engine |
 | `order:result` | execution-engine | supertrend |
 | `order:result:{strategy_id}` | execution-engine | supertrend (전략 전용) |
@@ -76,6 +82,17 @@ sequenceDiagram
 | `ce:strategy:command` | telegram-bot | orchestrator |
 | `ce:alerts:{type}` | 전 서비스 | telegram-bot |
 | `llm:advisory` | llm-advisor | orchestrator |
+
+---
+
+## §3.1 Redis KV 키 (잔고 · 하트비트)
+
+| 키 | TTL | Writer | 용도 |
+|---|---|---|---|
+| `ce:phase5:equity_baseline` | 없음 | execution-engine | Phase 5 잔고 게이트 기준선 (전원 장애 복구). JSON: `equity`, `updated_at`, `source` |
+| `cache:wallet_balance` | 300s | execution-engine | orchestrator 포트폴리오 equity 조회 |
+| `cache:balance:{exchange}` | 300s | execution-engine | 거래소별 잔고 캐시 |
+| `heartbeat:execution-engine` | 300s | execution-engine | Dead Man's Switch 감시 |
 
 ---
 
@@ -92,7 +109,8 @@ Dashboard(`dashboard/src/routes/`) 제공 엔드포인트:
 | GET | `/api/internal/trades?limit=&strategy=` | 거래 이력 |
 | POST | `/api/internal/kill-switch` | Kill Switch 수동 발동 |
 | POST | `/api/internal/resume` | Kill Switch 해제 |
-| GET | `/candles` | OHLCV + EMA + ST 차트 데이터 |
+| GET | `/api/internal/supertrend/candles` | 4h OHLCV만 (`ohlcv_history`). 차트 EMA는 라이브 `supertrend_signals` 우선 |
+| GET | `/api/internal/supertrend/candles/in-progress` | 미확정 4h 봉 (`cache:ohlcv:bybit:BTCUSDT:4h`) |
 | GET | `/compare` | 신호 vs 체결 비교 |
 | GET | `/equity` | 자산 곡선 |
 | GET | `/status` | 전략 상태 |

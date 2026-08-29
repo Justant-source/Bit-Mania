@@ -1,6 +1,6 @@
 ---
 title: 프로젝트 용어집
-last_updated: 2026-06-15
+last_updated: 2026-08-20
 ---
 
 # 프로젝트 용어집
@@ -17,13 +17,13 @@ last_updated: 2026-06-15
 - 상승 추세: Supertrend 상승선 + EMA(7) > EMA(29)에서 롱 진입 (3x 레버리지)
 - 하락 추세: 추세선 붕괴 또는 EMA 하강 교차 시 청산
 - 장기 필터: EMA(240) > Price (상승 구간만 거래)
-- 손절/익절: ATR 기반 거리 초과 또는 신호 전환
+- 손절: ATR 기반 하방 거리 초과 (`가격 ≤ 진입가 − ATR×3.3`) 또는 EMA 데드크로스. ATR 익절 없음 (2026-08-20~).
 
 **백테스트 성과** (Bybit 네이티브 4h, 2017-08-17~2026-04-30):
-- CAGR: +137.64% (연환산)
-- Sharpe: 1.349 (위험 조정 효율)
-- MDD: -73.29% (⚠️ 고위험, 사용자 승인)
-- 거래 수: 360회 (충분한 샘플)
+- CAGR: +219.06% (연환산)
+- Sharpe: 1.667 (위험 조정 효율)
+- MDD: -66.70% (⚠️ 고위험, 사용자 승인)
+- 거래 수: 198회 (충분한 샘플)
 
 **파라미터**: `supertrend_4h_x3_7908` (combo #7908)
 - 기간: 4시간 봉
@@ -70,9 +70,9 @@ Supertrend 4h 3x long-only 전략의 파라미터 조합 번호. 매개변수 �
 - **3x**: 3배 레버리지 (하드 리밋)
 - **7908**: 매개변수 스윕 분석 combo #7908 선정
 
-**백테스트 성과** (Bybit 네이티브 4h, 2026-06-14 재빌드):
-- CAGR +137.64%, Sharpe 1.349, MDD -73.29% (360 trades)
-- 사용자 승인: MDD -73.29% 고위험 수용
+**백테스트 성과** (Bybit 네이티브 4h, 2026-08-20 ATR 익절 제거):
+- CAGR +219.06%, Sharpe 1.667, MDD -66.70% (198 trades)
+- 사용자 승인: MDD -66.70% 고위험 수용
 
 ### PHASE5_MODE
 
@@ -83,9 +83,18 @@ Phase 5 실전 모드 활성화 플래그. `true`일 때:
 
 ### EXPECTED_INITIAL_BALANCE_USD
 
-Phase 5 초기 자본 잔고. 메인넷 진입 시 실제 잔고와 대비하여 검증.
+Phase 5 잔고 게이트의 **폴백** 기준 자본. 메인넷 기동 시 실잔고와 대비 검증(허용 5%).
 
-기본값: $185.31 USDT (2026-05-18 시작, 2026-06-14 현재 ~$185)
+기동 시 우선순위:
+1. Redis `ce:phase5:equity_baseline` (execution-engine이 운영 중 자동 갱신)
+2. 이 환경 변수 (콜드스타트 / Redis wipe)
+
+현재 운영값 예: $159.74 USDT (2026-08-04 현행화). 최초 Phase 5 시작은 2026-05-18($185.31).
+
+### ce:phase5:equity_baseline
+
+전원 장애 후 자동 복구용 Redis 영속 키. JSON `{"equity", "updated_at", "source"}`.
+TTL 없음. `source`는 `runtime` / `startup_ok`.
 
 ### fixed_notional vs pct_equity
 
@@ -358,7 +367,7 @@ docker compose logs -f <svc>       # 실시간 로그
 
 **계산**: ((최종값 / 초기값) ^ (1/년수)) - 1
 
-**Supertrend 4h 3x (Phase 5)**: +137.64% (Bybit 네이티브 4h, 2017-08-17~2026-04-30)
+**Supertrend 4h 3x (Phase 5)**: +219.06% (Bybit 네이티브 4h, ATR 손절만, 2017-08-17~2026-04-30)
 
 **목표**: > 15% (연환산 기본 기준)
 
@@ -372,7 +381,7 @@ docker compose logs -f <svc>       # 실시간 로그
 - 1.0-2.0: 보통 (적절)
 - < 1.0: 미흡
 
-**Supertrend 4h 3x (Phase 5)**: 1.349 (보통, 고위험으로 인한 표준편차 증가)
+**Supertrend 4h 3x (Phase 5)**: 1.667
 
 ### MDD (Maximum Drawdown)
 
@@ -380,8 +389,8 @@ docker compose logs -f <svc>       # 실시간 로그
 
 **계산**: (최저점 - 최고점) / 최고점 × 100%
 
-**Supertrend 4h 3x (Phase 5 실전)**: -73.29% (⚠️ **고위험**)
-- 사용자 승인: 고수익성(+137.64% CAGR)과 고위험(-73.29% MDD)의 트레이드오프 명시 수용
+**Supertrend 4h 3x (Phase 5 실전)**: -66.70% (⚠️ **고위험**)
+- 사용자 승인: 고수익성(+219.06% CAGR)과 고위험(-66.70% MDD)의 트레이드오프 명시 수용
 - 포지션 보호: Kill Switch 4단계 + 강화 모니터링으로 실제 손실 제한
 
 ### Win Rate (승률)

@@ -1,6 +1,6 @@
 ---
 title: L3 Components — 서비스 내부 모듈 책임
-last_updated: 2026-06-15
+last_updated: 2026-08-20
 ---
 
 # L3 Components — 서비스 내부 모듈 책임
@@ -11,7 +11,7 @@ CryptoEngine의 **C4 L3 Component** 계층 문서입니다. 각 마이크로서�
 
 ## Diagram E: StrategyOrchestrator 내부
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-04 -->
 <!-- code-ref: cryptoengine/services/orchestrator/core.py, weight_manager.py, portfolio_monitor.py -->
 
 ```mermaid
@@ -38,12 +38,13 @@ flowchart LR
 |---|---|---|
 | StrategyOrchestrator | services/orchestrator/core.py:46 | Kill Switch 4단계 모니터링 · 전략 자본 배분 명령 발행 |
 | WeightManager | services/orchestrator/weight_manager.py | FIXED_WEIGHTS = {"supertrend": 1.0, "cash": 0.0} 고정 배분 |
-| PortfolioMonitor | services/orchestrator/portfolio_monitor.py | 포트폴리오 P&L 추적 · class PortfolioState |
+| PortfolioMonitor | services/orchestrator/portfolio_monitor.py | 포트폴리오 P&L 추적 · class PortfolioState · daily/weekly/monthly peak는 **해당 기간** equity만으로 복원 (전체 history max 사용 금지) |
 
 **운영 규칙**:
 - 루프 주기: `loop_interval_seconds = 300` (5분)
 - Phase 5 감지: `PHASE5_MODE=true` 또는 `BYBIT_TESTNET=false` 시 절대값 임계값 모드 활성화
 - Supertrend만 100% 배분 (레짐 배분 폐기, 2026-05-25)
+- Kill Switch가 이미 활성(쿨다운)일 때 orchestration 사이클은 CRITICAL 재로깅하지 않음 (Telegram anomaly 스팸 방지). Dead Man's도 이미 KS 활성이면 재_trigger 생략.
 
 ---
 
@@ -93,7 +94,7 @@ flowchart LR
 
 ## Diagram G: Supertrend 전략 내부
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-20 -->
 <!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py, indicators.py, services/strategies/base_strategy.py -->
 
 ```mermaid
@@ -128,7 +129,7 @@ flowchart LR
 - `fast_ema_len = 7` — 빠른 EMA
 - `slow_ema_len = 29` — 느린 EMA
 - `dir_ema_len = 240` — 방향 필터 EMA
-- `atr_mult = 3.3` — ATR 손절·익절 배수
+- `atr_mult = 3.3` — ATR 손절 배수 (익절 없음, 2026-08-20~)
 - `leverage = 3` — 고정 레버리지 (하드캡)
 - `CANDLE_LOOKBACK = 1000` — dir_ema(240) 시드 정합 (2026-06-14 300→1000)
 - `TIMEFRAME = "4h"` — 4시간 봉

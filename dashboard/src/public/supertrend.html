@@ -113,7 +113,7 @@
       <div class="card-head">
         <div>
           <div class="card-title">BTC/USDT · 4h</div>
-          <div class="card-sub">ST(9, 2.6) · EMA 7/29/240 | ▲ 진입 ▼ 종료 (진한색=체결)</div>
+          <div class="card-sub">ST(9, 2.6) · EMA 7/29/240 · 시각은 봉 시작 KST | ▲ 진입 ▼ 종료 (진한색=체결)</div>
         </div>
         <div class="flex gap-2 items-center">
           <span class="badge neutral">△ 예상</span>
@@ -161,7 +161,40 @@
 
         <div style="margin-top:2px;padding:10px 12px;background:color-mix(in srgb,var(--c-success) 8%,var(--surface));border-radius:var(--r-sm,8px);border:1px solid var(--border);font:500 13px/1.55 var(--font-sans)">
           ✅ 위 <b>1 · 2 · 3 이 모두</b> 충족되는 4h 봉 마감에 <b style="color:var(--c-success)">롱(매수) 진입</b>합니다 (자본 95% × 3배 레버리지). 하나라도 어긋나면 진입하지 않고 대기합니다.<br>
-          청산은 <b>회색 EMA7이 파란 EMA29 아래로 교차</b>하거나, <b>가격이 진입가에서 ATR(14)×3.3 만큼</b> 벗어날 때 이루어집니다.
+          청산은 아래 ‘언제 매도(숏) 하나요?’를 따릅니다.
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Exit Conditions -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">언제 매도(숏) 하나요?</div>
+          <div class="card-sub">이 전략은 <b>롱만</b> 엽니다. 아래는 보유 중인 롱을 청산(매도)하는 조건입니다. 숏 포지션은 새로 열지 않습니다.</div>
+        </div>
+      </div>
+      <div style="padding:6px 16px 18px;display:flex;flex-direction:column;gap:14px">
+
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="flex:none;width:22px;height:22px;border-radius:50%;background:var(--c-danger);color:#fff;font:700 12px/22px var(--font-sans);text-align:center">1</span>
+          <div>
+            <div style="font:600 14px/1.45 var(--font-sans)"><span style="display:inline-block;width:16px;height:3px;background:var(--text-muted);vertical-align:middle;margin-right:3px"></span> 회색 EMA7이 <span style="display:inline-block;width:16px;height:3px;background:var(--c-info);vertical-align:middle;margin:0 3px"></span> 파란 EMA29 <b>아래로 교차</b>할 때</div>
+            <div class="card-sub">4h 봉 마감 기준 <b>EMA(7) &lt; EMA(29)</b>가 되면 데드크로스로 즉시 청산합니다. 가격이 이평선 아래로 내려가는 것만으로는 부족하고, <b>두 EMA 선끼리의 교차</b>여야 합니다.</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="flex:none;width:22px;height:22px;border-radius:50%;background:var(--c-danger);color:#fff;font:700 12px/22px var(--font-sans);text-align:center">2</span>
+          <div>
+            <div style="font:600 14px/1.45 var(--font-sans)">가격이 진입가에서 <b>ATR(14)×3.3</b> 만큼 하락했을 때</div>
+            <div class="card-sub">손절: <b>종가 ≤ 진입가 − ATR(14)×3.3</b>. 익절(ATR 목표가)은 없습니다. 상승은 데드크로스까지 보유합니다.</div>
+          </div>
+        </div>
+
+        <div style="margin-top:2px;padding:10px 12px;background:color-mix(in srgb,var(--c-danger) 8%,var(--surface));border-radius:var(--r-sm,8px);border:1px solid var(--border);font:500 13px/1.55 var(--font-sans)">
+          ST선이 <span style="color:var(--c-danger);font-weight:700">빨간색</span>이 되어도 그 자체만으로는 청산하지 않습니다. 빨간 ST는 <b>신규 롱 진입을 막는 필터</b>입니다. 이미 롱이면 위 1 또는 2가 나올 때까지 유지합니다.
         </div>
 
       </div>
@@ -218,6 +251,6 @@
 </div>
 
 <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
-<script src="/js/supertrend-dashboard.js?v=20260528-1"></script>
+<script src="/js/supertrend-dashboard.js?v=20260829-kst"></script>
 </body>
 </html>

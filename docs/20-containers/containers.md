@@ -1,6 +1,6 @@
 ---
 title: L2 Containers — 배포 단위 · 포트 · 네트워크
-last_updated: 2026-08-28
+last_updated: 2026-08-29
 ---
 
 # L2 Containers — 배포 단위 · 포트 · 네트워크
@@ -12,7 +12,7 @@ CryptoEngine 프로젝트의 모든 서비스는 **Docker Compose 기반 컨테�
 
 ## 1. CryptoEngine 운영 스택 (Production)
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: /cryptoengine/docker-compose.yml -->
 
 ```mermaid
@@ -20,17 +20,17 @@ flowchart TB
   subgraph prod["CryptoEngine Production — Docker Compose"]
     subgraph infra["Infrastructure Layer"]
       postgres["<b>postgres:16-alpine</b><br/>:5432 · pgdata 볼륨<br/>cryptoengine DB<br/>replicas=256M"]
-      redis["<b>redis:7-alpine</b><br/>:6379 · redisdata 볼륨<br/>AOF · 256MB maxmemory<br/>requirepass"]
+      redis["<b>redis:7-alpine</b><br/>:6379 · redisdata 볼륨<br/>AOF · 64MB maxmemory<br/>requirepass"]
       prometheus["<b>prometheus:v2.51.0</b><br/>:9090 · prometheus-data 볼륨<br/>30d retention · tsdb"]
       nexp["<b>node-exporter:v1.8.0</b><br/>:9100 expose only<br/>host metrics scraping"]
       rexp["<b>redis-exporter:latest</b><br/>:9121 expose only<br/>redis metrics scraping"]
       pgbak["<b>pg-backup</b><br/>pg_backup.sh<br/>cron: 0 17 * * *<br/>UTC=02:00 KST"]
       logret["<b>log-retention</b><br/>log_retention.sh<br/>cron: 0 18 * * *<br/>UTC=03:00 KST"]
-      ohlcvret["<b>ohlcv-retention</b><br/>ohlcv_retention.sh<br/>cron: 0 18 * * *<br/>rolling 7d"]
+      ohlcvret["<b>ohlcv-retention</b><br/>ohlcv_retention.sh<br/>cron: 0 18 * * *<br/>4h 영구 · 기타 tf 삭제"]
     end
 
     subgraph core["Core + Strategy Layer"]
-      market_data["<b>market-data</b><br/>Bybit WS · OHLCV<br/>4h/1h candles<br/>Redis Pub/Sub broadcast"]
+      market_data["<b>market-data</b><br/>Bybit WS · OHLCV<br/>4h candles<br/>Redis Pub/Sub broadcast"]
       md_binance["<b>market-data-binance</b><br/>Binance WS<br/>Track C · optional"]
       md_okx["<b>market-data-okx</b><br/>OKX WS<br/>Track C · optional"]
       orchestrator["<b>strategy-orchestrator</b><br/>Kill Switch logic<br/>Capital allocation<br/>Signal router"]
@@ -79,14 +79,14 @@ flowchart TB
 - `postgres`: 모든 서비스의 중앙 상태 저장소 (OHLCV, 포지션, 로그, 메트릭)
 - `redis`: Pub/Sub 신호 전파 채널 (시장 데이터 → 전략 → 실행)
 - `prometheus`: 메트릭 수집 (node-exporter, redis-exporter)
-- 유지보수 작업: 백업, 로그 정리, 캔들 데이터 롤링 보존
+- 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 수집분·Track C 1m)은 7일 후 삭제.
 
 **Core + Strategy Layer** — 비즈니스 로직:
-- `market-data`: Bybit 메인넷에서 OHLCV 수집 (4h/1h), Redis Pub/Sub으로 broadcast. Track C 분기물은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음)
+- `market-data`: Bybit 메인넷에서 **4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. Track C 분기물은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음)
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
-- Track C 선택 사항: `market-data-binance`, `market-data-okx`
+- Track C 선택 사항: `market-data-binance`, `market-data-okx` — **운영 전략이 읽지 않아 2026-08-29부터 중지** (1m OHLCV만 적재했음)
 
 **Interface + Observability**:
 - `telegram-bot`: Telegram 알림 (trade, alert, /kill, /positions)
@@ -101,16 +101,16 @@ flowchart TB
 | 서비스 | 이미지 | 호스트 포트 | 내부 포트 | Depends On | CPU Limit | Memory Limit | Restart |
 |--------|--------|-----------|----------|-----------|-----------|-------------|---------|
 | **postgres** | postgres:16-alpine | 127.0.0.1:5432 | 5432 | — | 1.0 | 512M | always |
-| **redis** | redis:7-alpine | 127.0.0.1:6379 | 6379 | — | 0.5 | 320M | always |
+| **redis** | redis:7-alpine | 127.0.0.1:6379 | 6379 | — | 0.25 | 96M | always |
 | **prometheus** | prom/prometheus:v2.51.0 | 0.0.0.0:9090 | 9090 | redis-exp, node-exp | 0.5 | 512M | always |
 | **node-exporter** | prom/node-exporter:v1.8.0 | expose | 9100 | — | 0.1 | 64M | always |
 | **redis-exporter** | oliver006/redis_exporter:latest | expose | 9121 | redis | 0.1 | 64M | always |
 | **pg-backup** | postgres:16-alpine | — | — | postgres | 0.5 | 128M | always |
 | **log-retention** | postgres:16-alpine | — | — | postgres | 0.2 | 64M | always |
-| **ohlcv-retention** | postgres:16-alpine | — | — | postgres | 0.2 | 64M | always |
-| **market-data** | cryptoengine/market-data | — | — | redis, postgres | 0.5 | 256M | always |
-| **market-data-binance** | cryptoengine/market-data | — | — | redis, postgres | 0.2 | 128M | unless-stopped |
-| **market-data-okx** | cryptoengine/market-data | — | — | redis, postgres | 0.2 | 128M | unless-stopped |
+| **ohlcv-retention** | postgres:16-alpine | — | — | postgres | 0.1 | 32M | always |
+| **market-data** | cryptoengine/market-data | — | — | redis, postgres | 0.25 | 128M | always |
+| **market-data-binance** | cryptoengine/market-data | — | — | redis, postgres | 0.1 | 64M | unless-stopped (profile: track-c) |
+| **market-data-okx** | cryptoengine/market-data | — | — | redis, postgres | 0.1 | 64M | unless-stopped (profile: track-c) |
 | **strategy-orchestrator** | cryptoengine/orchestrator | — | — | redis, postgres, market-data | 0.5 | 256M | always |
 | **execution-engine** | cryptoengine/execution | — | — | redis, postgres | 0.5 | 256M | always |
 | **supertrend** | cryptoengine/supertrend | — | — | redis, postgres, market-data | 0.5 | 256M | always |
@@ -183,13 +183,13 @@ flowchart TB
 
 ## 4. Dashboard 스택
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: /dashboard/docker-compose.yml -->
 
 ```mermaid
 flowchart TB
   subgraph dash_stack["Dashboard — bitmania-dashboard"]
-    dashboard_svc["<b>dashboard</b><br/>Vite + Express<br/>:3000<br/>CPU: 0.5 · Memory: 256M"]
+    dashboard_svc["<b>dashboard</b><br/>Express<br/>:3000<br/>CPU: 0.25 · Memory: 128M"]
   end
 
   ce_infra["CryptoEngine Infrastructure<br/>(별도 compose)"]
@@ -248,7 +248,7 @@ flowchart TB
 |------|-----------|---------|------|
 | **pgdata** | /var/lib/postgresql/data | local | 운영 데이터베이스 영구 저장 |
 | **pg_backtest** | /var/lib/postgresql/data | local | 백테스트 jesse_db 영구 저장 |
-| **redisdata** | /data | local | Redis AOF 영구 저장 (256MB maxmemory) |
+| **redisdata** | /data | local | Redis AOF 영구 저장 (64MB maxmemory) |
 | **prometheus-data** | /prometheus | local | 메트릭 시계열 저장 (30d) |
 | **pg-backups** | /backups | local | PostgreSQL 매일 백업 (02:00 KST) |
 
@@ -308,8 +308,8 @@ flowchart TB
 |------|--------|--------|------|
 | `BACKUP_CRON` | pg-backup | 0 17 * * * | 백업 스케줄 (02:00 KST) |
 | `LOG_RETENTION_CRON` | log-retention | 0 18 * * * | 로그 정리 (03:00 KST) |
-| `OHLCV_RETENTION_CRON` | ohlcv-retention | 0 18 * * * | 캔들 롤링 보존 (03:00 KST) |
-| `OHLCV_RETENTION_DAYS` | ohlcv-retention | 7 | 보존 기간 (일) |
+| `OHLCV_RETENTION_CRON` | ohlcv-retention | 0 18 * * * | 단기 봉 롤링 보존 (03:00 KST) |
+| `OHLCV_RETENTION_DAYS` | ohlcv-retention | 7 | 4h가 아닌 잔여 timeframe 삭제 일수. 운영 수집은 4h만 |
 
 ### Telegram
 
@@ -454,9 +454,10 @@ docker compose up -d --build --no-deps market-data
 
 # shared/ 변경 시 전체 재빌드 (필수)
 docker compose build \
-  market-data market-data-binance market-data-okx \
+  market-data \
   strategy-orchestrator execution-engine supertrend \
   telegram-bot
+# Track C (미사용): docker compose --profile track-c build market-data-binance market-data-okx
 ```
 
 > `dashboard`는 별도 프로젝트(`/home/justant/Data/Bit-Mania/dashboard`)이므로 여기 재빌드 목록에 포함되지 않는다. §9 참조.

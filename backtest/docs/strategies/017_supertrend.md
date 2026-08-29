@@ -1,6 +1,6 @@
 ---
 status: active-2026-05-18
-last_updated: 2026-06-14
+last_updated: 2026-08-20
 ---
 
 # 016 — Supertrend 전략 (Triple Confirmation)
@@ -35,9 +35,8 @@ def update_position():
     atr_stop = atr(14) * atr_mult
     if price <= entry - atr_stop:             # ATR 손절
         liquidate()
-    if price >= entry + atr_stop:             # ATR 익절
-        liquidate()
-    # ATR 청산 후 1캔들(8h) 재진입 금지
+    # ATR 익절 없음 — 상승은 EMA 데드크로스까지 보유 (2026-08-20)
+    # ATR 손절 후 1캔들 재진입 금지
 ```
 
 ## 파라미터
@@ -51,9 +50,9 @@ def update_position():
 | `fast_ema_len` | 7 | **7** | 단기 EMA |
 | `slow_ema_len` | 20 | **29** | 장기 EMA |
 | `direction_ema_len` | 200 | **240** | 방향 필터 EMA |
-| `atr_mult` | 3.0 | **3.3** | ATR 손절/익절 배수 |
+| `atr_mult` | 3.0 | **3.3** | ATR 손절 배수 (익절 없음) |
 
-> combo #7908은 Phase 5 파라미터 최적화 스윕(v7_st)에서 선정됨. 최종 Bybit 네이티브 4h 정본 성과(2026-06-14 재빌드): CAGR +137.64%, Sharpe 1.349, MDD -73.29%, 360 trades. 자세한 최적화 내역 → `docs/policies/strategies/supertrend.md`
+> combo #7908은 Phase 5 파라미터 최적화 스윕(v7_st)에서 선정됨. 2026-08-20 정본(Bybit 네이티브 4h, ATR 손절만): CAGR +219.06%, Sharpe 1.667, MDD -66.70%, 198 trades. 이전 익절 포함 수치(137.64%/360)는 폐기.
 
 ## 백테스트 결과 (1x, 2017-08~2026-04)
 
@@ -76,10 +75,10 @@ def update_position():
 | combo #164 | 115.79% | 1.252 | -86.32% | 379 | ❌ FAIL | |
 | combo #173 | 128.93% | 1.304 | -86.94% | 378 | ❌ FAIL | 이전 live (v4 스윕) |
 | combo #176 | 123.42% | 1.282 | -86.87% | 367 | ❌ FAIL | |
-| **combo #7908** | **137.64%** | **1.349** | **-73.29%** | 360 | **✅ PASS (Bybit 네이티브)** | **현재 live (2026-06-14 Bybit 네이티브 4h 정본)** |
+| **combo #7908** | **219.06%** | **1.667** | **-66.70%** | 198 | **✅ PASS (Bybit 네이티브, ATR 손절만)** | **현재 live (2026-08-20)** |
 
-> Bybit 네이티브 4h 재실행 결과(2026-06-14): CAGR 137.64%, Sharpe 1.349, MDD -73.29%로 개선됨. 격자 갭(Binance 02계열→Bybit 00계열) 해소로 성과 정규화.  
-> 구 Binance 1h→4h 스윕 값(151.56%/1.374/-84.28%, 354 trades)은 폐기됨.
+> Bybit 네이티브 4h (2026-08-20, ATR 손절만): CAGR 219.06%, Sharpe 1.667, MDD -66.70%, 198 trades.  
+> 이전 익절 포함 정본(2026-06-14): 137.64% / 1.349 / -73.29% / 360 trades.
 
 ## 통합 경위
 

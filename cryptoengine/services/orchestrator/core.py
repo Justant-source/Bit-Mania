@@ -211,6 +211,7 @@ class StrategyOrchestrator:
             strategies=portfolio_state.strategies,
             kill_switch_triggered=portfolio_state.kill_switch_triggered,
         )
+        prev_triggered_at = self._kill_switch.triggered_at
         active_level = await self._kill_switch.check(
             ks_portfolio,
             monthly_drawdown=-portfolio_state.monthly_drawdown,
@@ -218,13 +219,24 @@ class StrategyOrchestrator:
             equity_at_open=portfolio_state.total_equity,
         )
         if active_level > KillLevel.NONE:
-            log.critical(
-                KILL_SWITCH_TRIGGERED,
-                message="kill switch triggered",
-                level=active_level.name,
-                reason=self._kill_switch.reason,
-                equity=portfolio_state.total_equity,
-            )
+            # check() already-active path returns same level without re-_trigger.
+            # Only log CRITICAL (→ Telegram anomaly) on a NEW trigger.
+            if self._kill_switch.triggered_at != prev_triggered_at:
+                log.critical(
+                    KILL_SWITCH_TRIGGERED,
+                    message="kill switch triggered",
+                    level=active_level.name,
+                    reason=self._kill_switch.reason,
+                    equity=portfolio_state.total_equity,
+                )
+            else:
+                log.warning(
+                    KILL_SWITCH_COOLDOWN,
+                    message="kill switch still active (cooldown)",
+                    level=active_level.name,
+                    reason=self._kill_switch.reason,
+                    triggered_at=self._kill_switch.triggered_at,
+                )
             # _on_kill_switch_trigger callback already fired inside KillSwitch.check()
             return
 
@@ -541,26 +553,34 @@ class StrategyOrchestrator:
                 # 핵심 서비스(execution-engine)가 죽은 경우 kill switch 발동
                 critical_dead = [s for s in dead_services if s == "execution-engine"]
                 if critical_dead:
-                    log.critical(
-                        ORCH_DEAD_MAN_SWITCH,
-                        message="dead man's switch triggered",
-                        dead_services=critical_dead,
-                        action="triggering_kill_switch",
-                    )
-                    await self._kill_switch.trigger(
-                        KillLevel.SYSTEM,
-                        f"Dead man's switch: services not responding: {critical_dead}",
-                    )
+                    if self._kill_switch.is_triggered:
+                        # 이미 발동 중이면 재_trigger 금지 (쿨다운 리셋·텔레그램 스팸 방지)
+                        log.warning(
+                            ORCH_DEAD_MAN_SWITCH,
+                            message="dead man's switch — kill already active, skip re-trigger",
+                            dead_services=critical_dead,
+                        )
+                    else:
+                        log.critical(
+                            ORCH_DEAD_MAN_SWITCH,
+                            message="dead man's switch triggered",
+                            dead_services=critical_dead,
+                            action="triggering_kill_switch",
+                        )
+                        await self._kill_switch.trigger(
+                            KillLevel.SYSTEM,
+                            f"Dead man's switch: services not responding: {critical_dead}",
+                        )
 
-                    # Telegram 알림 발행
-                    await self._redis.publish(
-                        "telegram:notification",
-                        json.dumps({
-                            "level": "critical",
-                            "message": f"Dead Man's Switch triggered! Services down: {critical_dead}. All positions closed.",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        })
-                    )
+                        # Telegram 알림 발행
+                        await self._redis.publish(
+                            "telegram:notification",
+                            json.dumps({
+                                "level": "critical",
+                                "message": f"Dead Man's Switch triggered! Services down: {critical_dead}. All positions closed.",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            })
+                        )
 
                 elif dead_services:
                     # 비핵심 서비스 경고만

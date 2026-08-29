@@ -102,8 +102,7 @@ class SupertrendStrategy(Strategy):
             if fast < slow:
                 self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
-            if (self.price <= self._last_entry - atr_stop
-                    or self.price >= self._last_entry + atr_stop):
+            if self.price <= self._last_entry - atr_stop:
                 self._last_liquidation_ts = self.candles[-1][0]
                 self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return
@@ -112,8 +111,7 @@ class SupertrendStrategy(Strategy):
             if fast > slow:
                 self._last_liquidation_ts = self.candles[-1][0]
                 self.liquidate(); return
-            if (self.price <= self._last_entry - atr_stop
-                    or self.price >= self._last_entry + atr_stop):
+            if self.price >= self._last_entry + atr_stop:
                 self._last_liquidation_ts = self.candles[-1][0]
                 self._atr_exit_ts = self.candles[-1][0]
                 self.liquidate(); return

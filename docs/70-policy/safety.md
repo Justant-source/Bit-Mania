@@ -1,7 +1,7 @@
 ---
 title: 70 Policy — 안전 정책 (Kill Switch · 레버리지 · BTC-only · 긴급 청산)
 category: policies
-last_updated: 2026-06-15
+last_updated: 2026-08-20
 ---
 
 # 70 Policy — 안전 정책
@@ -136,10 +136,10 @@ Kill Switch 발동 → execution-engine 포지션 청산 확인:
 ### 2.3 백테스트 성과 (Bybit 네이티브 4h: 2017-08 ~ 2026-04)
 
 ```
-CAGR:           +137.64%    ✅ 매우 높음
-Sharpe 비율:    1.349       ⚠️ 적절 (> 1.0)
-최대낙폭(MDD):  -73.29%     ⚠️ 극한 위험 (사용자 승인)
-거래 수:        360회       ✅ 충분한 샘플
+CAGR:           +219.06%    ✅ 매우 높음
+Sharpe 비율:    1.667       ✅ 양호
+최대낙폭(MDD):  -66.70%     ⚠️ 고위험 (사용자 승인, ATR 익절 없음 2026-08-20)
+거래 수:        198회       ✅ 충분한 샘플
 ```
 
 ### 2.4 포지션 사이징 공식
@@ -194,7 +194,7 @@ Supertrend 추세추종 전략 관점: 낮은 변동성 = 신호 신뢰도 높�
 - 극단 시나리오에서 모두 동시 손실
 
 **3. 현재 Supertrend 전략의 BTC 기반 성과**
-- BTC 단일: CAGR +137.64%, Sharpe 1.349, MDD -73.29%, 360 trades ✅
+- BTC 단일: CAGR +219.06%, Sharpe 1.667, MDD -66.70%, 198 trades ✅
 - 멀티심볼: CAGR 음수, Sharpe < 1.0 (백테스트 결과) ❌
 
 ### 3.3 구현 (코드 레벨)
@@ -415,13 +415,20 @@ Kill Switch는 자본 보호의 최후 방어선이다. 다음은 절대 금지:
 
 ### 7.2 배포 전 필수 사항
 
-execution-engine 재시작 전 **반드시** `.env` 파일의 `EXPECTED_INITIAL_BALANCE_USD` 를 현재 잔고로 현행화하세요.
+execution-engine 재시작 시 Phase 5 잔고 게이트는 다음 순서로 기준값을 고른다.
+
+1. Redis `ce:phase5:equity_baseline` (운영 중 60초마다 자동 갱신, TTL 없음)
+2. 없으면 `.env`의 `EXPECTED_INITIAL_BALANCE_USD` (콜드스타트 / Redis wipe 폴백)
+
+허용 오차 5%. 게이트·Kill Switch 로직 약화 금지.
 
 ```bash
-# 현재 잔고 확인 (Bybit 대시보드)
-# .env 업데이트
-EXPECTED_INITIAL_BALANCE_USD=185.31  # 실제 잔고
+# Redis baseline 이 없거나 게이트 실패 시에만 .env 현행화
+# 현재 잔고 확인 (Bybit 대시보드 또는 로그 actual_usdt)
+EXPECTED_INITIAL_BALANCE_USD=159.74  # 실제 잔고
 ```
+
+하트비트 단절로 Dead Man's Switch가 발동했다면 `strategy-orchestrator` 재시작으로 인메모리 Kill 상태를 초기화한다.
 
 ---
 

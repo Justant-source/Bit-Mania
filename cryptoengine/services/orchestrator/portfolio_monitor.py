@@ -272,7 +272,12 @@ class PortfolioMonitor:
         ]
 
     async def _load_equity_history(self) -> None:
-        """Load equity history from Redis on startup."""
+        """Load equity history from Redis on startup.
+
+        Period peaks (daily/weekly/monthly) MUST be scoped to the current
+        period — using the all-time max falsely inflates daily drawdown and
+        re-triggers Kill Switch after every restart (Telegram alert spam).
+        """
         raw = await self._redis.lrange(REDIS_KEY_EQUITY_HISTORY, 0, -1)
         for entry in raw:
             try:
@@ -283,15 +288,33 @@ class PortfolioMonitor:
                 continue
 
         if self._equity_history:
+            now = datetime.now(timezone.utc)
             self._peak_equity = max(eq for _, eq in self._equity_history)
-            self._daily_peak = self._peak_equity
-            self._weekly_peak = self._peak_equity
-            self._monthly_peak = self._peak_equity
+
+            today = now.date()
+            week_start = today - timedelta(days=today.weekday())  # Monday UTC
+            month_start = today.replace(day=1)
+
+            daily_eqs = [eq for ts, eq in self._equity_history if ts.date() == today]
+            weekly_eqs = [eq for ts, eq in self._equity_history if ts.date() >= week_start]
+            monthly_eqs = [
+                eq for ts, eq in self._equity_history if ts.date() >= month_start
+            ]
+
+            # 0.0 → 첫 evaluate() 의 _update_period_peaks 가 현재 equity 로 설정
+            self._daily_peak = max(daily_eqs) if daily_eqs else 0.0
+            self._weekly_peak = max(weekly_eqs) if weekly_eqs else 0.0
+            self._monthly_peak = max(monthly_eqs) if monthly_eqs else 0.0
+            self._last_peak_reset = now
+
             log.info(
                 SERVICE_HEALTH_OK,
                 message="equity history loaded",
                 entries=len(self._equity_history),
                 peak=self._peak_equity,
+                daily_peak=self._daily_peak,
+                weekly_peak=self._weekly_peak,
+                monthly_peak=self._monthly_peak,
             )
 
     async def _cache_state(self, state: PortfolioState) -> None:

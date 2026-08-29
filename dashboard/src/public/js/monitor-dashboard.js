@@ -43,9 +43,12 @@ async function apiFetch(path) {
 function fmtKST(isoStr) {
   if (!isoStr) return '—';
   return new Date(isoStr).toLocaleString('ko-KR', {
-    timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit',
-  });
+    hour12: false,
+  }) + ' KST';
 }
 
 function fmtUSD(val) {
@@ -402,7 +405,10 @@ async function openInfraModal(key, label) {
     const last = pts[pts.length - 1]?.ts;
     if (last) {
       document.getElementById('modal-last-update').textContent =
-        `마지막 기록: ${new Date(last).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+        `마지막 기록: ${new Date(last).toLocaleString('ko-KR', {
+          timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        })} KST`;
     }
   } catch (err) {
     chartDiv.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:300px;color:var(--text-soft)">로딩 실패</div>`;

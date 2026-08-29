@@ -1,7 +1,7 @@
 """Supertrend 4h Long-Only Strategy for BTC/USDT:USDT perpetuals.
 
 Signals: Supertrend direction + EMA cross + direction filter
-Position: Long-only, leverage 3x, ATR-based exit
+Position: Long-only, leverage 3x, ATR stop-loss (no ATR take-profit)
 Data: 4h candles from Redis channel
 
 상태 관리 원칙 (2026-05-27 미체결 사고 재발 방지):
@@ -416,7 +416,8 @@ class SupertrendLiveStrategy(BaseStrategy):
         else:
             ema_cross_exit = fast_ema < slow_ema
             atr_stop = atr_14 * self.atr_mult
-            atr_distance_exit = abs(price - self._entry_price) >= atr_stop
+            # ATR is stop-loss only (downside). Upside rides until EMA death-cross.
+            atr_distance_exit = price <= self._entry_price - atr_stop
             if ema_cross_exit or atr_distance_exit:
                 exit_signal = True
                 exit_reason = "ema_cross" if ema_cross_exit else "atr_distance"

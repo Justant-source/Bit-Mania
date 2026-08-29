@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — Supertrend 전략 SSOT · 백테스트 방법론
-last_updated: 2026-06-15
+last_updated: 2026-08-20
 ---
 
 # Supertrend 전략 SSOT · 백테스트 방법론
@@ -31,7 +31,7 @@ last_updated: 2026-06-15
 | fast_ema | 7 | 빠른 EMA (단기 모멘텀) |
 | slow_ema | 29 | 느린 EMA (중기 방향) |
 | dir_ema | 240 | 방향 필터 EMA (장기 추세) |
-| atr_mult | 3.3 | ATR 손절·익절 배수 |
+| atr_mult | 3.3 | ATR 손절 배수 (익절 없음, 2026-08-20~) |
 | CANDLE_LOOKBACK | 1000 | 지표 계산 봉 수 (dir_ema 240 시드 정합) |
 | min_notional | $65 | 최소 주문 금액 (Bybit 기준) |
 
@@ -67,7 +67,7 @@ last_updated: 2026-06-15
 
 ## §4. 진입/청산 Flowchart
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-20 -->
 <!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py, cryptoengine/config/strategies/supertrend.yaml -->
 
 ```mermaid
@@ -82,19 +82,16 @@ flowchart TD
     C -->|"있음"| F{{"청산 신호<br/>발생?"}}
     F -->|"EMA7 < EMA29"| G["즉시 청산<br/>Post-only 지정가"]
     F -->|"가격 ≤ 진입가 - ATR×3.3"| H["손절 청산"]
-    F -->|"가격 ≥ 진입가 + ATR×3.3"| I["익절 청산"]
     F -->|"없음"| W
     
     G --> J["1봉(4h) 진입 금지<br/>cooldown"]
     H --> J
-    I --> J
     J --> W
     E --> C
     
     style E fill:#4caf50,color:#fff
     style G fill:#f44336,color:#fff
     style H fill:#ff9800,color:#fff
-    style I fill:#2196f3,color:#fff
 ```
 
 ---
@@ -105,37 +102,42 @@ flowchart TD
 |---|---|---|---|
 | EMA 데드크로스 | EMA(7) < EMA(29) | **최우선** | 즉시 청산 (추세 반전) |
 | ATR 손절 | 가격 ≤ 진입가 - ATR(14)×3.3 | 높음 | 자동 청산 + 1봉 cooldown |
-| ATR 익절 | 가격 ≥ 진입가 + ATR(14)×3.3 | 높음 | 자동 청산 + 1봉 cooldown |
-| 진입 후 쿨다운 | ATR 청산 후 1봉(4h) | 제약 | 신규 진입 차단 |
+| ATR 익절 | — | **없음** | 2026-08-20 제거. 상승 추세는 EMA 데드크로스까지 보유 |
+| 진입 후 쿨다운 | ATR 손절 후 1봉(4h) | 제약 | 신규 진입 차단 |
 | 안전 스탑 | 진입가 - 70%/3x | 안전 | 거래소 스탑로스 (STOP_LOSS_PCT=0.2333) |
 
 ---
 
 ## §6. 백테스트 성과 (Bybit 네이티브 4h 정본)
 
-**Backtest Period**: 2017-08-17 ~ 2026-04-30 (9년)
+**Backtest Period**: 2017-08-17 ~ 2026-04-30 (9년)  
+**청산 규칙**: EMA 데드크로스 + ATR 손절만 (익절 없음, 2026-08-20 SSOT)
 
 | 지표 | 값 | 평가 |
 |---|---|---|
-| **CAGR** | +137.64% | ✅ 매우 우수 |
-| **Sharpe Ratio** | 1.349 | ⚠️ 보통 (고변동성) |
-| **Maximum Drawdown** | **-73.29%** | 🚨 **극한 위험** |
-| **총 거래 수** | 360회 | ✅ 충분한 샘플 |
-| **승률** | 48.61% | ✅ 양수 기대값 |
+| **CAGR** | +219.06% | ✅ 매우 우수 |
+| **Sharpe Ratio** | 1.667 | ✅ 양호 |
+| **Maximum Drawdown** | **-66.70%** | 🚨 **고위험** |
+| **총 거래 수** | 198회 | ✅ 충분한 샘플 (EMA 청산 197 / ATR 손절 1) |
+| **승률** | 42.42% | ✅ 양수 기대값 (PF 1.507) |
+
+이전 규칙(ATR 대칭 손절·익절) 참고: CAGR +137.64% / Sharpe 1.349 / MDD −73.29% / 360 trades.
+
+Jesse 스윕 window-mean(익절 없음, combo #7908): CAGR_new **281.36%** (8 windows 산술평균). 전기간 CAGR(+219.06%)과 정의가 다름.
 
 ### ⚠️ 위험 평가
 
-**MDD −73.29%는 극한 위험입니다**:
+**MDD −66.70%는 고위험입니다**:
 
 - **극단 시나리오**: 2022년 BTC 약세장 중 연쇄 손실
-- **복구 기간**: 6개월 이상 소요 가능
-- **자본 영향**: $185 → $49 (약 73% 손실)
-- **심리적 압박**: 73% 낙폭 시 정신적 스트레스 극대
+- **복구 기간**: 수개월 이상 소요 가능
+- **자본 영향**: $185 → 약 $62 (약 67% 손실)
+- **심리적 압박**: 60%대 낙폭 시 정신적 스트레스 큼
 
 **그럼에도 채택된 이유**:
-1. CAGR +137.64% — 파워풀한 장기 수익성
+1. CAGR +219.06% — 파워풀한 장기 수익성 (익절 제거 후 추세 보유)
 2. 추세 추종 특성 — BTC 상승장에서 극대 이익 창출
-3. 사용자 승인 — 위험 인지 후 명시적 동의
+3. 사용자 승인 — 위험 인지 후 명시적 동의 (2026-08-20 ATR 익절 제거)
 
 ---
 
@@ -188,12 +190,16 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 - **검증**: OOS에서 독립적 성과 검증
 - **결과**: Telegram 자동 전송
 
+### 그리드 재스윕 (v10_notp, ATR 손절만)
+
+대시보드에 있던 유일 파라미터 공간은 v7_st 15,000 combo이다 (v6_st 1,296는 부분집합). 2026-08-20부터 `v10_notp`에 combo만 복사한 뒤 8윈도우를 재실행한다. 기존 v6_st/v7_st window 결과는 보존한다. 스케줄러는 KST 00–06에 워커 6 (cpuset 3–7), 그 외 워커 2 (cpuset 6–7), `nice 19`로 운영 스택과 CPU를 분리한다.
+
 ### 현재 채택 설정
 
-**combo #7908** (2026-06-14 Bybit 네이티브 4h 정본):
+**combo #7908** (2026-08-20 Bybit 네이티브 4h 정본, ATR 손절만):
 - Bybit 네이티브 4h 1:1 정본
 - 2017-08-17 ~ 2026-04-30 (9년 데이터)
-- CAGR +137.64% / Sharpe 1.349 / MDD -73.29% / 360 trades
+- CAGR +219.06% / Sharpe 1.667 / MDD -66.70% / 198 trades
 
 ---
 
