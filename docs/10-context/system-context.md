@@ -1,11 +1,11 @@
 ---
 title: L1 System Context — CryptoEngine 모노레포
-last_updated: 2026-06-15
+last_updated: 2026-08-29
 ---
 
 # L1 System Context
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: cryptoengine/services/market-data/collector.py:37-38, cryptoengine/services/telegram-bot/main.py:20, backtest/docker/docker-compose.yml, dashboard/docker-compose.yml -->
 
 ```mermaid
@@ -16,19 +16,17 @@ flowchart TB
         bybit_testnet["☁ Bybit Testnet<br/>개발·검증 전용"]
         telegram_api["☁ Telegram Bot API<br/>알림 + 명령 채널"]
         coinglass["☁ CoinGlass API<br/>멀티 거래소 펀딩비"]
-        binance["☁ Binance<br/>보조 데이터 (Track C)"]
-        okx["☁ OKX<br/>보조 데이터 (Track C)"]
         grafana_am["☁ Grafana AlertManager<br/>ce:alerts:grafana webhook"]
     end
 
     subgraph repo["CryptoEngine 모노레포"]
-        subgraph cryptoengine["CryptoEngine (운영)<br/>Supertrend 4h Long-Only 3x · BTC/USDT · Phase 5 메인넷"]
+        subgraph cryptoengine["CryptoEngine (운영)<br/>Supertrend 4h Long-Only 3x · BTC/USDT · Phase 5 메인넷 · Bybit 단독"]
             ce_core["Core Services<br/>market-data · orchestrator · execution-engine"]
             ce_strat["supertrend<br/>strategy-01"]
             ce_bot["telegram-bot"]
         end
         subgraph backtest["Backtest R&D<br/>Jesse 2.1.2 · profiles:backtest · port 5433"]
-            bt_runner["backtester<br/>wf-scheduler"]
+            bt_runner["backtester"]
         end
         subgraph dashboard["Dashboard (관측)<br/>Vite + Express · port 3000/3001"]
             dash_web["supertrend-dashboard<br/>monitor-dashboard"]
@@ -40,8 +38,6 @@ flowchart TB
     bybit_mainnet -->|"WebSocket OHLCV<br/>REST 주문 실행"| ce_core
     bybit_testnet -.->|"BYBIT_TESTNET=true 시만"| ce_core
     coinglass -->|"펀딩비 REST"| ce_core
-    binance -->|"보조 OHLCV"| ce_core
-    okx -->|"보조 OHLCV"| ce_core
     grafana_am -->|"Alert webhook"| ce_bot
     ce_core -->|"주문 REST"| bybit_mainnet
     ce_core -->|"알림"| telegram_api
@@ -49,6 +45,8 @@ flowchart TB
     backtest -.->|"파라미터 산출 (수동 PR)"| cryptoengine
     dashboard -->|"PostgreSQL · Redis 읽기"| cryptoengine
 ```
+
+> **Track-C(멀티거래소) 폐지 (2026-08-29)**: Binance·OKX 보조 데이터 수집(외부 액터 + `market-data-binance`/`market-data-okx`)은 전량 삭제되었다. Bybit 단독 운영. `wf-scheduler`(월간 Walk-Forward)도 함께 삭제 — `backtester`만 남음. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
 
 ---
 
@@ -60,8 +58,6 @@ flowchart TB
 | Bybit Testnet | 양방향 | WebSocket + REST | `BYBIT_TESTNET=true` 시만 사용 |
 | Telegram Bot API | 양방향 | HTTPS Long-poll | 알림 발송 + /kill · /positions 수신 |
 | CoinGlass API | 인바운드 | REST (HTTPS) | 멀티 거래소 펀딩비 폴링 |
-| Binance | 인바운드 | WebSocket | Track C 보조 데이터 |
-| OKX | 인바운드 | WebSocket | Track C 보조 데이터 |
 | Grafana AlertManager | 인바운드 | HTTP webhook | `ce:alerts:grafana` 채널 경유 |
 
 ---

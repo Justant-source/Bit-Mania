@@ -1,6 +1,6 @@
 ---
 title: L3 Components — 서비스 내부 모듈 책임
-last_updated: 2026-08-20
+last_updated: 2026-08-29
 ---
 
 # L3 Components — 서비스 내부 모듈 책임
@@ -147,20 +147,22 @@ flowchart LR
 
 ## Diagram H: shared/ 핵심 모듈
 
-<!-- last-verified: 2026-06-15 -->
-<!-- code-ref: cryptoengine/shared/kill_switch.py, redis_client.py, exchange/bybit.py, models/ -->
+<!-- last-verified: 2026-08-29 -->
+<!-- code-ref: cryptoengine/shared/kill_switch.py, redis_client.py, exchange/bybit.py, models/, db/init_schema.sql -->
 
 ```mermaid
 flowchart TB
   subgraph shared["shared/ (모든 서비스 공통)"]
     ks["kill_switch.py<br/>KillLevel(IntEnum)<br/>KillSwitch<br/>★ 절대 수정 금지"]
     rc["redis_client.py<br/>자동 재연결(3회·지수 백오프)<br/>publish/subscribe 헬퍼"]
-    bybit_ex["exchange/bybit.py<br/>ExchangeConnector<br/>MainNet/TestNet 전환"]
+    bybit_ex["exchange/bybit.py<br/>ExchangeConnector<br/>MainNet/TestNet 전환<br/>Bybit 단독(2026-08-29 Track-C 제거)"]
     models["models/<br/>OrderRequest · OrderResult<br/>PortfolioState* · StrategyStatus"]
-    db["db/<br/>connection.py · repository.py<br/>asyncpg 풀 min=2 max=10"]
+    db["db/<br/>init_schema.sql · migrations/<br/>(스키마 정의만, 커넥션 풀 없음)"]
     log["logging_config.py<br/>structlog JSON · KST<br/>_ERROR_ALERT_CHANNEL=ce:alerts:anomaly"]
   end
 ```
+
+> **2026-08-29 죽은 모듈 제거**: `shared/db/connection.py`, `shared/db/repository.py`(+`__init__.py`)는 임포터가 없어 삭제되었다. 각 서비스는 자체 asyncpg 커넥션 풀을 직접 관리한다(중앙화된 shared 풀 없음). `shared/exchange/binance.py`와 Track-C 팩토리 등록도 함께 삭제 — Bybit 단독. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
 
 **KillLevel 계층**:
 
@@ -181,7 +183,7 @@ class KillLevel(IntEnum):
 | RedisClient | shared/redis_client.py | asyncpg 자동 재연결 (3회·지수 백오프) · Pub/Sub 헬퍼 |
 | ExchangeConnector | shared/exchange/bybit.py | REST/WebSocket 통합 · MainNet/TestNet 전환 · rate limit 관리 |
 | models | shared/models/ | 서비스 간 메시지 스키마 (Pydantic) |
-| db | shared/db/ | asyncpg 풀 (min=2, max=10) · 비동기 트랜잭션 |
+| db | shared/db/ | `init_schema.sql`(스키마 SSOT) + `migrations/`(순번 .sql). 커넥션 풀·리포지토리 모듈은 2026-08-29 삭제(각 서비스가 개별 관리) |
 | logging_config | shared/logging_config.py | structlog JSON 출력 · KST 타임존 · 이벤트 기반 로깅 |
 
 **PortfolioState** 정보:

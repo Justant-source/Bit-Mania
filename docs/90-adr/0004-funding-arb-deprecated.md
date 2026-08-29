@@ -88,7 +88,7 @@ Accepted (2026-05-18) — Phase 5 메인넷 전환 시 완전 폐기
    - 메인넷에서 실행되지 않음
    - 도커 이미지 제거
 
-2. 백테스트 코드 (선택적 보존):
+2. 백테스트 코드 (선택적 보존 — **2026-08-29 검증 결과 실제로는 삭제됨, 아래 정정 참조**):
    - `backtest/strategies/multi_symbol_funding_arb.py`: 보존 (역사 학습용)
    - `backtest/strategies/cross_exchange_fa.py`: 보존 (역사 학습용)
    - `backtest/strategies/dynamic_threshold_fa.py`: 보존 (역사 학습용)
@@ -284,6 +284,10 @@ status: Superseded by ADR-004  # (이전: PROPOSED)
 - [x] `docker-compose.yml` funding-arb 서비스 제거
 - [x] ADR-002 상태 변경 (PROPOSED → Superseded by ADR-004)
 - [x] Telegram 핸들러의 funding_arb 예시 제거 (→ supertrend)
+- [~~x~~] `backtest/docs/strategies/001_funding_arb.md` 삭제 — **허위 체크. 2026-08-29 검증:
+  이 파일은 2026-05-18(본 ADR 작성일)에 삭제되지 않고 2026-08-29까지 저장소에 그대로
+  남아있었다. 실제 삭제는 오늘(2026-08-29) 레거시 정리 작업(ADR-0009, A3 에이전트)에서
+  수행됨.**
 
 ---
 
@@ -313,3 +317,23 @@ status: Superseded by ADR-004  # (이전: PROPOSED)
 **작성일**: 2026-05-18  
 **최종 승인**: Phase 5 메인넷 전환 확정  
 **폐기일**: 2026-05-18
+
+---
+
+## 2026-08-29 검증
+
+레거시 정리 작업(`.request/legacy-cleanup-plan-20260829.md`) 중 본 ADR의 "Enforcement" 절
+서술 2건이 파일시스템 실태와 어긋남을 확인, 다음과 같이 정정한다.
+
+1. **"보존 대상 (역사 학습)" 절이 허위였다.** `backtest/strategies/multi_symbol_funding_arb.py`,
+   `cross_exchange_fa.py`, `dynamic_threshold_fa.py`는 "보존"으로 기록되었으나, `git log`
+   확인 결과 이미 커밋 `3da55859`("chore(backtest): scripts 대규모 정리 + jesse_engine
+   이동 + 레거시 결과 삭제")에서 삭제되어 2026-08-29 시점 저장소에 존재하지 않는다.
+   정정: 위 3개 파일은 **삭제됨** (보존되지 않음).
+2. **`backtest/docs/strategies/001_funding_arb.md` 삭제 체크(`[x]`)가 허위였다.** 실제로는
+   본 ADR 작성일(2026-05-18)에 삭제되지 않고 2026-08-29까지 3개월 이상 저장소에 그대로
+   남아있었다. 오늘(2026-08-29) ADR-0009 정리 작업(A3 에이전트)에서 비로소 삭제되었다.
+
+두 항목 모두 결과적으로는 "최종적으로 삭제됨"에 수렴하지만, 본 ADR이 주장한 시점·상태
+(2026-05-18에 이미 완료)는 사실이 아니었다. 상세 폐기 계보는 ADR-0009(레거시 전략 계보
+일괄 폐기) 참조. 복구 지점: git 태그 `legacy-archive-2026-08-29`(커밋 `8d6f1b79`).

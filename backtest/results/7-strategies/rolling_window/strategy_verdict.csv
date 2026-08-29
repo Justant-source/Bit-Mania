@@ -1,7 +1,0 @@
-strategy,verdict,total_combos,combos_any_positive,combos_never_positive,avg_fail_strict_ratio,worst_combo,best_combo
-stoch,KEEP,6,6,0,0.2886,bidirectional/1D,bidirectional/1h
-supertrend,KEEP,6,6,0,0.228,bidirectional/1h,long_only/4h
-tradeiq_psar_ha,KEEP,6,6,0,0.4473,bidirectional/1h,long_only/1D
-trendtype,KEEP,6,6,0,0.2323,bidirectional/1h,long_only/1D
-supertrend_trendtype,KEEP,6,6,0,0.2396,bidirectional/1h,long_only/4h
-tradeiq_cci_ce,KEEP,6,6,0,0.3233,bidirectional/1D,bidirectional/4h

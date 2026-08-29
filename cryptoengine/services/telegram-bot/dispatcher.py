@@ -18,7 +18,7 @@ from formatters import format_alert
 from shared.log_events import (
     TELEGRAM_NOTIFICATION_SENT,
     SERVICE_HEALTH_FAIL,
-    FA_FUNDING_COLLECTED,
+    FUNDING_COLLECTED,
 )
 
 log = structlog.get_logger(__name__)
@@ -128,7 +128,7 @@ class AlertDispatcher:
                 if not is_anomaly:
                     # Buffered for daily report — skip real-time dispatch
                     log.debug(
-                        FA_FUNDING_COLLECTED,
+                        FUNDING_COLLECTED,
                         message="펀딩 누적 (일일 리포트용)",
                         payment=data.get("payment"),
                     )

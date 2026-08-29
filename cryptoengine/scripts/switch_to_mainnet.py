@@ -263,8 +263,8 @@ async def main() -> None:
     print("  1. docker compose stop supertrend strategy-orchestrator execution-engine")
     print("  2. .env에 PHASE5_MODE=true, EXPECTED_INITIAL_BALANCE_USD=200,")
     print("     STRICT_MONITORING_HOURS=24 추가")
-    print("  3. docker compose --profile backtest run --rm backtester \\")
-    print("       python scripts/phase5_preflight.py")
+    print("  3. (cd ../backtest/docker && docker compose --profile backtest run --rm backtester \\")
+    print("       python scripts/phase5_preflight.py)")
     print("  4. preflight 8개 항목 PASS 확인 후 서비스 기동")
     print("  5. arch/PHASE4_MONITORING.md → Phase 5 체크리스트 참조\n")
 

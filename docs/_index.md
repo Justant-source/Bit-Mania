@@ -14,17 +14,17 @@ last_updated: 2026-08-29
 
 | 계층 | 경로 | 내용 | last-verified |
 |---|---|---|---|
-| 10 Context | [10-context/system-context.md](10-context/system-context.md) | L1 외부 액터 · 3 서브시스템 경계 | 2026-06-15 |
+| 10 Context | [10-context/system-context.md](10-context/system-context.md) | L1 외부 액터 · 3 서브시스템 경계 | 2026-08-29 |
 | 20 Container | [20-containers/containers.md](20-containers/containers.md) | 배포 단위 · 포트 · 네트워크 · 볼륨 · env-vars | 2026-08-29 |
-| 30 Component | [30-components/components.md](30-components/components.md) | 서비스 내부 모듈 · 클래스 책임 · shared/ | 2026-06-15 |
-| 40 Data | [40-data/data-model.md](40-data/data-model.md) | PG 스키마 · ER · 마이그레이션 트랙 | 2026-06-15 |
-| 50 API | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-06-15 |
+| 30 Component | [30-components/components.md](30-components/components.md) | 서비스 내부 모듈 · 클래스 책임 · shared/ | 2026-08-29 |
+| 40 Data | [40-data/data-model.md](40-data/data-model.md) | PG 스키마 · ER · 마이그레이션 트랙 | 2026-08-29 |
+| 50 API | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-08-29 |
 | 60 Runtime | [60-runtime/state-machines.md](60-runtime/state-machines.md) | OrderState · KillLevel · service_shutdown 복구 | 2026-06-15 |
 | 70 Policy (안전) | [70-policy/safety.md](70-policy/safety.md) | Kill Switch · 레버리지 · BTC-only · 긴급 청산 | 2026-06-15 |
 | 70 Policy (운영) | [70-policy/operations.md](70-policy/operations.md) | Runbook · 모니터링 · 메인넷 전환 · 배포 절차 | 2026-06-15 |
-| 70 Policy (전략) | [70-policy/strategy.md](70-policy/strategy.md) | Supertrend SSOT · 백테스트 방법론 | 2026-08-20 |
+| 70 Policy (전략) | [70-policy/strategy.md](70-policy/strategy.md) | Supertrend SSOT · 백테스트 방법론 | 2026-08-29 |
 | 90 ADR | [90-adr/README.md](90-adr/README.md) | 아키텍처 의사결정 인덱스 | 2026-06-15 |
-| 용어집 | [glossary.md](glossary.md) | 도메인 용어 정의 | 2026-06-15 |
+| 용어집 | [glossary.md](glossary.md) | 도메인 용어 정의 | 2026-08-29 |
 
 ---
 
@@ -92,4 +92,4 @@ last_updated: 2026-08-29
 | `docker-compose.yml` | [20-containers/containers.md](20-containers/containers.md) |
 | `dashboard/**` | [20-containers/containers.md](20-containers/containers.md) §Dashboard |
 | `backtest/**` | [70-policy/strategy.md](70-policy/strategy.md) §백테스트 |
-| `scripts/lint_docs.py` | 이 파일(트리거 맵 대상 실재 검증) |
+| `scripts/lint_docs.py` | 이 파일(`_index.md`) 내부의 마크다운 링크 대상(텍스트 뒤 소괄호 경로)이 실재하는지만 검증한다. **트리거 맵 표(코드 glob 컬럼)의 `cryptoengine/`·`backtest/` 경로 실재 여부는 검증하지 않는다** — 코드 경로가 삭제·이동돼도 린터는 통과한다. (2026-08-29 정정) |

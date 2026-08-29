@@ -15,7 +15,7 @@ daily-MTM metrics rather than realized-only.
 Modes:
   (no args)         → print headline stats + #7908 comparison (quick check)
   --out <dir>       → also write dashboard-format stats.json / trades.csv /
-                      monthly_returns.csv into <dir> (for build_strategy_dashboard.py)
+                      monthly_returns.csv into <dir> (parity fixture 생성용)
 
 Run: docker run --rm -v "$PWD/cryptoengine:/work" -w /work \
        --entrypoint python cryptoengine-supertrend:latest \

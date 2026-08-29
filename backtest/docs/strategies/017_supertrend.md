@@ -82,9 +82,10 @@ def update_position():
 
 ## 통합 경위
 
-`backtest/results/7-strategies/supertrend/4h/long_only_x3/` (combo_18)와  
-`backtest/results/7-strategies/supertrend/4h/long_only_x3_7908/` (combo #7908)는  
-동일한 알고리즘의 파라미터 변형으로, 이 문서 하나로 통합 관리.
+구 파일 기반 결과 트리(`backtest/results/7-strategies/supertrend/`)의 combo_18 / combo #7908은
+동일 알고리즘의 파라미터 변형이었고, 이 문서 하나로 통합 관리한다.
+해당 트리는 2026-08-29 레거시 정리에서 삭제되었다 (Binance 기준·pre-Bybit-native 수치라 현행 정본과 상충).
+복구 필요 시 git 태그 `legacy-archive-2026-08-29` (commit 8d6f1b79) 참조 — ADR-0009.
 
 ## 파라미터 스윕 이력 (v2/v3, 2021-04~2026-04 기준)
 
@@ -101,7 +102,9 @@ def update_position():
 
 ## 관련 문서
 
-- 운영 사양 (live): `docs/policies/strategies/supertrend.md`
+- 운영 사양 (live): `docs/70-policy/strategy.md`
 - 최적화 판정: `.result/15_SUPERTREND_4H_3X_STRATEGY_SPEC.md`
 - 파라미터 스윕: `.result/16_SUPERTREND_OPTIMIZATION_VERDICT.md`
-- 백테스트 결과 경로: `backtest/results/7-strategies/supertrend/`
+- 현행 sweep 결과: `backtest-postgres` / `jesse_db` (`st_sweeps`·`st_combos`·`st_window_results`)
+- sweep 서술 문서: `backtest/results/supertrend_x3_long_only/docs/sweeps/`
+- 폐기된 구 결과 트리: ADR-0009 참조

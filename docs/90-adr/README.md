@@ -1,7 +1,7 @@
 ---
 title: Architecture Decision Records
 category: ADR
-last_updated: 2026-06-15
+last_updated: 2026-08-29
 ---
 
 # Architecture Decision Records (ADR)
@@ -19,9 +19,10 @@ CryptoEngine의 번복하기 어려운 아키텍처·정책·전략 결정을 �
 | [0003](0003-supertrend-single-strategy.md) | Supertrend 단일 전략 채택 | Accepted | 2026-05-18 |
 | [0004](0004-funding-arb-deprecated.md) | Funding Arbitrage 전략 폐기 | Accepted | 2026-05-18 |
 | [0005](0005-adaptive-dca-deprecated.md) | Adaptive DCA 전략 폐기 | Accepted | 2026-05-18 |
-| [0006](0006-db-migration-tracks.md) | Dual DB Migration Track 정리 | Proposed | 2026-06-15 |
+| [0006](0006-db-migration-tracks.md) | Dual DB Migration Track 정리 (raw SQL 단일화, 구현 지연) | Accepted | 2026-08-29 |
 | [0007](0007-portfolio-state-canonical.md) | PortfolioState 정본 통일 | Proposed | 2026-06-15 |
 | [0008](0008-c4-ssot-adoption.md) | C4 SSOT 문서 구조 채택 | Accepted | 2026-06-15 |
+| [0009](0009-legacy-strategy-retirement.md) | 레거시 전략 계보 일괄 폐기 (001~016·018~021 + Track-C) | Accepted | 2026-08-29 |
 
 ---
 

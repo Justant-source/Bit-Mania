@@ -238,3 +238,29 @@ backtest/scripts/data/
 **상태**: PROPOSED (백테스트 대기)  
 **다음 단계**: Track B 완료 후 2026-05-30 최종 결정
 
+---
+
+## 2026-08-29 검증
+
+레거시 정리 작업(`.request/legacy-cleanup-plan-20260829.md`) 중 본 ADR을 재검토, 다음을
+확인한다.
+
+1. **Superseded 상태는 정확하다.** 상단 frontmatter/Status의 "Superseded by ADR-004
+   (2026-05-18)"는 ADR-0004("Supersedes: ADR-002")와 상호 일치하며, Track B 백테스트가
+   합격 기준을 전부 미충족했다는 서술도 ADR-0004의 실제 결과 표와 부합한다. 정정 불필요.
+2. **frontmatter `related_code`의 5개 경로가 전부 더 이상 존재하지 않는다.** 확인 결과:
+   - `backtest/strategies/multi_symbol_funding_arb.py` — 삭제됨 (커밋 `3da55859`
+     "chore(backtest): scripts 대규모 정리 + jesse_engine 이동 + 레거시 결과 삭제"에서
+     이미 제거, 오늘 이전)
+   - `backtest/strategies/cross_exchange_fa.py` — 동일 커밋에서 삭제됨
+   - `backtest/strategies/dynamic_threshold_fa.py` — 동일 커밋에서 삭제됨
+   - `backtest/scripts/data/fetch_multi_symbol.py` — 삭제됨
+   - `backtest/scripts/data/fetch_multi_exchange.py` — 삭제됨
+
+   Track B(멀티심볼/교차거래소/동적임계값 FA)가 합격 기준을 충족하지 못해 폐기된
+   ADR-0004의 결정에 따라 예정대로 삭제된 것이며, 문서 서술과 모순되지 않는다. 다만
+   frontmatter가 가리키는 파일이 실재하지 않으므로, 이 절이 향후 링크·경로 검증
+   도구에서 걸릴 수 있음을 남겨둔다 — `related_code`는 역사적 참조로만 유효하며 현재
+   코드베이스에는 해당 경로가 없다. 상세 폐기 계보는 ADR-0009 참조. 복구 지점: git 태그
+   `legacy-archive-2026-08-29`(커밋 `8d6f1b79`).
+

@@ -9,10 +9,10 @@ Responsibilities:
   - Cache active stop-loss order IDs in Redis
     (key: ``cache:stoploss:{exchange}:{symbol}``)
 
-Stop-Loss Calculation (FA strategy, lev=5x, MDD=-4.52%)
+Stop-Loss Calculation (Supertrend combo #7908, 3x leverage, ATR stop only — no take-profit)
   - Default: entry_price × (1 - stop_loss_pct) for long (spot hedge)
   - Default: entry_price × (1 + stop_loss_pct) for short (perp)
-  - stop_loss_pct is configurable; default -2.0% per-leg
+  - stop_loss_pct is configurable; default set via STOP_LOSS_PCT env var
 
 Bybit API:
   - Inline SL: pass ``params={"stopLoss": {"triggerPrice": price}}``
@@ -50,10 +50,12 @@ log = structlog.get_logger(__name__)
 # Configuration defaults
 # ---------------------------------------------------------------------------
 
-# Default stop-loss distance expressed as a fraction of entry price (per leg).
-# FA strategy: lev=5x → -2% per-leg ≈ -10% equity drawdown before triggering.
-# This matches the fa80_lev5_r30 backtest profile (MDD -4.52%, 0 liquidations).
-DEFAULT_STOP_LOSS_PCT: float = 0.02  # 2 % below/above entry
+# Default stop-loss distance expressed as a fraction of entry price.
+# Supertrend #7908 (3x leverage) uses ATR(14) x 3.3 as its stop distance;
+# execution-engine passes the current STOP_LOSS_PCT env var (default 0.2333,
+# i.e. ATR-derived ~23.33%) as stop_loss_pct — this constant is only the
+# module-level fallback used when no override is supplied. No take-profit.
+DEFAULT_STOP_LOSS_PCT: float = 0.02  # 2 % below/above entry (unused fallback default)
 
 # Redis key pattern for cached stop-loss order IDs.
 _CACHE_KEY = "cache:stoploss:{exchange}:{symbol}"

@@ -31,8 +31,6 @@ flowchart TB
 
     subgraph core["Core + Strategy Layer"]
       market_data["<b>market-data</b><br/>Bybit WS · OHLCV<br/>4h candles<br/>Redis Pub/Sub broadcast"]
-      md_binance["<b>market-data-binance</b><br/>Binance WS<br/>Track C · optional"]
-      md_okx["<b>market-data-okx</b><br/>OKX WS<br/>Track C · optional"]
       orchestrator["<b>strategy-orchestrator</b><br/>Kill Switch logic<br/>Capital allocation<br/>Signal router"]
       execution["<b>execution-engine</b><br/>Order execution (Bybit)<br/>Position tracking<br/>Risk gates"]
       supertrend["<b>supertrend</b><br/>STRATEGY_ID=supertrend-01<br/>4h Long-Only · 3x<br/>combo #7908"]
@@ -79,14 +77,15 @@ flowchart TB
 - `postgres`: 모든 서비스의 중앙 상태 저장소 (OHLCV, 포지션, 로그, 메트릭)
 - `redis`: Pub/Sub 신호 전파 채널 (시장 데이터 → 전략 → 실행)
 - `prometheus`: 메트릭 수집 (node-exporter, redis-exporter)
-- 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 수집분·Track C 1m)은 7일 후 삭제.
+- 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 Binance/OKX 수집분)은 7일 후 삭제.
 
 **Core + Strategy Layer** — 비즈니스 로직:
-- `market-data`: Bybit 메인넷에서 **4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. Track C 분기물은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음)
+- `market-data`: Bybit 메인넷에서 **4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. 분기물(quarterly futures) 심볼은 instruments-info로 동적 해석하며 **core BTCUSDT 구독과 분리** (만기 심볼이 전체 subscribe를 깨지 않음). 분기물 파이프라인 자체는 write-only이며 제거 대기 중(`.request/legacy-cleanup-deferred-20260829.md` D2, 지연 세션에서 실행)
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
-- Track C 선택 사항: `market-data-binance`, `market-data-okx` — **운영 전략이 읽지 않아 2026-08-29부터 중지** (1m OHLCV만 적재했음)
+
+> **Track-C(멀티거래소) 폐지 (2026-08-29)**: `market-data-binance`/`market-data-okx` 서비스와 관련 소스(`binance_collector.py`, `okx_collector.py`, `shared/exchange/binance.py`, `config/exchanges/{binance,okx}.yaml`)는 전량 삭제되었다. 운영 전략이 읽지 않던 1m OHLCV 보조 수집기였다. Bybit 단독 운영. 복구 지점: git 태그 `legacy-archive-2026-08-29`. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
 
 **Interface + Observability**:
 - `telegram-bot`: Telegram 알림 (trade, alert, /kill, /positions)
@@ -109,8 +108,6 @@ flowchart TB
 | **log-retention** | postgres:16-alpine | — | — | postgres | 0.2 | 64M | always |
 | **ohlcv-retention** | postgres:16-alpine | — | — | postgres | 0.1 | 32M | always |
 | **market-data** | cryptoengine/market-data | — | — | redis, postgres | 0.25 | 128M | always |
-| **market-data-binance** | cryptoengine/market-data | — | — | redis, postgres | 0.1 | 64M | unless-stopped (profile: track-c) |
-| **market-data-okx** | cryptoengine/market-data | — | — | redis, postgres | 0.1 | 64M | unless-stopped (profile: track-c) |
 | **strategy-orchestrator** | cryptoengine/orchestrator | — | — | redis, postgres, market-data | 0.5 | 256M | always |
 | **execution-engine** | cryptoengine/execution | — | — | redis, postgres | 0.5 | 256M | always |
 | **supertrend** | cryptoengine/supertrend | — | — | redis, postgres, market-data | 0.5 | 256M | always |
@@ -118,14 +115,13 @@ flowchart TB
 
 ### 재시작 정책
 
-- **always** — 크리티컬 서비스. 종료 시 자동 재시작
-- **unless-stopped** — Track C 선택 수집기. 명시적 중단 시에만 정지
+- **always** — 전 서비스(13종) 모두 크리티컬 서비스. 종료 시 자동 재시작 (`unless-stopped`/Track-C profile 개념은 2026-08-29 Track-C 삭제로 폐지)
 
 ---
 
 ## 3. Backtest R&D 스택
 
-<!-- last-verified: 2026-06-15 -->
+<!-- last-verified: 2026-08-29 -->
 <!-- code-ref: /backtest/docker/docker-compose.yml -->
 
 ```mermaid
@@ -137,7 +133,6 @@ flowchart TB
 
     subgraph bt_svc["Services (profiles: backtest)"]
       backtester["<b>backtester</b><br/>Jesse 2.1.2<br/>CPU cap 4.0 · Mem 5G<br/>low-prio overlay when sweeping"]
-      wf_sched["<b>wf-scheduler</b><br/>Walk-Forward Monthly<br/>CPU: 1.0 · Memory: 512M<br/>MONTHLY_WF_CRON<br/>0 17 1 * *"]
     end
   end
 
@@ -151,12 +146,7 @@ flowchart TB
   backtester -->|"READ/WRITE: 대시보드"| dashboards_vol
   backtester -->|"READ: 전략 코드"| strategies_vol
 
-  wf_sched -->|"READ: OHLCV"| data_vol
-  wf_sched -->|"WRITE: WF 결과"| results_vol
-  wf_sched -->|"READ/WRITE: 대시보드"| dashboards_vol
-
   bt_pg -->|"jesse_db"| backtester
-  bt_pg -->|"jesse_db"| wf_sched
 
   ce_net[("cryptoengine_default network")]
   ce_pg[("운영 postgres :5432<br/>선택적 통신용")]
@@ -177,7 +167,8 @@ flowchart TB
 
 **서비스**:
 - **backtester**: 기본 상한 4 CPU / 5GB. ATR-SL 재스윕은 `compose.sweep-day.yml`(주간 2워커, cpuset 6–7) / `compose.sweep-night.yml`(00–06 KST 6워커, cpuset 3–7) + `nice 19`로 운영 Docker보다 양보한다.
-- **wf-scheduler**: 월단위 Walk-Forward 자동 실행 (00:17 UTC = 09:17 KST)
+
+> **wf-scheduler 삭제 (2026-08-29)**: 월간 Walk-Forward 자동 실행 서비스(FA 시대 잔재, `WF_FA_RATIO`/`WF_REINVEST`/`WF_LEVERAGE` env)는 `backtest/docker/docker-compose.yml`에서 전량 제거되었다. Walk-Forward 자동화는 현재 폐지 상태 — `docs/70-policy/strategy.md` §9 참조.
 
 ---
 
@@ -322,17 +313,13 @@ flowchart TB
 
 | 변수 | 서비스 | 기본값 | 설명 |
 |------|--------|--------|------|
-| `JESSE_DB_HOST` | backtester, wf-scheduler | backtest-postgres | 백테스트 DB 호스트 |
-| `JESSE_DB_PORT` | backtester, wf-scheduler | 5432 | 백테스트 DB 포트 |
-| `JESSE_DB_NAME` | backtester, wf-scheduler | jesse_db | 백테스트 DB 명 |
-| `JESSE_DB_USER` | backtester, wf-scheduler | jesse | 백테스트 DB 사용자 |
-| `JESSE_DB_PASSWORD` | backtester, wf-scheduler | ***REMOVED*** | 백테스트 DB 암호 |
-| `MONTHLY_WF_CRON` | wf-scheduler | 0 17 1 * * | 월간 Walk-Forward 스케줄 (09:17 KST) |
-| `WF_CAPITAL` | wf-scheduler | 10000.0 | Walk-Forward 자본 (USD) |
-| `WF_LOOKBACK_DAYS` | wf-scheduler | 180 | 백테스트 lookback 기간 |
-| `WF_TRAIN_DAYS` | wf-scheduler | 120 | 훈련 기간 (일) |
-| `WF_TEST_DAYS` | wf-scheduler | 60 | 테스트 기간 (일) |
-| `WF_LEVERAGE` | wf-scheduler | 5.0 | Walk-Forward 레버리지 |
+| `JESSE_DB_HOST` | backtester | backtest-postgres | 백테스트 DB 호스트 |
+| `JESSE_DB_PORT` | backtester | 5432 | 백테스트 DB 포트 |
+| `JESSE_DB_NAME` | backtester | jesse_db | 백테스트 DB 명 |
+| `JESSE_DB_USER` | backtester | jesse | 백테스트 DB 사용자 |
+| `JESSE_DB_PASSWORD` | backtester | ***REMOVED*** | 백테스트 DB 암호 |
+
+> `wf-scheduler` 및 관련 `MONTHLY_WF_CRON`/`WF_CAPITAL`/`WF_LOOKBACK_DAYS`/`WF_TRAIN_DAYS`/`WF_TEST_DAYS`/`WF_LEVERAGE` 환경변수는 2026-08-29 서비스 삭제와 함께 제거되었다.
 
 ---
 
@@ -418,8 +405,7 @@ services:
 │  └─ networks:
 │     ├─ cryptoengine-backtest-net (isolated)
 │     │  ├─ backtest-postgres :5433
-│     │  ├─ backtester
-│     │  └─ wf-scheduler
+│     │  └─ backtester
 │     └─ cryptoengine_default (external, optional)
 │        └─ 운영 postgres에 read-only 접근 가능
 ```
@@ -457,7 +443,6 @@ docker compose build \
   market-data \
   strategy-orchestrator execution-engine supertrend \
   telegram-bot
-# Track C (미사용): docker compose --profile track-c build market-data-binance market-data-okx
 ```
 
 > `dashboard`는 별도 프로젝트(`/home/justant/Data/Bit-Mania/dashboard`)이므로 여기 재빌드 목록에 포함되지 않는다. §9 참조.
@@ -484,11 +469,9 @@ docker compose --profile backtest run --rm backtester \
 
 # 백테스트 스택 기동
 docker compose --profile backtest up -d
-
-# 월간 Walk-Forward 수동 실행
-docker compose --profile backtest exec wf-scheduler \
-  python /app/scripts/runners/run_monthly_wf.py
 ```
+
+> `wf-scheduler`(월간 Walk-Forward 자동 실행)는 2026-08-29 삭제되었다. 관련 명령 없음.
 
 ---
 

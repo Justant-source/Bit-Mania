@@ -43,26 +43,6 @@ services:
     ports:
       - "5680:5678"   # debugpy
 
-  funding-arb:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/strategies/funding-arb/src:/app/src:ro
-    ports:
-      - "5681:5678"   # debugpy
-
-  llm-advisor:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/llm-advisor/src:/app/src:ro
-    ports:
-      - "5684:5678"   # debugpy
-
   telegram-bot:
     build:
       target: development
@@ -72,13 +52,3 @@ services:
       - ./services/telegram-bot/src:/app/src:ro
     ports:
       - "5685:5678"   # debugpy
-
-  backtester:
-    build:
-      target: development
-    environment:
-      LOG_LEVEL: DEBUG
-    volumes:
-      - ./services/backtester/src:/app/src:ro
-    ports:
-      - "5687:5678"   # debugpy

@@ -30,25 +30,8 @@ STRATEGY_SIGNAL = "strategy_signal"
 STRATEGY_REBALANCE = "strategy_rebalance"
 STRATEGY_CIRCUIT_BREAKER = "strategy_circuit_breaker"
 
-# === 펀딩비 차익거래 (FA) ===
-FA_ENTRY_CONDITION_MET = "fa_entry_condition_met"
-FA_POSITION_OPENED = "fa_position_opened"
-FA_POSITION_CLOSED = "fa_position_closed"
-FA_FUNDING_COLLECTED = "fa_funding_collected"
-FA_HEDGE_DRIFT = "fa_hedge_drift"
-FA_HEDGE_REBALANCED = "fa_hedge_rebalanced"
-FA_ONE_SIDE_FILL = "fa_one_side_fill"
-FA_ONE_SIDE_RECOVERY = "fa_one_side_recovery"
-FA_REINVEST = "fa_reinvest"
-FA_RATE_BELOW_THRESHOLD = "fa_rate_below_threshold"
-FA_CONSECUTIVE_NOT_MET = "fa_consecutive_not_met"
-FA_PREDICTED_MISALIGNED = "fa_predicted_misaligned"
-FA_BEP_NOT_PROFITABLE = "fa_bep_not_profitable"    # BEP gate rejected entry
-
-# === DCA ===
-DCA_PURCHASE = "dca_purchase"
-DCA_MULTIPLIER_CALC = "dca_multiplier_calc"
-DCA_TAKE_PROFIT = "dca_take_profit"
+# === 펀딩 ===
+FUNDING_COLLECTED = "fa_funding_collected"
 
 # === 주문 실행 ===
 ORDER_SUBMITTED = "order_submitted"
@@ -148,24 +131,8 @@ EVENT_LEVELS: dict[str, str] = {
     STRATEGY_SIGNAL: "INFO",
     STRATEGY_REBALANCE: "INFO",
     STRATEGY_CIRCUIT_BREAKER: "WARNING",
-    # 펀딩비 차익거래
-    FA_ENTRY_CONDITION_MET: "INFO",
-    FA_POSITION_OPENED: "INFO",
-    FA_POSITION_CLOSED: "INFO",
-    FA_FUNDING_COLLECTED: "INFO",
-    FA_HEDGE_DRIFT: "WARNING",
-    FA_HEDGE_REBALANCED: "INFO",
-    FA_ONE_SIDE_FILL: "WARNING",
-    FA_ONE_SIDE_RECOVERY: "INFO",
-    FA_REINVEST: "INFO",
-    FA_RATE_BELOW_THRESHOLD: "INFO",       # Track A: DEBUG→INFO (24일 0거래 재발 방지)
-    FA_CONSECUTIVE_NOT_MET: "INFO",        # Track A: DEBUG→INFO
-    FA_PREDICTED_MISALIGNED: "INFO",       # Track A: DEBUG→INFO
-    FA_BEP_NOT_PROFITABLE: "INFO",         # Option A: BEP gate rejection
-    # DCA
-    DCA_PURCHASE: "INFO",
-    DCA_MULTIPLIER_CALC: "DEBUG",
-    DCA_TAKE_PROFIT: "INFO",
+    # 펀딩
+    FUNDING_COLLECTED: "INFO",
     # 주문 실행
     ORDER_SUBMITTED: "DEBUG",
     ORDER_RECEIVED: "DEBUG",

@@ -1,6 +1,6 @@
 ---
 title: L4 Data Model — PostgreSQL 스키마 · 마이그레이션
-last_updated: 2026-06-15
+last_updated: 2026-08-29
 nav_order: 1
 parent: 40-data
 ---
@@ -188,6 +188,7 @@ erDiagram
         double precision expected_stop_loss
     }
 
+    %% 폐기 예정 (DROP 예정) — Q11/D3, .request/legacy-cleanup-deferred-20260829.md 참조
     MARKET_REGIME_HISTORY {
         bigserial id PK
         varchar symbol
@@ -235,7 +236,7 @@ erDiagram
 | `ohlcv_history` | 캔들 데이터 | exchange, symbol, timeframe, timestamp (UK with exchange, symbol, timeframe) |
 | `funding_rate_history` | 펀딩비 이력 | exchange, symbol, rate, timestamp (UK with exchange, symbol) |
 | `funding_payments` | 수취한 펀딩비 | exchange, symbol, funding_rate, payment, collected_at |
-| `market_regime_history` | 시장 레짐 분류 | symbol, regime, is_confirmed, consecutive_count, detected_at |
+| `market_regime_history` | 시장 레짐 분류 ⚠️ **폐기 예정 (DROP 예정)** | symbol, regime, is_confirmed, consecutive_count, detected_at |
 
 **OHLCV 보존 정책** (`ohlcv_retention.py` 관리):
 - 1m: 30일
@@ -256,9 +257,28 @@ erDiagram
 | 테이블 | 용도 | 주요 컬럼 |
 |---|---|---|
 | `service_logs` | 서비스 로그 집계 | service, level, event, message, data (JSONB) |
-| `dca_purchases` | DCA 구매 이력 (레거시) | fear_greed_index, amount_usdt, btc_price, purchased_at |
+| `dca_purchases` | DCA 구매 이력 (레거시) ⚠️ **폐기 예정 (DROP 예정)** | fear_greed_index, amount_usdt, btc_price, purchased_at |
 
 **보존 정책**: 30일 자동 삭제 (log-retention cronjob)
+
+### 3.6 레거시 테이블 — 폐기 예정 (DROP 예정, 미실행)
+
+> ⚠️ **이 표는 삭제 계획이지 현재 상태가 아니다.** 아래 테이블은 2026-08-29 기준 **DB에 여전히 존재**하며 코드도 이들을 참조할 수 있다.
+> DROP은 별도 지연 세션(작업 D3, 봉 마감 직후 실행 창)에서 수행된다. 실행 전까지는 문서·코드 어디에서도 이 테이블들을 삭제된 것으로 취급하지 말 것.
+> 근거: `.request/legacy-cleanup-deferred-20260829.md` §작업 D3 (Q11 — 레거시 DB 테이블 전부 DROP + 사전 백업 필수)
+
+| 테이블 | 상태 | 비고 |
+|---|---|---|
+| `dca_purchases` | 폐기 예정 | DCA 전략 폐지 잔재 (FA→Supertrend 전환, 2026-05) |
+| `market_regime_history` | 폐기 예정 | 레짐 분류 데이터 12,776행. 레짐 배분 폐지(2026-05-25)로 미사용 |
+| `regime_raw_log` | 폐기 예정 | 12,776행. `market_regime_history` 원시 로그 |
+| `regime_transitions` | 폐기 예정 | 550행. 레짐 전이 이력 |
+| 빈 껍데기 테이블 약 20개 | 폐기 예정 | `grid_orders`, `market_regimes`, `etf_flow_history`, `etf_flow_results`, `xgboost_ensemble_results`, `calendar_spread_results`, `volatility_squeeze_results`, `funding_extreme_reversal_results`, `regime_accuracy_results`, `liquidation_history`, `macro_events`, `fear_greed_history`, `strategy_variant_results`, `weight_optimization_results`, `walk_forward_results`, `test12_results`, `backtest_results`, 구`ohlcv`, 구`funding_rates`, 구`trades` 등 — 전량 빈 테이블 |
+
+**DROP 제외(대시보드 의존, 유지)**: `supertrend_signals`, `orders`, `service_logs`, `portfolio_snapshots`, `ohlcv_history`, `positions`, `strategy_states`, `kill_switch_events`, `daily_pnl`, `llm_judgments`, `llm_reports`, `funding_rate_history`
+> `llm_judgments`/`llm_reports`는 비어 있으나 대시보드가 SELECT함 — DROP 시 `dashboard/src/routes/internal.ts` 동시 수정 필요.
+
+**참고 (D2, 별도 트랙)**: `quarterly_perp_spread`는 **8.9GB / 약 2,791만 행** — 저장소 전체에 `SELECT`가 하나도 없는 write-only 테이블이며, 라이브 `market-data`가 하루 약 30만 행씩 계속 적재 중이다(폐기된 캘린더 스프레드 전략의 잔재, migration 007/012/015). 코드 제거(`quarterly_lifecycle.py` 등) + 테이블 DROP은 D2에서 함께 처리된다 — §4.2 `quarterly_perp_spread` 참조.
 
 ---
 
@@ -295,7 +315,7 @@ flowchart LR
 | 001 | `001_initial_schema.py` | trades, positions, funding_payments, portfolio_snapshots, daily_reports, strategy_states, kill_switch_events, llm_judgments, ohlcv_history, funding_rate_history, dca_purchases, market_regime_history |
 | 002 | `002_llm_reports.py` | llm_reports |
 | 003 | `003_asset_report.py` | asset_report 컬럼 추가 (llm_reports) |
-| 004 | `004_regime_dashboard.py` | 마켓 레짐 관련 인덱스 최적화 |
+| 004 | `004_regime_dashboard.py` | 마켓 레짐 관련 인덱스 최적화 ⚠️ 대상 테이블 폐기 예정 (§3.6) |
 | 007 | `007_quarterly_futures.py` | (미지정 — 코드 검증 필요) |
 
 ### 4.2 수동 .sql 마이그레이션 (운영)
@@ -309,7 +329,7 @@ flowchart LR
 | 009 | `009_onchain_metrics.sql` | onchain_metrics 테이블 | active |
 | 010 | `010_macro_indicators.sql` | macro_indicators 테이블 | active |
 | 011 | `011_ohlcv_1m_longterm.sql` | ohlcv_1m_longterm (이후 DROP) | deprecated |
-| 012 | `012_quarterly_perp_spread.sql` | quarterly_perp_spread 테이블 | active |
+| 012 | `012_quarterly_perp_spread.sql` | quarterly_perp_spread 테이블 | active ⚠️ write-only 8.9GB/2,791만 행, 제거 대기 (D2, §3.6) |
 | 013 | `013_multi_exchange.sql` | multi_exchange_ohlcv 테이블 | active |
 | 014 | `014_dashboard_performance_indexes.sql` | 성능 인덱스 추가 | active |
 | 015 | `015_quarterly_perp_spread_unique.sql` | quarterly_perp_spread UNIQUE 제약 | active |

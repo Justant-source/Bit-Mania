@@ -70,7 +70,6 @@ class StrategyOrchestrator:
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
-        self._llm_advisory_task: asyncio.Task[None] | None = None
         self._watchdog_task: asyncio.Task[None] | None = None
         self._heartbeat_timeout_seconds: float = 300.0  # 5분
         self._monitored_services: list[str] = [
@@ -129,9 +128,6 @@ class StrategyOrchestrator:
 
         self._running = True
         self._task = asyncio.create_task(self._run_loop(), name="orchestrator-loop")
-        self._llm_advisory_task = asyncio.create_task(
-            self._subscribe_llm_advisory(), name="llm-advisory-sub"
-        )
         self._config_mtime = self._get_config_mtime()
         self._config_reload_task = asyncio.create_task(
             self._config_reload_loop(), name="config-reload-watcher"
@@ -150,7 +146,7 @@ class StrategyOrchestrator:
                 await self._config_reload_task
             except asyncio.CancelledError:
                 pass
-        for task in (self._task, self._llm_advisory_task, self._watchdog_task):
+        for task in (self._task, self._watchdog_task):
             if task and not task.done():
                 task.cancel()
                 try:
@@ -278,7 +274,7 @@ class StrategyOrchestrator:
         if self._redis is None:
             return
 
-        emergency_weights = {"supertrend": 0.0, "dca": 0.0, "cash": 1.0}
+        emergency_weights = {"supertrend": 0.0, "cash": 1.0}
         self._current_weights = emergency_weights
 
         for strategy_id, channel in STRATEGY_CHANNELS.items():
@@ -421,57 +417,6 @@ class StrategyOrchestrator:
                 weight=weight,
                 capital=allocated,
             )
-
-    async def _subscribe_llm_advisory(self) -> None:
-        """Listen for LLM advisor weight adjustments on Redis pub/sub."""
-        assert self._redis is not None
-
-        llm_cfg = self._config.get("llm_advisor", {})
-        if not llm_cfg.get("enabled", True):
-            log.info(LLM_ANALYSIS_START, message="llm advisor disabled")
-            return
-
-        channel = llm_cfg.get("redis_channel", "llm:advisory")
-        min_confidence = llm_cfg.get("min_confidence", 0.5)
-        max_adj = llm_cfg.get("max_adjustment", 0.15)
-
-        pubsub = self._redis.pubsub()
-        await pubsub.subscribe(channel)
-        log.info(LLM_ANALYSIS_START, message="llm advisory subscribed", channel=channel)
-
-        try:
-            async for message in pubsub.listen():
-                if not self._running:
-                    break
-                if message["type"] != "message":
-                    continue
-                try:
-                    advisory = json.loads(message["data"])
-                    confidence = advisory.get("confidence", 0.0)
-                    if confidence < min_confidence:
-                        log.info(
-                            LLM_ANALYSIS_COMPLETE,
-                            message="llm advisory skipped low confidence",
-                            confidence=confidence,
-                        )
-                        continue
-
-                    # Single-strategy model: weights are fixed (100% supertrend),
-                    # so LLM weight adjustments are recorded but not applied.
-                    adjustments = advisory.get("weight_adjustments", {})
-                    log.info(
-                        LLM_WEIGHT_SUGGESTION,
-                        message="llm advisory received (ignored — fixed weights)",
-                        confidence=confidence,
-                        adjustments=adjustments,
-                    )
-                except (json.JSONDecodeError, KeyError):
-                    log.warning(LLM_API_ERROR, message="invalid llm advisory", data=message.get("data"))
-        except asyncio.CancelledError:
-            pass
-        finally:
-            await pubsub.unsubscribe(channel)
-            await pubsub.aclose()
 
     async def _cache_orchestrator_state(self) -> None:
         """Cache current orchestrator state in Redis."""

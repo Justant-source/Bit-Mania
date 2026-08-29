@@ -1,4 +1,4 @@
-.PHONY: up down logs test test-unit backtest status migrate emergency monthly-report lint-docs
+.PHONY: up down logs test test-unit status migrate emergency lint-docs
 
 COMPOSE := docker compose
 DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
@@ -7,7 +7,7 @@ DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
 up: ## Start all services in production mode
 	$(COMPOSE) up -d --build --remove-orphans
-	@echo "CryptoEngine is running. Dashboard: http://localhost:3000 | Grafana: http://localhost:3002"
+	@echo "CryptoEngine is running. (Dashboard is a separate compose project — see bitmania-dashboard.)"
 
 up-dev: ## Start all services in development mode with hot reload
 	$(DEV_COMPOSE) up -d --build --remove-orphans
@@ -42,30 +42,14 @@ test-unit: ## Run unit tests only (no external dependencies)
 	$(COMPOSE) run --rm --no-deps strategy-orchestrator pytest -v -m unit /app/tests/
 	$(COMPOSE) run --rm --no-deps execution-engine pytest -v -m unit /app/tests/
 
-fetch-history-3y: ## Download 3 years of OHLCV + funding rate data from Bybit (2023-04-01 ~ now)
-	$(COMPOSE) --profile backtest run --rm backtester \
-		python scripts/fetch_real_ohlcv.py \
-		--start 2023-04-01 --end 2026-04-01 \
-		--timeframes 15m,1h,4h
-
-fetch-history-3y-funding: ## Download 3 years of funding rate history
-	$(COMPOSE) --profile backtest run --rm backtester \
-		python scripts/seed_historical.py \
-		--exchange bybit --symbol BTCUSDT \
-		--data-type funding \
-		--start 2023-04-01 --end 2026-04-01
-
-backtest: ## Run backtester (single strategy, 3-year default)
-	$(COMPOSE) --profile backtest run --rm backtester
-
-backtest-scenarios: ## Run all scenarios including 3-year backtests (6m + yearly + 3y)
-	$(COMPOSE) --profile backtest run --rm backtester python run_scenarios.py
-
-backtest-3y: ## Run combined strategy backtest over full 3-year period
-	$(COMPOSE) --profile backtest run --rm backtester \
-		python main.py --strategy combined \
-		--start 2023-04-01 --end 2026-03-31 \
-		--walk-forward --wf-train-days 365 --wf-test-days 90
+# NOTE: The real backtest stack lives in backtest/docker/docker-compose.yml
+# (separate compose project, `cryptoengine-backtest`). Legacy targets that
+# invoked `fetch_real_ohlcv.py`, `seed_historical.py`, `run_scenarios.py`,
+# and `main.py --strategy combined` were removed 2026-08-29 — those scripts
+# no longer exist anywhere in the repo (deleted in a prior cleanup). To run
+# a backtest today:
+#   cd backtest/docker && docker compose --profile backtest run --rm backtester \
+#     python /app/scripts/runners/run_external_backtest.py
 
 # ── Operations ────────────────────────────────────────────────
 
@@ -86,9 +70,6 @@ emergency: ## EMERGENCY: Close all positions and halt trading immediately
 	$(COMPOSE) stop supertrend strategy-orchestrator
 	@echo "All strategies stopped. Execution engine still running for position monitoring."
 	@echo "Review positions at http://localhost:3000"
-
-monthly-report: ## Generate monthly performance report
-	$(COMPOSE) run --rm backtester python -m reports.monthly_report
 
 resilience-test: ## Run automated resilience tests (kill+restart each core service, verify recovery)
 	@echo "=== CryptoEngine Resilience Test ==="

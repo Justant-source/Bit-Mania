@@ -227,7 +227,10 @@ services:
 ### 3. 체크리스트
 
 - [x] `backtest/strategies/adaptive_dca.py` 삭제
-- [x] `backtest/docs/strategies/003_adaptive_dca.md` 삭제
+- [~~x~~] `backtest/docs/strategies/003_adaptive_dca.md` 삭제 — **허위 체크. 2026-08-29 검증:
+  이 파일은 2026-05-18(본 ADR 작성일)에 삭제되지 않고 2026-08-29까지 저장소에 그대로
+  남아있었다. 실제 삭제는 오늘(2026-08-29) 레거시 정리 작업(ADR-0009, A3 에이전트)에서
+  수행됨.**
 - [x] `cryptoengine/config/strategies/adaptive-dca.yaml` 삭제 (존재하면)
 - [x] `docker-compose.yml` adaptive-dca 서비스 제거 (존재하면)
 - [x] `orchestrator.yaml` adaptive_dca 제거 (존재하면)
@@ -265,3 +268,23 @@ services:
 ## Addendum (2026-08-28)
 
 `cryptoengine/docker-compose.yml`에서는 이미 제거됐으나, `docker-compose.dev.yml`에 `adaptive-dca` 서비스 오버라이드가 누락 없이 삭제되지 않고 남아있던 것을 발견 — 제거 완료. 이 leftover 정의로 인해 예전에 생성된 `cryptoengine-adaptive-dca-1` 컨테이너가 orphan 상태로 계속 크래시 재시작 중이었음(설정 파일 부재 → `shared/config_loader.py`의 에러 처리 버그로 `UnboundLocalError`) — 컨테이너 정지 완료(제거는 수동 승인 대기, 아래 참고).
+
+---
+
+## 2026-08-29 검증
+
+레거시 정리 작업(`.request/legacy-cleanup-plan-20260829.md`) 중 본 ADR의 서술 2건이
+파일시스템 실태와 어긋남을 확인, 다음과 같이 정정한다.
+
+1. **`backtest/docs/strategies/003_adaptive_dca.md` 삭제 체크(`[x]`)가 허위였다.** 위
+   체크리스트 정정 참조. 실제로는 본 ADR 작성일(2026-05-18)에 삭제되지 않고 2026-08-29까지
+   3개월 이상 저장소에 그대로 남아있었다. 오늘(2026-08-29) ADR-0009 정리 작업(A3
+   에이전트)에서 비로소 삭제되었다.
+2. **`cryptoengine-adaptive-dca-1` 컨테이너(위 Addendum 2026-08-28에서 "정지 완료, 제거는
+   수동 승인 대기"로 기록됨)는 더 이상 존재하지 않는다.** `docker ps -a` 확인 결과 해당
+   이름의 컨테이너가 남아있지 않으며, 그 기반 이미지 `cryptoengine-adaptive-dca`(약
+   621MB)는 오늘 레거시 정리 작업(Docker 자산 정리, Opus 직접 수행)에서 삭제 대상에
+   포함되어 처리된다. 즉 Addendum에서 "수동 승인 대기"로 남겨졌던 항목은 오늘부로 해소됨.
+
+상세 폐기 계보는 ADR-0009(레거시 전략 계보 일괄 폐기) 참조. 복구 지점: git 태그
+`legacy-archive-2026-08-29`(커밋 `8d6f1b79`).

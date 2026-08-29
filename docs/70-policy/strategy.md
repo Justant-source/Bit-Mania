@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — Supertrend 전략 SSOT · 백테스트 방법론
-last_updated: 2026-08-20
+last_updated: 2026-08-29
 ---
 
 # Supertrend 전략 SSOT · 백테스트 방법론
@@ -182,17 +182,21 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 데이터: 운영 OHLCV read-only 마운트 (../../data:/data:ro)
 ```
 
-### Walk-Forward (WF) 스케줄
+### Walk-Forward (WF) 스케줄 — 폐지됨 (2026-08-29)
 
-- **일시**: 매월 1일 02:00 KST
-- **데이터**: 최근 6개월 (IS 3개월 + OOS 3개월)
-- **최적화**: IS에서 파라미터 재최적화
-- **검증**: OOS에서 독립적 성과 검증
-- **결과**: Telegram 자동 전송
+`wf-scheduler` 서비스(월간 자동 IS/OOS 재최적화, `backtest/docker/docker-compose.yml`)는 FA 시대 잔재(`WF_FA_RATIO`/`WF_REINVEST`/`WF_LEVERAGE` env)로 2026-08-29 전량 삭제되었다. 아래는 **과거(아카이브) 사양**이며 현재 실행되지 않는다:
 
-### 그리드 재스윕 (v10_notp, ATR 손절만)
+- ~~**일시**: 매월 1일 02:00 KST~~
+- ~~**데이터**: 최근 6개월 (IS 3개월 + OOS 3개월)~~
+- ~~**최적화**: IS에서 파라미터 재최적화~~
+- ~~**검증**: OOS에서 독립적 성과 검증~~
+- ~~**결과**: Telegram 자동 전송~~
 
-대시보드에 있던 유일 파라미터 공간은 v7_st 15,000 combo이다 (v6_st 1,296는 부분집합). 2026-08-20부터 `v10_notp`에 combo만 복사한 뒤 8윈도우를 재실행한다. 기존 v6_st/v7_st window 결과는 보존한다. 스케줄러는 KST 00–06에 워커 6 (cpuset 3–7), 그 외 워커 2 (cpuset 6–7), `nice 19`로 운영 스택과 CPU를 분리한다.
+현재 파라미터 재검증은 수동 그리드 재스윕(아래)으로만 수행된다.
+
+### 그리드 재스윕 (v10_notp, ATR 손절만) — 중단됨 (2026-08-29)
+
+대시보드에 있던 유일 파라미터 공간은 v7_st 15,000 combo이다 (v6_st 1,296는 부분집합). 2026-08-20부터 `v10_notp`에 combo만 복사한 뒤 8윈도우를 재실행하는 재스윕이 계획되었으나, **2026-08-29 Q13 결정으로 중단이 확정**되었다 — `backtester` 컨테이너가 3개월간 미가동 상태이며, 15,000개 combo는 이미 Postgres에 적재된 채 재개 대기 중이다(데이터는 보존, 삭제하지 않음). 기존 v6_st/v7_st window 결과도 보존된다. 재개할 경우 스케줄러는 KST 00–06에 워커 6 (cpuset 3–7), 그 외 워커 2 (cpuset 6–7), `nice 19`로 운영 스택과 CPU를 분리하는 설계였다. 상세: `backtest/README.md`, `docs/90-adr/0009-legacy-strategy-retirement.md`.
 
 ### 현재 채택 설정
 

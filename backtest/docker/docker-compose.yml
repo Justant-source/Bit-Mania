@@ -82,55 +82,6 @@ services:
           cpus: "4.0"
           memory: 5G
 
-  # ── Walk-Forward 월간 스케줄러 ────────────────────────────────
-  wf-scheduler:
-    build:
-      context: ../..
-      dockerfile: backtest/docker/Dockerfile
-    container_name: cryptoengine-wf-scheduler
-    profiles:
-      - backtest
-    restart: always
-    depends_on:
-      backtest-postgres:
-        condition: service_healthy
-    environment:
-      PYTHONPATH: /app
-      JESSE_DB_HOST: backtest-postgres
-      JESSE_DB_PORT: 5432
-      JESSE_DB_NAME: jesse_db
-      JESSE_DB_USER: jesse
-      JESSE_DB_PASSWORD: ***REMOVED***
-      BACKTEST_DATA_ROOT: /data
-      DATA_DIR: /data
-      MONTHLY_WF_CRON: ${MONTHLY_WF_CRON:-0 17 1 * *}
-      WF_ON_STARTUP: ${WF_ON_STARTUP:-false}
-      WF_SYMBOL: ${WF_SYMBOL:-BTCUSDT}
-      WF_CAPITAL: ${WF_CAPITAL:-10000.0}
-      WF_LOOKBACK_DAYS: ${WF_LOOKBACK_DAYS:-180}
-      WF_TRAIN_DAYS: ${WF_TRAIN_DAYS:-120}
-      WF_TEST_DAYS: ${WF_TEST_DAYS:-60}
-      WF_MC_RUNS: ${WF_MC_RUNS:-200}
-      WF_FA_RATIO: ${WF_FA_RATIO:-0.80}
-      WF_LEVERAGE: ${WF_LEVERAGE:-5.0}
-      WF_REINVEST: ${WF_REINVEST:-0.30}
-      WF_MIN_FUNDING: ${WF_MIN_FUNDING:-0.0001}
-      FRED_API_KEY: ${FRED_API_KEY:-}
-    volumes:
-      - ../../data:/data:ro
-      - ../results:/result
-      - ../dashboards:/dashboards
-      - ../runtime:/app/runtime
-      - ../scripts:/app/scripts
-      - ../strategies:/app/strategies
-    entrypoint: ["sh", "/app/docker/wf_entrypoint.sh"]
-    <<: *backtest-common
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-
 networks:
   backtest-net:
     name: cryptoengine-backtest-net
