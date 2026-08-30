@@ -20,6 +20,9 @@ Modes:
 Run: docker run --rm -v "$PWD/cryptoengine:/work" -w /work \
        --entrypoint python cryptoengine-supertrend:latest \
        tests/fixtures/_replay_supertrend.py [--out /path/to/results_dir]
+
+Hold-out (S7): --csv / --params / --start / --end (end exclusive). No extra
+args still prints the canonical #7908 fixture (198 / 219.06 / −66.70 / 1.667).
 """
 
 from __future__ import annotations
@@ -37,7 +40,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, "/work")
+_CE = Path(__file__).resolve().parents[2]
+if str(_CE) not in sys.path:
+    sys.path.insert(0, str(_CE))
 from services.strategies.supertrend.indicators import (  # noqa: E402
     _atr_jesse,
     compute_ema,
@@ -86,23 +91,98 @@ def _st_seq(high, low, close, period, factor):
     return np.where(close > st, 1, -1)
 
 
-def run_backtest():
-    """Returns (trades, equity_4h, df, ts) where trades carry full fill detail."""
-    rows = list(csv.DictReader(open(FX / "btc_4h.csv")))
+def date_ms(s: str) -> int:
+    """UTC midnight of YYYY-MM-DD as epoch ms."""
+    return int(datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+
+def parse_params(s: str | None) -> dict:
+    """JSON object or path. Aliases match st_combos column names."""
+    out = {
+        "st_factor": float(ST_FACTOR),
+        "st_period": int(ST_PERIOD),
+        "fast_ema": int(FAST),
+        "slow_ema": int(SLOW),
+        "dir_ema": int(DIR),
+        "atr_mult": float(ATR_MULT),
+    }
+    if not s:
+        return out
+    p = Path(s)
+    raw = json.loads(p.read_text() if p.is_file() else s)
+    aliases = {
+        "fast_ema_len": "fast_ema",
+        "slow_ema_len": "slow_ema",
+        "direction_ema_len": "dir_ema",
+    }
+    for k, v in raw.items():
+        key = aliases.get(k, k)
+        if key not in out:
+            raise ValueError(f"unknown param {k}")
+        out[key] = float(v) if key in ("st_factor", "atr_mult") else int(v)
+    return out
+
+
+from functools import lru_cache
+
+
+@lru_cache(maxsize=8)
+def _load_ohlcv(csv_path_str: str):
+    """Cached CSV → (ts,o,h,lo,c) numpy arrays. Combo-independent; a v12 grid run calls
+    run_backtest thousands of times against the same csv_path, so re-parsing the CSV
+    every call (the pre-v12 behaviour) would dominate runtime. Pure read of immutable
+    on-disk data — safe to cache across the whole process."""
+    rows = list(csv.DictReader(open(csv_path_str)))
     ts = np.array([int(r["timestamp"]) for r in rows])
     o = np.array([float(r["open"]) for r in rows])
     h = np.array([float(r["high"]) for r in rows])
     lo = np.array([float(r["low"]) for r in rows])
     c = np.array([float(r["close"]) for r in rows])
+    return ts, o, h, lo, c
+
+
+def run_backtest(
+    csv_path: Path | None = None,
+    st_factor: float = ST_FACTOR,
+    st_period: int = ST_PERIOD,
+    fast: int = FAST,
+    slow: int = SLOW,
+    dir_ema: int = DIR,
+    atr_mult: float = ATR_MULT,
+    start_ms: int | None = None,
+    end_ms: int | None = None,
+    warmup_bars: int | None = None,
+    safety_stop: bool = False,
+    fee: float = FEE,
+    slip_bps: float = 0.0,
+    fill: str = "close",
+):
+    """Returns (trades, equity_4h, df, ts). Indicators on full CSV; fills in [start,end).
+
+    v12 additions (all default to the pre-v12 behaviour so a bare call is byte-identical
+    to the original #7908 canonical run):
+      warmup_bars  — fixed start index for ALL combos (None = old per-combo `int(dir_ema)`
+                      behaviour, which biases combos with a smaller dir_ema toward an
+                      earlier, more favourable start date).
+      safety_stop  — model the live exchange stop-market at entry*(1 - 0.70/LEVERAGE),
+                      checked against the bar's intrabar LOW (the one structural gap vs the
+                      live system, which the pre-v12 replay did not model at all).
+      fee/slip_bps/fill — execution-assumption sensitivity (G6). fill="next_open" defers
+                      signal-driven entries/exits to the following bar's open (with slippage);
+                      the safety stop always fires intrabar on the bar's low, independent of
+                      `fill`, since it is a resting exchange order, not a signal decision.
+    """
+    csv_path = Path(csv_path) if csv_path else FX / "btc_4h.csv"
+    ts, o, h, lo, c = _load_ohlcv(str(csv_path))
     df = pd.DataFrame({"open": o, "high": h, "low": lo, "close": c})
     n = len(df)
 
-    ema7 = compute_ema(df, FAST).to_numpy()
-    ema29 = compute_ema(df, SLOW).to_numpy()
-    ema240 = compute_ema(df, DIR).to_numpy()
+    ema_fast = compute_ema(df, fast).to_numpy()
+    ema_slow = compute_ema(df, slow).to_numpy()
+    ema_dir = compute_ema(df, dir_ema).to_numpy()
     atr14 = _atr_jesse(h, lo, c, 14)
-    d = _st_seq(h, lo, c, ST_PERIOD, ST_FACTOR)
-    _d, _ = compute_supertrend(df, ST_PERIOD, ST_FACTOR)
+    d = _st_seq(h, lo, c, st_period, st_factor)
+    _d, _ = compute_supertrend(df, st_period, st_factor)
     assert _d == d[-1], f"st_seq mismatch: {_d} {d[-1]}"
 
     balance = START_BAL
@@ -110,44 +190,110 @@ def run_backtest():
     entry = 0.0
     entry_ts = 0
     size = 0.0
+    stop_price = None
     last_liq = -1
     atr_exit = -(10 ** 18)
     trades = []           # (open_ts, entry, close_ts, exit, qty, pnl, fee, reason)
     equity_4h = []        # (ts, mark-to-market equity)
-    WARMUP = DIR
-    for i in range(WARMUP, n):
-        price = c[i]
+    slip = slip_bps / 10_000.0
+    warmup = warmup_bars if warmup_bars is not None else int(dir_ema)
+    pending = None        # queued signal fill for fill="next_open": {'type','reason'?}
+
+    def _fee(px_entry, px_exit, qty):
+        return (qty * px_entry + qty * px_exit) * fee
+
+    for i in range(warmup, n):
         t = int(ts[i])
+        if end_ms is not None and t >= end_ms:
+            break
+        if start_ms is not None and t < start_ms:
+            continue
+
+        # 1) execute a queued signal fill at THIS bar's open (fill="next_open" only)
+        if pending is not None:
+            if pending["type"] == "enter":
+                fp = o[i] * (1 + slip)
+                pos, entry, entry_ts = True, fp, t
+                size = (balance * ALLOC * LEVERAGE) / entry
+                stop_price = entry * (1 - 0.70 / LEVERAGE) if safety_stop else None
+            else:
+                fp = o[i] * (1 - slip)
+                gross = size * (fp - entry)
+                feeamt = _fee(entry, fp, size)
+                net = gross - feeamt
+                balance += net
+                trades.append((entry_ts, entry, t, fp, size, net, feeamt, pending["reason"]))
+                last_liq = t
+                if pending["reason"] == "atr":
+                    atr_exit = t
+                pos, size, stop_price = False, 0.0, None
+            pending = None
+
+        price = c[i]
         # mark-to-market equity (include open position's unrealized)
         unreal = size * (price - entry) if pos else 0.0
         equity_4h.append((t, balance + unreal))
+
+        # 2) intrabar exchange safety stop — always checked on the bar's LOW, regardless
+        #    of `fill` mode (it is a resting stop order, not a signal decision).
+        if pos and safety_stop and stop_price is not None and lo[i] <= stop_price:
+            fp = stop_price * (1 - slip)
+            gross = size * (fp - entry)
+            feeamt = _fee(entry, fp, size)
+            net = gross - feeamt
+            balance += net
+            trades.append((entry_ts, entry, t, fp, size, net, feeamt, "safety_stop"))
+            last_liq = t
+            pos, size, stop_price = False, 0.0, None
+            continue
+
+        # 3) signal decisions (evaluated at this bar's close)
         if not pos:
             if t <= last_liq or t <= atr_exit + _4H_MS:
                 continue
-            if d[i] == 1 and ema7[i] > ema29[i] and price > ema240[i]:
-                pos, entry, entry_ts = True, price, t
-                size = (balance * ALLOC * LEVERAGE) / entry
+            if d[i] == 1 and ema_fast[i] > ema_slow[i] and price > ema_dir[i]:
+                if fill == "close":
+                    fp = price * (1 + slip)
+                    pos, entry, entry_ts = True, fp, t
+                    size = (balance * ALLOC * LEVERAGE) / entry
+                    stop_price = entry * (1 - 0.70 / LEVERAGE) if safety_stop else None
+                else:
+                    pending = {"type": "enter"}
         else:
-            a = atr14[i] * ATR_MULT
+            a = atr14[i] * atr_mult
             if np.isnan(a):
                 continue
             reason = None
-            if ema7[i] < ema29[i]:
+            if ema_fast[i] < ema_slow[i]:
                 reason = "ema"
             elif price <= entry - a:
                 reason = "atr"
             if reason:
-                gross = size * (price - entry)
-                fee = (size * entry + size * price) * FEE
-                net = gross - fee
-                balance += net
-                trades.append((entry_ts, entry, t, price, size, net, fee, reason))
-                last_liq = t
-                if reason == "atr":
-                    atr_exit = t
-                pos = False
-                size = 0.0
+                if fill == "close":
+                    fp = price * (1 - slip)
+                    gross = size * (fp - entry)
+                    feeamt = _fee(entry, fp, size)
+                    net = gross - feeamt
+                    balance += net
+                    trades.append((entry_ts, entry, t, fp, size, net, feeamt, reason))
+                    last_liq = t
+                    if reason == "atr":
+                        atr_exit = t
+                    pos, size, stop_price = False, 0.0, None
+                else:
+                    pending = {"type": "exit", "reason": reason}
     return trades, equity_4h, df, ts
+
+
+def daily_mtm(equity_4h) -> "OrderedDict[str, float]":
+    """Last-bar-of-day mark-to-market equity, keyed by UTC date string. Shared by
+    `_metrics` and any external caller (e.g. the v12 grid runner) that needs the
+    per-day equity series directly instead of just the summary stats dict."""
+    daily: "OrderedDict[str, float]" = OrderedDict()
+    for t, eq in equity_4h:
+        day = datetime.fromtimestamp(t / 1000, timezone.utc).strftime("%Y-%m-%d")
+        daily[day] = eq
+    return daily
 
 
 def _metrics(trades, equity_4h):
@@ -156,10 +302,7 @@ def _metrics(trades, equity_4h):
     gl = -sum(t[5] for t in trades if t[5] < 0)
     wins = sum(1 for t in trades if t[3] > t[1])
     # daily MTM series → returns
-    daily = OrderedDict()
-    for t, eq in equity_4h:
-        day = datetime.fromtimestamp(t / 1000, timezone.utc).strftime("%Y-%m-%d")
-        daily[day] = eq  # last bar of the day wins
+    daily = daily_mtm(equity_4h)
     dvals = list(daily.values())
     rets = [(dvals[i] / dvals[i - 1] - 1.0)
             for i in range(1, len(dvals)) if dvals[i - 1] > 0]
@@ -239,34 +382,94 @@ def write_dashboard_results(out_dir: Path, trades, m, ts):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None, help="results dir for dashboard-format output")
+    ap.add_argument("--csv", default=None, help="OHLCV CSV (default: fixtures/btc_4h.csv)")
+    ap.add_argument("--params", default=None, help="JSON object or path (st_factor/st_period/fast_ema/…)")
+    ap.add_argument("--start", default=None, help="trade window start YYYY-MM-DD inclusive UTC")
+    ap.add_argument("--end", default=None, help="trade window end YYYY-MM-DD exclusive UTC")
+    ap.add_argument("--label", default=None, help="printed run label")
+    ap.add_argument("--json", action="store_true", help="print one JSON object of metrics")
+    ap.add_argument("--warmup-bars", type=int, default=None,
+                     help="v12: fixed start index for all combos (default: legacy int(dir_ema))")
+    ap.add_argument("--safety-stop", action="store_true",
+                     help="v12: model intrabar exchange stop at entry*(1-0.70/lev) on the bar low")
+    ap.add_argument("--fee", type=float, default=None, help="v12: taker fee per side (default %.5f)" % FEE)
+    ap.add_argument("--slip-bps", type=float, default=0.0, help="v12: slippage in bps applied on fills")
+    ap.add_argument("--fill", choices=["close", "next_open"], default="close",
+                     help="v12: signal fills at this bar's close (default) or next bar's open")
     args = ap.parse_args()
 
-    trades, equity_4h, df, ts = run_backtest()
+    p = parse_params(args.params)
+    start_ms = date_ms(args.start) if args.start else None
+    end_ms = date_ms(args.end) if args.end else None
+    csv_path = Path(args.csv) if args.csv else FX / "btc_4h.csv"
+    default_run = (
+        args.csv is None and args.params is None
+        and args.start is None and args.end is None
+        and args.warmup_bars is None and not args.safety_stop
+        and args.fee is None and args.slip_bps == 0.0 and args.fill == "close"
+    )
+
+    trades, equity_4h, df, ts = run_backtest(
+        csv_path=csv_path,
+        st_factor=p["st_factor"],
+        st_period=p["st_period"],
+        fast=p["fast_ema"],
+        slow=p["slow_ema"],
+        dir_ema=p["dir_ema"],
+        atr_mult=p["atr_mult"],
+        start_ms=start_ms,
+        end_ms=end_ms,
+        warmup_bars=args.warmup_bars,
+        safety_stop=args.safety_stop,
+        fee=args.fee if args.fee is not None else FEE,
+        slip_bps=args.slip_bps,
+        fill=args.fill,
+    )
     m = _metrics(trades, equity_4h)
 
-    print("=== Bybit native 4h (00계열) backtest — LIVE strategy (fixed indicators) ===")
+    if args.json:
+        payload = {
+            "label": args.label,
+            "bars": int(len(df)),
+            "csv": str(csv_path),
+            "params": p,
+            "start": args.start,
+            "end": args.end,
+            "first": _u(ts[0]),
+            "last": _u(ts[-1]),
+            "trades": len(trades),
+            **{k: (None if isinstance(v, float) and not math.isfinite(v) else v) for k, v in m.items()},
+        }
+        print(json.dumps(payload, default=float))
+        if args.out:
+            write_dashboard_results(Path(args.out), trades, m, ts)
+        return
+
+    title = args.label or "LIVE strategy (fixed indicators)"
+    print("=== Bybit native 4h (00계열) backtest — %s ===" % title)
     print("bars=%d  (%s ~ %s)" % (len(df), _u(ts[0]), _u(ts[-1])))
     print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f  final=$%.0f"
           % (len(trades), m["win_rate"], m["cagr"], m["mdd"], m["pf"], m["sharpe"], m["final"]))
     print("exit reasons:", dict(Counter(t[7] for t in trades)))
 
-    print("\n=== prior ATR-TP series (Bybit native 4h, 2026-06-14) ===")
-    print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
-          % (360, 48.61, 137.64, -73.29, 1.184, 1.349))
+    if default_run:
+        print("\n=== prior ATR-TP series (Bybit native 4h, 2026-06-14) ===")
+        print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
+              % (360, 48.61, 137.64, -73.29, 1.184, 1.349))
 
-    # entry-timing overlap vs #7908
-    ref = list(csv.DictReader(open(FX / "trades_7908.csv")))
-    ref_open = sorted(int(float(r["opened_at"])) for r in ref)
-    sim_open = sorted(t[0] for t in trades)
-    tol = _4H_MS + 2 * 3600 * 1000
-    matched = 0
-    for so in sim_open:
-        j = bisect.bisect_left(ref_open, so)
-        cand = [abs(so - ref_open[k]) for k in (j - 1, j) if 0 <= k < len(ref_open)]
-        if cand and min(cand) <= tol:
-            matched += 1
-    print("entry-timing overlap vs #7908: %d/%d (%.1f%%)"
-          % (matched, len(sim_open), 100 * matched / max(1, len(sim_open))))
+        # entry-timing overlap vs #7908
+        ref = list(csv.DictReader(open(FX / "trades_7908.csv")))
+        ref_open = sorted(int(float(r["opened_at"])) for r in ref)
+        sim_open = sorted(t[0] for t in trades)
+        tol = _4H_MS + 2 * 3600 * 1000
+        matched = 0
+        for so in sim_open:
+            j = bisect.bisect_left(ref_open, so)
+            cand = [abs(so - ref_open[k]) for k in (j - 1, j) if 0 <= k < len(ref_open)]
+            if cand and min(cand) <= tol:
+                matched += 1
+        print("entry-timing overlap vs #7908: %d/%d (%.1f%%)"
+              % (matched, len(sim_open), 100 * matched / max(1, len(sim_open))))
 
     if args.out:
         print("\nWriting dashboard-format results…")
