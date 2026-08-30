@@ -204,12 +204,14 @@ def run_backtest(
 
     for i in range(warmup, n):
         t = int(ts[i])
-        if end_ms is not None and t >= end_ms:
-            break
-        if start_ms is not None and t < start_ms:
-            continue
 
-        # 1) execute a queued signal fill at THIS bar's open (fill="next_open" only)
+        # 1) execute a queued signal fill at THIS bar's open (fill="next_open" only).
+        #    Must run BEFORE the end_ms/start_ms gates below: a fill queued on the last
+        #    in-window bar otherwise gets silently dropped by `break`, leaving a phantom
+        #    open position and an unrecorded trade (bug found by adversarial audit,
+        #    2026-08-31 — 3 trades / 11.5% final equity on the canonical run under
+        #    fill="next_open"; fill="close", the only mode used by any v12 result to
+        #    date, does not use `pending` and was unaffected).
         if pending is not None:
             if pending["type"] == "enter":
                 fp = o[i] * (1 + slip)
@@ -228,6 +230,11 @@ def run_backtest(
                     atr_exit = t
                 pos, size, stop_price = False, 0.0, None
             pending = None
+
+        if end_ms is not None and t >= end_ms:
+            break
+        if start_ms is not None and t < start_ms:
+            continue
 
         price = c[i]
         # mark-to-market equity (include open position's unrealized)
