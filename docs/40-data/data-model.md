@@ -1,6 +1,6 @@
 ---
 title: L4 Data Model — PostgreSQL 스키마 · 마이그레이션
-last_updated: 2026-08-29
+last_updated: 2026-08-31
 nav_order: 1
 parent: 40-data
 ---
@@ -27,6 +27,8 @@ parent: 40-data
 ### 4h 캔들 시각
 
 운영 정본은 `ohlcv_history`에서 `exchange='bybit' AND symbol='BTCUSDT' AND timeframe='4h'`. `timestamp`는 Bybit kline **start**. 종가 UTC 08:00인 봉의 키는 **04:00 UTC**. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md) · [strategy.md](../70-policy/strategy.md) §1.1.
+
+⚠️ **`jesse_db`(백테스트 DB)의 `ohlcv_4h`는 이 테이블과 별개다.** 같은 시각 규약(kline start, 00계열)을 쓰지만 시세 출처가 **Binance 현물**이다(2026-08-31 이전에는 `exchange` 컬럼이 `'Bybit Perpetual'`로 잘못 라벨링돼 있었음). 두 테이블의 같은 timestamp 행이라도 값이 다를 수 있다(종가 평균 +0.05%) — 조인·대조 시 반드시 감안. 상세: [csv_ohlcv_drift.md](../../backtest/results/2026-08-31/csv_ohlcv_drift.md).
 
 ---
 

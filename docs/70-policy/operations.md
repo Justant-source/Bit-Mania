@@ -83,6 +83,16 @@ docker compose logs --tail=50 supertrend
 docker compose logs --tail=100 execution-engine | grep -E "ERROR|WARN|CRITICAL"
 ```
 
+**포스트모템(사후 조사) 시 우선순위 — 컨테이너 로그보다 `service_logs` 테이블 먼저 확인**:
+
+```bash
+docker compose exec postgres psql -U cryptoengine -d cryptoengine -c "
+SELECT timestamp, service, level, event, message, context FROM service_logs
+WHERE timestamp >= '<조사시작>' AND timestamp <= '<조사종료>' ORDER BY timestamp;"
+```
+
+`docker compose logs`는 컨테이너 로그 드라이버 보존기간에 묶여 며칠 지나면 과거 이벤트가 사라진다. `service_logs`는 PG 테이블이라 **2026-04-07부터 전량 보존**되며(자동 정리 정책 없음), `context` JSONB에 구조화된 필드가 그대로 남아 있어 회고 조사에 훨씬 유용하다. 2026-08-31 라이브 이상 조사(진입가 괴리로 오인됐던 08-19 청산, `backtest/results/2026-08-31/live_slippage_report.md` §5.1)가 컨테이너 로그만 봐서 "로그 보존기간 만료로 원인 불명"으로 잘못 종결됐다가, `service_logs`를 다시 조회해 정확한 원인(배포-커밋 간극)을 밝힌 사례다.
+
 ### 비상 청산
 
 ```bash
@@ -255,11 +265,14 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
    ORDER BY DATE_TRUNC DESC;"
 
 # 4. 엣지 소멸 트립와이어 체크 (매월 1일, 2026-08-31~)
-python3 backtest/scripts/analysis/tripwire_check.py extend-csv   # 라이브 4h 봉으로 리플레이 CSV 연장
+python3 backtest/scripts/data/fetch_binance_vision_1m_to_pg.py --start <직전실행일+1> --end <오늘>
+#   ↑ 먼저 실행 — jesse_db.ohlcv_4h를 Binance Vision spot 소스로 채워둔다 (트립와이어와 동일 소스 유지 필수)
+python3 backtest/scripts/analysis/tripwire_check.py extend-csv   # jesse_db.ohlcv_4h → 리플레이 CSV 연장
 python3 backtest/scripts/analysis/tripwire_check.py check        # T1(월간 워닝)/T2(블록 게이트) 판정, log.md 기록
-#   ⚠️ 2026-08-31 기준 CSV↔ohlcv_history 가격 드리프트로 extend-csv가 중단 상태
-#      (backtest/results/2026-08-31/csv_ohlcv_drift.md 원인 미규명, 해소 전까지 check 로그 미기록)
+#   ⚠️ 소스는 반드시 jesse_db(Binance Spot)여야 한다. 라이브 ohlcv_history(Bybit 무기한)를
+#      섞으면 2026-08-31에 발견됐던 드리프트가 재발한다 — 상세: backtest/results/2026-08-31/csv_ohlcv_drift.md
 #   규칙·임계값: backtest/results/tripwire/PREREGISTRATION_TRIPWIRE.md (커밋 후 불변)
+#   첫 클린 T2 판정: 2027-04-01 (그 전 블록은 사전등록 §0.2에 따라 참고용·비판정)
 
 # 5. 실 체결 슬리피지 재실측 (신규 체결 10건 누적 또는 분기 1회)
 python3 backtest/scripts/analysis/live_slippage.py
@@ -269,6 +282,8 @@ python3 backtest/scripts/analysis/live_slippage.py
 ---
 
 ## §4. 배포 절차 (Phase 5 메인넷)
+
+> ⚠️ **전략 로직 변경은 배포와 커밋을 같은 작업 단위로 묶을 것.** 2026-08-19~29 사례: ATR 청산 규칙 변경(대칭 익절·손절 → 손절 전용)이 08-20경 **배포**됐으나 커밋(`2ee11756`)은 9일 뒤인 08-29에야 이뤄졌다. 그 사이 git 히스토리는 라이브 상태를 반영하지 않았고, 사후 조사에서 "당시 실행 코드"를 git으로 재구성하려다 존재하지 않는 버그(진입가 괴리)를 오진하는 데 이르렀다(`backtest/results/2026-08-31/live_slippage_report.md` §5.1). 배포 전 커밋 상태를 반드시 확인할 것 — 아래 §배포 전 검증의 `git diff HEAD` 결과가 비어 있어야 "지금 배포하는 코드 = git이 기록할 코드"가 성립한다.
 
 ### 배포 전 검증
 
