@@ -111,7 +111,7 @@ Bybit 거래소 모드 플래그:
 
 **절대 규칙**: Phase 4 완료 전까지는 반드시 `true`
 
-**변경 절차**: `docs/70-policy/operations.md` (메인넷 전환 절)
+**변경 절차**: `docs/shared/70-policy.md` (메인넷 전환 절)
 
 ### STRICT_MONITORING_HOURS
 

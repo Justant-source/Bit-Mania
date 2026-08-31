@@ -198,7 +198,7 @@ flowchart TB
   end
 ```
 
-> **2026-08-29 죽은 모듈 제거**: `shared/db/connection.py`, `shared/db/repository.py`(+`__init__.py`)는 임포터가 없어 삭제되었다. 각 서비스는 자체 asyncpg 커넥션 풀을 직접 관리한다(중앙화된 shared 풀 없음). `shared/exchange/binance.py`와 Track-C 팩토리 등록도 함께 삭제 — Bybit 단독. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
+> **2026-08-29 죽은 모듈 제거**: `shared/db/connection.py`, `shared/db/repository.py`(+`__init__.py`)는 임포터가 없어 삭제되었다. 각 서비스는 자체 asyncpg 커넥션 풀을 직접 관리한다(중앙화된 shared 풀 없음). `shared/exchange/binance.py`와 Track-C 팩토리 등록도 함께 삭제 — Bybit 단독. 상세: `docs/shared/90-adr/0009-legacy-strategy-retirement.md`
 
 **KillLevel 계층**:
 
@@ -242,9 +242,9 @@ class KillLevel(IntEnum):
 
 ## 참고 자료
 
-- **Phase 5 운영 현황**: `docs/70-policy/operations.md`
+- **Phase 5 운영 현황**: `docs/shared/70-policy.md`
 - **전략 파라미터**: `docs/70-policy/strategy.md`
 - **서비스 구조**: `docs/30-components/components.md`
 - **Data Flow (Redis Pub/Sub)**: `docs/50-api/pubsub-catalog.md`
 - **PostgreSQL 테이블**: `docs/40-data/data-model.md`
-- **배포 가이드**: `docs/70-policy/operations.md`
+- **배포 가이드**: `docs/shared/70-policy.md`

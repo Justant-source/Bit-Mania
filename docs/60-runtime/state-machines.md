@@ -146,6 +146,6 @@ stateDiagram-v2
 
 메인 루프는 커맨드를 짧게 drain한 뒤 `asyncio.sleep(tick_interval)`(60초)한다. 오케스트레이터가 구독 전에 `start`를 발행하면 메시지는 Redis pub/sub 버퍼에 남고, **다음 틱에서** `command_received`가 난다. 대시보드 `is_running: false`가 1분 미만 지속될 수 있다.
 
-배포 시 **supertrend를 strategy-orchestrator보다 먼저** 올린다. 상세: [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md).
+배포 시 **supertrend를 strategy-orchestrator보다 먼저** 올린다. 상세: [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md).
 
 ---

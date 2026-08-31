@@ -115,7 +115,7 @@ Kill Switch 발동 → execution-engine 포지션 청산 확인:
 - `KILL_SWITCH_ACK_TIMEOUT_SECONDS = 5`
 - `KILL_SWITCH_ACK_MAX_RETRIES = 3`
 
-검증: `PUBSUB NUMSUB ce:kill_switch` ≥ 1. 실발동은 포지션 없을 때만. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md).
+검증: `PUBSUB NUMSUB ce:kill_switch` ≥ 1. 실발동은 포지션 없을 때만. 상세 [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md).
 
 ---
 
@@ -333,7 +333,7 @@ KillSwitch.trigger_manual()
 > `ModuleNotFoundError`로 즉시 실패했다.
 > 2026-08-29 수정: 오케스트레이터에 `_listen_external_kill()` 구독 추가 +
 > `cryptoengine/scripts/emergency_close_all.py` 신설. `shared/kill_switch.py`는 무수정.
-> 상세: [ADR-0009](../90-adr/0009-legacy-strategy-retirement.md), [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md)
+> 상세: [ADR-0009](../shared/90-adr/0009-legacy-strategy-retirement.md), [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md)
 
 ### 5.2 비상 청산 프로세스
 
@@ -466,7 +466,7 @@ EXPECTED_INITIAL_BALANCE_USD=238.88
 ## 관련 문서
 
 - [state-machines.md](../60-runtime/state-machines.md) — KillLevel 상태머신 · OrderState · 외부 KS 수신
-- [operations.md](operations.md) — 운영 Runbook · 배포 · 모니터링
+- [operations](../shared/70-policy.md) — 운영 Runbook · 배포 · 모니터링
 - [strategy.md](strategy.md) — Supertrend 전략 사양 · 백테스트
-- [system-context.md](../10-context/system-context.md) — L1 외부 액터 · 서브시스템 경계
-- [0010-ops-cleanup-20260829.md](../90-adr/0010-ops-cleanup-20260829.md) — 2026-08-29 운영 창 결정
+- [system-context.md](../shared/10-context.md) — L1 외부 액터 · 서브시스템 경계
+- [0010-ops-cleanup-20260829.md](../shared/90-adr/0010-ops-cleanup-20260829.md) — 2026-08-29 운영 창 결정

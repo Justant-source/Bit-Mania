@@ -215,7 +215,7 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 
 ### 그리드 재스윕 (v10_notp, ATR 손절만) — 중단됨 (2026-08-29)
 
-대시보드에 있던 유일 파라미터 공간은 v7_st 15,000 combo이다 (v6_st 1,296는 부분집합). 2026-08-20부터 `v10_notp`에 combo만 복사한 뒤 8윈도우를 재실행하는 재스윕이 계획되었으나, **2026-08-29 Q13 결정으로 중단이 확정**되었다 — `backtester` 컨테이너가 3개월간 미가동 상태이며, 15,000개 combo는 이미 Postgres에 적재된 채 재개 대기 중이다(데이터는 보존, 삭제하지 않음). 기존 v6_st/v7_st window 결과도 보존된다. 재개할 경우 스케줄러는 KST 00–06에 워커 6 (cpuset 3–7), 그 외 워커 2 (cpuset 6–7), `nice 19`로 운영 스택과 CPU를 분리하는 설계였다. 상세: `backtest/README.md`, `docs/90-adr/0009-legacy-strategy-retirement.md`.
+대시보드에 있던 유일 파라미터 공간은 v7_st 15,000 combo이다 (v6_st 1,296는 부분집합). 2026-08-20부터 `v10_notp`에 combo만 복사한 뒤 8윈도우를 재실행하는 재스윕이 계획되었으나, **2026-08-29 Q13 결정으로 중단이 확정**되었다 — `backtester` 컨테이너가 3개월간 미가동 상태이며, 15,000개 combo는 이미 Postgres에 적재된 채 재개 대기 중이다(데이터는 보존, 삭제하지 않음). 기존 v6_st/v7_st window 결과도 보존된다. 재개할 경우 스케줄러는 KST 00–06에 워커 6 (cpuset 3–7), 그 외 워커 2 (cpuset 6–7), `nice 19`로 운영 스택과 CPU를 분리하는 설계였다. 상세: `backtest/README.md`, `docs/shared/90-adr/0009-legacy-strategy-retirement.md`.
 
 ### 현재 채택 설정
 
@@ -343,6 +343,6 @@ Strategy Orchestrator는 단일 전략 모델로, **Supertrend에 항상 보유 
 
 ## 관련 정책 및 문서
 
-- `docs/70-policy/operations.md` — 운영 Runbook
+- `docs/shared/70-policy.md` — 운영 Runbook
 - `docs/70-policy/safety.md` — Kill Switch 정책
-- `docs/README.md` — Map of Content (시작점)
+- `docs/_index.md` — Map of Content (시작점)

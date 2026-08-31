@@ -85,7 +85,7 @@ flowchart TB
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
 
-> **Track-C(멀티거래소) 폐지 (2026-08-29)**: `market-data-binance`/`market-data-okx` 서비스와 관련 소스(`binance_collector.py`, `okx_collector.py`, `shared/exchange/binance.py`, `config/exchanges/{binance,okx}.yaml`)는 전량 삭제되었다. 운영 전략이 읽지 않던 1m OHLCV 보조 수집기였다. Bybit 단독 운영. 복구 지점: git 태그 `legacy-archive-2026-08-29`. 상세: `docs/90-adr/0009-legacy-strategy-retirement.md`
+> **Track-C(멀티거래소) 폐지 (2026-08-29)**: `market-data-binance`/`market-data-okx` 서비스와 관련 소스(`binance_collector.py`, `okx_collector.py`, `shared/exchange/binance.py`, `config/exchanges/{binance,okx}.yaml`)는 전량 삭제되었다. 운영 전략이 읽지 않던 1m OHLCV 보조 수집기였다. Bybit 단독 운영. 복구 지점: git 태그 `legacy-archive-2026-08-29`. 상세: `docs/shared/90-adr/0009-legacy-strategy-retirement.md`
 
 **Interface + Observability**:
 - `telegram-bot`: Telegram 알림 (trade, alert, /kill, /positions)
@@ -270,7 +270,7 @@ flowchart TB
 | `LOG_LEVEL` | INFO | 로깅 레벨 (DEBUG, INFO, WARN, ERROR) |
 | `ENVIRONMENT` | testnet | 환경 구분 (testnet, mainnet) |
 
-> **fail-closed (2026-08-29)**: `DB_PASSWORD`·`REDIS_PASSWORD` 미설정 시 compose는 기동하지 않는다. 애플리케이션은 `shared/required_env.py`의 `require_env()`. 셸에서 `source .env` 하면 compose가 **파일보다 셸 export를 우선**한다 — 로테이션 직후 옛 값이 남을 수 있음. 상세 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md).
+> **fail-closed (2026-08-29)**: `DB_PASSWORD`·`REDIS_PASSWORD` 미설정 시 compose는 기동하지 않는다. 애플리케이션은 `shared/required_env.py`의 `require_env()`. 셸에서 `source .env` 하면 compose가 **파일보다 셸 export를 우선**한다 — 로테이션 직후 옛 값이 남을 수 있음. 상세 [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md).
 
 ### Phase 5 (운영 모드) — ⚠️ Critical
 
@@ -503,7 +503,7 @@ docker compose --profile backtest up -d
 
 - `docs/_index.md` — 문서 지도 · Doc-Sync 트리거 맵
 - `docs/30-components/components.md` — 서비스 내부 모듈 책임
-- `docs/70-policy/operations.md` — Docker 운영 Runbook
+- `docs/shared/70-policy.md` — Docker 운영 Runbook
 - `docs/70-policy/strategy.md` — 전략 파라미터 (SSOT)
 - `docs/50-api/pubsub-catalog.md` — Redis Pub/Sub 채널
 - `docs/20-containers/containers.md` — 환경변수 (이 문서)

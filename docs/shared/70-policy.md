@@ -5,7 +5,7 @@ last_updated: 2026-08-31
 
 # 운영 Runbook · 배포 · 모니터링
 
-> **2026-08-29 일자 SSOT**: 레거시 DB DROP, fail-closed 자격증명, 킬스위치 수신, 히스토리 재작성, 배포 순서 교정은 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md)에 모아 두었다. 이 문서는 그 결정을 **매일 쓰는 명령**으로 풀어 쓴다.
+> **2026-08-29 일자 SSOT**: 레거시 DB DROP, fail-closed 자격증명, 킬스위치 수신, 히스토리 재작성, 배포 순서 교정은 [ADR-0010](90-adr/0010-ops-cleanup-20260829.md)에 모아 두었다. 이 문서는 그 결정을 **매일 쓰는 명령**으로 풀어 쓴다.
 
 ## §0. 2026-08-29 운영자가 알아야 할 것
 
@@ -540,4 +540,4 @@ docker compose logs strategy-orchestrator | grep -E "kill|switch|level"
 
 - `docs/70-policy/strategy.md` — Supertrend 전략 SSOT
 - `docs/70-policy/safety.md` — Kill Switch 정책 및 임계값
-- `docs/README.md` — Map of Content (시작점)
+- `docs/_index.md` — Map of Content (시작점)

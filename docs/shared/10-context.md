@@ -46,7 +46,7 @@ flowchart TB
     dashboard -->|"PostgreSQL · Redis 읽기"| cryptoengine
 ```
 
-> **Track-C 폐지 · 2026-08-29 운영 창**: Binance·OKX 수집기는 삭제. 같은 날 분기물 파이프라인·레거시 테이블 DROP·자격증명 fail-closed·git 히스토리 재작성은 [ADR-0010](../90-adr/0010-ops-cleanup-20260829.md). Bybit 단독 + Supertrend 4h.
+> **Track-C 폐지 · 2026-08-29 운영 창**: Binance·OKX 수집기는 삭제. 같은 날 분기물 파이프라인·레거시 테이블 DROP·자격증명 fail-closed·git 히스토리 재작성은 [ADR-0010](90-adr/0010-ops-cleanup-20260829.md). Bybit 단독 + Supertrend 4h.
 
 ---
 
