@@ -1,0 +1,14 @@
+{
+  "n_fills": 12,
+  "n_roundtrips": 6,
+  "slip_median_bps": 0.3635493002668457,
+  "slip_worst_bps": 10.04192082996137,
+  "fee_median_bps": 1.9999999999999998,
+  "fee_worst_bps": 2.0,
+  "roundtrip_median_bps": 4.6141561007049585,
+  "roundtrip_worst_bps": 21.039972918555264,
+  "holdout_net_median_case": 34.29192321771988,
+  "holdout_net_worst_case": 19.67149811336597,
+  "holdout_mdd_median_case": -52.819609399343456,
+  "holdout_mdd_worst_case": -55.289157815087954
+}

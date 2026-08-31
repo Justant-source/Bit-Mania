@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — 운영 Runbook · 배포 · 모니터링
-last_updated: 2026-08-29
+last_updated: 2026-08-31
 ---
 
 # 운영 Runbook · 배포 · 모니터링
@@ -253,6 +253,17 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
    FROM daily_reports
    GROUP BY DATE_TRUNC('month', created_at)
    ORDER BY DATE_TRUNC DESC;"
+
+# 4. 엣지 소멸 트립와이어 체크 (매월 1일, 2026-08-31~)
+python3 backtest/scripts/analysis/tripwire_check.py extend-csv   # 라이브 4h 봉으로 리플레이 CSV 연장
+python3 backtest/scripts/analysis/tripwire_check.py check        # T1(월간 워닝)/T2(블록 게이트) 판정, log.md 기록
+#   ⚠️ 2026-08-31 기준 CSV↔ohlcv_history 가격 드리프트로 extend-csv가 중단 상태
+#      (backtest/results/2026-08-31/csv_ohlcv_drift.md 원인 미규명, 해소 전까지 check 로그 미기록)
+#   규칙·임계값: backtest/results/tripwire/PREREGISTRATION_TRIPWIRE.md (커밋 후 불변)
+
+# 5. 실 체결 슬리피지 재실측 (신규 체결 10건 누적 또는 분기 1회)
+python3 backtest/scripts/analysis/live_slippage.py
+#   최근 실측: backtest/results/2026-08-31/live_slippage_report.md
 ```
 
 ---
