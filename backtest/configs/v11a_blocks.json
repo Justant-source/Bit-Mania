@@ -1,0 +1,9 @@
+[
+  {"_block": "A1-fe", "st_factor": [2.4, 2.5, 2.6, 2.7], "st_period": [6, 7, 8, 9, 10], "fast_ema_len": [4, 5, 6], "slow_ema_len": [27, 28, 29, 30], "direction_ema_len": [230, 240, 250], "atr_mult": [3.3]},
+  {"_block": "A1-de", "st_factor": [2.4, 2.5, 2.6, 2.7], "st_period": [6, 7, 8, 9, 10], "fast_ema_len": [7, 8], "slow_ema_len": [27, 28, 29, 30], "direction_ema_len": [200, 210, 220], "atr_mult": [3.3]},
+  {"_block": "A1-sf", "st_factor": [2.45, 2.55, 2.65], "st_period": [6, 7, 8, 9, 10], "fast_ema_len": [7, 8], "slow_ema_len": [27, 28, 29, 30], "direction_ema_len": [230, 240, 250], "atr_mult": [3.3]},
+  {"_block": "A1-se", "st_factor": [2.4, 2.5, 2.6, 2.7], "st_period": [6, 7, 8, 9, 10], "fast_ema_len": [7, 8], "slow_ema_len": [31, 32], "direction_ema_len": [230, 240, 250], "atr_mult": [3.3]},
+  {"_block": "A1-sp", "st_factor": [2.4, 2.5, 2.6, 2.7], "st_period": [5, 11, 12], "fast_ema_len": [7, 8], "slow_ema_len": [27, 28, 29, 30], "direction_ema_len": [230, 240, 250], "atr_mult": [3.3]},
+  {"_block": "A2-1", "st_factor": [2.2, 2.3], "st_period": [8, 9, 10], "fast_ema_len": [7, 8, 9], "slow_ema_len": [27, 28, 29], "direction_ema_len": [240, 270, 300], "atr_mult": [3.3]},
+  {"_block": "A2-2", "st_factor": [2.4, 2.5, 2.6], "st_period": [8, 9, 10], "fast_ema_len": [7, 8, 9], "slow_ema_len": [27, 28, 29], "direction_ema_len": [280, 300, 320], "atr_mult": [3.3]}
+]

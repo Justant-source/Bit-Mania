@@ -123,3 +123,22 @@ CREATE TABLE IF NOT EXISTS funding_8h (
 );
 
 CREATE INDEX IF NOT EXISTS funding_8h_sym_ts_idx ON funding_8h (symbol, timestamp DESC);
+
+-- v11 robust columns
+ALTER TABLE st_combos
+  ADD COLUMN IF NOT EXISTS lg_mean NUMERIC,
+  ADD COLUMN IF NOT EXISTS lg_std NUMERIC,
+  ADD COLUMN IF NOT EXISTS lg_cv NUMERIC,
+  ADD COLUMN IF NOT EXISTS robust_score NUMERIC,
+  ADD COLUMN IF NOT EXISTS smooth_score NUMERIC,
+  ADD COLUMN IF NOT EXISTS n_neighbors INT,
+  ADD COLUMN IF NOT EXISTS nb_feasible_ratio NUMERIC,
+  ADD COLUMN IF NOT EXISTS pct_mean NUMERIC,
+  ADD COLUMN IF NOT EXISTS pct_std NUMERIC,
+  ADD COLUMN IF NOT EXISTS pct_max NUMERIC,
+  ADD COLUMN IF NOT EXISTS pareto BOOL,
+  ADD COLUMN IF NOT EXISTS constraint_pass BOOL,
+  ADD COLUMN IF NOT EXISTS robust_ctx TEXT,
+  ADD COLUMN IF NOT EXISTS robust_json JSONB;
+CREATE INDEX IF NOT EXISTS st_combos_smooth_idx ON st_combos(smooth_score DESC);
+

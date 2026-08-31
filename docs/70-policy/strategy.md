@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — Supertrend 전략 SSOT · 백테스트 방법론
-last_updated: 2026-08-29
+last_updated: 2026-08-31
 ---
 
 # Supertrend 전략 SSOT · 백테스트 방법론
@@ -219,6 +219,14 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 - Bybit 네이티브 4h 1:1 정본
 - 2017-08-17 ~ 2026-04-30 (9년 데이터)
 - CAGR +219.06% / Sharpe 1.667 / MDD -66.70% / 198 trades
+
+### v11 로버스트 최적탐색 재스윕 (2026-08-30) — 결론: `#7908` 유지
+
+Jesse Stage A 8윈도우(2,493 combo × 8 = 19,944 jobs)에서 채택 후보 5개(`#799 #895 #847 #871 #1034`)가 나왔으나, 정본 Bybit 네이티브 4h hold-out 리플레이(`cryptoengine/tests/fixtures/_replay_supertrend.py`)에서 **전원 탈락** — `#7908`이 전기간 CAGR·MDD·W9 모든 게이트를 유지 통과(198 trades / CAGR 219.06% / MDD −66.70%). Stage B(교차 격자)는 같은 8윈도우 선별 지표라 교체 근거가 되지 않아 진행하지 않음. 라이브 yaml·Kill Switch·레버리지·`BYBIT_TESTNET`는 불변. 상세: `.temp/improve_strategy/RESULT.md`.
+
+### v12 사전등록 반-과적합 스윕 (2026-08-31) — 결론: NO_PLATEAU, `#7908` 유지
+
+설계구간(bar[420]~2025-01-01) 1,536-combo 격자에서 하드 제약(MDD·양수블록·거래수) 통과 56개 combo 중 **격자-이웃 plateau를 형성하는 것은 0개**(최대 인접 통과비율 0.625 < 사전등록 임계값 0.7) → 사전등록 규칙(`backtest/results/v12/PREREGISTRATION.md` §9)에 따라 G1–G9 검증 배터리·최종 홀드아웃은 실행하지 않음(검증할 후보 자체가 없는 정상 조기종료). 결론 신뢰도 확인을 위한 적대적 코드감사(엔진 + 통계 파이프라인, 2 병렬 에이전트)에서 버그 2건 발견·수정(둘 다 v12 결론에는 영향 없음, 독립 재구현으로 재확인). 라이브 yaml·Kill Switch·레버리지·`BYBIT_TESTNET`는 불변. 상세: `backtest/results/v12/VERDICT.md`.
 
 ---
 
