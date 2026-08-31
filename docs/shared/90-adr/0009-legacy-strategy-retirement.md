@@ -156,7 +156,7 @@ Track-C는 Bybit 외 거래소(Binance, OKX)로 시세 수집·차익거래를 �
 - 저장소에서 탐색 가능한 전략이 017 하나로 좁혀져, 신규 컨텍스트 진입(에이전트/사람)
   시 혼란 제거.
 - 디스크·git 이력 부담 경감 (results/7-strategies 22MB + 대시보드 22MB + 관련 스크립트).
-- Track-C 미구현 잔재 제거로 `docs/20-containers/containers.md`, `docs/cryptoengine/30-components.md`
+- Track-C 미구현 잔재 제거로 `docs/cryptoengine/20-containers.md`, `docs/cryptoengine/30-components.md`
   (A8 담당)의 서비스 목록이 실제 운영 상태와 일치하게 됨.
 
 ### 부정 (Negative) — 잃는 것

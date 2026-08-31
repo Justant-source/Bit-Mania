@@ -69,6 +69,8 @@ Backtest → CryptoEngine 반영은 자동화 없이 `cryptoengine/config/strate
 
 ## 참고 문서
 
-- `docs/20-containers/containers.md` — 운영·백테스트·대시보드 서비스표 (재편 중 원본)
+- `docs/cryptoengine/20-containers.md` — 운영 서비스표 · 포트 · 볼륨 · env
+- `docs/backtest/20-containers.md` — 백테스트 Compose
+- `docs/dashboard/20-containers.md` — 대시보드 Compose
 - `docs/shared/10-context.md` — L1 외부 액터 · 서브시스템 경계
 - `docs/shared/70-policy.md` — 운영 Runbook

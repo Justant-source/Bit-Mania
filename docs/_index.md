@@ -15,10 +15,10 @@ last_updated: 2026-08-29
 | 계층 | 경로 | 내용 | last-verified |
 |---|---|---|---|
 | 10 Context | [shared/10-context.md](shared/10-context.md) | L1 외부 액터 · 3 서브시스템 경계 | 2026-08-29 |
-| 20 Container | [20-containers/containers.md](20-containers/containers.md) | 배포 단위 · 포트 · 네트워크 · 볼륨 · env-vars | 2026-08-29 |
+| 20 Container | [cryptoengine/20-containers.md](cryptoengine/20-containers.md) | 배포 단위 · 포트 · 네트워크 · 볼륨 · env-vars | 2026-08-29 |
 | 30 Component | [cryptoengine/30-components.md](cryptoengine/30-components.md) | 서비스 내부 모듈 · 클래스 책임 · shared/ | 2026-08-29 |
 | 40 Data | [cryptoengine/40-data.md](cryptoengine/40-data.md) | PG 스키마 · ER · 마이그레이션 트랙 | 2026-08-31 |
-| 50 API | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-08-29 |
+| 50 API | [cryptoengine/50-api.md](cryptoengine/50-api.md) | Redis pub/sub 채널 카탈로그 · Dashboard REST | 2026-08-29 |
 | 60 Runtime | [cryptoengine/60-runtime.md](cryptoengine/60-runtime.md) | OrderState · KillLevel · service_shutdown 복구 · 외부 KS 수신 | 2026-08-29 |
 | 70 Policy (안전) | [cryptoengine/70-policy/safety.md](cryptoengine/70-policy/safety.md) | Kill Switch · 레버리지 · BTC-only · 긴급 청산 | 2026-08-29 |
 | 70 Policy (운영) | [shared/70-policy.md](shared/70-policy.md) | Runbook · 모니터링 · 메인넷 전환 · 배포 절차 | 2026-08-31 |
@@ -33,10 +33,10 @@ last_updated: 2026-08-29
 | 작업 | 진입 문서 |
 |---|---|
 | 시스템 전체 그림 파악 | `docs/shared/10-context.md` |
-| 배포 · 포트 · 네트워크 · 환경변수 | `docs/20-containers/containers.md` |
+| 배포 · 포트 · 네트워크 · 환경변수 | `docs/cryptoengine/20-containers.md` |
 | 서비스 내부 모듈 · 클래스 구조 | `docs/cryptoengine/30-components.md` |
 | DB 스키마 · 마이그레이션 | `docs/cryptoengine/40-data.md` |
-| Redis 채널 · Dashboard REST API | `docs/50-api/pubsub-catalog.md` |
+| Redis 채널 · Dashboard REST API | `docs/cryptoengine/50-api.md` |
 | 상태 전이 · 복구 플로우 | `docs/cryptoengine/60-runtime.md` |
 | Kill Switch · 레버리지 · 포지션 보호 정책 | `docs/cryptoengine/70-policy/safety.md` |
 | 운영 Runbook · 배포 · 모니터링 | `docs/shared/70-policy.md` |
@@ -51,10 +51,10 @@ last_updated: 2026-08-29
 
 | 코드 영역 (glob) | 갱신 대상 문서 |
 |---|---|
-| `cryptoengine/shared/required_env.py` | `20-containers/containers.md` §환경변수, `docs/shared/70-policy.md` |
-| `cryptoengine/docker-compose*.yml` | `20-containers/containers.md` (포트/서비스/볼륨 표), `README.md` |
-| `dashboard/docker-compose.yml` | `20-containers/containers.md` §Dashboard |
-| `backtest/docker/docker-compose.yml` | `20-containers/containers.md` §Backtest |
+| `cryptoengine/shared/required_env.py` | `cryptoengine/20-containers.md` §환경변수, `docs/shared/70-policy.md` |
+| `cryptoengine/docker-compose*.yml` | `cryptoengine/20-containers.md` (포트/서비스/볼륨 표), `README.md` |
+| `dashboard/docker-compose.yml` | `cryptoengine/20-containers.md` §Dashboard |
+| `backtest/docker/docker-compose.yml` | `cryptoengine/20-containers.md` §Backtest |
 | `cryptoengine/shared/db/migrations/**` | `40-data/data-model.md` (ER + 마이그레이션 표), `docs/shared/90-adr/0006-db-migration-tracks.md` |
 | `cryptoengine/shared/db/init_schema.sql` | `40-data/data-model.md` |
 | `cryptoengine/shared/db/sql_migrations.py` | `40-data/data-model.md`, `docs/shared/90-adr/0006-db-migration-tracks.md` |
@@ -62,18 +62,18 @@ last_updated: 2026-08-29
 | `cryptoengine/Makefile` | `40-data/data-model.md` (`migrate` 타깃), `docs/shared/90-adr/0006-db-migration-tracks.md` |
 | `cryptoengine/shared/kill_switch.py` | `60-runtime/state-machines.md`, `70-policy/safety.md` |
 | `cryptoengine/services/execution/order_manager.py` | `60-runtime/state-machines.md` (OrderState) |
-| `cryptoengine/services/execution/**` | `50-api/pubsub-catalog.md`, `60-runtime/state-machines.md` |
-| `cryptoengine/shared/redis_client.py` | `50-api/pubsub-catalog.md` |
+| `cryptoengine/services/execution/**` | `cryptoengine/50-api.md`, `60-runtime/state-machines.md` |
+| `cryptoengine/shared/redis_client.py` | `cryptoengine/50-api.md` |
 | `cryptoengine/services/strategies/supertrend/**` | `70-policy/strategy.md`, `60-runtime/state-machines.md` |
 | `cryptoengine/config/strategies/supertrend.yaml` | `70-policy/strategy.md` §파라미터 |
 | `cryptoengine/config/orchestrator.yaml` | `70-policy/safety.md` §Kill Switch 임계값 |
-| `.env` / `.env.example` | `20-containers/containers.md` §환경변수 |
-| `cryptoengine/services/*/Dockerfile` | `20-containers/containers.md` §빌드 패턴 |
-| `cryptoengine/shared/models/**` | `30-components/components.md`, `50-api/pubsub-catalog.md` |
+| `.env` / `.env.example` | `cryptoengine/20-containers.md` §환경변수 |
+| `cryptoengine/services/*/Dockerfile` | `cryptoengine/20-containers.md` §빌드 패턴 |
+| `cryptoengine/shared/models/**` | `30-components/components.md`, `cryptoengine/50-api.md` |
 | `cryptoengine/shared/exchange/**` | `30-components/components.md` §shared |
-| 포트 · env 변수 변경 | `20-containers/containers.md`, `README.md` |
+| 포트 · env 변수 변경 | `cryptoengine/20-containers.md`, `README.md` |
 | `backtest/docs/**` | `70-policy/strategy.md` §백테스트 방법론 |
-| `dashboard/src/**` | `20-containers/containers.md` §Dashboard, `50-api/pubsub-catalog.md` §Dashboard REST |
+| `dashboard/src/**` | `cryptoengine/20-containers.md` §Dashboard, `cryptoengine/50-api.md` §Dashboard REST |
 
 ---
 
@@ -83,19 +83,19 @@ last_updated: 2026-08-29
 |---|---|
 | `cryptoengine/services/strategies/supertrend/**` | [cryptoengine/70-policy/strategy.md](cryptoengine/70-policy/strategy.md) |
 | `cryptoengine/services/strategies/base_strategy.py` | [cryptoengine/30-components.md](cryptoengine/30-components.md) |
-| `cryptoengine/services/execution/**` | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) · [cryptoengine/60-runtime.md](cryptoengine/60-runtime.md) |
+| `cryptoengine/services/execution/**` | [cryptoengine/50-api.md](cryptoengine/50-api.md) · [cryptoengine/60-runtime.md](cryptoengine/60-runtime.md) |
 | `cryptoengine/services/orchestrator/**` | [cryptoengine/30-components.md](cryptoengine/30-components.md) |
-| `cryptoengine/services/market-data/**` | [20-containers/containers.md](20-containers/containers.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
+| `cryptoengine/services/market-data/**` | [cryptoengine/20-containers.md](cryptoengine/20-containers.md) · [cryptoengine/50-api.md](cryptoengine/50-api.md) |
 | `cryptoengine/services/telegram-bot/**` | [cryptoengine/70-policy/safety.md](cryptoengine/70-policy/safety.md) §비상 청산 |
 | `cryptoengine/shared/kill_switch.py` | [cryptoengine/70-policy/safety.md](cryptoengine/70-policy/safety.md) · [cryptoengine/60-runtime.md](cryptoengine/60-runtime.md) |
 | `cryptoengine/shared/exchange/**` | [cryptoengine/30-components.md](cryptoengine/30-components.md) |
-| `cryptoengine/shared/models/**` | [cryptoengine/30-components.md](cryptoengine/30-components.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
-| `cryptoengine/shared/required_env.py` | [20-containers/containers.md](20-containers/containers.md) · [shared/90-adr/0010-ops-cleanup-20260829.md](shared/90-adr/0010-ops-cleanup-20260829.md) |
+| `cryptoengine/shared/models/**` | [cryptoengine/30-components.md](cryptoengine/30-components.md) · [cryptoengine/50-api.md](cryptoengine/50-api.md) |
+| `cryptoengine/shared/required_env.py` | [cryptoengine/20-containers.md](cryptoengine/20-containers.md) · [shared/90-adr/0010-ops-cleanup-20260829.md](shared/90-adr/0010-ops-cleanup-20260829.md) |
 | `cryptoengine/shared/db/**` | [cryptoengine/40-data.md](cryptoengine/40-data.md) · [shared/90-adr/0006-db-migration-tracks.md](shared/90-adr/0006-db-migration-tracks.md) |
 | `cryptoengine/scripts/init_db.py` | [cryptoengine/40-data.md](cryptoengine/40-data.md) · [shared/90-adr/0006-db-migration-tracks.md](shared/90-adr/0006-db-migration-tracks.md) |
 | `cryptoengine/config/orchestrator.yaml` | [cryptoengine/70-policy/safety.md](cryptoengine/70-policy/safety.md) §Kill Switch 임계값 |
 | `cryptoengine/config/strategies/supertrend.yaml` | [cryptoengine/70-policy/strategy.md](cryptoengine/70-policy/strategy.md) §파라미터 |
-| `docker-compose.yml` | [20-containers/containers.md](20-containers/containers.md) |
-| `dashboard/**` | [20-containers/containers.md](20-containers/containers.md) §Dashboard |
+| `docker-compose.yml` | [cryptoengine/20-containers.md](cryptoengine/20-containers.md) |
+| `dashboard/**` | [cryptoengine/20-containers.md](cryptoengine/20-containers.md) §Dashboard |
 | `backtest/**` | [cryptoengine/70-policy/strategy.md](cryptoengine/70-policy/strategy.md) §백테스트 |
 | `scripts/lint_docs.py` | 이 파일(`_index.md`)의 마크다운 링크, 백틱으로 적은 docs 트리의 마크다운 경로, 트리거 맵/역인덱스의 코드 glob, ADR `related_code`가 실재하는지까지 검증한다(검사 4·5·10). 남은 한계: glob은 와일드카드 앞 접두사 존재만 확인하고, mermaid가 코드와 의미적으로 일치하는지는 사람이 `last-verified`로 보증한다. 삭제 기록 ADR은 `allow_missing_refs: true`로 부재 경로를 남긴다. |
