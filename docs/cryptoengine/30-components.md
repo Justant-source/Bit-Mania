@@ -243,8 +243,8 @@ class KillLevel(IntEnum):
 ## 참고 자료
 
 - **Phase 5 운영 현황**: `docs/shared/70-policy.md`
-- **전략 파라미터**: `docs/70-policy/strategy.md`
-- **서비스 구조**: `docs/30-components/components.md`
-- **Data Flow (Redis Pub/Sub)**: `docs/50-api/pubsub-catalog.md`
-- **PostgreSQL 테이블**: `docs/40-data/data-model.md`
+- **전략 파라미터**: `docs/cryptoengine/70-policy/strategy.md`
+- **서비스 구조**: `docs/cryptoengine/30-components.md`
+- **Data Flow (Redis Pub/Sub)**: `docs/cryptoengine/50-api.md`
+- **PostgreSQL 테이블**: `docs/cryptoengine/40-data.md`
 - **배포 가이드**: `docs/shared/70-policy.md`

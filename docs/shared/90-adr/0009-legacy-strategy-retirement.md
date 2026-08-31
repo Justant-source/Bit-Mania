@@ -26,7 +26,7 @@ Accepted (2026-08-29)
 
 2026년 한 해 동안 R&D 트랙에서 총 **21개 전략**이 백테스트로 검증되었다. 이 중 실제로
 메인넷 라이브 운영에 채택된 것은 단 하나, **017 Supertrend Triple Confirmation**
-(현재 `combo #7908`, `docs/70-policy/strategy.md` SSOT)뿐이다.
+(현재 `combo #7908`, `docs/cryptoengine/70-policy/strategy.md` SSOT)뿐이다.
 
 나머지 20개(001~016, 018~021)는 각각 `backtest/docs/strategies/<번호>_*.md` 형태의
 R&D 문서와, 일부는 대응 전략 코드(`backtest/strategies/*.py`)를 저장소에 남기고 있었다.
@@ -91,7 +91,7 @@ A3가 원문에서 직접 추출한 값만 표에 반영했고, 그 외 지어�
 | 014 | FOMC/CPI 매크로 이벤트 | 이벤트 기반 3년 | CAGR +0.27%(기준 ≥10% 미달), Sharpe 0.145, 거래 78건 = 연 26건(기준 ≥30건/년 미달) | FAIL | 연간 매크로 이벤트 수 부족; "뉴스에 팔기" 가설이 Range 레짐에서만 작동 |
 | 015 | 역행 센티먼트 (Fear & Greed) | 3년 | CAGR -3.54%, Sharpe -0.517, 3년간 21건 = 연 7건(기준 ≥30건/년 미달); 불장 Sharpe -1.446 | FAIL | 2023년 이후 F&G 극단값 희소; 불장에서 "극단 탐욕" 숏 = 추세지속 함정 |
 | 016 | Stochastic + EMA (Stoch/HA) | 멀티TF 2017-2026 | 최선(1D 양방향) CAGR 38.65%, Sharpe 0.870, MDD -69.75%; 스윕 40개 조합 전부 -999점, MDD -54~89% | FAIL/ARCHIVED | MDD가 Stoch 평균회귀+ATR스탑 구조 자체의 문제 — 추세장 BTC에서 튜닝으로 해결 불가 |
-| 017 | Supertrend Triple Confirmation | 4h BTC Long-only | 운영 SSOT는 `docs/70-policy/strategy.md` 참조(combo #7908) | PASS | **유일 생존 — 운영 중** |
+| 017 | Supertrend Triple Confirmation | 4h BTC Long-only | 운영 SSOT는 `docs/cryptoengine/70-policy/strategy.md` 참조(combo #7908) | PASS | **유일 생존 — 운영 중** |
 | 018 | TradeIQ PSAR-HA (PSAR+EMA200+RSI+HA) | 멀티TF 2017-2026 | 1D long_only 합격: CAGR 22.43%, Sharpe 0.864, MDD -26.09%; 4h는 CAGR 12.94%, MDD -29.96%로 ProfitFactor 기준 미달 | **CANDIDATE (1D 합격, 미배포)** | 라이브 Supertrend와 중복; Supertrend 성과 저하 시 폴백 후보로 보류 |
 | 019 | TrendType (ADX/DMI) | 멀티TF 2017-2026 | 1D long_only 합격: CAGR 21.54%, Sharpe 0.919, MDD -27.54%; 4h는 CAGR 15.59%, MDD -33.81%로 미달 | **CANDIDATE (1D 합격, 미배포)** | Supertrend 대비 CAGR 낮음; MDD 헤지/분산 후보로 보류 |
 | 020 | Supertrend + TrendType 하이브리드 (5-factor) | 멀티TF 2017-2026 | 4h long_only 합격: CAGR 29.51%, Sharpe 0.997, MDD -30.41%(후보 3종 중 최선) vs Supertrend 단독 CAGR 44.69%, Sharpe 1.246, 동일 MDD | **CANDIDATE (합격, 미배포)** | TrendType 필터 추가가 MDD 개선 없이 거래수·CAGR만 깎음(-15pp) — Supertrend 단독이 우위 |
@@ -156,7 +156,7 @@ Track-C는 Bybit 외 거래소(Binance, OKX)로 시세 수집·차익거래를 �
 - 저장소에서 탐색 가능한 전략이 017 하나로 좁혀져, 신규 컨텍스트 진입(에이전트/사람)
   시 혼란 제거.
 - 디스크·git 이력 부담 경감 (results/7-strategies 22MB + 대시보드 22MB + 관련 스크립트).
-- Track-C 미구현 잔재 제거로 `docs/20-containers/containers.md`, `docs/30-components/components.md`
+- Track-C 미구현 잔재 제거로 `docs/20-containers/containers.md`, `docs/cryptoengine/30-components.md`
   (A8 담당)의 서비스 목록이 실제 운영 상태와 일치하게 됨.
 
 ### 부정 (Negative) — 잃는 것
@@ -234,7 +234,7 @@ git checkout legacy-archive-2026-08-29 -- backtest/docs/strategies/
 - `.request/legacy-cleanup-plan-20260829.md` (Q3, Q4, Q6, Q7, Q8)
 - ADR-0001 (BTC 단일 운영 정책), ADR-0002 (Multi-symbol FA 검토, Superseded by 0004),
   ADR-0003 (Supertrend 단일 전략 채택), ADR-0004 (FA 폐기), ADR-0005 (Adaptive DCA 폐기)
-- `docs/70-policy/strategy.md` — 017 Supertrend SSOT (combo #7908)
+- `docs/cryptoengine/70-policy/strategy.md` — 017 Supertrend SSOT (combo #7908)
 - 복구 지점: git 태그 `legacy-archive-2026-08-29` = 커밋 `2ee11756`
 - 2026-08-29 D9: `git filter-repo`로 히스토리의 평문 자격증명을 `***REMOVED***`로 치환했다. 모든 커밋 해시가 바뀌었고, 위 태그는 재작성 후 ATR 익절 제거 커밋(`2ee11756`)을 가리킨다.
 

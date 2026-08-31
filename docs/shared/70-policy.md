@@ -538,6 +538,6 @@ docker compose logs strategy-orchestrator | grep -E "kill|switch|level"
 
 ## 관련 문서
 
-- `docs/70-policy/strategy.md` — Supertrend 전략 SSOT
-- `docs/70-policy/safety.md` — Kill Switch 정책 및 임계값
+- `docs/cryptoengine/70-policy/strategy.md` — Supertrend 전략 SSOT
+- `docs/cryptoengine/70-policy/safety.md` — Kill Switch 정책 및 임계값
 - `docs/_index.md` — Map of Content (시작점)

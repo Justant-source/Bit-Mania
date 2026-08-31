@@ -344,5 +344,5 @@ Strategy Orchestrator는 단일 전략 모델로, **Supertrend에 항상 보유 
 ## 관련 정책 및 문서
 
 - `docs/shared/70-policy.md` — 운영 Runbook
-- `docs/70-policy/safety.md` — Kill Switch 정책
+- `docs/cryptoengine/70-policy/safety.md` — Kill Switch 정책
 - `docs/_index.md` — Map of Content (시작점)

@@ -1,9 +1,9 @@
 ---
-title: L2 Containers — 배포 단위 · 포트 · 네트워크
+title: L2 Containers — CryptoEngine 운영 스택
 last_updated: 2026-08-29
 ---
 
-# L2 Containers — 배포 단위 · 포트 · 네트워크
+# L2 Containers — CryptoEngine 운영 스택
 
 CryptoEngine 프로젝트의 모든 서비스는 **Docker Compose 기반 컨테이너 오케스트레이션**으로 배포됩니다.
 이 문서는 C4 L2(Container) 계층에서 배포 단위, 네트워크, 볼륨, 환경변수를 정의합니다.
@@ -119,110 +119,15 @@ flowchart TB
 
 ---
 
-## 3. Backtest R&D 스택
-
-<!-- last-verified: 2026-08-29 -->
-<!-- code-ref: /backtest/docker/docker-compose.yml -->
-
-```mermaid
-flowchart TB
-  subgraph backtest["Backtest R&D — cryptoengine-backtest"]
-    subgraph bt_infra["Infrastructure"]
-      bt_pg["<b>backtest-postgres</b><br/>postgres:16-alpine<br/>:5433 · pg_backtest 볼륨<br/>jesse_db · jesse user"]
-    end
-
-    subgraph bt_svc["Services (profiles: backtest)"]
-      backtester["<b>backtester</b><br/>Jesse 2.1.2<br/>CPU cap 4.0 · Mem 5G<br/>low-prio overlay when sweeping"]
-    end
-  end
-
-  data_vol[("<b>../../data (ro)</b><br/>운영 OHLCV · Parquet<br/>fear_greed_index<br/>fomc_cpi_calendar")]
-  results_vol[("<b>../results</b><br/>백테스트 결과<br/>JSON · CSV · plots")]
-  dashboards_vol[("<b>../dashboards</b><br/>대시보드 HTML<br/>빌드 스크립트")]
-  strategies_vol[("<b>../strategies</b><br/>Jesse 전략<br/>supertrend.py")]
-
-  backtester -->|"READ: OHLCV"| data_vol
-  backtester -->|"WRITE: 결과"| results_vol
-  backtester -->|"READ/WRITE: 대시보드"| dashboards_vol
-  backtester -->|"READ: 전략 코드"| strategies_vol
-
-  bt_pg -->|"jesse_db"| backtester
-
-  ce_net[("cryptoengine_default network")]
-  ce_pg[("운영 postgres :5432<br/>선택적 통신용")]
-  ce_net -.->|"external"| bt_svc
-  ce_pg -.->|"optional read"| backtester
-```
-
-### 구조 설명
-
-**별도 독립 스택**:
-- Backtest는 `profile: backtest`로 격리 (기본 프로덕션과 분리)
-- 실행: `docker compose --profile backtest up -d`
-
-**Data Flow**:
-- **Input**: `/data` (운영 OHLCV, read-only 마운트)
-- **Output**: `results/`, `dashboards/` (백테스트 산출물)
-- **jesse_db**: 백테스트 결과 저장 (메인 cryptoengine DB와 분리)
-
-**서비스**:
-- **backtester**: 기본 상한 4 CPU / 5GB. ATR-SL 재스윕은 `compose.sweep-day.yml`(주간 2워커, cpuset 6–7) / `compose.sweep-night.yml`(00–06 KST 6워커, cpuset 3–7) + `nice 19`로 운영 Docker보다 양보한다.
-
-> **wf-scheduler 삭제 (2026-08-29)**: 월간 Walk-Forward 자동 실행 서비스(FA 시대 잔재, `WF_FA_RATIO`/`WF_REINVEST`/`WF_LEVERAGE` env)는 `backtest/docker/docker-compose.yml`에서 전량 제거되었다. Walk-Forward 자동화는 현재 폐지 상태 — `docs/cryptoengine/70-policy/strategy.md` §9 참조.
-
----
-
-## 4. Dashboard 스택
-
-<!-- last-verified: 2026-08-29 -->
-<!-- code-ref: /dashboard/docker-compose.yml -->
-
-```mermaid
-flowchart TB
-  subgraph dash_stack["Dashboard — bitmania-dashboard"]
-    dashboard_svc["<b>dashboard</b><br/>Express<br/>:3000<br/>CPU: 0.25 · Memory: 128M"]
-  end
-
-  ce_infra["CryptoEngine Infrastructure<br/>(별도 compose)"]
-  ce_pg["postgres :5432<br/>cryptoengine DB"]
-  ce_redis["redis :6379<br/>Pub/Sub channels"]
-  ce_prometheus["prometheus :9090<br/>metrics"]
-
-  dashboard_svc -->|"읽기 트래픽"| ce_pg
-  dashboard_svc -->|"구독: 실시간 신호"| ce_redis
-  dashboard_svc -.->|"선택 메트릭"| ce_prometheus
-
-  client["User Browser<br/>http://0.0.0.0:3000"]
-  client -->|"HTTP REST"| dashboard_svc
-  client -->|"WebSocket"| dashboard_svc
-```
-
-### 구조 설명
-
-**네트워크**:
-- `cryptoengine_default` (external)에 연결
-- 운영 postgres, redis, prometheus 접근 가능
-
-**역할**:
-- 실시간 포지션, 자산, 신호 시각화
-- Telegram 이외 웹 기반 모니터링 인터페이스
-
-**포트**:
-- 호스트 바인딩: `0.0.0.0:3000:3000` (운영 네트워크에서 접근)
-
----
-
 ## 5. 포트 맵
 
 | 포트 | 서비스 | 호스트 바인딩 | 용도 | 접근성 |
 |------|--------|-------------|------|--------|
 | **5432** | postgres | 127.0.0.1 | 운영 데이터베이스 | 로컬 (localhost) |
-| **5433** | backtest-postgres | **127.0.0.1 only** (D8, 2026-08-29. 이전 0.0.0.0 노출) | jesse_db | 로컬 전용 |
 | **6379** | redis | 127.0.0.1 | Pub/Sub 브로커 | 로컬 (컨테이너 내부) |
 | **9090** | prometheus | 0.0.0.0:9090 | 메트릭 쿼리 · UI | 호스트 접근 가능 |
 | **9100** | node-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
 | **9121** | redis-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
-| **3000** | dashboard (bitmania-dashboard, §9) | 0.0.0.0:3000 | 실시간 매매 대시보드 | 호스트 접근 가능 |
 | **3002** | grafana (future) | 0.0.0.0:3002 | Grafana UI | 호스트 접근 가능 |
 
 ### 보안 주의
@@ -238,7 +143,6 @@ flowchart TB
 | 볼륨 | 마운트 경로 | 드라이버 | 용도 |
 |------|-----------|---------|------|
 | **pgdata** | /var/lib/postgresql/data | local | 운영 데이터베이스 영구 저장 |
-| **pg_backtest** | /var/lib/postgresql/data | local | 백테스트 jesse_db 영구 저장 |
 | **redisdata** | /data | local | Redis AOF 영구 저장 (64MB maxmemory) |
 | **prometheus-data** | /prometheus | local | 메트릭 시계열 저장 (30d) |
 | **pg-backups** | /backups | local | PostgreSQL 매일 백업 (02:00 KST) |
@@ -270,7 +174,7 @@ flowchart TB
 | `LOG_LEVEL` | INFO | 로깅 레벨 (DEBUG, INFO, WARN, ERROR) |
 | `ENVIRONMENT` | testnet | 환경 구분 (testnet, mainnet) |
 
-> **fail-closed (2026-08-29)**: `DB_PASSWORD`·`REDIS_PASSWORD` 미설정 시 compose는 기동하지 않는다. 애플리케이션은 `shared/required_env.py`의 `require_env()`. 셸에서 `source .env` 하면 compose가 **파일보다 셸 export를 우선**한다 — 로테이션 직후 옛 값이 남을 수 있음. 상세 [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md).
+> **fail-closed (2026-08-29)**: `DB_PASSWORD`·`REDIS_PASSWORD` 미설정 시 compose는 기동하지 않는다. 애플리케이션은 `cryptoengine/shared/required_env.py`의 `require_env()`. 셸에서 `source .env` 하면 compose가 **파일보다 셸 export를 우선**한다 — 로테이션 직후 옛 값이 남을 수 있음. 상세 [ADR-0010](../shared/90-adr/0010-ops-cleanup-20260829.md).
 
 ### Phase 5 (운영 모드) — ⚠️ Critical
 
@@ -310,20 +214,6 @@ flowchart TB
 |------|--------|--------|------|
 | `TELEGRAM_BOT_TOKEN` | telegram-bot | (required) | Telegram Bot Token |
 | `TELEGRAM_CHAT_ID` | telegram-bot | (required) | 운영자 Chat ID |
-
-### Backtest (profiles: backtest)
-
-| 변수 | 서비스 | 기본값 | 설명 |
-|------|--------|--------|------|
-| `JESSE_DB_HOST` | backtester | backtest-postgres | 백테스트 DB 호스트 |
-| `JESSE_DB_PORT` | backtester | 5432 | 백테스트 DB 포트 |
-| `JESSE_DB_NAME` | backtester | jesse_db | 백테스트 DB 명 |
-| `JESSE_DB_USER` | backtester | jesse | 백테스트 DB 사용자 |
-| `JESSE_DB_PASSWORD` | backtester | (required, `.env`) | 백테스트 DB 암호. 호스트 포트는 `127.0.0.1:5433` |
-
-> `wf-scheduler` 및 관련 `MONTHLY_WF_CRON`/`WF_CAPITAL`/`WF_LOOKBACK_DAYS`/`WF_TRAIN_DAYS`/`WF_TEST_DAYS`/`WF_LEVERAGE` 환경변수는 2026-08-29 서비스 삭제와 함께 제거되었다.
-
----
 
 ## 8. Dockerfile 패턴
 
@@ -377,55 +267,6 @@ services:
 
 ---
 
-## 9. 네트워크 토폴로지
-
-### Production (cryptoengine_default)
-
-```
-┌─ docker-compose.yml
-│  └─ networks:
-│     └─ cryptoengine_default (bridge, implicit)
-│        ├─ postgres :5432
-│        ├─ redis :6379
-│        ├─ prometheus :9090
-│        ├─ market-data
-│        ├─ strategy-orchestrator
-│        ├─ execution-engine
-│        ├─ supertrend
-│        ├─ telegram-bot
-│        ├─ pg-backup
-│        ├─ log-retention
-│        ├─ ohlcv-retention
-│        ├─ node-exporter
-│        └─ redis-exporter
-```
-
-### Backtest (cryptoengine-backtest-net + external cryptoengine_default)
-
-```
-┌─ backtest/docker/docker-compose.yml
-│  └─ networks:
-│     ├─ cryptoengine-backtest-net (isolated)
-│     │  ├─ backtest-postgres :5433
-│     │  └─ backtester
-│     └─ cryptoengine_default (external, optional)
-│        └─ 운영 postgres에 read-only 접근 가능
-```
-
-### Service-to-Service Communication
-
-**Production:**
-- 모든 서비스 → postgres: TCP 5432 (heartbeat, schema)
-- 모든 서비스 → redis: TCP 6379 (Pub/Sub)
-- prometheus → node-exporter: TCP 9100 (scrape)
-- prometheus → redis-exporter: TCP 9121 (scrape)
-
-**External:**
-- market-data, execution-engine → Bybit: HTTPS (API), WSS (WebSocket)
-- telegram-bot → Telegram: HTTPS (Bot API)
-
----
-
 ## 10. 배포 명령
 
 ### 프로덕션 기동
@@ -462,21 +303,6 @@ docker compose logs --since=2h -f execution-engine
 docker compose ps
 ```
 
-### 백테스트 실행
-
-```bash
-# 일회성 백테스트
-docker compose --profile backtest run --rm backtester \
-  python /app/scripts/runners/run_external_backtest.py
-
-# 백테스트 스택 기동
-docker compose --profile backtest up -d
-```
-
-> `wf-scheduler`(월간 Walk-Forward 자동 실행)는 2026-08-29 삭제되었다. 관련 명령 없음.
-
----
-
 ## 11. 상태 게이트 (Health Checks)
 
 모든 데이터 레이어 서비스는 startup 검사 포함:
@@ -488,23 +314,19 @@ docker compose --profile backtest up -d
 | market-data | /tmp/heartbeat_ok | 30s | 3 |
 | execution-engine | /tmp/heartbeat_ok | 30s | 3 |
 | supertrend | /tmp/heartbeat_ok | 30s | 3 |
-| dashboard | wget /health | 15s | 3 |
 
 **종속 시작 순서** (depends_on):
 1. postgres, redis (기반)
 2. market-data (데이터 수집)
 3. strategy-orchestrator, execution-engine (코어)
 4. supertrend (전략)
-5. telegram-bot, dashboard (인터페이스)
 
 ---
 
+
 ## 참고 문서
 
-- `docs/_index.md` — 문서 지도 · Doc-Sync 트리거 맵
-- `docs/cryptoengine/30-components.md` — 서비스 내부 모듈 책임
-- `docs/shared/70-policy.md` — Docker 운영 Runbook
-- `docs/cryptoengine/70-policy/strategy.md` — 전략 파라미터 (SSOT)
-- `docs/50-api/pubsub-catalog.md` — Redis Pub/Sub 채널
-- `docs/20-containers/containers.md` — 환경변수 (이 문서)
-- `backtest/README.md` — 백테스트 인프라
+- `docs/shared/20-containers.md` — 세 서브시스템 네트워크 경계
+- `docs/shared/70-policy.md` — 운영 Runbook
+- `docs/cryptoengine/70-policy/strategy.md` — 전략 파라미터
+- `docs/cryptoengine/50-api.md` — Redis Pub/Sub
