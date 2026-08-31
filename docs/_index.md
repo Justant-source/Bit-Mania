@@ -81,20 +81,20 @@ last_updated: 2026-08-29
 
 | 코드 경로 | 권위 문서 |
 |---|---|
-| `services/strategies/supertrend/**` | [70-policy/strategy.md](70-policy/strategy.md) |
-| `services/strategies/base_strategy.py` | [30-components/components.md](30-components/components.md) |
-| `services/execution/**` | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
-| `services/orchestrator/**` | [30-components/components.md](30-components/components.md) |
-| `services/market-data/**` | [20-containers/containers.md](20-containers/containers.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
-| `services/telegram-bot/**` | [70-policy/safety.md](70-policy/safety.md) §비상 청산 |
-| `shared/kill_switch.py` | [70-policy/safety.md](70-policy/safety.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
-| `shared/exchange/**` | [30-components/components.md](30-components/components.md) |
-| `shared/models/**` | [30-components/components.md](30-components/components.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
-| `shared/required_env.py` | [20-containers/containers.md](20-containers/containers.md) · [90-adr/0010-ops-cleanup-20260829.md](90-adr/0010-ops-cleanup-20260829.md) |
-| `shared/db/**` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
-| `scripts/init_db.py` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
-| `config/orchestrator.yaml` | [70-policy/safety.md](70-policy/safety.md) §Kill Switch 임계값 |
-| `config/strategies/supertrend.yaml` | [70-policy/strategy.md](70-policy/strategy.md) §파라미터 |
+| `cryptoengine/services/strategies/supertrend/**` | [70-policy/strategy.md](70-policy/strategy.md) |
+| `cryptoengine/services/strategies/base_strategy.py` | [30-components/components.md](30-components/components.md) |
+| `cryptoengine/services/execution/**` | [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
+| `cryptoengine/services/orchestrator/**` | [30-components/components.md](30-components/components.md) |
+| `cryptoengine/services/market-data/**` | [20-containers/containers.md](20-containers/containers.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
+| `cryptoengine/services/telegram-bot/**` | [70-policy/safety.md](70-policy/safety.md) §비상 청산 |
+| `cryptoengine/shared/kill_switch.py` | [70-policy/safety.md](70-policy/safety.md) · [60-runtime/state-machines.md](60-runtime/state-machines.md) |
+| `cryptoengine/shared/exchange/**` | [30-components/components.md](30-components/components.md) |
+| `cryptoengine/shared/models/**` | [30-components/components.md](30-components/components.md) · [50-api/pubsub-catalog.md](50-api/pubsub-catalog.md) |
+| `cryptoengine/shared/required_env.py` | [20-containers/containers.md](20-containers/containers.md) · [90-adr/0010-ops-cleanup-20260829.md](90-adr/0010-ops-cleanup-20260829.md) |
+| `cryptoengine/shared/db/**` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
+| `cryptoengine/scripts/init_db.py` | [40-data/data-model.md](40-data/data-model.md) · [90-adr/0006-db-migration-tracks.md](90-adr/0006-db-migration-tracks.md) |
+| `cryptoengine/config/orchestrator.yaml` | [70-policy/safety.md](70-policy/safety.md) §Kill Switch 임계값 |
+| `cryptoengine/config/strategies/supertrend.yaml` | [70-policy/strategy.md](70-policy/strategy.md) §파라미터 |
 | `docker-compose.yml` | [20-containers/containers.md](20-containers/containers.md) |
 | `dashboard/**` | [20-containers/containers.md](20-containers/containers.md) §Dashboard |
 | `backtest/**` | [70-policy/strategy.md](70-policy/strategy.md) §백테스트 |

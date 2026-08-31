@@ -12,7 +12,7 @@ CryptoEngine의 **C4 L3 Component** 계층 문서입니다. 각 마이크로서�
 ## Diagram E: StrategyOrchestrator 내부
 
 <!-- last-verified: 2026-08-29 -->
-<!-- code-ref: cryptoengine/services/orchestrator/core.py, weight_manager.py, portfolio_monitor.py -->
+<!-- code-ref: cryptoengine/services/orchestrator/core.py, cryptoengine/services/orchestrator/weight_manager.py, cryptoengine/services/orchestrator/portfolio_monitor.py -->
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ flowchart LR
 ## Diagram F: ExecutionEngine 내부
 
 <!-- last-verified: 2026-06-15 -->
-<!-- code-ref: cryptoengine/services/execution/engine.py, order_manager.py, position_tracker.py, stoploss_manager.py, safety.py -->
+<!-- code-ref: cryptoengine/services/execution/engine.py, cryptoengine/services/execution/order_manager.py, cryptoengine/services/execution/position_tracker.py, cryptoengine/services/execution/stoploss_manager.py, cryptoengine/services/execution/safety.py -->
 
 ```mermaid
 flowchart LR
@@ -95,7 +95,7 @@ flowchart LR
 ## Diagram G: Supertrend 전략 내부
 
 <!-- last-verified: 2026-08-20 -->
-<!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py, indicators.py, services/strategies/base_strategy.py -->
+<!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py, cryptoengine/services/strategies/supertrend/indicators.py, cryptoengine/services/strategies/base_strategy.py -->
 
 ```mermaid
 flowchart LR
@@ -184,7 +184,7 @@ flowchart LR
 ## Diagram H: shared/ 핵심 모듈
 
 <!-- last-verified: 2026-08-29 -->
-<!-- code-ref: cryptoengine/shared/kill_switch.py, redis_client.py, exchange/bybit.py, models/, db/init_schema.sql, db/sql_migrations.py -->
+<!-- code-ref: cryptoengine/shared/kill_switch.py, cryptoengine/shared/redis_client.py, cryptoengine/shared/exchange/bybit.py, cryptoengine/shared/models/, cryptoengine/shared/db/init_schema.sql, cryptoengine/shared/db/sql_migrations.py -->
 
 ```mermaid
 flowchart TB
