@@ -1,6 +1,6 @@
 ---
 title: Supertrend 단일 전략 채택 (Phase 5 메인넷 전환)
-adr_number: 003
+adr_number: "0003"
 status: Accepted
 date: 2026-05-18
 related_code:
@@ -10,7 +10,7 @@ related_code:
   - backtest/docs/strategies/017_supertrend.md
 ---
 
-# ADR-003. Supertrend 단일 전략 채택
+# ADR-0003. Supertrend 단일 전략 채택
 
 ## Status
 

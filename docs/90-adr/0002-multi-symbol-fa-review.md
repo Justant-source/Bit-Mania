@@ -1,9 +1,10 @@
 ---
 title: Multi-symbol Funding Arbitrage 도입 검토
-adr_number: 002
+adr_number: "0002"
 status: Superseded by ADR-004
 date: 2026-05-02
 superseded_by: 004
+allow_missing_refs: true
 related_code:
   - backtest/strategies/multi_symbol_funding_arb.py
   - backtest/strategies/cross_exchange_fa.py
@@ -12,7 +13,7 @@ related_code:
   - backtest/scripts/data/fetch_multi_exchange.py
 ---
 
-# ADR-002. Multi-symbol Funding Arbitrage 도입 검토
+# ADR-0002. Multi-symbol Funding Arbitrage 도입 검토
 
 ## Status
 

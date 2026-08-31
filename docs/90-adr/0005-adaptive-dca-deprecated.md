@@ -1,14 +1,15 @@
 ---
 title: Adaptive DCA 전략 폐기
-adr_number: 005
+adr_number: "0005"
 status: Accepted
 date: 2026-05-18
+allow_missing_refs: true
 related_code:
   - backtest/strategies/adaptive_dca.py
   - backtest/docs/strategies/003_adaptive_dca.md
 ---
 
-# ADR-005. Adaptive DCA 전략 폐기
+# ADR-0005. Adaptive DCA 전략 폐기
 
 ## Status
 

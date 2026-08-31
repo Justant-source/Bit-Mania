@@ -1,9 +1,10 @@
 ---
 title: Funding Arbitrage 전략 폐기
-adr_number: 004
+adr_number: "0004"
 status: Accepted
 supersedes: ADR-002
 date: 2026-05-18
+allow_missing_refs: true
 related_code:
   - backtest/strategies/multi_symbol_funding_arb.py
   - backtest/strategies/cross_exchange_fa.py
@@ -13,7 +14,7 @@ related_code:
   - backtest/scripts/data/fetch_multi_exchange.py
 ---
 
-# ADR-004. Funding Arbitrage 전략 폐기
+# ADR-0004. Funding Arbitrage 전략 폐기
 
 ## Status
 

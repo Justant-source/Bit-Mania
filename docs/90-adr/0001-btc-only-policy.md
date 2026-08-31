@@ -1,8 +1,9 @@
 ---
 title: BTC 단일 운영 정책 채택
-adr_number: 001
+adr_number: "0001"
 status: Accepted
 date: 2026-05-01
+allow_missing_refs: true
 related_code:
   - cryptoengine/config/strategies/funding-arb.yaml
   - cryptoengine/config/strategies/adaptive-dca.yaml
@@ -10,7 +11,7 @@ related_code:
   - cryptoengine/services/market-data/feature_engine.py
 ---
 
-# ADR-001. BTC 단일 운영 정책 채택
+# ADR-0001. BTC 단일 운영 정책 채택
 
 ## Status
 
