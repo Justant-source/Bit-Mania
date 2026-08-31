@@ -1,6 +1,5 @@
 ---
 title: Architecture Decision Records
-category: ADR
 last_updated: 2026-08-29
 ---
 

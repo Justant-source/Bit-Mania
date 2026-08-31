@@ -1,5 +1,6 @@
 ---
 title: C4 SSOT Docs Restructure Adoption
+last_updated: 2026-08-29
 adr_number: "0008"
 status: Accepted
 date: 2026-06-15

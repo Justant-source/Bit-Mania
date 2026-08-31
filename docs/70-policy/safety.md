@@ -1,6 +1,5 @@
 ---
 title: 70 Policy — 안전 정책 (Kill Switch · 레버리지 · BTC-only · 긴급 청산)
-category: policies
 last_updated: 2026-08-29
 ---
 

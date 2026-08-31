@@ -1,5 +1,6 @@
 ---
 title: BTC 단일 운영 정책 채택
+last_updated: 2026-08-29
 adr_number: "0001"
 status: Accepted
 date: 2026-05-01

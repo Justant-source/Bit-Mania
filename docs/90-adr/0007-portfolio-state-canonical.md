@@ -1,5 +1,6 @@
 ---
 title: PortfolioState Canonical Source — shared/models/position.py
+last_updated: 2026-08-29
 adr_number: "0007"
 status: Proposed
 date: 2026-06-15

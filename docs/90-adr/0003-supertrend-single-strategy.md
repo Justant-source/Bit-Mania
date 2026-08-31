@@ -1,5 +1,6 @@
 ---
 title: Supertrend 단일 전략 채택 (Phase 5 메인넷 전환)
+last_updated: 2026-05-18
 adr_number: "0003"
 status: Accepted
 date: 2026-05-18

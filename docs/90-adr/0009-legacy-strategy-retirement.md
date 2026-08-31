@@ -1,5 +1,6 @@
 ---
 title: 레거시 전략 계보 일괄 폐기
+last_updated: 2026-08-29
 adr_number: "0009"
 status: Accepted
 date: 2026-08-29

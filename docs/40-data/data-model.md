@@ -1,8 +1,6 @@
 ---
 title: L4 Data Model — PostgreSQL 스키마 · 마이그레이션
 last_updated: 2026-08-31
-nav_order: 1
-parent: 40-data
 ---
 
 # L4 Data Model — PostgreSQL 스키마 · 마이그레이션
