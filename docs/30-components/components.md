@@ -242,9 +242,9 @@ class KillLevel(IntEnum):
 
 ## 참고 자료
 
-- **Phase 5 운영 현황**: `docs/README.md` § 현재 진행 상태
-- **전략 파라미터**: `docs/policies/strategies/supertrend.md`
-- **K3 서비스 구조**: `docs/structure/services.md`
-- **Data Flow (Redis Pub/Sub)**: `docs/architecture/data-flow.md`
-- **PostgreSQL 테이블**: `docs/structure/README.md`
-- **배포 가이드**: `docs/policies/operations/runbook.md`
+- **Phase 5 운영 현황**: `docs/70-policy/operations.md`
+- **전략 파라미터**: `docs/70-policy/strategy.md`
+- **서비스 구조**: `docs/30-components/components.md`
+- **Data Flow (Redis Pub/Sub)**: `docs/50-api/pubsub-catalog.md`
+- **PostgreSQL 테이블**: `docs/40-data/data-model.md`
+- **배포 가이드**: `docs/70-policy/operations.md`

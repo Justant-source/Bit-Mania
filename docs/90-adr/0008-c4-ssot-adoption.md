@@ -88,6 +88,6 @@ WO-docs-c4-ssot 표준을 적용한다.
 - ADR-0006·0007은 결정만 기록, 코드 변경은 후속 PR
 
 **후속 작업**:
-- `.github/workflows/lint-docs.yml` CI gate (별도 PR)
+- 문서 린트는 `.githooks/pre-commit`이 `python3 scripts/lint_docs.py`(10항목)를 항상 실행해 강제한다. 긴급 우회는 `SKIP_DOC_LINT=1`. 이 저장소에는 `.github/` 가 없으며 CI 워크플로로 린트를 돌리지 않는다.
 - ADR-0006 코드 마이그레이션 (`chore/consolidate-db-migrations`)
 - ADR-0007 코드 중복 제거 (`fix/portfolio-state-dedup`)

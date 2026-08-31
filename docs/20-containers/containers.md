@@ -501,10 +501,10 @@ docker compose --profile backtest up -d
 
 ## 참고 문서
 
-- `docs/README.md` — 프로젝트 MOC
-- `docs/structure/services.md` — 서비스 상세 역할
-- `docs/policies/operations/runbook.md` — Docker 운영 가이드
-- `docs/policies/strategies/supertrend.md` — 전략 파라미터 (SSOT)
-- `docs/architecture/data-flow.md` — Redis Pub/Sub 채널
-- `docs/env/env-vars.md` — 환경변수 전체 목록
+- `docs/_index.md` — 문서 지도 · Doc-Sync 트리거 맵
+- `docs/30-components/components.md` — 서비스 내부 모듈 책임
+- `docs/70-policy/operations.md` — Docker 운영 Runbook
+- `docs/70-policy/strategy.md` — 전략 파라미터 (SSOT)
+- `docs/50-api/pubsub-catalog.md` — Redis Pub/Sub 채널
+- `docs/20-containers/containers.md` — 환경변수 (이 문서)
 - `backtest/README.md` — 백테스트 인프라

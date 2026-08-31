@@ -98,4 +98,4 @@ last_updated: 2026-08-29
 | `docker-compose.yml` | [20-containers/containers.md](20-containers/containers.md) |
 | `dashboard/**` | [20-containers/containers.md](20-containers/containers.md) §Dashboard |
 | `backtest/**` | [70-policy/strategy.md](70-policy/strategy.md) §백테스트 |
-| `scripts/lint_docs.py` | 이 파일(`_index.md`) 내부의 마크다운 링크 대상(텍스트 뒤 소괄호 경로)이 실재하는지만 검증한다. **트리거 맵 표(코드 glob 컬럼)의 `cryptoengine/`·`backtest/` 경로 실재 여부는 검증하지 않는다** — 코드 경로가 삭제·이동돼도 린터는 통과한다. (2026-08-29 정정) |
+| `scripts/lint_docs.py` | 이 파일(`_index.md`)의 마크다운 링크, 백틱으로 적은 docs 트리의 마크다운 경로, 트리거 맵/역인덱스의 코드 glob, ADR `related_code`가 실재하는지까지 검증한다(검사 4·5·10). 남은 한계: glob은 와일드카드 앞 접두사 존재만 확인하고, mermaid가 코드와 의미적으로 일치하는지는 사람이 `last-verified`로 보증한다. 삭제 기록 ADR은 `allow_missing_refs: true`로 부재 경로를 남긴다. |
