@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# 문서 게이트 — 코드만 고치고 문서를 안 고친 커밋을 잡는다.
+#
+# 설치: bash scripts/install-hooks.sh   (git config core.hooksPath .githooks)
+# 우회: SKIP_DOC_LINT=1 git commit ...  (긴급 상황 전용)
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# ── 문서 린트 (staged 경로와 무관하게 항상 실행) ─────────────────────────────
+if [[ "${SKIP_DOC_LINT:-0}" == "1" ]]; then
+  echo "[pre-commit] SKIP_DOC_LINT=1 — 문서 린트 건너뜀 (긴급 상황 전용)"
+else
+  if ! python3 scripts/lint_docs.py; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  [pre-commit] ✗ 문서 린트 실패 — 커밋 중단"
+    echo "  문서를 고친 뒤 다시 커밋하세요."
+    echo "  긴급 시 우회: SKIP_DOC_LINT=1 git commit ..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 1
+  fi
+fi
+
+# ── 프로젝트별 추가 게이트 ───────────────────────────────────────────────────
+# 프로젝트 지시서가 지정한 블록을 여기에 넣는다. 없으면 이 줄 아래는 비워 둔다.
+# 예) Again-Spring: frontend/ 변경 시 vitest
+
+exit 0
