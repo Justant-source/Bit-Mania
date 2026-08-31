@@ -8,7 +8,8 @@
 
 - **Phase 5 실전 운영 중** (2026-05-18~): 메인넷 $185.31 USDT 운영 (2026-06-14 기준)
   - 전략: `supertrend_4h_x3_7908` (Supertrend 4h Long-only, 3x, combo #7908)
-  - 백테스트 (Bybit 네이티브 4h 정본): CAGR +219.06% | Sharpe 1.667 | MDD -66.70% | 198 trades | 2017-08-17~2026-04-30 (ATR 익절 없음, 2026-08-20)
+  - 백테스트 (4h 00계열 정본, **시세 출처는 Binance** — 2026-08-31 정정): CAGR +219.06% | Sharpe 1.667 | MDD -66.70% | 198 trades | 2017-08-17~2026-04-30 (ATR 익절 없음, 2026-08-20)
+    - ⚠️ 라이브는 Bybit에서 거래한다. 백테스트 픽스처는 Binance 시세이며 종가 기준 평균 +0.05% 차이 → 라이브-리플레이 대조 시 반드시 감안. 상세: `backtest/results/2026-08-31/csv_ohlcv_drift.md`
   - 환경: `BYBIT_TESTNET=false`, `PHASE5_MODE=true`, `EXPECTED_INITIAL_BALANCE_USD=185.31`
   - ⚠️ execution-engine 재시작 전 잔고 게이트 현행화 필수 → `docs/70-policy/operations.md` §실행엔진 재시작
 
