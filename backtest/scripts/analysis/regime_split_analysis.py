@@ -22,7 +22,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 STORAGE_DIR = Path("storage/regime_split")
-JESSE_EXCHANGE  = "Bybit Perpetual"
+JESSE_EXCHANGE  = "Bybit Perpetual"  # Jesse 라우팅 토큰(수수료는 별도 전달). 데이터 출처가 아님 — 캔들은 Binance 출처다.
 JESSE_SYMBOL    = "BTCUSDT"
 JESSE_TIMEFRAME = "1h"
 

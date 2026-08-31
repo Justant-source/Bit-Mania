@@ -11,7 +11,7 @@ Vision URLs / retry / CSV columns / µs→ms follow a88a22ac download_binance_vi
 
 Usage:
     python backtest/scripts/data/fetch_binance_vision_1m_to_pg.py \\
-        --start 2026-05-01 --end 2026-08-28 --source perp \\
+        --start 2026-05-01 --end 2026-08-28 --source spot \\
         --verify-overlap-day 2026-04-30
     python backtest/scripts/data/fetch_binance_vision_1m_to_pg.py --dry-run
 """
@@ -34,7 +34,11 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "db"))
 from _common import connect  # noqa: E402
 
-EXCHANGE = "Bybit Perpetual"
+# 데이터 출처 라벨. 2026-08-31 이전에는 여기가 "Bybit Perpetual"이었으나 실제로 받아오는
+# 것은 Binance Vision 파일이다 — 라벨만 틀렸고 그 오기가 CSV 픽스처까지 전파돼 라이브
+# (진짜 Bybit) 데이터와의 차이가 원인불명 드리프트로 오인됐다.
+# 상세: backtest/results/2026-08-31/csv_ohlcv_drift.md
+EXCHANGE = "Binance Spot"
 SYMBOL = "BTCUSDT"
 INTERVAL = "1m"
 

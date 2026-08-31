@@ -11,7 +11,7 @@ last_updated: 2026-08-31
 |---|---|
 | 전략명 | Supertrend 4h Long-Only 3x (combo #7908) |
 | Strategy ID | supertrend-01 |
-| 심볼 | BTCUSDT — 라이브 거래는 Bybit 네이티브 4h, 백테스트 정본 시세는 Binance 4h (§6 출처 정정 참조) |
+| 심볼 | BTCUSDT — 라이브는 Bybit USDT 무기한 4h, 백테스트 정본 시세는 Binance **현물** 4h (§6 출처 정정 참조) |
 | 타임프레임 | 4h |
 | 방향 | Long-only (숏 없음) |
 | 레버리지 | 3x 하드캡 (`SAFETY_LEVERAGE_LIMIT=3.0`) |
@@ -123,9 +123,11 @@ flowchart TD
 
 ---
 
-## §6. 백테스트 성과 (Binance 4h·00계열 격자 정본)
+## §6. 백테스트 성과 (Binance **현물** 4h·00계열 격자 정본)
 
-> ⚠️ **데이터 출처 정정 (2026-08-31)**: 이 절은 오랫동안 "Bybit 네이티브 4h 정본"으로 기재돼 있었으나, 조사 결과 **정본 백테스트의 시세는 Binance 데이터**다(백테스트 픽스처 `btc_4h*.csv` ← `jesse_db.ohlcv_4h` ← Binance Vision, `exchange` 컬럼의 `'Bybit Perpetual'`은 다운로드 스크립트가 하드코딩한 라벨). 라이브가 거래하는 Bybit 시세와는 종가 기준 **평균 +0.05%** 차이가 있다. 2026-06-14 정합 작업이 실제로 고친 것은 **격자 어긋남(02계열→00계열)**이며 그 수정은 유효하다 — 잘못된 것은 거래소 라벨뿐이다. 아래 지표는 그대로 유효하되 **"Binance 시세 기준"으로 읽어야 한다.** 동일 구간을 라이브 Bybit 데이터로 재실행하면 net +3.1%p·MDD +3.2%p 차이가 나며 34거래 중 32건은 동일하다. 상세·선택지: `backtest/results/2026-08-31/csv_ohlcv_drift.md`.
+> ⚠️ **데이터 출처 정정 (2026-08-31)**: 이 절은 오랫동안 "Bybit 네이티브 4h 정본"으로 기재돼 있었으나, 조사 결과 **정본 백테스트의 시세는 Binance 현물(spot)** 이다(픽스처 `btc_4h*.csv` ← `jesse_db.ohlcv_4h` ← Binance Vision spot; `exchange` 컬럼의 `'Bybit Perpetual'`은 다운로드 스크립트가 하드코딩한 라벨이었고 2026-08-31 `'Binance Spot'`으로 정정). 검증: 2020-03-12·2022-06-15·2026-08-28 각 1,440봉에서 **spot 100% 일치, perp 0%**. 라이브는 **Bybit USDT 무기한**이라 거래소도 상품 종류도 다르며 종가 기준 평균 **+0.05%** 차이가 난다. 2026-06-14 정합 작업이 고친 **격자 어긋남(02계열→00계열)** 수정 자체는 유효하다 — 틀린 것은 출처 라벨뿐이다.
+>
+> 아래 지표는 그대로 유효하되 **"Binance 현물 시세 기준, 펀딩비 미반영"으로 읽어야 한다.** ① 동일 구간을 라이브 Bybit 데이터로 재실행하면 net +3.1%p·MDD +3.2%p 차이(34거래 중 32건 동일)이고, ② **무기한의 펀딩비는 현물 캔들에 존재하지 않아 구조적으로 0으로 가정**돼 있다(롱 보유 시 일반적으로 지불 쪽, 3x라 명목가 기준 3배 — 미정량, 별도 과제). 상세: `backtest/results/2026-08-31/csv_ohlcv_drift.md`.
 
 **Backtest Period**: 2017-08-17 ~ 2026-04-30 (9년)  
 **청산 규칙**: EMA 데드크로스 + ATR 손절만 (익절 없음, 2026-08-20 SSOT)
@@ -218,7 +220,7 @@ DB: jesse_db (backtest-postgres :5433, 별도 compose)
 ### 현재 채택 설정
 
 **combo #7908** (2026-08-20 정본, ATR 손절만):
-- 4h 00계열 격자 1:1 정본 (시세 출처는 Binance — §6 출처 정정 참조)
+- 4h 00계열 격자 1:1 정본 (시세 출처는 Binance 현물 — §6 출처 정정 참조)
 - 2017-08-17 ~ 2026-04-30 (9년 데이터)
 - CAGR +219.06% / Sharpe 1.667 / MDD -66.70% / 198 trades
 
@@ -250,7 +252,7 @@ v11(Jesse 선별) → v12(사전등록 plateau 판정) → 원본 parquet/CSV에
 
 `backtest/results/tripwire/PREREGISTRATION_TRIPWIRE.md` 커밋 완료(참조분포 P25=−0.016·최솟값−0.578, T1 월간워닝/T2 블록게이트 규칙 확정 — 상세 및 CLAUDE.md 불변규칙 #7과의 관계는 그 문서 참조). 체크 스크립트(`backtest/scripts/analysis/tripwire_check.py`)도 구현·검증 완료. 그러나 첫 실제 실행에서 `extend-csv`가 **리플레이 CSV와 라이브 `ohlcv_history`의 가격 불일치(계통적 $15~53 오프셋)를 감지해 정상적으로 중단**됐다 — 설계대로 동작한 것이며 버그가 아니다.
 
-**그 불일치의 원인도 규명 완료(2026-08-31)**: 두 소스는 **서로 다른 거래소**다 — 백테스트 픽스처는 Binance 시세(라벨만 `'Bybit Perpetual'`로 잘못 기록), 라이브 테이블은 진짜 Bybit(§6 출처 정정 참조). 따라서 **`extend-csv`의 수정 방향은 라이브 Bybit 데이터를 이어붙이는 것이 아니다** — 트립와이어의 참조 분포가 Binance 소스로 계산됐으므로 연장도 같은 Binance Vision 경로(`backtest/scripts/data/fetch_binance_vision_1m_to_pg.py`)로 해야 시리즈 일관성이 유지된다. 현재 구현이 라이브 테이블을 소스로 삼는 것 자체가 설계 오류이며, 교정 전까지 `log.md`(T1/T2 실제 판정)는 계속 보류한다. 상세·영향 실측·선택지: `backtest/results/2026-08-31/csv_ohlcv_drift.md`.
+**원인 규명 및 조치 완료(2026-08-31)**: 두 소스는 **서로 다른 거래소·다른 상품**이었다 — 백테스트 픽스처는 Binance 현물, 라이브 테이블은 Bybit 무기한(§6 출처 정정 참조). 조치: `jesse_db` 라벨을 `'Binance Spot'`으로 정정하고, `extend-csv`의 소스를 라이브 테이블 → `jesse_db.ohlcv_4h`(Binance Spot)로 재배선했다(트립와이어의 참조 분포가 Binance 소스로 계산됐으므로 연장도 동일 소스여야 한다). 이후 같은 Binance Vision 경로로 2026-08-29~30을 적재해 CSV를 12봉 연장하고 **첫 판정을 기록**했다 — **T1 = WARNING**(trailing-182d lg −0.1297 < P25 −0.016), **T2 = n/a**(사전등록 §0.2에 따라 이미 관측된 블록은 비판정, 첫 클린 판정은 2027-04-01). 구현이 오염 블록으로 T2를 판정하던 버그도 같이 고쳤다. 판정 로그: `backtest/results/tripwire/log.md`. 상세: `backtest/results/2026-08-31/csv_ohlcv_drift.md`.
 
 ---
 

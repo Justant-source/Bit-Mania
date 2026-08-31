@@ -2,11 +2,20 @@
 """Tripwire check — Part B of .temp/2026-08-31_slippage_tripwire_plan.md.
 
 Two subcommands:
-  extend-csv  — pull new 4h bars from the live `ohlcv_history` table into
-                cryptoengine/tests/fixtures/btc_4h_extended.csv, after validating
-                that the CSV's existing tail matches the live table exactly.
-                Aborts (no write) on any mismatch rather than silently splicing
-                two inconsistent price series.
+  extend-csv  — pull new 4h bars from the BACKTEST db (`jesse_db.ohlcv_4h`, Binance
+                Spot) into cryptoengine/tests/fixtures/btc_4h_extended.csv, after
+                validating that the CSV's existing tail matches it exactly. Aborts
+                (no write) on any mismatch rather than silently splicing two
+                inconsistent price series.
+
+                Source is deliberately NOT the live `ohlcv_history` table: that one
+                is Bybit USDT-perpetual, while this CSV — and therefore the tripwire's
+                whole reference distribution — is Binance *spot*. Mixing them shifts
+                closes by ~0.05% and flips marginal signals, which is exactly the
+                drift this check first caught. To bring in fresh bars, run
+                backtest/scripts/data/fetch_binance_vision_1m_to_pg.py first (same
+                Binance Vision source), then this. See
+                backtest/results/2026-08-31/csv_ohlcv_drift.md.
   check       — compute trailing-182-day log-growth (T1, rolling) and the latest
                 *completed* mechanical 6-month block's log-growth (T2), against
                 the frozen v12 design-window reference distribution, and append
@@ -49,13 +58,25 @@ REF_MIN = -0.578
 REF_P25 = -0.016
 REF_MEDIAN = 0.324
 
-_PSQL_BASE = ["docker", "compose", "exec", "-T", "postgres",
-              "psql", "-U", "cryptoengine", "-d", "cryptoengine"]
+# PREREGISTRATION_TRIPWIRE.md §0.1/§0.2: every bar through 2026-08-31 was already
+# observed when these thresholds were set, so blocks ending on or before this date are
+# reference-only — they are computed and logged but never drive a T2 verdict. Judging
+# them would be exactly the circularity (threshold picked after seeing the data) that
+# the preregistration exists to prevent. First clean judgable block: [2026-10-01, 2027-04-01).
+CLEAN_FROM = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+# Backtest DB (Binance Spot candles) — NOT the live cryptoengine DB. See module docstring.
+BACKTEST_PG_CONTAINER = "cryptoengine-backtest-postgres"
+OHLCV_EXCHANGE = "Binance Spot"
+OHLCV_SYMBOL = "BTCUSDT"
+
+_PSQL_BASE = ["docker", "exec", BACKTEST_PG_CONTAINER,
+              "psql", "-U", "jesse", "-d", "jesse_db"]
 
 
 def _psql(query: str) -> str:
-    """Read-only query against the live postgres via `docker compose exec`. Never
-    used for writes — every query here is a SELECT."""
+    """Read-only query against the backtest postgres. Never used for writes — every
+    query here is a SELECT."""
     result = subprocess.run(
         _PSQL_BASE + ["-t", "-A", "-F", ",", "-c", query],
         cwd=str(CE_DIR), capture_output=True, text=True, timeout=60,
@@ -75,17 +96,17 @@ def cmd_extend_csv(args) -> int:
     last_ts_ms = int(rows[-1]["timestamp"])
     last_ts_dt = datetime.fromtimestamp(last_ts_ms / 1000, timezone.utc)
 
-    # 1) Overlap validation: the last `--tail` existing CSV rows must match the
-    #    live table's (timestamp, close) exactly. If they don't, some upstream
-    #    resync/correction happened between when the CSV was captured and now —
-    #    abort loudly rather than silently splicing two inconsistent series.
+    # 1) Overlap validation: the last `--tail` existing CSV rows must match
+    #    jesse_db.ohlcv_4h (timestamp, close) exactly. A mismatch means the CSV and
+    #    the table no longer share a source — abort loudly rather than splicing two
+    #    inconsistent series (this is what caught the Bybit-vs-Binance mixup).
     n_tail = args.tail
     tail_rows = rows[-n_tail:]
     tail_start_dt = datetime.fromtimestamp(int(tail_rows[0]["timestamp"]) / 1000, timezone.utc)
     q_overlap = (
-        "SELECT extract(epoch from timestamp)*1000, close FROM ohlcv_history "
-        "WHERE exchange='bybit' AND symbol='BTCUSDT' AND timeframe='4h' "
-        f"AND timestamp >= '{tail_start_dt.isoformat()}' AND timestamp <= '{last_ts_dt.isoformat()}' "
+        "SELECT timestamp, close FROM ohlcv_4h "
+        f"WHERE exchange='{OHLCV_EXCHANGE}' AND symbol='{OHLCV_SYMBOL}' "
+        f"AND timestamp >= {int(tail_rows[0]['timestamp'])} AND timestamp <= {last_ts_ms} "
         "ORDER BY timestamp;"
     )
     db_tail: dict[int, float] = {}
@@ -101,13 +122,13 @@ def cmd_extend_csv(args) -> int:
         csv_close = float(r["close"])
         db_close = db_tail.get(ts)
         if db_close is None:
-            mismatches.append((ts, csv_close, None, "missing in live table (retention?)"))
+            mismatches.append((ts, csv_close, None, "missing in jesse_db.ohlcv_4h"))
         elif abs(db_close - csv_close) > 1e-6:
             mismatches.append((ts, csv_close, db_close, f"diff={db_close - csv_close:+.2f}"))
 
     if mismatches:
         print(f"ABORT: overlap validation failed — {len(mismatches)}/{len(tail_rows)} tail rows "
-              "mismatch between the CSV and the live ohlcv_history table:", file=sys.stderr)
+              f"mismatch between the CSV and jesse_db.ohlcv_4h ({OHLCV_EXCHANGE}):", file=sys.stderr)
         print(f"{'timestamp_ms':>14}  {'utc':<20}  {'csv_close':>11}  {'db_close':>11}  note", file=sys.stderr)
         for ts, c_csv, c_db, note in mismatches:
             dt = datetime.fromtimestamp(ts / 1000, timezone.utc)
@@ -116,7 +137,8 @@ def cmd_extend_csv(args) -> int:
         print(
             "\nRefusing to extend: silently appending on top of a mismatched tail would "
             "splice two inconsistent price series into one CSV. Investigate the source of "
-            "the discrepancy (candle resync, different capture time, etc.) before proceeding.",
+            "the discrepancy before proceeding — and note the source must stay Binance "
+            "Spot (jesse_db), never the live Bybit-perp table.",
             file=sys.stderr,
         )
         return 1
@@ -126,9 +148,9 @@ def cmd_extend_csv(args) -> int:
 
     # 2) Fetch bars strictly after the CSV's last timestamp.
     q_new = (
-        "SELECT extract(epoch from timestamp)*1000, open, high, low, close, volume "
-        "FROM ohlcv_history WHERE exchange='bybit' AND symbol='BTCUSDT' AND timeframe='4h' "
-        f"AND timestamp > '{last_ts_dt.isoformat()}' ORDER BY timestamp;"
+        "SELECT timestamp, open, high, low, close, volume FROM ohlcv_4h "
+        f"WHERE exchange='{OHLCV_EXCHANGE}' AND symbol='{OHLCV_SYMBOL}' "
+        f"AND timestamp > {last_ts_ms} ORDER BY timestamp;"
     )
     new_lines = [ln for ln in _psql(q_new).strip().splitlines() if ln.strip()]
     if not new_lines:
@@ -206,32 +228,41 @@ def cmd_check(args) -> int:
 
     completed = [(bounds[i], bounds[i + 1], lgs[i])
                  for i in range(len(lgs)) if bounds[i + 1] <= latest_dt]
+    # split into contaminated (already-observed) and clean (judgable) blocks
+    judgable = [b for b in completed if b[1] > CLEAN_FROM]
     inprogress = bounds[len(completed):len(completed) + 2] if len(completed) < len(lgs) else None
 
     if not completed:
         print("No completed holdout block yet — check is too early relative to DESIGN_END.",
               file=sys.stderr)
         return 1
-    lo_b, hi_b, block_lg_val = completed[-1]
+    lo_b, hi_b, block_lg_val = (judgable[-1] if judgable else completed[-1])
 
-    # T2 gate: 2 consecutive completed clean blocks below REF_P25, OR any single
-    # completed clean block below REF_MIN. Only `completed` blocks are ever
-    # judged — the in-progress block is excluded by construction.
-    below_p25 = [lg < REF_P25 for _, _, lg in completed]
+    # T2 gate: 2 consecutive completed CLEAN blocks below REF_P25, OR any single clean
+    # block below REF_MIN. Contaminated (pre-CLEAN_FROM) and in-progress blocks never
+    # count toward the verdict.
+    below_p25 = [lg < REF_P25 for _, _, lg in judgable]
     two_consecutive = any(below_p25[i] and below_p25[i + 1] for i in range(len(below_p25) - 1))
-    any_below_min = any(lg < REF_MIN for _, _, lg in completed)
-    t2_status = "GATE" if (two_consecutive or any_below_min) else "clear"
+    any_below_min = any(lg < REF_MIN for _, _, lg in judgable)
+    if not judgable:
+        t2_status = "n/a (no clean block yet)"
+    else:
+        t2_status = "GATE" if (two_consecutive or any_below_min) else "clear"
 
     print(f"latest bar           : {latest_dt.isoformat()}")
     print(f"T1 trailing-182d lg   : {trail_lg:+.4f}  "
           f"(window {trailing_start_dt.date()} .. {latest_dt.date()})  "
           f"vs REF_P25={REF_P25:+.4f}  -> {t1_status}")
-    print(f"T2 latest block       : [{lo_b.date()} .. {hi_b.date()})  lg={block_lg_val:+.4f}  "
+    t2_src = "clean" if judgable else "reference-only"
+    print(f"T2 latest {t2_src:<14}: [{lo_b.date()} .. {hi_b.date()})  lg={block_lg_val:+.4f}  "
           f"vs REF_P25={REF_P25:+.4f} REF_MIN={REF_MIN:+.4f}  -> {t2_status}")
     print("completed holdout blocks so far:")
     for lo_, hi_, lg in completed:
         flag = "below MIN" if lg < REF_MIN else ("below P25" if lg < REF_P25 else "")
-        print(f"  [{lo_.date()} .. {hi_.date()})  lg={lg:+.4f}  {flag}")
+        tag = "judgable" if hi_ > CLEAN_FROM else "reference-only (already observed)"
+        print(f"  [{lo_.date()} .. {hi_.date()})  lg={lg:+.4f}  {flag:<9}  [{tag}]")
+    if not judgable:
+        print(f"  -> no clean block completed yet; first judgable block ends 2027-04-01")
     if inprogress:
         print(f"in-progress block (excluded from judgment): "
               f"[{inprogress[0].date()} .. {inprogress[1].date()})")
@@ -262,7 +293,7 @@ def main() -> None:
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p1 = sub.add_parser("extend-csv", help="pull new bars from live ohlcv_history into the replay CSV")
+    p1 = sub.add_parser("extend-csv", help="pull new bars from jesse_db.ohlcv_4h (Binance Spot) into the replay CSV")
     p1.add_argument("--tail", type=int, default=20,
                      help="number of existing tail rows to validate against the live table (default 20)")
     p1.add_argument("--dry-run", action="store_true", help="validate + report only, do not write the CSV")

@@ -80,10 +80,18 @@ CREATE TABLE IF NOT EXISTS st_window_results (
 CREATE INDEX IF NOT EXISTS st_window_results_combo_idx ON st_window_results(combo_pk);
 
 -- ── OHLCV candle tables (analytics — separate from Jesse internal candles) ──
+-- 출처: Binance Vision SPOT (data.binance.vision/data/spot), download_binance_vision.py /
+--       fetch_binance_vision_1m_to_pg.py 로 적재. 전 구간 SPOT 임을 실측 확인했다
+--       (2020-03-12 / 2022-06-15 / 2026-08-28 각 1,440봉 spot 100% 일치, perp 0%).
+-- ⚠️ 2026-08-31 이전에는 이 컬럼이 'Bybit Perpetual'로 잘못 라벨링돼 있었다(다운로드
+--    스크립트의 하드코딩 상수). 라이브(cryptoengine.ohlcv_history)는 Bybit USDT
+--    무기한이다 — 거래소도 상품 종류도 다르며(현물 vs 무기한) 종가 기준 평균 +0.05%
+--    차이가 난다. 두 소스를 섞지 말 것. 무기한의 펀딩비는 이 캔들에 반영돼 있지 않다.
+--    상세: backtest/results/2026-08-31/csv_ohlcv_drift.md
 
 CREATE TABLE IF NOT EXISTS ohlcv_1m (
   id        BIGSERIAL PRIMARY KEY,
-  exchange  TEXT   NOT NULL DEFAULT 'Bybit Perpetual',
+  exchange  TEXT   NOT NULL DEFAULT 'Binance Spot',
   symbol    TEXT   NOT NULL DEFAULT 'BTCUSDT',
   timestamp BIGINT NOT NULL,   -- milliseconds since epoch (UTC)
   open      FLOAT8 NOT NULL,
@@ -98,7 +106,7 @@ CREATE INDEX IF NOT EXISTS ohlcv_1m_sym_ts_idx ON ohlcv_1m (symbol, timestamp DE
 
 CREATE TABLE IF NOT EXISTS ohlcv_4h (
   id        BIGSERIAL PRIMARY KEY,
-  exchange  TEXT   NOT NULL DEFAULT 'Bybit Perpetual',
+  exchange  TEXT   NOT NULL DEFAULT 'Binance Spot',
   symbol    TEXT   NOT NULL DEFAULT 'BTCUSDT',
   timestamp BIGINT NOT NULL,   -- milliseconds since epoch (UTC), bar open time
   open      FLOAT8 NOT NULL,
@@ -113,6 +121,8 @@ CREATE INDEX IF NOT EXISTS ohlcv_4h_sym_ts_idx ON ohlcv_4h (symbol, timestamp DE
 
 -- ── Funding rate history ─────────────────────────────────────────────────────
 
+-- funding_8h 의 출처는 미검증이다 — 현재 트리에 적재 스크립트가 없어
+-- 'Bybit Perpetual' 라벨의 진위를 확인하지 못했다(2026-08-31 조사).
 CREATE TABLE IF NOT EXISTS funding_8h (
   id           BIGSERIAL PRIMARY KEY,
   exchange     TEXT   NOT NULL DEFAULT 'Bybit Perpetual',
