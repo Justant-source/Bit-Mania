@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — Supertrend 전략 SSOT · 백테스트 방법론
-last_updated: 2026-08-31
+last_updated: 2026-09-02
 ---
 
 # Supertrend 전략 SSOT · 백테스트 방법론
@@ -253,6 +253,10 @@ v11(Jesse 선별) → v12(사전등록 plateau 판정) → 원본 parquet/CSV에
 `backtest/results/tripwire/PREREGISTRATION_TRIPWIRE.md` 커밋 완료(참조분포 P25=−0.016·최솟값−0.578, T1 월간워닝/T2 블록게이트 규칙 확정 — 상세 및 CLAUDE.md 불변규칙 #7과의 관계는 그 문서 참조). 체크 스크립트(`backtest/scripts/analysis/tripwire_check.py`)도 구현·검증 완료. 그러나 첫 실제 실행에서 `extend-csv`가 **리플레이 CSV와 라이브 `ohlcv_history`의 가격 불일치(계통적 $15~53 오프셋)를 감지해 정상적으로 중단**됐다 — 설계대로 동작한 것이며 버그가 아니다.
 
 **원인 규명 및 조치 완료(2026-08-31)**: 두 소스는 **서로 다른 거래소·다른 상품**이었다 — 백테스트 픽스처는 Binance 현물, 라이브 테이블은 Bybit 무기한(§6 출처 정정 참조). 조치: `jesse_db` 라벨을 `'Binance Spot'`으로 정정하고, `extend-csv`의 소스를 라이브 테이블 → `jesse_db.ohlcv_4h`(Binance Spot)로 재배선했다(트립와이어의 참조 분포가 Binance 소스로 계산됐으므로 연장도 동일 소스여야 한다). 이후 같은 Binance Vision 경로로 2026-08-29~30을 적재해 CSV를 12봉 연장하고 **첫 판정을 기록**했다 — **T1 = WARNING**(trailing-182d lg −0.1297 < P25 −0.016), **T2 = n/a**(사전등록 §0.2에 따라 이미 관측된 블록은 비판정, 첫 클린 판정은 2027-04-01). 구현이 오염 블록으로 T2를 판정하던 버그도 같이 고쳤다. 판정 로그: `backtest/results/tripwire/log.md`. 상세: `backtest/results/2026-08-31/csv_ohlcv_drift.md`.
+
+### Part C — 펀딩비 실측 반영 (2026-09-02) — 결론: 홀드아웃 net 부호 불변, 여전히 양수
+
+§7이 남긴 갭(정본 백테스트가 Binance **현물** 시세라 무기한 펀딩비가 구조적으로 0 가정)을 닫았다. Bybit 공개 REST(`funding/history`, category=linear·BTCUSDT — 라이브와 동일 상품)에서 직접 수집한 7,055개 정산 레코드(2020-03-25~2026-09-02, 8h 간격 예외 없음)를 `_replay_supertrend.py`의 **opt-in** `funding` 파라미터로 반영해 재실행했다(인자 없는 기본 실행은 기존과 바이트 동일 — 정본 지표 §6 무변경). 결과: 홀드아웃(2025-01~2026-08) net **+38.20% → +29.23%**(−8.96%p, CAGR 21.48%→16.68%), 전기간 CAGR 197.67%→159.22%(전기간은 보유시간의 24.7%가 2020-03-25 이전이라 그 구간은 0 가정 — 커버리지 밖). **taker+15bps 비관 시나리오(net −1.6%)에는 근처도 가지 않는다** — 펀딩비는 부호를 뒤집는 요인이 아니다. Part A(체결 슬리피지)에 이어 비용 모델의 마지막 미지수가 닫혔다. 라이브 yaml·Kill Switch·레버리지·`BYBIT_TESTNET`는 불변. 상세: `backtest/results/2026-09-02/funding_cost_report.md`.
 
 ---
 

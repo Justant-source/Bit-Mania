@@ -123,6 +123,15 @@ def parse_params(s: str | None) -> dict:
     return out
 
 
+def load_funding_csv(path: Path) -> dict[int, float]:
+    """timestamp_ms,funding_rate CSV → {ts: rate} lookup for run_backtest(funding=...)."""
+    out = {}
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            out[int(row["timestamp_ms"])] = float(row["funding_rate"])
+    return out
+
+
 from functools import lru_cache
 
 
@@ -156,6 +165,8 @@ def run_backtest(
     fee: float = FEE,
     slip_bps: float = 0.0,
     fill: str = "close",
+    funding: dict[int, float] | None = None,
+    funding_log: list | None = None,
 ):
     """Returns (trades, equity_4h, df, ts). Indicators on full CSV; fills in [start,end).
 
@@ -171,6 +182,18 @@ def run_backtest(
                       signal-driven entries/exits to the following bar's open (with slippage);
                       the safety stop always fires intrabar on the bar's low, independent of
                       `fill`, since it is a resting exchange order, not a signal decision.
+
+    funding/funding_log (opt-in, default None = no funding modeled, byte-identical to the
+                      pre-funding behaviour):
+      funding      — {settlement_ts_ms: rate} for Bybit USDT-perp 00/08/16 UTC funding.
+                      Missing timestamps (uncovered dates) are treated as rate 0, not an
+                      error — that is the intended behaviour for periods the funding
+                      history API does not cover. Charged only on a position that was
+                      already open going into this bar (opened on a prior bar), using this
+                      bar's close as a mark-price proxy (no separate index/mark series).
+      funding_log  — if given a list, (ts, cost_usd) is appended for every non-zero funding
+                      charge (cost > 0 = long paid; cost < 0 = long received). Reporting
+                      only; does not affect the simulation.
     """
     csv_path = Path(csv_path) if csv_path else FX / "btc_4h.csv"
     ts, o, h, lo, c = _load_ohlcv(str(csv_path))
@@ -198,6 +221,7 @@ def run_backtest(
     slip = slip_bps / 10_000.0
     warmup = warmup_bars if warmup_bars is not None else int(dir_ema)
     pending = None        # queued signal fill for fill="next_open": {'type','reason'?}
+    funding = funding or {}
 
     def _fee(px_entry, px_exit, qty):
         return (qty * px_entry + qty * px_exit) * fee
@@ -240,6 +264,19 @@ def run_backtest(
         # mark-to-market equity (include open position's unrealized)
         unreal = size * (price - entry) if pos else 0.0
         equity_4h.append((t, balance + unreal))
+
+        # v13 addition: 8h funding settlement (Bybit USDT-perp, 00/08/16 UTC), charged on
+        # a position that was already open going into this bar (pos here reflects the state
+        # carried from the previous bar — this bar's own entry, if any, happens further down
+        # and is not charged funding on the same bar it opens). Mark price approximated by
+        # this bar's close (no separate index/mark price series available).
+        if pos and (t // 3_600_000) % 24 in (0, 8, 16):
+            rate = funding.get(t, 0.0)
+            if rate:
+                cost = size * price * rate
+                balance -= cost
+                if funding_log is not None:
+                    funding_log.append((t, cost))
 
         # 2) intrabar exchange safety stop — always checked on the bar's LOW, regardless
         #    of `fill` mode (it is a resting stop order, not a signal decision).
@@ -403,17 +440,22 @@ def main():
     ap.add_argument("--slip-bps", type=float, default=0.0, help="v12: slippage in bps applied on fills")
     ap.add_argument("--fill", choices=["close", "next_open"], default="close",
                      help="v12: signal fills at this bar's close (default) or next bar's open")
+    ap.add_argument("--funding-csv", default=None,
+                     help="funding: CSV with timestamp_ms,funding_rate columns (Bybit "
+                          "USDT-perp 00/08/16 UTC settlements). Omit for no funding modeled.")
     args = ap.parse_args()
 
     p = parse_params(args.params)
     start_ms = date_ms(args.start) if args.start else None
     end_ms = date_ms(args.end) if args.end else None
     csv_path = Path(args.csv) if args.csv else FX / "btc_4h.csv"
+    funding = load_funding_csv(Path(args.funding_csv)) if args.funding_csv else None
     default_run = (
         args.csv is None and args.params is None
         and args.start is None and args.end is None
         and args.warmup_bars is None and not args.safety_stop
         and args.fee is None and args.slip_bps == 0.0 and args.fill == "close"
+        and args.funding_csv is None
     )
 
     trades, equity_4h, df, ts = run_backtest(
@@ -431,6 +473,7 @@ def main():
         fee=args.fee if args.fee is not None else FEE,
         slip_bps=args.slip_bps,
         fill=args.fill,
+        funding=funding,
     )
     m = _metrics(trades, equity_4h)
 
