@@ -407,22 +407,38 @@ class FundingMonitor:
             return
 
         direction = "positive (longs pay shorts)" if rate > 0 else "negative (shorts pay longs)"
-        alert = {
-            "level": level,
+        threshold = self.critical_threshold if level == "critical" else self.warn_threshold
+        message = (
+            f"Funding rate {level.upper()}: {rate:.6f} ({direction}) "
+            f"on {self.exchange} {self.symbol}"
+        )
+        ts = datetime.now(tz=timezone.utc).isoformat()
+
+        # 2026-09-19: 이 경고는 "펀딩 결제"가 아니라 "펀딩 요율 임계값 초과"이므로
+        # payment/expected_payment 스키마를 기대하는 ce:alerts:funding(FundingAccumulator)이
+        # 아니라 ce:alerts:anomaly로 발행한다. 예전 "alerts:funding"(ce: 접두사 누락) 채널은
+        # 구독자가 없었고, 설령 ce:alerts:funding으로 고쳐도 payment 키가 없어
+        # FundingAccumulator에 0으로 읽혀 일일 누적 버퍼에 영구히 삼켜졌을 것이다.
+        # _format_funding_alert/FundingAccumulator는 그대로 "결제(payment)" 의미의
+        # 진짜 이벤트 전용으로 남겨둔다 — 이 알림을 다시 ce:alerts:funding으로
+        # 되돌리지 말 것.
+        anomaly = {
             "type": "funding_rate",
+            "severity": level,
+            "level": level.upper(),
+            "component": "funding_monitor",
+            "anomaly_type": "funding_rate_threshold",
+            "details": message,
             "exchange": self.exchange,
             "symbol": self.symbol,
             "rate": rate,
             "direction": direction,
-            "threshold": self.critical_threshold if level == "critical" else self.warn_threshold,
-            "message": (
-                f"Funding rate {level.upper()}: {rate:.6f} ({direction}) "
-                f"on {self.exchange} {self.symbol}"
-            ),
-            "ts": datetime.now(tz=timezone.utc).isoformat(),
+            "threshold": threshold,
+            "fingerprint": f"funding_monitor:funding_rate_threshold:{self.exchange}:{self.symbol}:{level}",
+            "ts": ts,
         }
 
-        await self.redis.publish("alerts:funding", json.dumps(alert))
+        await self.redis.publish("ce:alerts:anomaly", json.dumps(anomaly))
         log.warning(
             MARKET_FUNDING_RATE,
             message="funding rate alert",

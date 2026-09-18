@@ -1,6 +1,6 @@
 ---
 title: L6 Runtime — 상태 전이 · service_shutdown 복구
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # L6 Runtime — 상태 전이 · service_shutdown 복구
@@ -47,6 +47,10 @@ stateDiagram-v2
 | rejected | rejected | 거부 |
 | — | expired | Bybit 만료 (내부 enum 없음) |
 
+### `filled`/`partially_filled` 도달 시 텔레그램 알림 발행 (2026-09-19~)
+
+`_process_order()`가 `filled`/`partially_filled` 결과를 받으면, `_publish_result()`(전략 피드백 + DB 저장) 직후 `_publish_trade_alert()`가 `ce:alerts:entry`(진입) 또는 `ce:alerts:exit`(청산, 근사 실현손익 포함)로 발행한다 — **반드시 `position_tracker.on_order_fill()` 호출보다 먼저** 실행되도록 순서가 고정돼 있다(`on_order_fill()`이 포지션 캐시의 진입가를 갱신/삭제해 그 뒤엔 청산 손익·보유시간을 복원할 수 없기 때문). 이전에는 이 발행 코드 자체가 없어 체결 성공 시 텔레그램에 아무 알림도 가지 않았다(실패/거부만 `ce:alerts:anomaly` 경유로 도달). 상세: `docs/cryptoengine/50-api.md` §1/§2.
+
 ---
 
 ## §2. KillLevel 상태 전이 (Diagram K2)
@@ -88,6 +92,10 @@ stateDiagram-v2
 ### PORTFOLIO/STRATEGY 발동 시 전략 `on_stop()` — position 진실 동기화 (2026-09-18~)
 
 Kill Switch가 전략에 stop을 보내면 `on_stop()`은 청산 여부를 정하기 전 `get_position()`으로 거래소 실포지션을 확인한다(§8 상세는 `strategy.md` §8). 2026-09-16 사고(PORTFOLIO 발동 2건, 09-07·09-15 — 상세는 `strategy.md` §8 사고 기록)에서 이 조회가 매번 실패했음에도 원인을 알 수 없었던 문제를 계기로, 1초·2초 간격 3회 재시도 + 실패 시 예외 종류·메시지 로깅을 추가했다(`cryptoengine/services/strategies/supertrend/strategy.py:_sync_position_from_exchange`). 재시도로도 실패하면 기존 내부 상태를 유지하는 기존 동작(§8 표)은 그대로다 — Kill Switch 로직·쿨다운·auto_resume은 무변경.
+
+### 발동 시 텔레그램 리치 알림 (2026-09-19~)
+
+`_on_kill_switch_trigger`(NONE→STRATEGY/PORTFOLIO/SYSTEM/MANUAL 전이 전부가 거치는 공통 콜백)가 기존 `system:kill_switch`(내부 서비스용) 발행 직후 `ce:alerts:kill_switch`에도 발행한다 — Level·Action·Trigger·Daily/Weekly DD를 보여주는 전용 텔레그램 포맷터가 이제부터 실제로 쓰인다(이전엔 발행자가 없어 `log.critical` → `ce:alerts:anomaly` 경유로만 간접 도달해 상세 없이 표시됐다). Kill Switch 로직 자체(`shared/kill_switch.py`)는 무변경. 상세: `docs/cryptoengine/50-api.md` §1/§2.
 
 ---
 

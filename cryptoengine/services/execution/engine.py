@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import asyncpg
@@ -24,6 +25,7 @@ from position_tracker import PositionTracker
 from safety import SafetyGuard
 from stoploss_manager import StopLossManager
 from shared.log_events import *
+from shared.models.position import Position
 
 log = structlog.get_logger(__name__)
 
@@ -233,6 +235,12 @@ class ExecutionEngine:
                     reason=result.get("reason", ""),
                 )
 
+            # --- 체결 알림 (Telegram: ce:alerts:entry / ce:alerts:exit) ---
+            # position_tracker.on_order_fill() 보다 반드시 먼저 호출한다.
+            # on_order_fill이 포지션 캐시의 진입가를 갱신/삭제하기 때문에
+            # 그 뒤에는 청산 손익·보유시간을 복원할 수 없다.
+            await self._publish_trade_alert(payload, result)
+
             # --- Update position cache ---
             if result.get("status") in ("new", "partially_filled", "filled"):
                 await self.position_tracker.on_order_fill(result)
@@ -280,6 +288,152 @@ class ExecutionEngine:
                 )
         except Exception:
             log.exception(ORDER_REJECTED, message="result persist error", request_id=result.get("request_id"))
+
+    # ------------------------------------------------------------------
+    # Trade alerts (ce:alerts:entry / ce:alerts:exit)
+    # ------------------------------------------------------------------
+    # 2026-09-19: 실제 매수 체결이 있었는데 텔레그램 알림이 안 온 사건의 원인은
+    # 이 두 채널에 발행하는 코드가 아예 없었기 때문이다 — 소비자(구독·포맷터·
+    # 디스패치)는 이미 다 준비돼 있었다. 여기가 그 발행부다.
+
+    TRADE_ALERT_CHANNELS = {"entry": "ce:alerts:entry", "exit": "ce:alerts:exit"}
+
+    async def _publish_trade_alert(self, payload: dict[str, Any], result: dict[str, Any]) -> None:
+        """체결된 주문을 텔레그램 알림 채널로 발행. 절대 예외를 밖으로 던지지 않는다
+        (알림 실패가 주문 처리 흐름을 깨면 안 됨 — 실패하면 ERROR 로그로 anomaly
+        채널을 통해서라도 알린다)."""
+        try:
+            if result.get("status") not in ("filled", "partially_filled"):
+                return
+            if float(result.get("filled_qty") or 0) <= 0:
+                return
+            reduce_only = bool(payload.get("reduce_only", False))
+            kind = "exit" if reduce_only else "entry"
+            symbol = result.get("symbol", "")
+            position = self._safe_get_position(symbol)
+            opened_at = (
+                await self._fetch_position_opened_at(result.get("strategy_id"), symbol)
+                if reduce_only
+                else None
+            )
+            now = datetime.now(timezone.utc)
+            alert = self._build_trade_alert(payload, result, position, opened_at, now)
+            await self.redis.publish(self.TRADE_ALERT_CHANNELS[kind], json.dumps(alert, default=str))
+            log.info(
+                ORDER_FILLED,
+                message="체결 알림 발행",
+                channel=self.TRADE_ALERT_CHANNELS[kind],
+                request_id=payload.get("request_id"),
+                kind=kind,
+            )
+        except Exception:
+            log.exception(
+                SERVICE_HEALTH_FAIL,
+                message="체결 알림 발행 실패",
+                request_id=payload.get("request_id"),
+            )
+
+    def _safe_get_position(self, symbol: str) -> Position | None:
+        """position_tracker.get_position()은 동기 메서드({symbol: Position} 캐시
+        조회)다. 테스트 목(AsyncMock)이 코루틴을 반환할 수 있으니 방어적으로
+        처리한다."""
+        try:
+            pos = self.position_tracker.get_position(symbol)
+            return pos if isinstance(pos, Position) else None
+        except Exception:
+            return None
+
+    async def _fetch_position_opened_at(self, strategy_id: str | None, symbol: str):
+        """청산 시 보유시간 계산용. position_tracker._persist_position과 동일한
+        조건(strategy_id + exchange + symbol + closed_at IS NULL)으로 조회한다 —
+        on_order_fill()이 이 행을 갱신/삭제하기 전에 호출해야 유효하다."""
+        try:
+            async with self.db_pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT opened_at FROM positions
+                    WHERE strategy_id = $1 AND exchange = $2 AND symbol = $3
+                      AND closed_at IS NULL
+                    ORDER BY opened_at DESC LIMIT 1
+                    """,
+                    strategy_id,
+                    self.exchange,
+                    symbol,
+                )
+            return row["opened_at"] if row else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _compute_realized_pnl(
+        position: Position, exit_price: float, qty: float, fee: float
+    ) -> tuple[float, float]:
+        """(realized_usd, realized_pct). 청산 수수료만 반영한 근사치 —
+        진입 수수료는 result에 없어 미반영(메시지에 "근사"로 명시)."""
+        sign = 1.0 if position.side == "long" else -1.0
+        gross = sign * (exit_price - position.entry_price) * qty
+        pct = (gross / (position.entry_price * qty) * 100.0) if position.entry_price and qty else 0.0
+        return gross - fee, pct
+
+    @staticmethod
+    def _format_hold_duration(opened_at, now) -> str | None:
+        """"2h 15m" / "3d 4h" / "45m" 형태. opened_at을 못 구했으면 None."""
+        if opened_at is None:
+            return None
+        delta = now - opened_at
+        total_min = max(int(delta.total_seconds() // 60), 0)
+        days, rem = divmod(total_min, 24 * 60)
+        hours, minutes = divmod(rem, 60)
+        if days > 0:
+            return f"{days}d {hours}h"
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
+    @classmethod
+    def _build_trade_alert(
+        cls,
+        payload: dict[str, Any],
+        result: dict[str, Any],
+        position: Position | None,
+        opened_at,
+        now,
+    ) -> dict[str, Any]:
+        """순수 함수(I/O 없음) — entry/exit 공통 알림 payload 조립."""
+        reduce_only = bool(payload.get("reduce_only", False))
+        filled_qty = float(result.get("filled_qty") or 0)
+        filled_price = float(result.get("filled_price") or 0)
+        alert_type = "exit" if reduce_only else "entry"
+        alert: dict[str, Any] = {
+            "alert_type": alert_type,
+            "ts": now.isoformat(),
+            "request_id": result.get("request_id"),
+            "order_id": result.get("order_id"),
+            "strategy_id": result.get("strategy_id"),
+            "symbol": result.get("symbol"),
+            "side": result.get("side"),
+            "quantity": filled_qty,
+            "requested_qty": payload.get("quantity"),
+            "filled_price": filled_price,
+            "fee": result.get("fee"),
+            "fee_currency": result.get("fee_currency"),
+            "notional_usd": filled_price * filled_qty,
+            "status": result.get("status"),
+            "reduce_only": reduce_only,
+            "fingerprint": f"{alert_type}:{result.get('request_id')}",
+        }
+        if reduce_only and position is not None:
+            realized_pnl, realized_pnl_pct = cls._compute_realized_pnl(
+                position, filled_price, filled_qty, float(result.get("fee") or 0)
+            )
+            alert["entry_price"] = position.entry_price
+            alert["realized_pnl"] = realized_pnl
+            alert["realized_pnl_pct"] = realized_pnl_pct
+            alert["position_side"] = position.side
+        hold = cls._format_hold_duration(opened_at, now)
+        if hold is not None:
+            alert["hold_duration"] = hold
+        return alert
 
     async def _publish_rejection(
         self,

@@ -43,6 +43,16 @@ STRATEGY_CHANNELS: dict[str, str] = {
     "supertrend": "strategy:command:supertrend-01",
 }
 
+# ce:alerts:kill_switch 페이로드의 "action" 필드 — telegram-bot의
+# _format_kill_switch_alert가 표시하는 사람이 읽는 설명. KillLevel(shared/kill_switch.py)
+# 정의: NONE=0, STRATEGY=1, PORTFOLIO=2, SYSTEM=3, MANUAL=4.
+_KILL_LEVEL_ACTIONS: dict[int, str] = {
+    1: "전략 일시정지",
+    2: "포트폴리오 축소",
+    3: "시스템 차단",
+    4: "수동 긴급 청산",
+}
+
 
 
 class StrategyOrchestrator:
@@ -69,6 +79,10 @@ class StrategyOrchestrator:
         self._kill_switch = self._build_kill_switch(ks_cfg, cooldown_min)
         self._current_weights: dict[str, float] = {}
         self._total_equity: float = 0.0
+        # Kill Switch Telegram 알림용 캐시(퍼센트 단위) — _orchestration_cycle에서 갱신,
+        # _on_kill_switch_trigger에서 사용 (아래 해당 위치 주석 참고)
+        self._last_daily_dd_pct: float = 0.0
+        self._last_weekly_dd_pct: float = 0.0
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -193,6 +207,11 @@ class StrategyOrchestrator:
         assert self._portfolio_monitor is not None
         portfolio_state = await self._portfolio_monitor.evaluate()
         self._total_equity = portfolio_state.total_equity
+        # 킬스위치 알림용 캐시. portfolio_monitor는 드로우다운을 양수 분수로 반환하는데
+        # (0.05 = 5% 손실) _format_kill_switch_alert는 그대로 {:.2f}%로 찍으므로
+        # 여기서 퍼센트로 변환해둔다 — 안 그러면 "Daily DD: 0.05%"처럼 100배 축소 표시된다.
+        self._last_daily_dd_pct = portfolio_state.daily_drawdown * 100.0
+        self._last_weekly_dd_pct = portfolio_state.weekly_drawdown * 100.0
         log.info(
             ORCH_CAPITAL_ALLOCATED,
             message="portfolio evaluated",
@@ -310,6 +329,30 @@ class StrategyOrchestrator:
                 }
             ),
         )
+
+        # Telegram 전용 리치 알림 (ce:alerts:kill_switch → _format_kill_switch_alert).
+        # system:kill_switch는 내부 서비스용이라 telegram-bot이 구독하지 않는다 —
+        # 지금까지는 log.critical(KILL_SWITCH_TRIGGERED)을 통해 간접적으로만
+        # ce:alerts:anomaly에 도달해 Level/Action/DD 없는 밋밋한 일반 포맷터로
+        # 표시됐다(그 경로는 안전망으로 그대로 둔다 — 이 발행이 실패해도 뜨도록).
+        try:
+            await self._redis.publish(
+                "ce:alerts:kill_switch",
+                json.dumps(
+                    {
+                        "level": int(level),
+                        "level_name": level.name,
+                        "action": _KILL_LEVEL_ACTIONS.get(int(level), level.name),
+                        "trigger_reason": reason,
+                        "daily_drawdown": self._last_daily_dd_pct,
+                        "weekly_drawdown": self._last_weekly_dd_pct,
+                        "fingerprint": f"kill_switch:{level.name}:{reason}",
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+            )
+        except Exception:
+            log.exception(KILL_SWITCH_TRIGGERED, message="킬스위치 Telegram 알림 발행 실패")
 
         # ACK: 텔레그램 봇이 수신 확인을 기다리는 채널에 ACK 발행
         ack_payload = json.dumps(
