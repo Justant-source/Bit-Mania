@@ -841,10 +841,36 @@ class SupertrendLiveStrategy(BaseStrategy):
         """
         if self._exchange is None:
             return False
-        try:
-            pos = await self._exchange.get_position(SYMBOL)
-        except Exception:
-            self._log.exception("position_sync_error", context=context)
+        pos = None
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                pos = await self._exchange.get_position(SYMBOL)
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                if attempt < 2:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+        if last_exc is not None:
+            # 2026-09-16 사고: on_stop 중 이 조회가 반복 실패해도 예외 종류를 알 수
+            # 없었다(exc_info=True는 JSON stdout에 불리언으로만 남고, 이 서비스는
+            # DB 로그 파이프라인에 연결돼 있지 않다 — error_type/message를 직접
+            # 필드로 남겨 재발 시 원인을 바로 알 수 있게 한다). 재시도 3회 후에도
+            # 실패하면 기존 내부 상태(self._has_position)를 그대로 유지한다 —
+            # 청산 판단은 이 상태에 의존하므로, 원인 불명 실패로 실제 보유 포지션이
+            # 있는데 오판(믿음=False)해 청산을 건너뛰는 상황을 완전히 막지는
+            # 못한다. 재시도만으로 대부분의 일시적 네트워크/레이트리밋 실패는
+            # 해소된다.
+            self._log.error(
+                "position_sync_error",
+                message=(
+                    f"{type(last_exc).__name__}: {str(last_exc)[:300]} "
+                    f"(3회 재시도 실패 — 내부 상태 has_position={self._has_position} 유지)"
+                ),
+                context=context,
+                error_type=type(last_exc).__name__,
+            )
             return False
 
         if pos is not None and pos.side == "short":

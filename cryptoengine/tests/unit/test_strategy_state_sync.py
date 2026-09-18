@@ -116,17 +116,39 @@ class TestPositionSync:
         assert strategy._entry_price == 0.0
 
     @pytest.mark.asyncio
-    async def test_api_failure_keeps_belief(self, strategy):
-        """조회 실패 시 기존 믿음 유지 (안전 검사는 엔진에서 별도 수행)."""
+    async def test_api_failure_keeps_belief(self, strategy, monkeypatch):
+        """조회 실패 시 3회 재시도 후 기존 믿음 유지 (2026-09-16 사고 후속 조치:
+        재시도로 일시적 실패를 흡수하고, 그래도 실패하면 원인을 로그에 남긴다)."""
         strategy._has_position = True
         strategy._position_qty = 0.007
         strategy._exchange.get_position = AsyncMock(side_effect=ConnectionError("down"))
+        sleep_mock = AsyncMock()
+        monkeypatch.setattr(asyncio, "sleep", sleep_mock)
 
         ok = await strategy._sync_position_from_exchange("test")
 
         assert ok is False
         assert strategy._has_position is True
         assert strategy._position_qty == pytest.approx(0.007)
+        assert strategy._exchange.get_position.call_count == 3
+        assert sleep_mock.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_transient_api_failure_recovers_on_retry(self, strategy, monkeypatch):
+        """일시적 실패 후 재시도에서 성공하면 정상적으로 실제값을 채택한다."""
+        strategy._has_position = False
+        strategy._position_qty = 0.0
+        strategy._exchange.get_position = AsyncMock(
+            side_effect=[ConnectionError("down"), make_position(0.007)]
+        )
+        monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+
+        ok = await strategy._sync_position_from_exchange("test")
+
+        assert ok is True
+        assert strategy._has_position is True
+        assert strategy._position_qty == pytest.approx(0.007)
+        assert strategy._exchange.get_position.call_count == 2
 
     @pytest.mark.asyncio
     async def test_unexpected_short_treated_as_flat(self, strategy):

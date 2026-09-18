@@ -1,6 +1,6 @@
 ---
 title: L6 Runtime — 상태 전이 · service_shutdown 복구
-last_updated: 2026-08-29
+last_updated: 2026-09-18
 ---
 
 # L6 Runtime — 상태 전이 · service_shutdown 복구
@@ -84,6 +84,10 @@ stateDiagram-v2
 | cooldown | — | — | 60분 |
 
 **ACK 프로토콜**: `ACK_TIMEOUT_SECONDS=5`, `ACK_MAX_RETRIES=3`
+
+### PORTFOLIO/STRATEGY 발동 시 전략 `on_stop()` — position 진실 동기화 (2026-09-18~)
+
+Kill Switch가 전략에 stop을 보내면 `on_stop()`은 청산 여부를 정하기 전 `get_position()`으로 거래소 실포지션을 확인한다(§8 상세는 `strategy.md` §8). 2026-09-16 사고(PORTFOLIO 발동 2건, 09-07·09-15 — 상세는 `strategy.md` §8 사고 기록)에서 이 조회가 매번 실패했음에도 원인을 알 수 없었던 문제를 계기로, 1초·2초 간격 3회 재시도 + 실패 시 예외 종류·메시지 로깅을 추가했다(`cryptoengine/services/strategies/supertrend/strategy.py:_sync_position_from_exchange`). 재시도로도 실패하면 기존 내부 상태를 유지하는 기존 동작(§8 표)은 그대로다 — Kill Switch 로직·쿨다운·auto_resume은 무변경.
 
 ---
 
