@@ -19,14 +19,20 @@ telegram:
     batch_window_seconds: 5
     # Maximum message length before splitting
     max_message_length: 4096
+    # 등급별 무음 전송 (true = 소리/진동 없음). formatters.alert_tier()가
+    # 반환하는 값과 맞춰야 한다: trade(매수/매도), info(펀딩·일일리포트),
+    # error/critical은 항상 소리 O.
+    silent_tiers: ["trade", "info"]
 
   # ── Notification Categories ─────────────────────────────────
   notifications:
     # Trade execution alerts
     trades:
       enabled: true
-      # Minimum trade size to report (USD)
-      min_trade_size_usd: 50
+      # min_trade_size_usd: 50
+      # 2026-09-19: 제거됨 — 매수/매도는 금액 무관 항상 알림한다(사용자 결정).
+      # 코드(dispatcher.AlertDispatcher)도 이 키를 더 이상 읽지 않는다 —
+      # 여기에 값을 넣어도 필터가 부활하지 않는다.
       # Include PnL in close notifications
       include_pnl: true
 

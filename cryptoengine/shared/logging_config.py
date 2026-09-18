@@ -203,13 +203,24 @@ def _make_error_alert_processor(service_name: str):
             _last_error_alerts[dedup_key] = now
 
             # Publish to Redis (fire-and-forget)
+            # 2026-09-19: severity/component/anomaly_type/fingerprint 추가.
+            # 이전에는 severity가 없어 telegram-bot 포맷터가 항상 "WARNING"으로
+            # 기본표시했고(실제 CRITICAL도 마찬가지), fingerprint가 없어 봇 쪽
+            # dedup이 alert_type 하나로만 뭉개져 분당 서비스 전체에서 1건만
+            # 살아남았다. type/level/service/event/message는 기존 소비자
+            # (Grafana 브리지, audit_signal_order_mismatch.py 등) 호환을 위해
+            # 그대로 유지하고 필드만 추가한다.
             import json as _json
             alert_payload = _json.dumps({
                 "type": "error_log",
                 "level": level_str.upper(),
+                "severity": "critical" if level_no >= 50 else "error",
                 "service": service_name,
+                "component": service_name,
                 "event": event,
-                "message": message[:300],
+                "anomaly_type": event,
+                "message": message[:700],
+                "fingerprint": f"{service_name}:{event}",
                 "ts": datetime.now(timezone.utc).isoformat(),
             }, default=str)
 

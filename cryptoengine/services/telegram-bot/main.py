@@ -20,6 +20,7 @@ import yaml
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from dispatcher import AlertDispatcher
+from formatters import DEFAULT_PARSE_MODE
 from handlers import BotHandlers
 from shared.log_events import *
 from shared.logging_config import setup_logging
@@ -51,12 +52,18 @@ def _load_telegram_config() -> dict:
 
 _tg_cfg = _load_telegram_config()
 _msg_cfg = _tg_cfg.get("telegram", {}).get("messages", {})
-_trade_cfg = _tg_cfg.get("telegram", {}).get("notifications", {}).get("trades", {})
 _schedule_cfg = _tg_cfg.get("telegram", {}).get("notifications", {}).get("portfolio", {})
 
 BATCH_WINDOW_SECONDS: float = float(_msg_cfg.get("batch_window_seconds", 5))
 MAX_MESSAGES_PER_MINUTE: int = int(_msg_cfg.get("max_messages_per_minute", 30))
-MIN_TRADE_SIZE_USD: float = float(_trade_cfg.get("min_trade_size_usd", 50))
+# 2026-09-19: parse_mode를 config/telegram.yaml에서 실제로 읽어서 쓴다
+# (이전까지는 이 파일이 "parse_mode: HTML"을 선언만 하고 코드는 무시했다).
+PARSE_MODE: str = str(_msg_cfg.get("parse_mode", DEFAULT_PARSE_MODE))
+DISABLE_WEB_PREVIEW: bool = bool(_msg_cfg.get("disable_web_preview", True))
+# 등급별 무음 전송 — formatters.alert_tier()가 반환하는 값과 맞춰야 한다
+SILENT_TIERS: frozenset[str] = frozenset(_msg_cfg.get("silent_tiers", ["trade", "info"]))
+# 2026-09-19: 매수/매도 소액 필터(min_trade_size_usd) 완전 제거 — 사용자 결정으로
+# 금액 무관 항상 알림한다. dispatcher.AlertDispatcher도 이 파라미터를 더 이상 받지 않는다.
 # List of "HH:MM" strings in UTC for automatic daily report (T-5)
 SCHEDULE_UTC: list[str] = _schedule_cfg.get("schedule_utc", ["08:00", "20:00"])
 
@@ -143,6 +150,26 @@ async def _heartbeat_task(
         log.info(SERVICE_STOPPING, message="하트비트 태스크 취소됨")
 
 
+def _alert_fingerprint(alert_type: str, data: dict) -> str:
+    """중복 제거용 지문. 명시적 fingerprint가 있으면 그걸 쓰고,
+    없으면 발생 주체(service/component)+이벤트로 구성한다.
+
+    2026-09 조사에서 발견된 버그: 기존 구현(`data.get("fingerprint") or alert_type`)은
+    logging_config.py의 error_log payload에 fingerprint가 없다는 이유로 지문이
+    항상 alert_type 자체("anomaly")가 됐다 — 서로 다른 서비스의 서로 다른 에러가
+    전부 같은 지문으로 뭉개져 분당 최대 1건만 살아남는 결과를 냈다.
+    """
+    fp = data.get("fingerprint")
+    if fp:
+        return str(fp)
+    parts = [
+        str(data.get(k))
+        for k in ("service", "component", "event", "anomaly_type", "level", "trigger_reason")
+        if data.get(k)
+    ]
+    return ":".join(parts) if parts else alert_type
+
+
 async def _dedup_check(redis_client: aioredis.Redis, alert_type: str, fingerprint: str) -> bool:
     """중복 알림 확인. True면 전송해도 됨, False면 이미 전송된 중복.
 
@@ -200,8 +227,8 @@ async def _redis_alert_subscriber(
 
             # Dedup: kill_switch, anomaly는 Grafana와 봇 양쪽에서 올 수 있음
             if alert_type in _DEDUP_ALERT_TYPES:
-                # Grafana fingerprint 우선 사용, 없으면 alert_type + 1분 버킷
-                raw_fp = data.get("fingerprint") or alert_type
+                # 명시적 fingerprint 우선 사용, 없으면 service/event 조합 (없으면 alert_type)
+                raw_fp = _alert_fingerprint(alert_type, data)
                 minute_bucket = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
                 fingerprint = hashlib.md5(f"{raw_fp}:{minute_bucket}".encode()).hexdigest()[:16]
 
@@ -269,7 +296,7 @@ async def _scheduled_report_task(
                         await bot.send_message(  # type: ignore[attr-defined]
                             chat_id=TELEGRAM_CHAT_ID,
                             text=msg,
-                            parse_mode="Markdown",
+                            parse_mode=PARSE_MODE,
                         )
                         sent.add(key)
                         log.info(
@@ -320,13 +347,13 @@ async def _strict_monitoring_task(
         await bot.send_message(  # type: ignore[attr-defined]
             chat_id=TELEGRAM_CHAT_ID,
             text=(
-                "🔴 *Phase 5 강화 모니터링 활성*\n"
+                "🔴 <b>Phase 5 강화 모니터링 활성</b>\n"
                 f"• 배치 알림 비활성 → 모든 알림 즉시 전송\n"
-                f"• 마진비율 < {STRICT_MARGIN_WARN_THRESHOLD:.0f}x 경고\n"
+                f"• 마진비율 &lt; {STRICT_MARGIN_WARN_THRESHOLD:.0f}x 경고\n"
                 f"• 1시간마다 강제 상태 리포트\n"
                 f"• {STRICT_MONITORING_HOURS:.0f}시간 후 자동 해제"
             ),
-            parse_mode="Markdown",
+            parse_mode=PARSE_MODE,
         )
     except Exception:
         log.exception("strict_monitoring_start_notify_failed")
@@ -347,12 +374,12 @@ async def _strict_monitoring_task(
                 await bot.send_message(  # type: ignore[attr-defined]
                     chat_id=TELEGRAM_CHAT_ID,
                     text=(
-                        "✅ *Phase 5 강화 모니터링 자동 해제*\n"
+                        "✅ <b>Phase 5 강화 모니터링 자동 해제</b>\n"
                         f"• {STRICT_MONITORING_HOURS:.0f}시간 경과 → 일반 모드 전환\n"
                         "• 마진비율 경고 임계값: 10x (표준)\n"
                         "• 알림 배치 모드 복귀는 서비스 재시작 필요"
                     ),
-                    parse_mode="Markdown",
+                    parse_mode=PARSE_MODE,
                 )
                 log.info("strict_monitoring_auto_released", elapsed_hours=elapsed_hours)
             except Exception:
@@ -377,7 +404,7 @@ async def _strict_monitoring_task(
             for pos in (positions if isinstance(positions, list) else []):
                 margin_ratio = pos.get("margin_ratio", 999)
                 if margin_ratio < STRICT_MARGIN_WARN_THRESHOLD:
-                    margin_warn = f"\n⚠️ *마진비율 경고*: {margin_ratio:.1f}x < {STRICT_MARGIN_WARN_THRESHOLD:.0f}x"
+                    margin_warn = f"\n⚠️ <b>마진비율 경고</b>: {margin_ratio:.1f}x &lt; {STRICT_MARGIN_WARN_THRESHOLD:.0f}x"
 
             balance_note = ""
             if EXPECTED_INITIAL_BALANCE_USD > 0:
@@ -388,13 +415,13 @@ async def _strict_monitoring_task(
             await bot.send_message(  # type: ignore[attr-defined]
                 chat_id=TELEGRAM_CHAT_ID,
                 text=(
-                    f"📊 *Phase 5 상태 리포트 #{report_count}*\n"
+                    f"📊 <b>Phase 5 상태 리포트 #{report_count}</b>\n"
                     f"• 경과: {elapsed_hours:.1f}h / {STRICT_MONITORING_HOURS:.0f}h\n"
                     f"• 자산: {equity:.2f} USDT{balance_note}\n"
                     f"• 일간 PnL: {daily_pnl:+.2f} USD ({daily_pnl_pct:+.2f}%)\n"
                     f"• 포지션: {position_count}개{margin_warn}"
                 ),
-                parse_mode="Markdown",
+                parse_mode=PARSE_MODE,
             )
             log.info("strict_monitoring_report_sent", report_count=report_count, elapsed_hours=elapsed_hours)
         except Exception:
@@ -474,7 +501,9 @@ async def main() -> None:
         chat_id=TELEGRAM_CHAT_ID,
         batch_window_seconds=_effective_batch_window,
         max_messages_per_minute=MAX_MESSAGES_PER_MINUTE,
-        min_trade_size_usd=MIN_TRADE_SIZE_USD,
+        parse_mode=PARSE_MODE,
+        disable_web_preview=DISABLE_WEB_PREVIEW,
+        silent_tiers=SILENT_TIERS,
     )
     handlers.set_dispatcher(dispatcher)
     log.info(
@@ -482,7 +511,7 @@ async def main() -> None:
         message="AlertDispatcher 설정 완료",
         batch_window=_effective_batch_window,
         max_per_min=MAX_MESSAGES_PER_MINUTE,
-        min_trade_usd=MIN_TRADE_SIZE_USD,
+        parse_mode=PARSE_MODE,
         strict_monitoring=STRICT_MONITORING_ENABLED,
     )
 

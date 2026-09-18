@@ -18,6 +18,8 @@ from telegram.ext import ContextTypes
 
 from dispatcher import AlertDispatcher
 from formatters import (
+    DEFAULT_PARSE_MODE,
+    _esc,
     compute_max_drawdown,
     compute_sharpe_annualized,
     format_alert,
@@ -34,6 +36,12 @@ from shared.kill_switch import (
 from shared.log_events import *
 
 log = structlog.get_logger(__name__)
+
+# 2026-09-19: 텔레그램 Markdown v1 → HTML(parse_mode=HTML) 전환.
+# formatters.py의 나머지 알림 포맷터들과 동일한 서식 규칙을 따른다.
+# main.py도 같은 DEFAULT_PARSE_MODE를 기본값으로 쓰되 config/telegram.yaml로
+# 오버라이드 가능 — 명령어 응답(이 파일)은 오버라이드 없이 고정값을 쓴다.
+PARSE_MODE = DEFAULT_PARSE_MODE
 
 # Authorized chat ID — only respond to messages from this chat
 AUTHORIZED_CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID", "0"))
@@ -135,14 +143,14 @@ class BotHandlers:
 
             if positions:
                 msg_parts.append("")
-                msg_parts.append("*Open Positions:*")
+                msg_parts.append("<b>Open Positions:</b>")
                 for pos in positions:
                     msg_parts.append("")
                     msg_parts.append(format_position(pos))
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 "\n".join(msg_parts),
-                parse_mode="Markdown",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/status 명령 전송", chat_id=update.effective_chat.id)
 
@@ -188,12 +196,12 @@ class BotHandlers:
             prev_ack_time = await self.redis.get(KILL_SWITCH_ACK_TIME_KEY)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\U0001f6a8 *EMERGENCY CLOSE INITIATED*\n\n"
+                "\U0001f6a8 <b>EMERGENCY CLOSE INITIATED</b>\n\n"
                 "Level 4 Kill Switch activated.\n"
                 "All positions will be market-closed immediately.\n"
                 "All strategies will be halted.\n\n"
-                f"_ACK 확인 중... ({KILL_SWITCH_ACK_TIMEOUT_SECONDS}초 대기)_",
-                parse_mode="Markdown",
+                f"<i>ACK 확인 중... ({KILL_SWITCH_ACK_TIMEOUT_SECONDS}초 대기)</i>",
+                parse_mode=PARSE_MODE,
             )
             log.warning(
                 KILL_SWITCH_TRIGGERED,
@@ -206,10 +214,10 @@ class BotHandlers:
 
             if ack_received:
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\u2705 *Kill Switch 수신 확인*\n\n"
+                    "\u2705 <b>Kill Switch 수신 확인</b>\n\n"
                     "오케스트레이터가 Kill Switch를 수신하고 청산을 시작했습니다.\n"
-                    "_Use /status to monitor closure progress._",
-                    parse_mode="Markdown",
+                    "<i>Use /status to monitor closure progress.</i>",
+                    parse_mode=PARSE_MODE,
                 )
                 log.info(
                     KILL_SWITCH_ACK_SENT,
@@ -228,10 +236,10 @@ class BotHandlers:
                         triggered_by=triggered_by,
                     )
                     await update.effective_message.reply_text(  # type: ignore[union-attr]
-                        f"\u26a0\ufe0f *ACK 미수신 — 재전송 중 ({attempt}/{KILL_SWITCH_ACK_MAX_RETRIES})*\n\n"
+                        f"\u26a0\ufe0f <b>ACK 미수신 — 재전송 중 ({attempt}/{KILL_SWITCH_ACK_MAX_RETRIES})</b>\n\n"
                         "오케스트레이터 응답 없음. Kill Switch는 이미 SET 상태입니다.\n"
                         "재전송 중...",
-                        parse_mode="Markdown",
+                        parse_mode=PARSE_MODE,
                     )
 
                     prev_ack_time = await self.redis.get(KILL_SWITCH_ACK_TIME_KEY)
@@ -241,10 +249,10 @@ class BotHandlers:
                     if ack_received:
                         retry_success = True
                         await update.effective_message.reply_text(  # type: ignore[union-attr]
-                            f"\u2705 *Kill Switch 수신 확인 (재전송 {attempt}회)*\n\n"
+                            f"\u2705 <b>Kill Switch 수신 확인 (재전송 {attempt}회)</b>\n\n"
                             "오케스트레이터가 Kill Switch를 수신하고 청산을 시작했습니다.\n"
-                            "_Use /status to monitor closure progress._",
-                            parse_mode="Markdown",
+                            "<i>Use /status to monitor closure progress.</i>",
+                            parse_mode=PARSE_MODE,
                         )
                         log.info(
                             KILL_SWITCH_ACK_SENT,
@@ -262,13 +270,13 @@ class BotHandlers:
                         triggered_by=triggered_by,
                     )
                     await update.effective_message.reply_text(  # type: ignore[union-attr]
-                        "\u26a0\ufe0f *ACK 미수신 — 수동 확인 필요*\n\n"
+                        "\u26a0\ufe0f <b>ACK 미수신 — 수동 확인 필요</b>\n\n"
                         "Kill Switch는 SET 상태이지만, 오케스트레이터 응답이 없습니다.\n\n"
                         "즉시 수행하세요:\n"
-                        "\u2022 `/status` 로 포지션 확인\n"
+                        "\u2022 <code>/status</code> 로 포지션 확인\n"
                         "\u2022 오케스트레이터 서비스 상태 확인\n"
                         "\u2022 필요 시 수동 청산",
-                        parse_mode="Markdown",
+                        parse_mode=PARSE_MODE,
                     )
 
         except Exception:
@@ -308,9 +316,9 @@ class BotHandlers:
 
         if not context.args:
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: `/stop <strategy_id>`\n"
-                "Example: `/stop supertrend`",
-                parse_mode="Markdown",
+                "Usage: <code>/stop &lt;strategy_id&gt;</code>\n"
+                "Example: <code>/stop supertrend</code>",
+                parse_mode=PARSE_MODE,
             )
             return
 
@@ -327,17 +335,17 @@ class BotHandlers:
             await self.redis.publish("ce:strategy:command", cmd)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u23f9 Stop command sent to strategy `{strategy_id}`.\n"
-                f"_Use /status to confirm._",
-                parse_mode="Markdown",
+                f"\u23f9 Stop command sent to strategy <code>{_esc(strategy_id)}</code>.\n"
+                f"<i>Use /status to confirm.</i>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/stop 명령 전송", strategy_id=strategy_id)
 
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="/stop 명령 실패", strategy_id=strategy_id)
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to stop strategy `{strategy_id}`.",
-                parse_mode="Markdown",
+                f"\u274c Failed to stop strategy <code>{_esc(strategy_id)}</code>.",
+                parse_mode=PARSE_MODE,
             )
 
     # ── Command: /start [strategy] ────────────────────────────────
@@ -351,9 +359,9 @@ class BotHandlers:
 
         if not context.args:
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: `/start <strategy_id>`\n"
-                "Example: `/start supertrend`",
-                parse_mode="Markdown",
+                "Usage: <code>/start &lt;strategy_id&gt;</code>\n"
+                "Example: <code>/start supertrend</code>",
+                parse_mode=PARSE_MODE,
             )
             return
 
@@ -365,8 +373,8 @@ class BotHandlers:
             if kill_active == "true":
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
                     "\U0001f6a8 Kill switch is active. Clear it before starting strategies.\n"
-                    "Run `/emergency_close` again or manually clear via Redis.",
-                    parse_mode="Markdown",
+                    "Run <code>/emergency_close</code> again or manually clear via Redis.",
+                    parse_mode=PARSE_MODE,
                 )
                 return
 
@@ -380,17 +388,17 @@ class BotHandlers:
             await self.redis.publish("ce:strategy:command", cmd)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u25b6\ufe0f Start command sent to strategy `{strategy_id}`.\n"
-                f"_Use /status to confirm._",
-                parse_mode="Markdown",
+                f"\u25b6\ufe0f Start command sent to strategy <code>{_esc(strategy_id)}</code>.\n"
+                f"<i>Use /status to confirm.</i>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/start 명령 전송", strategy_id=strategy_id)
 
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="/start 명령 실패", strategy_id=strategy_id)
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to start strategy `{strategy_id}`.",
-                parse_mode="Markdown",
+                f"\u274c Failed to start strategy <code>{_esc(strategy_id)}</code>.",
+                parse_mode=PARSE_MODE,
             )
 
     # ── Command: /weight [strategy] [%] ───────────────────────────
@@ -404,9 +412,9 @@ class BotHandlers:
 
         if not context.args or len(context.args) < 2:
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: `/weight <strategy_id> <percentage>`\n"
-                "Example: `/weight supertrend 100`",
-                parse_mode="Markdown",
+                "Usage: <code>/weight &lt;strategy_id&gt; &lt;percentage&gt;</code>\n"
+                "Example: <code>/weight supertrend 100</code>",
+                parse_mode=PARSE_MODE,
             )
             return
 
@@ -437,17 +445,17 @@ class BotHandlers:
             await self.redis.publish("ce:strategy:command", cmd)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u2696\ufe0f Weight for `{strategy_id}` set to `{weight_pct}%`.\n"
-                f"_Orchestrator will apply on next rebalance cycle._",
-                parse_mode="Markdown",
+                f"\u2696\ufe0f Weight for <code>{_esc(strategy_id)}</code> set to <code>{weight_pct}%</code>.\n"
+                f"<i>Orchestrator will apply on next rebalance cycle.</i>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/weight 명령 전송", strategy_id=strategy_id, weight_pct=weight_pct)
 
         except Exception:
             log.exception(SERVICE_HEALTH_FAIL, message="/weight 명령 실패", strategy_id=strategy_id)
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to set weight for `{strategy_id}`.",
-                parse_mode="Markdown",
+                f"\u274c Failed to set weight for <code>{_esc(strategy_id)}</code>.",
+                parse_mode=PARSE_MODE,
             )
 
     # ── Command: /report ──────────────────────────────────────────
@@ -465,7 +473,7 @@ class BotHandlers:
             msg = format_daily_report(report)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                msg, parse_mode="Markdown"
+                msg, parse_mode=PARSE_MODE
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/report 명령 전송", date=today)
 
@@ -620,10 +628,10 @@ class BotHandlers:
                 await self.redis.publish(channel, cmd)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u23f8 *All strategies paused.*\n"
-                "Stop command sent to: `supertrend-01`.\n"
-                "_Positions are retained. Use /resume_all to restart._",
-                parse_mode="Markdown",
+                "\u23f8 <b>All strategies paused.</b>\n"
+                "Stop command sent to: <code>supertrend-01</code>.\n"
+                "<i>Positions are retained. Use /resume_all to restart.</i>",
+                parse_mode=PARSE_MODE,
             )
             log.warning(TELEGRAM_COMMAND_RECEIVED, message="/pause_all 명령 전송")
 
@@ -648,7 +656,7 @@ class BotHandlers:
             if kill_active == "true":
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
                     "\U0001f6a8 Kill switch is active. Clear it before resuming strategies.",
-                    parse_mode="Markdown",
+                    parse_mode=PARSE_MODE,
                 )
                 return
 
@@ -657,10 +665,10 @@ class BotHandlers:
                 await self.redis.publish(channel, cmd)
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u25b6\ufe0f *All strategies resumed.*\n"
-                "Start command sent to: `supertrend-01`.\n"
-                "_Orchestrator will re-issue capital allocation on next cycle._",
-                parse_mode="Markdown",
+                "\u25b6\ufe0f <b>All strategies resumed.</b>\n"
+                "Start command sent to: <code>supertrend-01</code>.\n"
+                "<i>Orchestrator will re-issue capital allocation on next cycle.</i>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/resume_all 명령 전송")
 
@@ -697,15 +705,15 @@ class BotHandlers:
             ],
         ]
         msg = (
-            "*CryptoEngine 봇*\n\n"
+            "<b>CryptoEngine 봇</b>\n\n"
             "버튼을 탭하거나 직접 입력하세요.\n\n"
-            "• `/start <id>` `/stop <id>` `/weight <id> <%>` — 전략 개별 제어\n"
-            "• `.md` 파일 전송 → `.request/` 저장\n"
-            "• `/results` 목록에서 탭 → 리포트 다운로드"
+            "• <code>/start &lt;id&gt;</code> <code>/stop &lt;id&gt;</code> <code>/weight &lt;id&gt; &lt;%&gt;</code> — 전략 개별 제어\n"
+            "• <code>.md</code> 파일 전송 → <code>.request/</code> 저장\n"
+            "• <code>/results</code> 목록에서 탭 → 리포트 다운로드"
         )
         await update.effective_message.reply_text(  # type: ignore[union-attr]
             msg,
-            parse_mode="Markdown",
+            parse_mode=PARSE_MODE,
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
@@ -724,8 +732,8 @@ class BotHandlers:
 
         if not doc.file_name.lower().endswith(".md"):
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u274c `.md` 파일만 업로드할 수 있습니다.",
-                parse_mode="Markdown",
+                "\u274c <code>.md</code> 파일만 업로드할 수 있습니다.",
+                parse_mode=PARSE_MODE,
             )
             return
 
@@ -739,10 +747,10 @@ class BotHandlers:
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
                 f"\u2705 작업지시서 저장 완료\n"
-                f"`{doc.file_name}` → `.request/`\n\n"
-                f"_Claude Code에서 다음 명령으로 실행하세요:_\n"
-                f"`.request/{doc.file_name} 작업지시서로 개발해줘 멀티에이전트로 병렬로 작업하고 결과 보고서는 .result/ 에 리포트해줘 생각이 많이 필요한 작업은 opus가 하고 단순 작업은 반드시 sonnet 모델로 해줘`",
-                parse_mode="Markdown",
+                f"<code>{_esc(doc.file_name)}</code> → <code>.request/</code>\n\n"
+                f"<i>Claude Code에서 다음 명령으로 실행하세요:</i>\n"
+                f"<code>.request/{_esc(doc.file_name)} 작업지시서로 개발해줘 멀티에이전트로 병렬로 작업하고 결과 보고서는 .result/ 에 리포트해줘 생각이 많이 필요한 작업은 opus가 하고 단순 작업은 반드시 sonnet 모델로 해줘</code>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="작업지시서 업로드", filename=doc.file_name)
 
@@ -764,24 +772,26 @@ class BotHandlers:
         try:
             if not REQUEST_DIR.exists():
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\u26a0\ufe0f `.request/` 디렉토리가 없습니다."
+                    "\u26a0\ufe0f <code>.request/</code> 디렉토리가 없습니다.",
+                    parse_mode=PARSE_MODE,
                 )
                 return
 
             files = sorted(REQUEST_DIR.rglob("*.md"))
             if not files:
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\U0001f4c2 `.request/` 에 파일이 없습니다."
+                    "\U0001f4c2 <code>.request/</code> 에 파일이 없습니다.",
+                    parse_mode=PARSE_MODE,
                 )
                 return
 
-            lines = ["\U0001f4cb *작업지시서 목록* (`.request/`)\n"]
+            lines = ["\U0001f4cb <b>작업지시서 목록</b> (<code>.request/</code>)\n"]
             for i, f in enumerate(files, 1):
                 rel = f.relative_to(REQUEST_DIR)
-                lines.append(f"`{i}.` `{rel}`")
+                lines.append(f"<code>{i}.</code> <code>{_esc(rel)}</code>")
 
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\n".join(lines), parse_mode="Markdown"
+                "\n".join(lines), parse_mode=PARSE_MODE
             )
 
         except Exception:
@@ -868,9 +878,9 @@ class BotHandlers:
                     )
                 ])
 
-            display_path = f"`.result/{rel_path}`" if rel_path else "`.result/`"
+            display_path = f"<code>.result/{_esc(rel_path)}</code>" if rel_path else "<code>.result/</code>"
             header = (
-                f"\U0001f4ca *결과 리포트* {display_path}\n"
+                f"\U0001f4ca <b>결과 리포트</b> {display_path}\n"
                 f"📁 폴더 {len(subdirs)}개  |  📄 파일 {len(local_files)}개"
                 + (f"  |  전체 {len(all_files)}개" if not rel_path else "")
             )
@@ -879,13 +889,13 @@ class BotHandlers:
             if query:
                 await query.edit_message_text(
                     header,
-                    parse_mode="Markdown",
+                    parse_mode=PARSE_MODE,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
             else:
                 await update.effective_message.reply_text(  # type: ignore[union-attr]
                     header,
-                    parse_mode="Markdown",
+                    parse_mode=PARSE_MODE,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
 
@@ -912,9 +922,9 @@ class BotHandlers:
 
         if not context.args:
             await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "사용법: `/get <번호>` 또는 `/get <경로>`\n"
-                "먼저 `/results` 로 목록을 확인하세요.",
-                parse_mode="Markdown",
+                "사용법: <code>/get &lt;번호&gt;</code> 또는 <code>/get &lt;경로&gt;</code>\n"
+                "먼저 <code>/results</code> 로 목록을 확인하세요.",
+                parse_mode=PARSE_MODE,
             )
             return
 
@@ -928,15 +938,15 @@ class BotHandlers:
                 index_raw = await self.redis.get("ce:tg:result_index")
                 if not index_raw:
                     await update.effective_message.reply_text(  # type: ignore[union-attr]
-                        "\u26a0\ufe0f 목록이 만료됐습니다. `/results` 를 다시 실행하세요.",
-                        parse_mode="Markdown",
+                        "\u26a0\ufe0f 목록이 만료됐습니다. <code>/results</code> 를 다시 실행하세요.",
+                        parse_mode=PARSE_MODE,
                     )
                     return
                 index = json.loads(index_raw)
                 path_str = index.get(arg)
                 if not path_str:
                     await update.effective_message.reply_text(  # type: ignore[union-attr]
-                        f"\u274c 번호 `{arg}` 를 찾을 수 없습니다.", parse_mode="Markdown"
+                        f"\u274c 번호 <code>{_esc(arg)}</code> 를 찾을 수 없습니다.", parse_mode=PARSE_MODE
                     )
                     return
                 target = Path(path_str)
@@ -955,8 +965,8 @@ class BotHandlers:
             await update.effective_message.reply_document(  # type: ignore[union-attr]
                 document=io.BytesIO(target.read_bytes()),
                 filename=target.name,
-                caption=f"\U0001f4c4 `{target.relative_to(RESULT_DIR)}`",
-                parse_mode="Markdown",
+                caption=f"\U0001f4c4 <code>{_esc(target.relative_to(RESULT_DIR))}</code>",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_COMMAND_RECEIVED, message="/get 파일 전송", filename=target.name)
 
@@ -1011,8 +1021,8 @@ class BotHandlers:
         if not _authorized(update):
             return
         await update.effective_message.reply_text(  # type: ignore[union-attr]
-            "❓ 알 수 없는 명령어입니다. `/help` 로 전체 목록을 확인하세요.",
-            parse_mode="Markdown",
+            "❓ 알 수 없는 명령어입니다. <code>/help</code> 로 전체 목록을 확인하세요.",
+            parse_mode=PARSE_MODE,
         )
 
     # ── Alert Dispatcher ──────────────────────────────────────────
@@ -1037,7 +1047,7 @@ class BotHandlers:
             await bot.send_message(
                 chat_id=AUTHORIZED_CHAT_ID,
                 text=msg,
-                parse_mode="Markdown",
+                parse_mode=PARSE_MODE,
             )
             log.info(TELEGRAM_NOTIFICATION_SENT, message="알림 전송 완료 (fallback)", alert_type=alert_type)
         except Exception:

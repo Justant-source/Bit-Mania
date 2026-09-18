@@ -22,7 +22,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 
 from formatters import (
+    _derive_severity,
     _safe_float,
+    _truncate_html,
+    alert_is_silent,
+    alert_tier,
     compute_max_drawdown,
     compute_sharpe_annualized,
     format_alert,
@@ -347,7 +351,8 @@ class TestFormatAlert:
             "hold_duration": "2h 15m",
         }
         msg = format_alert("exit", data)
-        assert "Position Closed" in msg
+        assert "\uccad\uc0b0" in msg
+        assert "50.00" in msg
         assert "\u2705" in msg  # profit emoji
 
     def test_exit_alert_loss(self):
@@ -375,8 +380,8 @@ class TestFormatAlert:
         }
         msg = format_alert("kill_switch", data)
         assert "KILL SWITCH" in msg
-        assert "Level 4" in msg
-        assert "EMERGENCY" in msg
+        assert "LEVEL 4" in msg
+        assert "Emergency" in msg
 
     def test_anomaly_warning(self):
         data = {
@@ -411,3 +416,134 @@ class TestFormatAlert:
         data = {"symbol": None, "payment": None, "rate": None}
         msg = format_alert("funding", data)
         assert isinstance(msg, str)
+
+
+# ── HTML escaping safety (2026-09-19 개편) ──────────────────────────────────
+
+def _tags_balanced(msg: str) -> bool:
+    """간단한 스택 기반 태그 균형 검사 (formatters._TAG_RE와 동일 패턴)."""
+    import re
+
+    stack: list[str] = []
+    for m in re.finditer(r"</?([a-zA-Z]+)[^>]*>", msg):
+        tag = m.group(1).lower()
+        if m.group(0).startswith("</"):
+            if not stack or stack[-1] != tag:
+                return False
+            stack.pop()
+        elif not m.group(0).endswith("/>"):
+            stack.append(tag)
+    return not stack
+
+
+class TestHtmlSafety:
+    _ADVERSARIAL = "a < b & c > d *bold* `code` <script>alert(1)</script>"
+
+    @pytest.mark.parametrize(
+        "alert_type,field",
+        [
+            ("entry", "symbol"),
+            ("entry", "strategy_id"),
+            ("exit", "symbol"),
+            ("anomaly", "component"),
+            ("anomaly", "details"),
+            ("kill_switch", "trigger_reason"),
+        ],
+    )
+    def test_adversarial_input_produces_balanced_tags(self, alert_type, field):
+        data = {field: self._ADVERSARIAL}
+        msg = format_alert(alert_type, data)
+        assert _tags_balanced(msg)
+        # 원본 특수문자가 이스케이프되지 않은 채로 살아남지 않아야 한다
+        assert "<script>" not in msg
+
+    def test_adversarial_input_escaped(self):
+        data = {"component": "svc", "details": self._ADVERSARIAL}
+        msg = format_alert("anomaly", data)
+        assert "&lt;script&gt;" in msg
+        assert "&amp;" in msg
+
+
+class TestTruncateHtml:
+    def test_short_message_unchanged(self):
+        msg = "<b>hello</b>"
+        assert _truncate_html(msg) == msg
+
+    def test_long_message_truncated_within_limit(self):
+        msg = "<b>" + ("x" * 5000) + "</b>"
+        out = _truncate_html(msg, limit=4096)
+        assert len(out) <= 4096
+        assert _tags_balanced(out)
+
+    def test_truncation_closes_open_tags(self):
+        msg = "<blockquote>" + ("y" * 5000)
+        out = _truncate_html(msg, limit=4096)
+        assert out.endswith("</blockquote>")
+        assert _tags_balanced(out)
+
+
+class TestSeverityDerivation:
+    def test_explicit_severity_wins(self):
+        assert _derive_severity({"severity": "critical", "level": "INFO"}) == "critical"
+
+    def test_derived_from_critical_level(self):
+        assert _derive_severity({"level": "CRITICAL"}) == "critical"
+        assert "CRITICAL" in format_alert("anomaly", {"level": "CRITICAL", "message": "x"})
+
+    def test_derived_from_error_level(self):
+        assert _derive_severity({"level": "ERROR"}) == "error"
+        assert "ERROR" in format_alert("anomaly", {"level": "ERROR", "message": "x"})
+
+    def test_missing_level_defaults_to_warning(self):
+        assert _derive_severity({}) == "warning"
+
+
+class TestAlertTier:
+    def test_kill_switch_is_critical(self):
+        assert alert_tier("kill_switch", {}) == "critical"
+
+    def test_entry_exit_are_trade_tier(self):
+        assert alert_tier("entry", {}) == "trade"
+        assert alert_tier("exit", {}) == "trade"
+
+    def test_funding_and_daily_report_are_info(self):
+        assert alert_tier("funding", {}) == "info"
+        assert alert_tier("daily_report", {}) == "info"
+
+    def test_anomaly_critical_vs_error(self):
+        assert alert_tier("anomaly", {"level": "CRITICAL"}) == "critical"
+        assert alert_tier("anomaly", {"level": "ERROR"}) == "error"
+
+    def test_silent_tiers(self):
+        assert alert_is_silent("trade") is True
+        assert alert_is_silent("info") is True
+        assert alert_is_silent("critical") is False
+        assert alert_is_silent("error") is False
+
+
+class TestExitAlertMissingPnl:
+    def test_missing_realized_pnl_shows_na_not_zero(self):
+        data = {"strategy_id": "s", "symbol": "BTCUSDT", "filled_price": 100.0}
+        msg = format_alert("exit", data)
+        assert "N/A" in msg
+        assert "$0.00" not in msg
+        assert "$+0.00" not in msg
+
+
+class TestDailyReportHtml:
+    def test_uses_pre_block(self):
+        msg = format_daily_report({"date": "2026-09-19", "total_pnl": 10.0})
+        assert "<pre>" in msg and "</pre>" in msg
+        assert _tags_balanced(msg)
+
+
+class TestKillSwitchPayloadOverride:
+    def test_prefers_payload_level_name_and_action(self):
+        data = {
+            "level": 2,
+            "level_name": "PORTFOLIO",
+            "action": "포트폴리오 축소",
+            "trigger_reason": "daily_drawdown",
+        }
+        msg = format_alert("kill_switch", data)
+        assert "포트폴리오 축소" in msg

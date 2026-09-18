@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 
-from formatters import format_alert
+from formatters import alert_is_silent, alert_tier, format_alert, _truncate_html
 from shared.log_events import (
     TELEGRAM_NOTIFICATION_SENT,
     SERVICE_HEALTH_FAIL,
@@ -23,8 +24,14 @@ from shared.log_events import (
 
 log = structlog.get_logger(__name__)
 
-# Alert priority: CRITICAL / ERROR always bypass rate limit
+# Alert priority: CRITICAL / ERROR always bypass batching (and rate limit)
 _HIGH_PRIORITY_TYPES = {"kill_switch", "anomaly"}
+# entry/exit는 배칭(5초 윈도우)은 타지만 레이트리밋으로는 절대 드롭되면 안 된다
+# (2026-09-19: 매수/매도는 금액 무관 항상 알림하기로 결정 — 필터 삭제와 짝을 이루는 보장)
+_RATE_LIMIT_EXEMPT = _HIGH_PRIORITY_TYPES | {"entry", "exit"}
+
+# 텔레그램이 HTML 파싱 실패 시 돌려주는 에러 메시지 패턴 (BadRequest 텍스트)
+_HTML_PARSE_ERROR_PATTERNS = ("parse entities", "can't find end")
 
 # Funding anomaly thresholds
 _FUNDING_NEGATIVE_THRESHOLD = 0.0          # payment < 0 → anomaly
@@ -87,8 +94,14 @@ class AlertDispatcher:
       ``batch_window_seconds`` into a single Telegram message.
     - Enforces ``max_messages_per_minute`` across all alert types.
       High-priority alerts (kill_switch, anomaly) always bypass the limit.
-    - Filters trade alerts below ``min_trade_size_usd``.
     - Handles funding accumulation via :class:`FundingAccumulator`.
+    - Renders via Telegram HTML (``parse_mode``) with a plain-text fallback
+      if the HTML fails to parse, and marks low-tier alerts silent
+      (``disable_notification``) per :func:`formatters.alert_tier`.
+
+    2026-09-19: 매수/매도 소액 필터(``min_trade_size_usd``)를 완전히 제거했다 —
+    사용자 결정으로 금액과 무관하게 모든 체결을 알린다. 파라미터 자체를
+    없애서 나중에 설정값 하나로 부활하지 못하게 한다.
     """
 
     def __init__(
@@ -98,13 +111,17 @@ class AlertDispatcher:
         *,
         batch_window_seconds: float = 5.0,
         max_messages_per_minute: int = 30,
-        min_trade_size_usd: float = 50.0,
+        parse_mode: str = "HTML",
+        disable_web_preview: bool = True,
+        silent_tiers: frozenset[str] = frozenset({"trade", "info"}),
     ) -> None:
         self._bot = bot
         self._chat_id = chat_id
         self._batch_window = batch_window_seconds
         self._max_per_min = max_messages_per_minute
-        self._min_trade_usd = min_trade_size_usd
+        self._parse_mode = parse_mode
+        self._disable_web_preview = disable_web_preview
+        self._silent_tiers = silent_tiers
 
         # type → list[dict] pending batched data payloads
         self._pending: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -134,18 +151,6 @@ class AlertDispatcher:
                     )
                     return
                 # Anomaly: fall through to immediate dispatch
-
-            # ── Trade size filter ─────────────────────────────────
-            if alert_type in ("entry", "exit"):
-                notional = float(data.get("notional_usd", data.get("quantity", 0)) or 0)
-                if notional > 0 and notional < self._min_trade_usd:
-                    log.debug(
-                        TELEGRAM_NOTIFICATION_SENT,
-                        message="소액 거래 알림 필터링",
-                        notional_usd=notional,
-                        min_usd=self._min_trade_usd,
-                    )
-                    return
 
             # ── High priority: bypass batching and rate limit ─────
             if alert_type in _HIGH_PRIORITY_TYPES:
@@ -190,10 +195,10 @@ class AlertDispatcher:
         self, alert_type: str, payloads: list[dict[str, Any]]
     ) -> None:
         """Format and send messages, respecting rate limit."""
-        is_high_priority = alert_type in _HIGH_PRIORITY_TYPES
+        is_rate_exempt = alert_type in _RATE_LIMIT_EXEMPT
 
-        # Rate limit check
-        if not is_high_priority and not self._check_rate():
+        # Rate limit check (kill_switch/anomaly/entry/exit는 절대 드롭되지 않는다)
+        if not is_rate_exempt and not self._check_rate():
             log.warning(
                 SERVICE_HEALTH_FAIL,
                 message="레이트 리밋 초과로 알림 드롭",
@@ -202,39 +207,69 @@ class AlertDispatcher:
             )
             return
 
+        tier = alert_tier(alert_type, payloads[0])
+
+        if len(payloads) == 1:
+            msg = format_alert(alert_type, payloads[0])
+        else:
+            # Batch: combine into single message
+            parts = [f"<b>[{len(payloads)}개 배치 알림 — {alert_type}]</b>\n"]
+            for i, p in enumerate(payloads, 1):
+                parts.append(f"<b>#{i}</b>\n{format_alert(alert_type, p)}")
+            msg = "\n\n".join(parts)
+
+        # Telegram 4096-char limit — 태그 중간이 잘려 파싱 에러가 나지 않게 안전 절단
+        msg = _truncate_html(msg)
+
+        sent = await self._send_text(alert_type, tier, msg, batch_size=len(payloads))
+        if sent:
+            self._record_sent()
+
+    async def _send_text(
+        self, alert_type: str, tier: str, msg: str, *, batch_size: int
+    ) -> bool:
+        """실제 전송 1회 + HTML 파싱 실패 시 평문 폴백 1회. 성공 시 True."""
         try:
-            if len(payloads) == 1:
-                msg = format_alert(alert_type, payloads[0])
-            else:
-                # Batch: combine into single message
-                parts = [f"*[{len(payloads)}개 배치 알림 — {alert_type}]*\n"]
-                for i, p in enumerate(payloads, 1):
-                    parts.append(f"*#{i}*\n{format_alert(alert_type, p)}")
-                msg = "\n\n".join(parts)
-
-            # Telegram 4096-char limit
-            if len(msg) > 4096:
-                msg = msg[:4090] + "\n…"
-
             await self._bot.send_message(
                 chat_id=self._chat_id,
                 text=msg,
-                parse_mode="Markdown",
+                parse_mode=self._parse_mode,
+                disable_notification=alert_is_silent(tier),
+                disable_web_page_preview=self._disable_web_preview,
             )
-            self._record_sent()
             log.info(
                 TELEGRAM_NOTIFICATION_SENT,
                 message="알림 전송 완료",
                 alert_type=alert_type,
-                batch_size=len(payloads),
+                batch_size=batch_size,
             )
-
-        except Exception:
+            return True
+        except Exception as exc:
+            if self._parse_mode and any(p in str(exc).lower() for p in _HTML_PARSE_ERROR_PATTERNS):
+                # HTML 파싱 실패 — 태그를 벗겨낸 평문으로 1회 재전송 (알림 유실 방지)
+                plain = re.sub(r"<[^>]+>", "", msg)
+                try:
+                    await self._bot.send_message(
+                        chat_id=self._chat_id,
+                        text=plain,
+                        parse_mode=None,
+                        disable_notification=alert_is_silent(tier),
+                        disable_web_page_preview=self._disable_web_preview,
+                    )
+                    log.error(
+                        SERVICE_HEALTH_FAIL,
+                        message="HTML 파싱 실패 — 평문 재전송",
+                        alert_type=alert_type,
+                    )
+                    return True
+                except Exception:
+                    pass
             log.exception(
                 SERVICE_HEALTH_FAIL,
                 message="알림 전송 실패",
                 alert_type=alert_type,
             )
+            return False
 
     def _check_rate(self) -> bool:
         """Return True if another message can be sent within the rate limit."""
