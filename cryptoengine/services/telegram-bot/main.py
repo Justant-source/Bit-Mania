@@ -80,10 +80,8 @@ REDIS_URL = require_env("REDIS_URL")
 ALERT_CHANNELS = [
     "ce:alerts:entry",
     "ce:alerts:exit",
-    "ce:alerts:funding",
     "ce:alerts:kill_switch",
     "ce:alerts:anomaly",
-    "ce:alerts:daily_report",
     "ce:alerts:grafana",   # Grafana AlertManager → dashboard webhook → 여기로 통합
 ]
 
@@ -461,9 +459,6 @@ async def main() -> None:
     app.add_handler(CommandHandler("help", handlers.help_command))
     app.add_handler(CommandHandler("status", handlers.status_command))
     app.add_handler(CommandHandler("emergency_close", handlers.emergency_close_command))
-    app.add_handler(CommandHandler("stop", handlers.stop_command))
-    app.add_handler(CommandHandler("start", handlers.start_command))
-    app.add_handler(CommandHandler("weight", handlers.weight_command))
     app.add_handler(CommandHandler("report", handlers.report_command))
     app.add_handler(CommandHandler("pause_all", handlers.pause_all_command))
     app.add_handler(CommandHandler("resume_all", handlers.resume_all_command))

@@ -1,6 +1,6 @@
 ---
 title: L5 API — Dashboard REST
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # L5 API — Dashboard REST
@@ -13,6 +13,7 @@ Dashboard(`dashboard/src/routes/`) 제공 엔드포인트:
 
 | Method | Path | 설명 |
 |---|---|---|
+| GET | `/api/internal/system` | 헬스. `last_market_tick`은 `미제공` (`ce:market:last_tick` 미사용) |
 | GET | `/api/internal/portfolio` | 포트폴리오 상태 |
 | GET | `/api/internal/positions` | 열린 포지션 |
 | GET | `/api/internal/trades?limit=&strategy=` | 거래 이력 |

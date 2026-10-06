@@ -99,7 +99,7 @@ Kill Switch가 전략에 stop을 보내면 `on_stop()`은 청산 여부를 정�
 
 ### 발동 시 텔레그램 리치 알림 (2026-09-19~)
 
-`_on_kill_switch_trigger`(NONE→STRATEGY/PORTFOLIO/SYSTEM/MANUAL 전이 전부가 거치는 공통 콜백)가 기존 `system:kill_switch`(내부 서비스용) 발행 직후 `ce:alerts:kill_switch`에도 발행한다 — Level·Action·Trigger·Daily/Weekly DD를 보여주는 전용 텔레그램 포맷터가 이제부터 실제로 쓰인다(이전엔 발행자가 없어 `log.critical` → `ce:alerts:anomaly` 경유로만 간접 도달해 상세 없이 표시됐다). Kill Switch 로직 자체(`shared/kill_switch.py`)는 무변경. 상세: `docs/cryptoengine/50-api.md` §1/§2.
+`_on_kill_switch_trigger`(NONE→STRATEGY/PORTFOLIO/SYSTEM/MANUAL 전이 전부가 거치는 공통 콜백)는 `ce:alerts:kill_switch`를 발행하고 `ce:kill_switch:ack_time` 키를 세운다. `system:kill_switch` 채널과 `ce:kill_switch:ack` 채널은 발행하지 않는다. `kill_switch.py`의 채널 상수는 그대로다. Level·Action·Trigger·Daily/Weekly DD 포맷터는 `ce:alerts:kill_switch`로 간다. Kill Switch 로직 자체(`shared/kill_switch.py`)는 무변경. 상세: `docs/cryptoengine/50-api.md` §1/§2.
 
 ---
 

@@ -1,11 +1,13 @@
 ---
 title: L2 Containers — Dashboard 스택
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # L2 Containers — Dashboard 스택
 
 ## 4. Dashboard 스택
+
+`GET /api/internal/system`의 `last_market_tick`은 `미제공`이다. 필드 표는 `docs/dashboard/50-api.md`.
 
 <!-- last-verified: 2026-08-29 -->
 <!-- code-ref: /dashboard/docker-compose.yml -->

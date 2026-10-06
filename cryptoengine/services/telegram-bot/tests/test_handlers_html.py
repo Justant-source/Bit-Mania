@@ -44,8 +44,8 @@ class TestNoMarkdownLeft:
 
     def test_uses_parse_mode_constant(self):
         assert handlers_module.PARSE_MODE == "HTML"
-        # 32개 이상 자리가 이 상수를 재사용해야 한다(하드코딩 "HTML" 문자열 남발 방지)
-        assert HANDLERS_SRC.count("parse_mode=PARSE_MODE") >= 25
+        # /start /stop /weight 제거 이후에도 명령 응답은 이 상수를 재사용한다.
+        assert HANDLERS_SRC.count("parse_mode=PARSE_MODE") >= 20
 
 
 @pytest.fixture
@@ -92,35 +92,6 @@ class TestHelpCommandHtml:
         assert kwargs.get("parse_mode") == "HTML"
         assert _tags_balanced(msg)
         assert "<b>CryptoEngine 봇</b>" in msg
-
-
-class TestStopCommandEscaping:
-    @pytest.mark.asyncio
-    async def test_missing_args_shows_usage_html(self, handlers):
-        update = _make_update()
-        context = MagicMock()
-        context.args = []
-        await handlers.stop_command(update, context)
-
-        args, kwargs = update.effective_message.reply_text.call_args
-        msg = args[0]
-        assert kwargs.get("parse_mode") == "HTML"
-        assert _tags_balanced(msg)
-
-    @pytest.mark.asyncio
-    async def test_strategy_id_is_escaped(self, handlers):
-        update = _make_update()
-        context = MagicMock()
-        context.args = ["<script>evil</script>"]
-        handlers.redis.publish = AsyncMock()
-
-        await handlers.stop_command(update, context)
-
-        args, kwargs = update.effective_message.reply_text.call_args
-        msg = args[0]
-        assert "<script>evil</script>" not in msg  # 이스케이프 없이 그대로 살아남으면 안 됨
-        assert "&lt;script&gt;" in msg
-        assert _tags_balanced(msg)
 
 
 class TestUnauthorizedIgnored:

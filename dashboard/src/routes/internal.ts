@@ -108,9 +108,6 @@ export function createInternalRouter(pool: Pool, redis: Redis): Router {
       const portfolioRaw = await redis.get("ce:portfolio:state");
       const portfolio = portfolioRaw ? JSON.parse(portfolioRaw) : null;
 
-      // Last market data timestamp
-      const lastTick = await redis.get("ce:market:last_tick");
-
       return res.json({
         status: "ok",
         uptime_seconds: Math.floor(process.uptime()),
@@ -118,7 +115,7 @@ export function createInternalRouter(pool: Pool, redis: Redis): Router {
         redis: { connected: true, latency_ms: redisLatencyMs },
         kill_switch_active: killActive === "true",
         portfolio_equity: portfolio?.total_equity ?? null,
-        last_market_tick: lastTick ?? null,
+        last_market_tick: "미제공",
         memory: process.memoryUsage(),
       });
     } catch (err) {

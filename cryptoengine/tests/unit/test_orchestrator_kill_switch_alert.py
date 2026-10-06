@@ -64,6 +64,12 @@ class TestKillSwitchAlertPublish:
         assert p["level_name"] == "PORTFOLIO"
         assert p["trigger_reason"] == "max_daily_drawdown"
 
+        channels = {c.args[0] for c in orchestrator._redis.publish.await_args_list}
+        assert "system:kill_switch" not in channels
+
+        set_keys = [c.args[0] for c in orchestrator._redis.set.await_args_list]
+        assert "ce:kill_switch:ack_time" in set_keys
+
     @pytest.mark.asyncio
     async def test_drawdown_sent_as_percent_not_fraction(self):
         """가장 중요한 회귀 테스트: portfolio_monitor는 0.05(=5%)를 반환하는데
@@ -137,8 +143,8 @@ class TestKillSwitchAlertPublish:
 
     @pytest.mark.asyncio
     async def test_publish_failure_does_not_break_callback(self, orchestrator):
-        """ce:alerts:kill_switch 발행이 실패해도 나머지 콜백(전략 stop, system:kill_switch,
-        ACK 등)은 계속 실행돼야 한다."""
+        """ce:alerts:kill_switch 발행이 실패해도 전략 stop과 ack_time SET은 계속된다.
+        system:kill_switch는 발행하지 않는다."""
 
         async def _publish_side_effect(channel, payload):
             if channel == "ce:alerts:kill_switch":
@@ -150,7 +156,9 @@ class TestKillSwitchAlertPublish:
         # 예외가 밖으로 전파되지 않아야 한다
         await orchestrator._on_kill_switch_trigger(KillLevel.PORTFOLIO, "max_daily_drawdown")
 
-        # 나머지 발행(전략 stop 채널, system:kill_switch)은 여전히 시도됐는지 확인
         channels_called = {c.args[0] for c in orchestrator._redis.publish.await_args_list}
-        assert "system:kill_switch" in channels_called
+        assert "ce:alerts:kill_switch" in channels_called
+        assert "system:kill_switch" not in channels_called
         assert "strategy:command:supertrend-01" in channels_called
+        set_keys = [c.args[0] for c in orchestrator._redis.set.await_args_list]
+        assert "ce:kill_switch:ack_time" in set_keys

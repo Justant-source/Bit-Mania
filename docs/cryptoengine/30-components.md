@@ -141,8 +141,13 @@ flowchart LR
 - 진입·청산 거부, `partially_filled`, 확정 시한(450초) 초과는 같은 봉에서 60초 간격으로 재시도한다. 재주문 수량은 목표 − 실포지션(잔량만). 다음 4시간 봉 신호가 오면 이전 재시도는 취소한다.
 - 사유가 `kill_switch`로 시작하면 재시도하지 않고 알림만 남긴다. 지정가 추격(10초×20) 후 시장가 폴백은 유지한다.
 
+**텔레그램 명령 (2026-10-06).** 위 재시도 규칙과 별개다.
+- `/emergency_close`만 `ce:kill_switch`를 발행하고 `ce:kill_switch:active`를 세운 뒤 `ce:kill_switch:ack_time`을 폴링한다.
+- `/pause_all`, `/resume_all`은 `미지원 — 긴급 중단은 /emergency_close`만 답한다. Redis에 stop/start를 발행하지 않는다.
+- `/start`, `/stop`, `/weight`는 핸들러·등록·도움말에서 제거했다.
+
 **셧다운 모드**:
-- `_SHUTDOWN_NO_LIQUIDATE = frozenset({"service_shutdown"})` — 서비스 재시작 시 청산 없이 Redis 복구
+- `_SHUTDOWN_NO_LIQUIDATE = frozenset({"service_shutdown"})` — 서비스 재시작 시 청산하지 않는다. 복구는 orchestrator `start` 뒤 `on_start`가 거래소 포지션을 맞춘다.
 
 ---
 

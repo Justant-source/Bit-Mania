@@ -27,7 +27,6 @@ from services.orchestrator.weight_manager import WeightManager
 from shared.kill_switch import (
     KillLevel,
     KillSwitch,
-    KILL_SWITCH_ACK_CHANNEL,
     KILL_SWITCH_ACK_TIME_KEY,
     KILL_SWITCH_CHANNEL,
 )
@@ -314,27 +313,8 @@ class StrategyOrchestrator:
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info(KILL_SWITCH_TRIGGERED, message="kill switch halt sent", strategy=strategy_id)
 
-        cooldown_min = self._kill_switch_config.get("cooldown_minutes", 60)
-
-        # Publish kill switch event
-        await self._redis.publish(
-            "system:kill_switch",
-            json.dumps(
-                {
-                    "triggered": True,
-                    "level": level.name,
-                    "reason": reason,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "cooldown_minutes": cooldown_min,
-                }
-            ),
-        )
-
         # Telegram 전용 리치 알림 (ce:alerts:kill_switch → _format_kill_switch_alert).
-        # system:kill_switch는 내부 서비스용이라 telegram-bot이 구독하지 않는다 —
-        # 지금까지는 log.critical(KILL_SWITCH_TRIGGERED)을 통해 간접적으로만
-        # ce:alerts:anomaly에 도달해 Level/Action/DD 없는 밋밋한 일반 포맷터로
-        # 표시됐다(그 경로는 안전망으로 그대로 둔다 — 이 발행이 실패해도 뜨도록).
+        # 발행이 실패해도 전략 stop과 ack_time 기록은 계속된다.
         try:
             await self._redis.publish(
                 "ce:alerts:kill_switch",
@@ -354,16 +334,7 @@ class StrategyOrchestrator:
         except Exception:
             log.exception(KILL_SWITCH_TRIGGERED, message="킬스위치 Telegram 알림 발행 실패")
 
-        # ACK: 텔레그램 봇이 수신 확인을 기다리는 채널에 ACK 발행
-        ack_payload = json.dumps(
-            {
-                "acked_by": "orchestrator",
-                "level": level.name,
-                "reason": reason,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        await self._redis.publish(KILL_SWITCH_ACK_CHANNEL, ack_payload)
+        # 텔레그램 봇은 ce:kill_switch:ack_time 갱신으로 수신을 확인한다.
         await self._redis.set(
             KILL_SWITCH_ACK_TIME_KEY,
             datetime.now(timezone.utc).isoformat(),
@@ -633,16 +604,6 @@ class StrategyOrchestrator:
                         await self._kill_switch.trigger(
                             KillLevel.SYSTEM,
                             f"Dead man's switch: services not responding: {critical_dead}",
-                        )
-
-                        # Telegram 알림 발행
-                        await self._redis.publish(
-                            "telegram:notification",
-                            json.dumps({
-                                "level": "critical",
-                                "message": f"Dead Man's Switch triggered! Services down: {critical_dead}. All positions closed.",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            })
                         )
 
                 elif dead_services:

@@ -1,6 +1,6 @@
 ---
 title: L5 API — Redis Pub/Sub 채널 카탈로그
-last_updated: 2026-09-19
+last_updated: 2026-10-06
 ---
 
 # L5 API — Redis Pub/Sub 채널 카탈로그
@@ -60,7 +60,7 @@ sequenceDiagram
 | 채널 | 상수 정의 | 파일 |
 |---|---|---|
 | `ce:kill_switch` | orchestrator `_listen_external_kill` (구독자 ≥1), 발행: telegram / emergency 스크립트 / KS 콜백 | `cryptoengine/shared/kill_switch.py:32` |
-| `ce:kill_switch:ack` | `KILL_SWITCH_ACK_CHANNEL` | `cryptoengine/shared/kill_switch.py:34` |
+| `ce:kill_switch:ack` | `KILL_SWITCH_ACK_CHANNEL` (상수만 남음. orchestrator는 채널을 발행하지 않고 `ce:kill_switch:ack_time` 키만 SET) | `cryptoengine/shared/kill_switch.py:34` |
 | `ce:alerts:anomaly` | `_ERROR_ALERT_CHANNEL` (ERROR/CRITICAL 로그 전체) + funding_monitor 펀딩 요율 임계값 경고(2026-09-19 재라우팅) | `cryptoengine/shared/logging_config.py:154`, `cryptoengine/services/market-data/funding_monitor.py:_check_alerts` |
 | `ce:alerts:entry` / `ce:alerts:exit` | `TRADE_ALERT_CHANNELS` (2026-09-19 신설 — 이전엔 구독자만 있고 발행자가 없던 죽은 채널) | `cryptoengine/services/execution/engine.py:_publish_trade_alert` |
 | `ce:alerts:kill_switch` | `_on_kill_switch_trigger` (2026-09-19 신설 — 이전엔 `ce:alerts:anomaly` 경유로만 간접 도달, Level/Action/DD 상세 없이 표시됨) | `cryptoengine/services/orchestrator/core.py:_on_kill_switch_trigger` |
@@ -81,10 +81,10 @@ sequenceDiagram
 | `order:result` | execution-engine | supertrend |
 | `order:result:{strategy_id}` | execution-engine | supertrend (전략 전용) |
 | `strategy:command:{strategy_id}` | orchestrator | supertrend (`tick_interval` 60s drain) |
-| `ce:strategy:command` | telegram-bot | orchestrator |
-| `ce:alerts:{type}` | 전 서비스 | telegram-bot |
-| `ce:alerts:daily_report` | ⚠️ **DEAD** — 발행자 없음 (일일 리포트는 telegram-bot 자체 스케줄러가 pub/sub 없이 직접 전송) | — |
-| `ce:alerts:funding` | ⚠️ **미사용** — `_format_funding_alert`/`FundingAccumulator`는 "펀딩 결제(payment)" 스키마 전용으로 예약돼 있으나 그런 이벤트를 발행하는 코드가 아직 없다. 펀딩 요율 임계값 경고는 `ce:alerts:anomaly`로 간다(위 §2 참고) — 다시 이 채널로 되돌리지 말 것 | — |
+| `ce:strategy:command` | 발행 없음 (`/start` `/stop` `/weight` 제거) | 구독 없음 |
+| `ce:alerts:{type}` | 전 서비스 (`entry` `exit` `kill_switch` `anomaly` `grafana`) | telegram-bot |
+| `ce:alerts:daily_report` | 발행 없음. 텔레그램도 구독하지 않음. `/report`는 스케줄러가 직접 전송 | — |
+| `ce:alerts:funding` | 발행 없음. 텔레그램도 구독하지 않음. 펀딩 요율 경고는 `ce:alerts:anomaly` | — |
 | `llm:advisory` | ⚠️ **DEAD** — 발행자 없음 | — |
 
 > `llm:advisory`: `llm-advisor` 서비스와 orchestrator의 `_subscribe_llm_advisory()` 구독 로직이 2026-08-29 전량 삭제되었다. 채널 상수만 코드에 잔존할 수 있으나 발행자가 없어 죽은 채널이다.

@@ -305,159 +305,6 @@ class BotHandlers:
 
         return False
 
-    # ── Command: /stop [strategy] ─────────────────────────────────
-
-    async def stop_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        """Stop a specific strategy."""
-        if not _authorized(update):
-            return
-
-        if not context.args:
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: <code>/stop &lt;strategy_id&gt;</code>\n"
-                "Example: <code>/stop supertrend</code>",
-                parse_mode=PARSE_MODE,
-            )
-            return
-
-        strategy_id = context.args[0]
-
-        try:
-            cmd = json.dumps(
-                {
-                    "strategy_id": strategy_id,
-                    "action": "stop",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            await self.redis.publish("ce:strategy:command", cmd)
-
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u23f9 Stop command sent to strategy <code>{_esc(strategy_id)}</code>.\n"
-                f"<i>Use /status to confirm.</i>",
-                parse_mode=PARSE_MODE,
-            )
-            log.info(TELEGRAM_COMMAND_RECEIVED, message="/stop 명령 전송", strategy_id=strategy_id)
-
-        except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/stop 명령 실패", strategy_id=strategy_id)
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to stop strategy <code>{_esc(strategy_id)}</code>.",
-                parse_mode=PARSE_MODE,
-            )
-
-    # ── Command: /start [strategy] ────────────────────────────────
-
-    async def start_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        """Start a specific strategy."""
-        if not _authorized(update):
-            return
-
-        if not context.args:
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: <code>/start &lt;strategy_id&gt;</code>\n"
-                "Example: <code>/start supertrend</code>",
-                parse_mode=PARSE_MODE,
-            )
-            return
-
-        strategy_id = context.args[0]
-
-        try:
-            # Check if kill switch is active
-            kill_active = await self.redis.get("ce:kill_switch:active")
-            if kill_active == "true":
-                await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\U0001f6a8 Kill switch is active. Clear it before starting strategies.\n"
-                    "Run <code>/emergency_close</code> again or manually clear via Redis.",
-                    parse_mode=PARSE_MODE,
-                )
-                return
-
-            cmd = json.dumps(
-                {
-                    "strategy_id": strategy_id,
-                    "action": "start",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            await self.redis.publish("ce:strategy:command", cmd)
-
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u25b6\ufe0f Start command sent to strategy <code>{_esc(strategy_id)}</code>.\n"
-                f"<i>Use /status to confirm.</i>",
-                parse_mode=PARSE_MODE,
-            )
-            log.info(TELEGRAM_COMMAND_RECEIVED, message="/start 명령 전송", strategy_id=strategy_id)
-
-        except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/start 명령 실패", strategy_id=strategy_id)
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to start strategy <code>{_esc(strategy_id)}</code>.",
-                parse_mode=PARSE_MODE,
-            )
-
-    # ── Command: /weight [strategy] [%] ───────────────────────────
-
-    async def weight_command(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        """Manually adjust strategy weight allocation."""
-        if not _authorized(update):
-            return
-
-        if not context.args or len(context.args) < 2:
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "Usage: <code>/weight &lt;strategy_id&gt; &lt;percentage&gt;</code>\n"
-                "Example: <code>/weight supertrend 100</code>",
-                parse_mode=PARSE_MODE,
-            )
-            return
-
-        strategy_id = context.args[0]
-        try:
-            weight_pct = float(context.args[1])
-        except ValueError:
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u274c Invalid percentage. Must be a number (e.g., 30)."
-            )
-            return
-
-        if not (0.0 <= weight_pct <= 100.0):
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u274c Weight must be between 0 and 100."
-            )
-            return
-
-        try:
-            cmd = json.dumps(
-                {
-                    "strategy_id": strategy_id,
-                    "action": "reconfigure",
-                    "params": {"weight_pct": weight_pct},
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            await self.redis.publish("ce:strategy:command", cmd)
-
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u2696\ufe0f Weight for <code>{_esc(strategy_id)}</code> set to <code>{weight_pct}%</code>.\n"
-                f"<i>Orchestrator will apply on next rebalance cycle.</i>",
-                parse_mode=PARSE_MODE,
-            )
-            log.info(TELEGRAM_COMMAND_RECEIVED, message="/weight 명령 전송", strategy_id=strategy_id, weight_pct=weight_pct)
-
-        except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/weight 명령 실패", strategy_id=strategy_id)
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                f"\u274c Failed to set weight for <code>{_esc(strategy_id)}</code>.",
-                parse_mode=PARSE_MODE,
-            )
-
     # ── Command: /report ──────────────────────────────────────────
 
     async def report_command(
@@ -569,15 +416,14 @@ class BotHandlers:
                 r["event"]: r["count"] for r in entry_rejections
             } if entry_rejections else {}
 
-            # Track A: Current funding rate vs threshold (from Redis)
-            funding_data = await self.redis.get("market:funding:bybit:BTCUSDT")
+            # Current funding rate from the market-data hash cache.
+            rate_raw = await self.redis.hget("cache:funding:bybit:BTCUSDT", "rate")
             current_funding_rate = 0.0
-            if funding_data:
+            if rate_raw not in (None, ""):
                 try:
-                    funding_info = json.loads(funding_data)
-                    current_funding_rate = float(funding_info.get("funding_rate", 0.0))
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                    current_funding_rate = float(rate_raw)
+                except (TypeError, ValueError):
+                    current_funding_rate = 0.0
 
         # T-4: compute Sharpe and max DD for the report period
         metrics = await self._fetch_30d_metrics()
@@ -611,72 +457,33 @@ class BotHandlers:
 
     # ── Command: /pause_all ───────────────────────────────────────
 
-    _ALL_STRATEGY_CHANNELS = [
-        "strategy:command:supertrend-01",
-    ]
+    _UNSUPPORTED_HALT_REPLY = "미지원 — 긴급 중단은 /emergency_close"
 
     async def pause_all_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Stop all strategies (soft pause, positions retained)."""
+        """Soft pause is unsupported. Emergency close is the halt path."""
         if not _authorized(update):
             return
 
-        try:
-            cmd = json.dumps({"action": "stop", "reason": "telegram_pause"})
-            for channel in self._ALL_STRATEGY_CHANNELS:
-                await self.redis.publish(channel, cmd)
-
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u23f8 <b>All strategies paused.</b>\n"
-                "Stop command sent to: <code>supertrend-01</code>.\n"
-                "<i>Positions are retained. Use /resume_all to restart.</i>",
-                parse_mode=PARSE_MODE,
-            )
-            log.warning(TELEGRAM_COMMAND_RECEIVED, message="/pause_all 명령 전송")
-
-        except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/pause_all 명령 실패")
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u274c Failed to pause strategies. Check system logs."
-            )
+        await update.effective_message.reply_text(  # type: ignore[union-attr]
+            self._UNSUPPORTED_HALT_REPLY,
+            parse_mode=PARSE_MODE,
+        )
 
     # ── Command: /resume_all ──────────────────────────────────────
 
     async def resume_all_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        """Resume all strategies (orchestrator will re-issue capital allocation)."""
+        """Soft resume is unsupported. Emergency close is the halt path."""
         if not _authorized(update):
             return
 
-        try:
-            # Check if kill switch is active before resuming
-            kill_active = await self.redis.get("ce:kill_switch:active")
-            if kill_active == "true":
-                await update.effective_message.reply_text(  # type: ignore[union-attr]
-                    "\U0001f6a8 Kill switch is active. Clear it before resuming strategies.",
-                    parse_mode=PARSE_MODE,
-                )
-                return
-
-            cmd = json.dumps({"action": "start", "capital": 0})
-            for channel in self._ALL_STRATEGY_CHANNELS:
-                await self.redis.publish(channel, cmd)
-
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u25b6\ufe0f <b>All strategies resumed.</b>\n"
-                "Start command sent to: <code>supertrend-01</code>.\n"
-                "<i>Orchestrator will re-issue capital allocation on next cycle.</i>",
-                parse_mode=PARSE_MODE,
-            )
-            log.info(TELEGRAM_COMMAND_RECEIVED, message="/resume_all 명령 전송")
-
-        except Exception:
-            log.exception(SERVICE_HEALTH_FAIL, message="/resume_all 명령 실패")
-            await update.effective_message.reply_text(  # type: ignore[union-attr]
-                "\u274c Failed to resume strategies. Check system logs."
-            )
+        await update.effective_message.reply_text(  # type: ignore[union-attr]
+            self._UNSUPPORTED_HALT_REPLY,
+            parse_mode=PARSE_MODE,
+        )
 
     # ── Command: /help ───────────────────────────────────────────
 
@@ -697,17 +504,12 @@ class BotHandlers:
                 InlineKeyboardButton("📂 Results", callback_data="cmd:results"),
             ],
             [
-                InlineKeyboardButton("⏸ Pause All", callback_data="cmd:pause_all"),
-                InlineKeyboardButton("▶️ Resume All", callback_data="cmd:resume_all"),
-            ],
-            [
                 InlineKeyboardButton("🚨 Emergency Close", callback_data="cmd:emergency_close"),
             ],
         ]
         msg = (
             "<b>CryptoEngine 봇</b>\n\n"
             "버튼을 탭하거나 직접 입력하세요.\n\n"
-            "• <code>/start &lt;id&gt;</code> <code>/stop &lt;id&gt;</code> <code>/weight &lt;id&gt; &lt;%&gt;</code> — 전략 개별 제어\n"
             "• <code>.md</code> 파일 전송 → <code>.request/</code> 저장\n"
             "• <code>/results</code> 목록에서 탭 → 리포트 다운로드"
         )
