@@ -42,21 +42,6 @@ exchange:
     max_reconnect_attempts: 50
     # Delay between reconnection attempts (seconds)
     reconnect_delay_seconds: 5
-    # Subscriptions
-    public_topics:
-      - orderbook.50.BTCUSDT
-      - tickers.BTCUSDT
-      - kline.1.BTCUSDT
-      - kline.5.BTCUSDT
-      - kline.15.BTCUSDT
-      - kline.60.BTCUSDT
-      - kline.240.BTCUSDT
-      - kline.D.BTCUSDT
-    private_topics:
-      - position
-      - execution
-      - order
-      - wallet
 
   # ── Fee Structure ──────────────────────────────────────────
   fees:

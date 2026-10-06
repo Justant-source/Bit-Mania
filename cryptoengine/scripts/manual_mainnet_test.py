@@ -31,6 +31,7 @@ import math
 import os
 import sys
 import time
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 
@@ -154,15 +155,29 @@ def _print_manual_close(qty: float) -> None:
 # ────────────────────────────────────────────────────────────────────
 
 async def _btc_price(client: aioredis.Redis) -> float | None:
-    """cache:price:bybit:BTCUSDT — 순수 float 문자열."""
-    raw = await client.get(f"cache:price:{EXCHANGE}:BTCUSDT")
-    if not raw:
-        return None
-    try:
-        p = float(raw)
-        return p if p > 0 else None
-    except (ValueError, TypeError):
-        return None
+    """Bybit linear REST ticker lastPrice for BTCUSDT."""
+    del client
+
+    def _fetch() -> float | None:
+        url = "https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT"
+        req = urllib.request.Request(url)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception:
+            return None
+        if data.get("retCode") != 0:
+            return None
+        tickers = (data.get("result") or {}).get("list") or []
+        if not tickers:
+            return None
+        try:
+            price = float(tickers[0].get("lastPrice"))
+        except (TypeError, ValueError):
+            return None
+        return price if price > 0 else None
+
+    return await asyncio.to_thread(_fetch)
 
 
 async def _kill_switch_active(client: aioredis.Redis) -> bool:
@@ -308,8 +323,8 @@ async def run(args: argparse.Namespace) -> int:
 
     btc_price = await _btc_price(client)
     if btc_price is None:
-        _fail("BTC 현재가 조회 실패 (cache:ticker:bybit:BTC/USDT:USDT). market-data 서비스 확인.")
-        _info("docker compose logs --tail=20 market-data")
+        _fail("BTC 현재가 조회 실패 (Bybit REST /v5/market/tickers lastPrice).")
+        _info("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT")
         return 1
     _ok(f"BTC 현재가: ${btc_price:,.2f}")
 

@@ -1,9 +1,8 @@
-"""Funding Rate Monitor — tracks funding rates and alerts on extremes.
+"""Funding Rate Monitor — tracks Bybit funding rates and alerts on extremes.
 
 Responsibilities:
-  - Track Bybit predicted + confirmed 8h funding rate (via WS ticker)
-  - Multi-exchange comparison via CoinGlass REST API
-  - Publish to Redis channel ``market:funding:{exchange}:{symbol}``
+  - Poll Bybit REST for the current funding rate
+  - Cache the rate and persist funding_rate_history
   - Alert when funding rate exceeds configurable thresholds
 """
 
@@ -23,8 +22,6 @@ from shared.log_events import *
 
 log = structlog.get_logger(__name__)
 
-COINGLASS_BASE_URL = "https://open-api.coinglass.com/public/v2"
-
 # Default thresholds (annualised basis points)
 FUNDING_WARN_THRESHOLD = 0.0005     # 0.05% per 8h  (~21.9% APR)
 FUNDING_CRITICAL_THRESHOLD = 0.001  # 0.10% per 8h  (~43.8% APR)
@@ -33,7 +30,6 @@ BYBIT_REST_MAINNET = "https://api.bybit.com"
 BYBIT_REST_TESTNET = "https://api-testnet.bybit.com"
 
 POLL_INTERVAL_BYBIT = 60         # seconds — Bybit REST funding
-POLL_INTERVAL_COINGLASS = 300    # seconds — multi-exchange comparison
 
 # Gap recovery: Bybit perpetuals fund every 8 hours; backfill cap on startup
 FUNDING_INTERVAL_HOURS = 8
@@ -41,7 +37,7 @@ BACKFILL_MAX_DAYS = 3  # cap at 3 days to avoid excessive API calls on long outa
 
 
 class FundingMonitor:
-    """Monitors funding rates from Bybit and CoinGlass."""
+    """Monitors the Bybit funding rate via REST."""
 
     def __init__(
         self,
@@ -83,15 +79,6 @@ class FundingMonitor:
         tasks = [
             asyncio.create_task(self._poll_loop(shutdown, self._poll_bybit_funding, POLL_INTERVAL_BYBIT), name="bybit_funding"),
         ]
-        if self.coinglass_api_key:
-            tasks.append(
-                asyncio.create_task(
-                    self._poll_loop(shutdown, self._poll_coinglass, POLL_INTERVAL_COINGLASS),
-                    name="coinglass_funding",
-                )
-            )
-        else:
-            log.info(SERVICE_STARTED, message="CoinGlass API key missing, multi-exchange funding comparison disabled")
 
         try:
             await asyncio.gather(*tasks)
@@ -288,8 +275,6 @@ class FundingMonitor:
             "collected_at": datetime.now(tz=timezone.utc).isoformat(),
         }
 
-        channel = f"market:funding:{self.exchange}:{self.symbol}"
-        await self.redis.publish(channel, json.dumps(funding_msg))
         await self.redis.hset(f"cache:funding:{self.exchange}:{self.symbol}", mapping={
             "rate": str(rate),
             "next_funding_time": next_funding_time.isoformat(),
@@ -318,78 +303,6 @@ class FundingMonitor:
         await self._check_alerts(rate, funding_msg)
 
         log.debug(MARKET_FUNDING_RATE, message="Bybit funding polled", rate=rate)
-
-    # ------------------------------------------------------------------
-    # CoinGlass multi-exchange
-    # ------------------------------------------------------------------
-
-    async def _poll_coinglass(self) -> None:
-        """Fetch funding rates across exchanges from CoinGlass."""
-        url = f"{COINGLASS_BASE_URL}/funding"
-        headers = {"coinglassSecret": self.coinglass_api_key}
-        params = {"symbol": "BTC", "time_type": "all"}
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as resp:
-                if resp.status == 429:
-                    log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass rate limited")
-                    return
-                data = await resp.json()
-
-        if data.get("code") != "0" and data.get("success") is not True:
-            log.warning(SERVICE_HEALTH_FAIL, message="CoinGlass API error", response=data)
-            return
-
-        exchange_rates: dict[str, float] = {}
-        for item in data.get("data", []):
-            ex_name = item.get("exchangeName", "").lower()
-            fr = item.get("uMarginList", [{}])
-            if fr and len(fr) > 0:
-                rate_val = fr[0].get("rate")
-                if rate_val is not None:
-                    exchange_rates[ex_name] = float(rate_val)
-
-        if not exchange_rates:
-            return
-
-        # Publish per-exchange rates
-        for ex, rate in exchange_rates.items():
-            channel = f"market:funding:{ex}:{self.symbol}"
-            msg = {
-                "exchange": ex,
-                "symbol": self.symbol,
-                "rate": rate,
-                "source": "coinglass",
-                "collected_at": datetime.now(tz=timezone.utc).isoformat(),
-            }
-            await self.redis.publish(channel, json.dumps(msg))
-
-        # Publish aggregated comparison
-        agg_channel = "market:funding:comparison"
-        agg_msg = {
-            "symbol": self.symbol,
-            "rates": exchange_rates,
-            "spread": max(exchange_rates.values()) - min(exchange_rates.values()) if len(exchange_rates) > 1 else 0.0,
-            "collected_at": datetime.now(tz=timezone.utc).isoformat(),
-        }
-        await self.redis.publish(agg_channel, json.dumps(agg_msg))
-        await self.redis.set(
-            f"cache:funding:comparison:{self.symbol}",
-            json.dumps(agg_msg),
-            ex=600,
-        )
-
-        log.debug(
-            MARKET_FUNDING_RATE,
-            message="CoinGlass funding polled",
-            exchanges=len(exchange_rates),
-            spread=agg_msg["spread"],
-        )
 
     # ------------------------------------------------------------------
     # Alerting

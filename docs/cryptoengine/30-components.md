@@ -160,10 +160,10 @@ flowchart LR
 flowchart LR
   subgraph md["market-data"]
     main["main.py"]
-    col["MarketDataCollector<br/>collector.py<br/>BTCUSDT 4h only"]
-    fm["FundingMonitor<br/>funding_monitor.py"]
+    col["MarketDataCollector<br/>collector.py<br/>WS kline.240.BTCUSDT only"]
+    fm["FundingMonitor<br/>funding REST · cache · PG · anomaly"]
   end
-  bybit["Bybit WS/REST"]
+  bybit["Bybit WS kline.240 · REST funding"]
   redis[("Redis Pub/Sub")]
   pg[("PostgreSQL<br/>ohlcv_history · funding_rate_history")]
   bybit --> col
@@ -180,10 +180,12 @@ flowchart LR
 | 모듈 | 파일 | 핵심 책임 |
 |---|---|---|
 | entry | services/market-data/main.py | Redis/PG 풀, collector + funding_monitor 기동 |
-| MarketDataCollector | services/market-data/collector.py | Bybit **BTCUSDT 4h** WS/REST 수집 · Redis 발행 · PG persist |
-| FundingMonitor | services/market-data/funding_monitor.py | 펀딩비 추적 |
+| MarketDataCollector | services/market-data/collector.py | Bybit **BTCUSDT 4h** WS `kline.240` · `market:ohlcv:bybit:BTCUSDT:4h` · `cache:ohlcv` · `ohlcv_history`. orderbook · trades · tickers · OI · ratio · liquidations 없음 |
+| FundingMonitor | services/market-data/funding_monitor.py | 펀딩 REST → `cache:funding:bybit:BTCUSDT` · `funding_rate_history`. 요율 임계는 `ce:alerts:anomaly`. `market:funding` 채널은 발행하지 않음 |
 
 **제거됨 (D2, 2026-08-29)**: `quarterly_lifecycle.py` 및 분기물 테이블 write. collector는 quarterly 심볼을 구독하지 않는다.
+
+**수집 범위 (2026-10-06)**: 수집기는 4h kline과 펀딩 REST만 돈다. `config/exchanges/bybit.yaml`의 `public_topics`·`private_topics`는 수집기를 구동하지 않는다.
 
 ---
 

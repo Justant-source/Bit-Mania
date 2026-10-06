@@ -30,7 +30,7 @@ flowchart TB
     end
 
     subgraph core["Core + Strategy Layer"]
-      market_data["<b>market-data</b><br/>Bybit WS · OHLCV<br/>4h candles<br/>Redis Pub/Sub broadcast"]
+      market_data["<b>market-data</b><br/>Bybit WS kline.240 + funding REST<br/>BTCUSDT 4h<br/>ohlcv channel · funding cache"]
       orchestrator["<b>strategy-orchestrator</b><br/>Kill Switch logic<br/>Capital allocation<br/>Signal router"]
       execution["<b>execution-engine</b><br/>Order execution (Bybit)<br/>Position tracking<br/>Risk gates"]
       supertrend["<b>supertrend</b><br/>STRATEGY_ID=supertrend-01<br/>4h Long-Only · 3x<br/>combo #7908"]
@@ -62,7 +62,7 @@ flowchart TB
   supertrend -->|"publish signals"| redis
 
   execution -->|"REST · WS<br/>BYBIT_TESTNET=false"| external_bybit
-  market_data -->|"WS"| external_bybit
+  market_data -->|"WS kline.240 · REST funding"| external_bybit
 
   telegram -->|"send alerts"| external_tg
 
@@ -80,7 +80,7 @@ flowchart TB
 - 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 Binance/OKX 수집분)은 7일 후 삭제.
 
 **Core + Strategy Layer** — 비즈니스 로직:
-- `market-data`: Bybit 메인넷 **BTCUSDT perpetual 4h OHLCV만** 수집, Redis Pub/Sub으로 broadcast. `quarterly_lifecycle.py`와 분기물 구독·적재는 2026-08-29 D2에서 삭제됨. 수집 심볼은 `SYMBOL` env(기본 BTCUSDT) 단일.
+- `market-data`: Bybit 메인넷 **BTCUSDT perpetual 4h kline**과 **펀딩 REST**만 수집한다. WS 토픽은 `kline.240.BTCUSDT`뿐이다. 확정·미확정 틱은 `market:ohlcv:bybit:BTCUSDT:4h`, 진행 중 봉은 `cache:ohlcv:bybit:BTCUSDT:4h`, 확정 봉은 `ohlcv_history`다. 펀딩 REST는 `cache:funding:bybit:BTCUSDT`와 `funding_rate_history`에 쓰고, 요율 경고는 `ce:alerts:anomaly`다. `market:funding` 채널은 발행하지 않는다. orderbook, public trade, tickers, open interest, long/short ratio, liquidations는 구독하지 않는다. `quarterly_lifecycle.py`와 분기물 구독·적재는 2026-08-29 D2에서 삭제됨. 수집 심볼은 `SYMBOL` env(기본 BTCUSDT) 단일. `config/exchanges/bybit.yaml`의 `public_topics`·`private_topics`는 수집기를 구동하지 않는다.
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)

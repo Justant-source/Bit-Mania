@@ -73,10 +73,9 @@ sequenceDiagram
 
 | 패턴 | 발행자 | 구독자 |
 |---|---|---|
-| `market:ohlcv:{exchange}:{symbol}:{tf}` | market-data | supertrend, orchestrator |
-| `market:funding:{exchange}:{symbol}` | market-data, funding_monitor | orchestrator |
-| `market:open_interest:...` | market-data | orchestrator |
-| `market:liquidations:...` | market-data | orchestrator |
+| `market:ohlcv:bybit:BTCUSDT:4h` | market-data (`kline.240`만) | supertrend |
+| `market:funding:*` | 발행 없음 (캐시 `cache:funding:bybit:BTCUSDT`와 `funding_rate_history`만) | — |
+| `market:open_interest:*` / `market:long_short_ratio:*` / `market:liquidations:*` / `market:orderbook:*` / `market:trades:*` / `market:ticker:*` | 발행 없음 | — |
 | `order:request` | supertrend | execution-engine |
 | `order:result` | execution-engine | supertrend |
 | `order:result:{strategy_id}` | execution-engine | supertrend (전략 전용) |
