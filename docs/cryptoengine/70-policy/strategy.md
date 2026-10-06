@@ -5,6 +5,8 @@ last_updated: 2026-10-06
 
 # Supertrend 전략 SSOT · 백테스트 방법론
 
+> 2026-10-06: supertrend 이미지는 TA-Lib을 설치하지 않는다. 라이브 지표는 `indicators.py`의 numpy/pandas다. 상태 전이와 combo #7908은 그대로다.
+
 ## §1. 전략 개요
 
 | 항목 | 값 |

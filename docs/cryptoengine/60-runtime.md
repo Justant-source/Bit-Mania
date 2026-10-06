@@ -6,6 +6,8 @@ last_updated: 2026-10-06
 # L6 Runtime — 상태 전이 · service_shutdown 복구
 
 > 주문 상태, Kill Switch 레벨, 서비스 복구 흐름의 완전한 상태 다이어그램 및 전이 규칙.
+>
+> 2026-10-06: supertrend 이미지에서 TA-Lib을 뺐다. 지표는 numpy/pandas. 아래 상태 전이는 그대로다.
 
 ---
 

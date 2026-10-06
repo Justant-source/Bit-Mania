@@ -1,6 +1,6 @@
 ---
 title: L2 Containers — CryptoEngine 운영 스택
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # L2 Containers — CryptoEngine 운영 스택
@@ -84,6 +84,8 @@ flowchart TB
 - `strategy-orchestrator`: Kill Switch 4단계, 자본 배분, 신호 라우팅
 - `execution-engine`: 주문 실행 (Bybit REST), 포지션 추적, 위험 게이트
 - `supertrend`: Supertrend 4h 전략 (combo #7908, Long-only, 3x)
+
+이미지 의존성 (2026-10-06): market-data 이미지는 TA-Lib, pandas, scikit-learn, ccxt, numpy, orjson, pydantic을 설치하지 않는다. orchestrator 이미지는 lightgbm, scikit-learn, pandas를 설치하지 않는다. supertrend 이미지는 TA-Lib을 설치하지 않으며 지표는 numpy/pandas다.
 
 > **Track-C(멀티거래소) 폐지 (2026-08-29)**: `market-data-binance`/`market-data-okx` 서비스와 관련 소스(`binance_collector.py`, `okx_collector.py`, `shared/exchange/binance.py`, `config/exchanges/{binance,okx}.yaml`)는 전량 삭제되었다. 운영 전략이 읽지 않던 1m OHLCV 보조 수집기였다. Bybit 단독 운영. 복구 지점: git 태그 `legacy-archive-2026-08-29`. 상세: `docs/shared/90-adr/0009-legacy-strategy-retirement.md`
 
