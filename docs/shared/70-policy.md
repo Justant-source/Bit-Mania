@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — 운영 Runbook · 배포 · 모니터링
-last_updated: 2026-08-31
+last_updated: 2026-10-06
 ---
 
 # 운영 Runbook · 배포 · 모니터링
@@ -268,6 +268,7 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
 python3 backtest/scripts/data/fetch_binance_vision_1m_to_pg.py --start <직전실행일+1> --end <오늘>
 #   ↑ 먼저 실행 — jesse_db.ohlcv_4h를 Binance Vision spot 소스로 채워둔다 (트립와이어와 동일 소스 유지 필수)
 python3 backtest/scripts/analysis/tripwire_check.py extend-csv   # jesse_db.ohlcv_4h → 리플레이 CSV 연장
+#   cryptoengine-backtest-postgres는 월간 extend-csv 직전에만 기동한다 (docker exec cryptoengine-backtest-postgres).
 python3 backtest/scripts/analysis/tripwire_check.py check        # T1(월간 워닝)/T2(블록 게이트) 판정, log.md 기록
 #   ⚠️ 소스는 반드시 jesse_db(Binance Spot)여야 한다. 라이브 ohlcv_history(Bybit 무기한)를
 #      섞으면 2026-08-31에 발견됐던 드리프트가 재발한다 — 상세: backtest/results/2026-08-31/csv_ohlcv_drift.md
@@ -337,7 +338,7 @@ docker compose logs --tail=20 supertrend | grep -E "복구|recovered|restored"
 
 | 알림 이벤트 | 의미 | 대응 |
 |------------|------|------|
-| `주문 거부 — 전략 신호 미체결` (`order_rejected`) | Safety 차단·실행 실패로 주문 거부. reason 필드에 사유 | reason 확인. exit이면 60초 후 1회 자동 재시도됨 — 재시도도 거부되면 `/positions` 확인 후 수동 청산 판단 |
+| `주문 거부 — 전략 신호 미체결` (`order_rejected`) | Safety 차단·실행 실패로 주문 거부. reason 필드에 사유 | 거부 Telegram마다 reason·symbol·side·qty·request_id를 포함한다(중복 제거는 request_id 단위). 진입·청산은 같은 봉에서 60초 간격으로 잔량(목표 − 실포지션)만 재시도하며, 체결되거나 다음 4시간 봉이 오면 멈춘다. 사유가 `kill_switch`로 시작하면 재시도하지 않는다 — `/positions` 확인 후 수동 판단 |
 | `position_state_divergence` | 전략 믿음 ≠ 거래소 실포지션 — 자동으로 실제값으로 교정됨 | 직전 거부/유실 이력 확인 (`orders` 테이블). 교정 후 다음 봉부터 정상 동작 |
 | `pending_order_unresolved` | 주문 결과를 450초 내 확인 못 함 — 재동기화 수행됨 | execution-engine 로그 확인, 거래소 주문 내역 대조 |
 | `bar_feed_stall` / `bar_gap_detected` | 4h 봉 마감 메시지 누락 — REST 백필 자동 수행 | market-data 서비스 상태 확인 |

@@ -8,7 +8,7 @@ Data: 4h candles from Redis channel
   - 진실은 거래소다. 매 봉 신호 판단 전 get_position으로 내부 상태를 교정한다.
   - 주문 제출은 낙관적 상태 갱신 없이 pending으로 추적하고,
     order:result 수신 또는 포지션 폴링으로만 확정한다.
-  - exit 거부 시 60초 후 1회 재시도, entry 거부는 재시도하지 않는다 (스킵이 안전).
+  - entry and exit rejections/partial fills/pending-deadline are retried on the SAME bar every 60s until the position matches the target or the next 4h bar arrives. Kill Switch reasons (string startswith "kill_switch") do not retry. Remainder only, never resubmit the full size on top of a partial.
   - 봉 마감 메시지 누락은 워치독이 REST 백필로 복구한다.
 """
 
@@ -64,7 +64,9 @@ _4H_MS = 14_400_000  # Redis ts is in milliseconds
 # 주문 확정 추적 (execution-engine ORDER_TIMEOUT=420s와 정렬)
 PENDING_DEADLINE_S = 450.0   # 결과/체결 확인 대기 한도
 PENDING_POLL_S = 20.0        # pending 중 거래소 포지션 백스톱 폴링 주기
-EXIT_RETRY_DELAY_S = 60.0    # exit 거부 시 재시도 대기
+EXIT_RETRY_DELAY_S = 60.0    # same-bar retry delay for both entry and exit
+MIN_ORDER_QTY = 0.001
+MIN_NOTIONAL_USD = 65.0
 BAR_GRACE_MS = 600_000       # 봉 마감 후 10분까지 미수신이면 피드 장애로 간주
 BALANCE_CACHE_KEY = "cache:balance:bybit"  # execution-engine이 60초마다 갱신
 
@@ -106,12 +108,15 @@ class SupertrendLiveStrategy(BaseStrategy):
 
         # Signal latch: set by Redis subscription, consumed by tick
         self._new_bar = False
+        # 같은 봉 재시도 세대. 새 봉을 소비할 때마다 증가해 이전 봉의 재시도를 무효화한다.
+        self._signal_generation = 0
+        self._retry_task: asyncio.Task | None = None
 
         # Background subscription tasks
         self._sub_task: asyncio.Task | None = None
         self._result_sub_task: asyncio.Task | None = None
 
-        # 미확정 주문 추적: {request_id, action, qty, bar_ts, ref_price,
+        # 미확정 주문 추적: {request_id, action, qty, target_qty, bar_ts, ref_price,
         #   exit_reason, atr_triggered, retried, deadline}
         # pending 중에는 tick이 새 주문을 내지 않고, 확정(결과 수신/포지션 폴링)
         # 시에만 내부 포지션 상태를 갱신한다.
@@ -338,11 +343,13 @@ class SupertrendLiveStrategy(BaseStrategy):
         if not self._new_bar:
             return
 
-        # 직전 주문이 아직 미확정이면 래치를 유지한 채 보류 — 확정/시한 초과 후
-        # 다음 틱에서 처리한다 (pending은 PENDING_DEADLINE_S 내에 반드시 해소됨)
+        # 새 봉이면 직전 봉의 재시도를 끊는다. pending이 남아 있으면 래치를
+        # 소비하지 않고 보류 — 확정/시한 초과 후 다음 틱에서 처리한다.
+        self._cancel_same_bar_retry()
         if self._pending_order is not None:
             return
 
+        self._signal_generation += 1
         self._new_bar = False
 
         # Need minimum data for indicators
@@ -523,26 +530,36 @@ class SupertrendLiveStrategy(BaseStrategy):
 
     # ── Order Submission ───────────────────────────────────────────────
 
-    async def _enter_long(self, price: float, effective_capital: float | None = None) -> None:
+    async def _enter_long(
+        self,
+        price: float,
+        effective_capital: float | None = None,
+        *,
+        quantity: float | None = None,
+        target_qty: float | None = None,
+    ) -> None:
         """Submit a long entry order.
 
         상태는 낙관적으로 갱신하지 않는다 — pending으로 추적하고 체결 확정
         (order:result 수신 또는 포지션 폴링) 시에만 반영한다.
+        quantity가 주어지면 그 수량(잔량)만 제출하고 자본으로 다시 사이징하지 않는다.
         """
         # Position sizing: 95% of capital * leverage / price
         # effective_capital = min(할당자본, 실시간 equity) — implied leverage
         # 한도(3.0x) 사전 차단 방지 (사이징 2.85x는 한도 대비 여유 5%뿐)
         capital = effective_capital if effective_capital and effective_capital > 0 else self.allocated_capital
-        qty = (capital * 0.95 * self.leverage) / price
+        if quantity is None:
+            qty = (capital * 0.95 * self.leverage) / price
+        else:
+            qty = quantity
 
         # Minimum order check (Bybit ~$65 notional, 0.001 BTC min)
-        min_notional = 65.0
-        if qty * price < min_notional:
+        if qty * price < MIN_NOTIONAL_USD:
             self._log.warning(
                 "entry_order_too_small",
                 quantity=qty,
                 notional=qty * price,
-                min_notional=min_notional,
+                min_notional=MIN_NOTIONAL_USD,
             )
             return
 
@@ -569,7 +586,12 @@ class SupertrendLiveStrategy(BaseStrategy):
             return
 
         self._set_pending(
-            order.request_id, "enter", qty=qty, bar_ts=self._last_bar_ts, ref_price=price
+            order.request_id,
+            "enter",
+            qty=qty,
+            bar_ts=self._last_bar_ts,
+            ref_price=price,
+            target_qty=qty if target_qty is None else target_qty,
         )
         self._log.info(
             "entry_order_submitted",
@@ -623,6 +645,7 @@ class SupertrendLiveStrategy(BaseStrategy):
             exit_reason=reason,
             atr_triggered=atr_triggered,
             retried=is_retry,
+            target_qty=0.0,
         )
         self._log.info(
             "exit_order_submitted",
@@ -646,12 +669,14 @@ class SupertrendLiveStrategy(BaseStrategy):
         exit_reason: str | None = None,
         atr_triggered: bool = False,
         retried: bool = False,
+        target_qty: float | None = None,
     ) -> None:
         """주문을 미확정 상태로 추적하고 백스톱 폴링을 기동한다."""
         self._pending_order = {
             "request_id": request_id,
             "action": action,
             "qty": qty,
+            "target_qty": qty if target_qty is None else target_qty,
             "bar_ts": bar_ts,
             "ref_price": ref_price,
             "exit_reason": exit_reason,
@@ -716,74 +741,161 @@ class SupertrendLiveStrategy(BaseStrategy):
         status = result.get("status")
         if status == "filled":
             if pending["action"] == "enter":
+                stored_target = pending.get("target_qty")
+                target_qty = float(pending["qty"] if stored_target is None else stored_target)
+                ref_price = pending.get("ref_price")
+                bar_ts = pending.get("bar_ts")
                 self._confirm_entry(
                     float(result.get("filled_qty") or 0.0),
                     result.get("filled_price"),
                     source="order_result",
                 )
+                price = float(ref_price or 0)
+                if not self._remainder_is_dust(target_qty - self._position_qty, price):
+                    self._schedule_same_bar_retry(
+                        action="enter",
+                        bar_ts=bar_ts,
+                        target_qty=target_qty,
+                        ref_price=ref_price,
+                        exit_reason=None,
+                        atr_triggered=False,
+                    )
             else:
                 self._confirm_exit(source="order_result")
             return
 
         if status in ("rejected", "partially_filled"):
-            # rejected: 미체결. partially_filled: 시장가 폴백 실패 후 부분만 체결.
-            # 어느 쪽이든 거래소 진실로 재동기화하고, exit이면 1회 재시도한다.
+            # rejected: 미체결. partially_filled: 부분만 체결.
+            # 거래소 진실로 재동기화한 뒤, Kill Switch가 아니면 같은 봉에서 잔량만 재시도한다.
             action = pending["action"]
-            was_retried = bool(pending.get("retried"))
-            exit_reason = pending.get("exit_reason") or "exit"
+            reason = result.get("reason", "")
+            qty = pending.get("qty")
+            bar_ts = pending.get("bar_ts")
+            stored_target = pending.get("target_qty")
+            target_qty = float(pending["qty"] if stored_target is None else stored_target)
+            ref_price = pending.get("ref_price")
+            exit_reason = pending.get("exit_reason")
             atr_triggered = bool(pending.get("atr_triggered"))
             self._pending_order = None
 
             self._log.error(
                 "order_not_filled",
-                message="주문 미체결 통보 수신 — 거래소 기준 재동기화",
+                message=(
+                    "주문 미체결 통보 수신 — 거래소 기준 재동기화 "
+                    f"reason={reason} request_id={request_id} action={action} "
+                    f"status={status} qty={qty}"
+                ),
                 request_id=request_id,
                 action=action,
                 status=status,
-                reason=result.get("reason", ""),
+                reason=reason,
+                qty=qty,
             )
             await self._sync_position_from_exchange("post_reject")
 
-            if action == "exit" and self._has_position and not was_retried:
-                self._schedule_exit_retry(exit_reason, atr_triggered)
+            if not self._is_kill_switch_reason(reason):
+                self._schedule_same_bar_retry(
+                    action=action,
+                    bar_ts=bar_ts,
+                    target_qty=target_qty,
+                    ref_price=ref_price,
+                    exit_reason=exit_reason,
+                    atr_triggered=atr_triggered,
+                )
             return
 
         # "new" 등 중간 상태 — order_manager는 최종 결과만 발행하므로 통상 없음
 
-    def _schedule_exit_retry(self, reason: str, atr_triggered: bool) -> None:
-        """exit 거부 60초 후 1회 재시도 (일시적 차단 자동 회복).
+    def _cancel_same_bar_retry(self) -> None:
+        """진행 중인 같은 봉 재시도 태스크를 취소한다."""
+        if self._retry_task is not None and not self._retry_task.done():
+            self._retry_task.cancel()
+            self._retry_task = None
 
-        Kill Switch 등 지속적 차단이면 재시도도 거부되고 ERROR 알림이 한 번 더
-        발행된다 → 수동 대응. entry는 재시도하지 않는다 (스킵이 안전한 방향).
+    def _schedule_same_bar_retry(
+        self,
+        *,
+        action: str,
+        bar_ts: Any,
+        target_qty: float,
+        ref_price: float | None,
+        exit_reason: str | None,
+        atr_triggered: bool,
+    ) -> None:
+        """같은 봉에서 60초마다 잔량만 재시도한다.
+
+        다음 4h 봉(signal generation 증가 / _new_bar) 또는 새 pending이 생기면 중단.
+        Kill Switch 거부는 호출하지 않는다. 전량은 다시 쌓지 않는다.
         """
+        gen = self._signal_generation
+        self._cancel_same_bar_retry()
+
         async def _retry() -> None:
             try:
                 await asyncio.sleep(EXIT_RETRY_DELAY_S)
-                if not self.is_running or self.is_paused:
+                if (
+                    not self.is_running
+                    or self.is_paused
+                    or self._new_bar
+                    or self._signal_generation != gen
+                    or self._pending_order is not None
+                ):
                     return
-                if self._pending_order is not None:
+                await self._sync_position_from_exchange("same_bar_retry")
+                if (
+                    not self.is_running
+                    or self.is_paused
+                    or self._new_bar
+                    or self._signal_generation != gen
+                    or self._pending_order is not None
+                ):
                     return
-                await self._sync_position_from_exchange("exit_retry")
-                if not self._has_position:
-                    self._log.info(
-                        "exit_retry_skipped", message="재시도 전 포지션 이미 청산됨"
+                if action == "exit":
+                    if not self._has_position:
+                        self._log.info(
+                            "same_bar_retry_skipped",
+                            message="재시도 전 포지션 이미 청산됨",
+                            action="exit",
+                        )
+                        return
+                    price = float(self._candles[-1]["close"]) if self._candles else ref_price
+                    await self._exit_long(
+                        exit_reason or "exit", atr_triggered, price, is_retry=True
                     )
-                    return
-                price = float(self._candles[-1]["close"]) if self._candles else None
-                self._log.warning(
-                    "exit_retry_submitting",
-                    message="청산 주문 1회 재시도",
-                    reason=reason,
-                )
-                await self._exit_long(reason, atr_triggered, price, is_retry=True)
+                if action == "enter":
+                    actual = self._position_qty if self._has_position else 0.0
+                    remainder = float(target_qty) - actual
+                    price = (
+                        float(self._candles[-1]["close"])
+                        if self._candles
+                        else float(ref_price or 0)
+                    )
+                    if self._remainder_is_dust(remainder, price):
+                        return
+                    await self._enter_long(
+                        price, quantity=remainder, target_qty=float(target_qty)
+                    )
             except asyncio.CancelledError:
                 pass
             except Exception:
-                self._log.exception("exit_retry_error")
+                self._log.exception("same_bar_retry_error")
 
         task = asyncio.create_task(_retry())
+        self._retry_task = task
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
+
+    def _remainder_is_dust(self, remainder: float, price: float) -> bool:
+        """잔량이 0·최소수량·최소명목 미만이면 재제출하지 않는다."""
+        return (
+            remainder <= 1e-8
+            or remainder < MIN_ORDER_QTY
+            or (price > 0 and remainder * price < MIN_NOTIONAL_USD)
+        )
+
+    @staticmethod
+    def _is_kill_switch_reason(reason: object) -> bool:
+        return str(reason or "").startswith("kill_switch")
 
     async def _watch_pending_order(self) -> None:
         """pending 백스톱: order:result가 유실돼도 거래소 포지션으로 확정한다."""
@@ -800,31 +912,48 @@ class SupertrendLiveStrategy(BaseStrategy):
                 actual_qty = float(pos.size) if pos and pos.side == "long" else 0.0
 
                 if pending["action"] == "enter" and actual_qty > 0:
-                    self._confirm_entry(
-                        actual_qty,
-                        float(pos.entry_price) if pos else None,
-                        source="position_poll",
-                    )
-                    return
+                    stored_target = pending.get("target_qty")
+                    target_qty = float(pending["qty"] if stored_target is None else stored_target)
+                    ref_price = float(pending.get("ref_price") or 0)
+                    if self._remainder_is_dust(target_qty - actual_qty, ref_price):
+                        self._confirm_entry(
+                            actual_qty,
+                            float(pos.entry_price) if pos else None,
+                            source="position_poll",
+                        )
+                        return
                 if pending["action"] == "exit" and actual_qty <= 0:
                     self._confirm_exit(source="position_poll")
                     return
 
                 if time.monotonic() >= float(pending["deadline"]):
                     action = pending["action"]
-                    was_retried = bool(pending.get("retried"))
-                    exit_reason = pending.get("exit_reason") or "exit"
+                    request_id = pending["request_id"]
+                    bar_ts = pending.get("bar_ts")
+                    stored_target = pending.get("target_qty")
+                    target_qty = float(pending["qty"] if stored_target is None else stored_target)
+                    ref_price = pending.get("ref_price")
+                    exit_reason = pending.get("exit_reason")
                     atr_triggered = bool(pending.get("atr_triggered"))
                     self._pending_order = None
                     self._log.error(
                         "pending_order_unresolved",
-                        message="주문 확정 시한 초과 — 결과 미수신·기대 상태 미달, 재동기화",
-                        request_id=pending["request_id"],
+                        message=(
+                            "주문 확정 시한 초과 — 결과 미수신·기대 상태 미달, 재동기화 "
+                            f"request_id={request_id} action={action}"
+                        ),
+                        request_id=request_id,
                         action=action,
                     )
                     await self._sync_position_from_exchange("pending_deadline")
-                    if action == "exit" and self._has_position and not was_retried:
-                        self._schedule_exit_retry(exit_reason, atr_triggered)
+                    self._schedule_same_bar_retry(
+                        action=action,
+                        bar_ts=bar_ts,
+                        target_qty=target_qty,
+                        ref_price=ref_price,
+                        exit_reason=exit_reason,
+                        atr_triggered=atr_triggered,
+                    )
                     return
         except asyncio.CancelledError:
             pass

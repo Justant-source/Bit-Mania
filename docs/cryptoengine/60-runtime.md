@@ -1,6 +1,6 @@
 ---
 title: L6 Runtime — 상태 전이 · service_shutdown 복구
-last_updated: 2026-09-19
+last_updated: 2026-10-06
 ---
 
 # L6 Runtime — 상태 전이 · service_shutdown 복구
@@ -30,8 +30,10 @@ stateDiagram-v2
     rejected --> [*]
 
     note right of rejected
-        exit 거부 시 60초 후 1회 자동 재시도
-        entry 거부 시 재시도 없음 (진입 스킵)
+        진입·청산 모두 같은 봉에서 60초 간격 재시도
+        (체결 또는 다음 4h 봉까지)
+        kill_switch 사유는 재시도 없음
+        Telegram 거부 알림에 reason·request_id 포함
     end note
 ```
 
@@ -101,38 +103,40 @@ Kill Switch가 전략에 stop을 보내면 `on_stop()`은 청산 여부를 정�
 
 ## §3. service_shutdown 복구 흐름 (Diagram K3)
 
-<!-- last-verified: 2026-08-29 -->
-<!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py:73, cryptoengine/services/execution/engine.py:108, cryptoengine/services/execution/stoploss_manager.py:248 -->
+<!-- last-verified: 2026-10-06 -->
+<!-- code-ref: cryptoengine/services/strategies/supertrend/strategy.py:73, cryptoengine/services/strategies/supertrend/strategy.py:131, cryptoengine/services/strategies/base_strategy.py:299, cryptoengine/services/orchestrator/core.py:64 -->
 
 ```mermaid
 stateDiagram-v2
     direction TB
-    [*] --> running : 정상 운영 중
+    [*] --> idle : 프로세스 기동<br/>is_running=False
 
-    state "재시작 (1시간 내)" as restart {
-        shutdown : on_stop(reason="service_shutdown")<br/>청산 없이 Redis에 상태 저장
-        recover : recover_stop_losses(open_positions)<br/>recovery_resync()
-        resume : 포지션 복구 완료
-        shutdown --> recover
-        recover --> resume
-    }
+    idle --> backfill : orchestrator start<br/>루프 ≤300초
+    backfill : REST 확정봉 1000<br/>candles_backfilled
+    syncpos : 거래소 포지션 동기화<br/>어긋나면 position_state_divergence
+    missed : supertrend_signals MAX(bar_ts)<br/>놓치면 missed_bar_on_start
 
-    running --> shutdown : service_shutdown 신호
-    resume --> running : 전략 재개
-
-    state "재시작 실패 (1시간 초과)" as fail {
-        dead_man : Dead Man's Switch 발동<br/>Kill Switch SYSTEM 레벨
-    }
-    shutdown --> dead_man : 1시간 초과 미재시작
+    backfill --> syncpos
+    syncpos --> missed
+    missed --> running : is_running=True
+    running --> idle : service_shutdown<br/>청산 없음
 ```
 
 ### 복구 핵심 코드
 
 - **청산 제외 사유**: `_SHUTDOWN_NO_LIQUIDATE = frozenset({"service_shutdown"})` — 이 사유 시 청산 없음
 - **포지션 상태**: `positions.close_reason` — `signal | stop_loss | kill_switch` (service_shutdown 없음 = 청산 미발생)
-- **복구 경로**: `on_stop()` → Redis `strategy:saved_state:supertrend-01` (TTL 3600s) → `recover_stop_losses()` → `recovery_resync()`
+- **복구 경로**: supertrend는 기동 직후 `is_running=False`다. orchestrator `start`(루프 ≤300초, `loop_interval_seconds`)가 `on_start`를 호출한다. `on_start`는 REST로 확정봉 1000개(`CANDLE_LOOKBACK`)를 백필하고, 거래소 포지션을 동기화한 뒤, `supertrend_signals`의 `MAX(bar_ts)`로 놓친 봉을 확인한다. Kill cooldown 중이면 orchestrator가 `start`를 건너뛴다.
+- **기동·워치독 로그**: `candles_backfilled`, `missed_bar_on_start`, `position_state_divergence`, `bar_watchdog_recovered`. `bar_watchdog_recovered`는 봉 피드 워치독이 REST로 확정봉을 되살릴 때 남는다.
+- **손절 주문**: execution-engine `recover_stop_losses`는 `cache:stoploss:*`로 거래소 스탑을 다시 건다. 전략 재시작 경로와 별개다.
 
-**Dead Man's Switch와 혼동하지 말 것**: EE 하트비트 미수신 **5분** → KillLevel SYSTEM. Redis 포지션 스냅샷 TTL **1시간**은 배포 복구용이다. Postgres만 잠시 내려도 EE 프로세스가 살아 있으면 dead-man은 발동하지 않는다 (D1 tar 시 EE 유지).
+`strategy:saved_state`를 쓰거나 읽는 코드는 없다. 재시작이 1시간을 넘겨도 그 TTL로 복구가 끊기지 않는다. 스위치 스크립트가 `strategy:saved_state:*`를 지우는 것은 잔여 키 청소다.
+
+**Dead Man's Switch와 혼동하지 말 것**: EE 하트비트 미수신 **5분** → KillLevel SYSTEM. 재시작 지연과 1시간 제한은 이 발동 조건이 아니다. Postgres만 잠시 내려도 EE 프로세스가 살아 있으면 dead-man은 발동하지 않는다 (D1 tar 시 EE 유지).
+
+### 알려진 공백 — S5. ATR 쿨다운은 메모리에만 있다
+
+`_last_liquidation_ts`와 `_atr_cooldown_until`은 프로세스 메모리에만 있다. ATR 손절 직후 supertrend를 재시작하면 같은 봉 재진입 방지가 사라진다. **ATR 손절 직후 다음 4h 봉 전에는 supertrend를 재시작하지 않는다.** 쿨다운 길이(1봉)와 다른 정책 임계값은 그대로다.
 
 ---
 

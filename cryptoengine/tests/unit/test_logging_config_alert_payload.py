@@ -21,19 +21,27 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from shared.logging_config import _make_error_alert_processor  # noqa: E402
+from shared.logging_config import _last_error_alerts, _make_error_alert_processor  # noqa: E402
 
 
-def _run_processor(service_name: str, level: str, event: str, message: str | None = None):
+def _run_processor(
+    service_name: str,
+    level: str,
+    event: str,
+    message: str | None = None,
+    **extra,
+):
     """프로세서를 호출하고, 실제로 발행된 JSON payload를 dict로 반환한다.
 
     _publish_error_alert는 fire-and-forget(asyncio.ensure_future)이므로,
-    호출 인자를 캡처하기 위해 patch한다.
+    호출 인자를 캡처하기 위해 patch한다. extra는 event_dict에 그대로 실린다
+    (request_id 등).
     """
     processor = _make_error_alert_processor(service_name)
     event_dict = {"level": level, "event": event}
     if message is not None:
         event_dict["message"] = message
+    event_dict.update(extra)
 
     with patch("shared.logging_config._publish_error_alert") as mock_publish:
         # dedup 캐시가 이전 테스트 실행과 충돌하지 않도록 매번 새 이벤트명 사용 권장
@@ -92,3 +100,36 @@ class TestAlertPayloadFields:
         # event_dict에 흔한 키가 빠져 있어도 예외를 던지면 안 된다
         result = processor(None, "error", {})
         assert isinstance(result, dict)
+
+
+class TestRequestIdFingerprintDedup:
+    def test_fingerprint_includes_request_id(self):
+        _last_error_alerts.clear()
+        payload = _run_processor(
+            "execution-engine",
+            "ERROR",
+            "order_rejected_with_rid_test",
+            "reason text",
+            request_id="req-alpha",
+        )
+        assert payload is not None
+        assert payload["fingerprint"] == "execution-engine:order_rejected_with_rid_test:req-alpha"
+
+    def test_different_request_ids_both_publish(self):
+        _last_error_alerts.clear()
+        event = "order_rejected_distinct_rid_test"
+        p1 = _run_processor("execution-engine", "ERROR", event, "m", request_id="req-one")
+        p2 = _run_processor("execution-engine", "ERROR", event, "m", request_id="req-two")
+        assert p1 is not None
+        assert p2 is not None
+        assert p1["fingerprint"] == f"execution-engine:{event}:req-one"
+        assert p2["fingerprint"] == f"execution-engine:{event}:req-two"
+
+    def test_same_request_id_suppresses_second_publish(self):
+        _last_error_alerts.clear()
+        event = "order_rejected_same_rid_test"
+        first = _run_processor("execution-engine", "ERROR", event, "m", request_id="req-same")
+        second = _run_processor("execution-engine", "ERROR", event, "m", request_id="req-same")
+        assert first is not None
+        assert first["fingerprint"] == f"execution-engine:{event}:req-same"
+        assert second is None

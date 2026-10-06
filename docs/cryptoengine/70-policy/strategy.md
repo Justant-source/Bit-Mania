@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — Supertrend 전략 SSOT · 백테스트 방법론
-last_updated: 2026-09-18
+last_updated: 2026-10-06
 ---
 
 # Supertrend 전략 SSOT · 백테스트 방법론
@@ -50,7 +50,7 @@ last_updated: 2026-09-18
 | CANDLE_LOOKBACK | 1000 | 지표 계산 봉 수 (dir_ema 240 시드 정합) |
 | min_notional | $65 | 최소 주문 금액 (Bybit 기준) |
 
-**정본 파일**: `cryptoengine/config/strategies/supertrend.yaml`
+**라이브 권위**: combo #7908과 `CANDLE_LOOKBACK=1000`의 정본은 `cryptoengine/services/strategies/supertrend/strategy.py` 상수다. `cryptoengine/config/strategies/supertrend.yaml`의 `model.*`, `sizing.*`(`candle_lookback: 300` 포함), `phase5.*`, `risk.*`는 라이브에 적용되지 않는다. 그 파일에서 라이브로 읽히는 것은 최상위 `leverage`, `tick_interval`, `max_orders_per_*`뿐이다. 최상위에 지표 키(`st_factor`, `st_period`, `fast_ema_len`, `slow_ema_len`, `dir_ema_len`, `atr_mult`)를 두면 `strategy.py` 로드 경로가 코드 상수를 덮어쓴다.
 
 **지표 구현 정합 (2026-06-14)**:
 - 라이브 EMA·ATR·Supertrend는 백테스트 엔진(Jesse 2.1.2 combo #7908)과 수치 일치
@@ -182,8 +182,9 @@ Jesse 스윕 window-mean(익절 없음, combo #7908): CAGR_new **281.36%** (8 wi
 | **진실 동기화** | 매 봉 신호 판단 **전** `get_position()`으로 거래소 실포지션 확인. 발산 감지 시 `position_state_divergence` ERROR |
 | **주문 확정** | 제출 시 낙관적 상태 변경 없이 pending으로 추적. 주문 결과 수신 또는 포지션 폴링(20s)으로만 확정 |
 | **확정 시한** | 450초 초과 시 `pending_order_unresolved` ERROR + 재동기화 |
-| **exit 거부** | ERROR + 재동기화 + **60초 후 1회 자동 재시도** (일시적 차단 자동 회복) |
-| **entry 거부** | ERROR + 재동기화만 (진입 스킵이 안전한 방향) |
+| **같은 봉 재시도** | 진입·청산 거부, `partially_filled`, 확정 시한(450초) 초과는 같은 봉에서 60초 간격으로 재시도한다. 재주문 수량은 목표 − 실포지션(잔량만). 다음 4시간 봉 신호가 오면 이전 재시도는 취소한다 |
+| **`kill_switch` 사유** | 사유가 `kill_switch`로 시작하면 재시도하지 않고 알림만 남긴다. Kill Switch 로직 자체는 변경 없다 |
+| **지정가 추격** | 지정가 추격(10초×20) 후 시장가 폴백(§7)은 유지한다 |
 | **쿨다운** | `_last_liquidation_ts` / `_atr_cooldown_until` 은 청산 **확정** 시에만 설정 |
 | **봉 누락 복구** | 확정 봉 메시지 미수신 시 워치독이 마감+10분 후 REST 백필 |
 | **실체결가 채택** | 진입 확정 시 entry_price를 주문가가 아닌 실체결가로 기록 (ATR exit 정확도) |

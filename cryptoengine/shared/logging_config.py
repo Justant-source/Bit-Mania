@@ -194,8 +194,13 @@ def _make_error_alert_processor(service_name: str):
             event = str(event_dict.get("event", ""))
             message = str(event_dict.get("message", "")) if event_dict.get("message") else event
 
-            # Dedup: skip if same service+event was alerted recently
+            # Dedup: same service+event within the window is suppressed.
+            # A non-empty request_id is part of the key so distinct orders
+            # are not collapsed into one Telegram alert.
             dedup_key = f"{service_name}:{event}"
+            request_id = event_dict.get("request_id")
+            if request_id:
+                dedup_key = f"{dedup_key}:{request_id}"
             now = time.time()
             last_sent = _last_error_alerts.get(dedup_key, 0)
             if now - last_sent < _ERROR_ALERT_DEDUP_SECONDS:
@@ -220,7 +225,7 @@ def _make_error_alert_processor(service_name: str):
                 "event": event,
                 "anomaly_type": event,
                 "message": message[:700],
-                "fingerprint": f"{service_name}:{event}",
+                "fingerprint": dedup_key,
                 "ts": datetime.now(timezone.utc).isoformat(),
             }, default=str)
 

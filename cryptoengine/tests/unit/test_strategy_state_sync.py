@@ -72,6 +72,15 @@ def strategy(monkeypatch):
     return s
 
 
+def _order_request_payloads(s) -> list[dict]:
+    """redis publish 호출 중 order:request 페이로드만 순서대로 반환."""
+    payloads = []
+    for call in s._redis.publish.call_args_list:
+        if call.args and call.args[0] == "order:request":
+            payloads.append(json.loads(call.args[1]))
+    return payloads
+
+
 async def _drain_tasks(s) -> None:
     """전략이 만든 백그라운드 태스크 정리."""
     tasks = list(s._bg_tasks)
@@ -272,7 +281,7 @@ class TestOrderResultHandling:
 
     @pytest.mark.asyncio
     async def test_retried_exit_rejection_stops_retrying(self, strategy):
-        """재시도분도 거부되면 추가 재시도 없음 (알림 후 수동 대응)."""
+        """Kill Switch 거부(reason이 kill_switch로 시작)는 추가 재주문을 내지 않는다."""
         strategy._has_position = True
         strategy._position_qty = 0.0057
         strategy._exchange.get_position = AsyncMock(return_value=make_position(0.0057))
@@ -289,20 +298,120 @@ class TestOrderResultHandling:
         await _drain_tasks(strategy)
 
     @pytest.mark.asyncio
-    async def test_rejected_entry_never_retries(self, strategy):
-        """entry 거부는 재시도하지 않는다 — 스킵이 안전한 방향."""
+    async def test_rejected_entry_retries_with_new_request(self, strategy):
+        """flat 진입 거부(비-Kill Switch)는 짧은 대기 후 목표 수량으로 재주문한다."""
+        strategy._exchange.get_position = AsyncMock(return_value=None)
+        strategy._candles.append(
+            {"open": 1, "high": 1, "low": 1, "close": 100_000.0, "volume": 1, "ts": 0}
+        )
+
+        await strategy._enter_long(100_000.0, 200.0)
+        first = strategy._pending_order
+        rid = first["request_id"]
+        assert first["action"] == "enter"
+        assert first["qty"] == pytest.approx(0.0057)
+        assert first["target_qty"] == pytest.approx(0.0057)
+
+        await strategy._handle_order_result({
+            "request_id": rid,
+            "status": "rejected",
+            "reason": "network_unhealthy: last_response=999s ago",
+        })
+
+        assert strategy._pending_order is None
+        assert strategy._has_position is False
+
+        await asyncio.sleep(0.05)
+        pending = strategy._pending_order
+        assert pending is not None
+        assert pending["request_id"] != rid
+        assert pending["action"] == "enter"
+        assert pending["qty"] == pytest.approx(0.0057)
+        assert pending["target_qty"] == pytest.approx(0.0057)
+
+        payloads = _order_request_payloads(strategy)
+        assert len(payloads) == 2
+        assert payloads[1]["request_id"] != rid
+        assert payloads[1]["side"] == "buy"
+        assert payloads[1]["quantity"] == pytest.approx(0.0057)
+        await _drain_tasks(strategy)
+
+    @pytest.mark.asyncio
+    async def test_kill_switch_entry_rejection_does_not_retry(self, strategy):
+        """Kill Switch 진입 거부는 대기 후에도 두 번째 주문을 내지 않는다."""
+        strategy._exchange.get_position = AsyncMock(return_value=None)
+        strategy._candles.append(
+            {"open": 1, "high": 1, "low": 1, "close": 100_000.0, "volume": 1, "ts": 0}
+        )
+
+        await strategy._enter_long(100_000.0, 200.0)
+        rid = strategy._pending_order["request_id"]
+
+        await strategy._handle_order_result({
+            "request_id": rid,
+            "status": "rejected",
+            "reason": "kill_switch_active: blocked",
+        })
+
+        await asyncio.sleep(0.05)
+        assert strategy._pending_order is None
+        assert strategy._has_position is False
+        assert len(_order_request_payloads(strategy)) == 1
+        await _drain_tasks(strategy)
+
+    @pytest.mark.asyncio
+    async def test_partial_entry_retries_remainder(self, strategy):
+        """부분 체결 후 재주문 수량은 목표에서 실제 포지션을 뺀 잔량이다."""
+        strategy._exchange.get_position = AsyncMock(return_value=make_position(0.002))
+        strategy._candles.append(
+            {"open": 1, "high": 1, "low": 1, "close": 100_000.0, "volume": 1, "ts": 0}
+        )
+
+        await strategy._enter_long(100_000.0, 200.0)
+        first = strategy._pending_order
+        rid = first["request_id"]
+        assert first["target_qty"] == pytest.approx(0.0057)
+
+        await strategy._handle_order_result({
+            "request_id": rid,
+            "status": "partially_filled",
+            "reason": "partial",
+        })
+
+        await asyncio.sleep(0.05)
+        pending = strategy._pending_order
+        assert pending is not None
+        assert pending["request_id"] != rid
+        assert pending["action"] == "enter"
+        assert pending["qty"] == pytest.approx(0.0037)
+        assert pending["qty"] != pytest.approx(0.0057)
+        assert pending["target_qty"] == pytest.approx(0.0057)
+
+        payloads = _order_request_payloads(strategy)
+        assert len(payloads) == 2
+        assert payloads[1]["side"] == "buy"
+        assert payloads[1]["quantity"] == pytest.approx(0.0037)
+        await _drain_tasks(strategy)
+
+    @pytest.mark.asyncio
+    async def test_new_bar_cancels_inflight_entry_retry(self, strategy):
+        """다음 봉 tick은 대기 중인 같은 봉 재시도를 취소해 두 번째 주문을 막는다."""
         strategy._exchange.get_position = AsyncMock(return_value=None)
 
         await strategy._enter_long(100_000.0, 200.0)
         rid = strategy._pending_order["request_id"]
 
-        await strategy._handle_order_result({"request_id": rid, "status": "rejected", "reason": "x"})
+        await strategy._handle_order_result({
+            "request_id": rid,
+            "status": "rejected",
+            "reason": "network_unhealthy: last_response=999s ago",
+        })
 
-        await asyncio.sleep(0.1)
-        assert strategy._pending_order is None
-        assert strategy._has_position is False
-        publish_channels = [c.args[0] for c in strategy._redis.publish.call_args_list]
-        assert publish_channels.count("order:request") == 1
+        strategy._new_bar = True
+        await strategy.tick()
+
+        await asyncio.sleep(0.05)
+        assert len(_order_request_payloads(strategy)) == 1
         await _drain_tasks(strategy)
 
     @pytest.mark.asyncio

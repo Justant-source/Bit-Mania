@@ -29,6 +29,25 @@ from shared.models.position import Position
 
 log = structlog.get_logger(__name__)
 
+
+def _rejection_alert_message(
+    summary: str,
+    request_id: str,
+    reason: str,
+    payload: dict | None,
+) -> str:
+    """ERROR message that Telegram alerts display (structured kwargs are not forwarded)."""
+    p = payload or {}
+    return (
+        f"{summary} "
+        f"reason={reason} "
+        f"symbol={p.get('symbol', '')} "
+        f"side={p.get('side', '')} "
+        f"qty={p.get('quantity', '')} "
+        f"request_id={request_id}"
+    )
+
+
 MAX_CONCURRENT_ORDERS = 5
 # 재페그 worst-case(20×10s) + 시도별 API 지연 + 시장가 폴백 여유.
 # 이전 300s는 네트워크 저하 시 재페그 도중 잘릴 수 있었다.
@@ -215,24 +234,36 @@ class ExecutionEngine:
             # --- 미체결 종결 알림 (ERROR → Telegram) ---
             final_status = result.get("status")
             if final_status == "rejected":
+                reject_reason = result.get("reason", "")
                 log.error(
                     ORDER_REJECTED,
-                    message="주문 거부 — 전략 신호 미체결",
+                    message=_rejection_alert_message(
+                        "주문 거부 — 전략 신호 미체결",
+                        request_id,
+                        reject_reason,
+                        payload,
+                    ),
                     request_id=request_id,
                     strategy_id=result.get("strategy_id", payload.get("strategy_id", "")),
                     side=payload.get("side"),
                     reduce_only=payload.get("reduce_only", False),
-                    reason=result.get("reason", ""),
+                    reason=reject_reason,
                 )
             elif final_status == "partially_filled":
+                partial_reason = result.get("reason", "")
                 log.error(
                     ORDER_REJECTED,
-                    message="부분 체결 후 잔량 미체결 종결 — 수동 확인 필요",
+                    message=_rejection_alert_message(
+                        f"부분 체결 후 잔량 미체결 종결 — 수동 확인 필요 (filled_qty={result.get('filled_qty')})",
+                        request_id,
+                        partial_reason,
+                        payload,
+                    ),
                     request_id=request_id,
                     strategy_id=result.get("strategy_id", payload.get("strategy_id", "")),
                     filled_qty=result.get("filled_qty"),
                     requested_qty=payload.get("quantity"),
-                    reason=result.get("reason", ""),
+                    reason=partial_reason,
                 )
 
             # --- 체결 알림 (Telegram: ce:alerts:entry / ce:alerts:exit) ---
@@ -469,7 +500,12 @@ class ExecutionEngine:
 
         log.error(
             ORDER_REJECTED,
-            message="주문 거부 — 전략 신호 미체결",
+            message=_rejection_alert_message(
+                "주문 거부 — 전략 신호 미체결",
+                request_id,
+                reason,
+                payload,
+            ),
             request_id=request_id,
             strategy_id=strategy_id,
             symbol=p.get("symbol", ""),

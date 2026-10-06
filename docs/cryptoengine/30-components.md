@@ -1,6 +1,6 @@
 ---
 title: L3 Components — 서비스 내부 모듈 책임
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # L3 Components — 서비스 내부 모듈 책임
@@ -138,7 +138,8 @@ flowchart LR
 **상태 확정 기반 전환 규칙** (2026-05-27):
 - 진실은 거래소다. 매 봉 신호 판단 전 get_position으로 내부 상태를 교정한다.
 - 주문 제출은 낙관적 상태 갱신 없이 pending으로 추적하고, order:result 수신 또는 포지션 폴링으로만 확정한다.
-- exit 거부 시 60초 후 1회 재시도 (`EXIT_RETRY_DELAY_S = 60.0`), entry 거부는 재시도하지 않는다.
+- 진입·청산 거부, `partially_filled`, 확정 시한(450초) 초과는 같은 봉에서 60초 간격으로 재시도한다. 재주문 수량은 목표 − 실포지션(잔량만). 다음 4시간 봉 신호가 오면 이전 재시도는 취소한다.
+- 사유가 `kill_switch`로 시작하면 재시도하지 않고 알림만 남긴다. 지정가 추격(10초×20) 후 시장가 폴백은 유지한다.
 
 **셧다운 모드**:
 - `_SHUTDOWN_NO_LIQUIDATE = frozenset({"service_shutdown"})` — 서비스 재시작 시 청산 없이 Redis 복구
