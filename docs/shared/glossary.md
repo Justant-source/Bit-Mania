@@ -1,6 +1,6 @@
 ---
 title: 프로젝트 용어집
-last_updated: 2026-08-31
+last_updated: 2026-10-06
 ---
 
 # 프로젝트 용어집
@@ -192,12 +192,12 @@ Kill Switch 레벨을 나타내는 정수형 열거형:
 배포·재시작 시 `supertrend` 전략의 포지션 보호 메커니즘:
 
 1. **service_shutdown 사유**: 포지션 청산 안 함
-2. **Redis 저장**: 포지션 상태, 진입가, P&L 저장 (TTL 1시간)
-3. **자동 복구**: 재시작 후 1시간 내 자동으로 포지션 복구
+2. **기동**: supertrend는 `is_running=False`로 뜬다. orchestrator `start`(루프 ≤300초)가 `on_start`를 호출한다
+3. **on_start**: REST로 확정봉 1000개를 백필하고, 거래소 포지션을 동기화한 뒤, `supertrend_signals`의 `MAX(bar_ts)`로 놓친 봉을 확인한다. Redis 스냅샷과 1시간 제한은 없다
 
 **효과**: 불필요한 청산 수수료 절감 (매회 0.05% × 2), 거래 연속성 유지
 
-**TTL 초과 시**: 1시간 초과 중단 후 재시작하면 Redis 데이터 만료 → 신규 시작 (거래소 포지션은 수동 청산 필요)
+**로그**: `candles_backfilled`, `missed_bar_on_start`, `position_state_divergence`, `bar_watchdog_recovered`
 
 ### Dead Man's Switch (데드맨 스위치)
 
@@ -336,10 +336,10 @@ Kill Switch Level 2 발동 후 실행 확인 응답. Telegram에서 `/acknowledg
 **역할**:
 - **Pub/Sub**: 서비스 간 실시간 통신 (시장 데이터, 주문, 명령)
 - **캐시**: 포지션 상태, 포트폴리오 스냅샷
-- **포지션 복구**: service_shutdown 시 상태 저장 (TTL 1시간)
+- **포지션 복구**: Redis 스냅샷이 아니다. orchestrator `start` → `on_start`가 REST 1000봉, 거래소 포지션, `supertrend_signals` `MAX(bar_ts)`로 맞춘다. 1시간 제한은 없다
 
 **중요 키**:
-- `strategy:saved_state:supertrend-01` — Supertrend 포지션 상태 복구용
+- `strategy:saved_state:supertrend-01` — 미사용. 쓰는 곳도 읽는 곳도 없다
 - `ce:kill_switch:active` — Kill Switch 활성 상태
 
 ### structlog

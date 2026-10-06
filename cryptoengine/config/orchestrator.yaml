@@ -4,8 +4,8 @@
 
 orchestrator:
   version: "2.0"
-  # How often the orchestrator evaluates risk and reallocates (seconds)
-  evaluation_interval_seconds: 300
+  # 메인 루프 간격(초). core.py가 읽는 키. 값은 300.
+  loop_interval_seconds: 300
   # Portfolio snapshot interval (seconds)
   portfolio_snapshot_interval_seconds: 900
 

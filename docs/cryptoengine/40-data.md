@@ -1,6 +1,6 @@
 ---
 title: L4 Data Model — PostgreSQL 스키마 · 마이그레이션
-last_updated: 2026-08-31
+last_updated: 2026-10-06
 ---
 
 # L4 Data Model — PostgreSQL 스키마 · 마이그레이션
@@ -367,9 +367,8 @@ make -C cryptoengine migrate
 | `market:ticker:{symbol}` | String(JSON) | 60s | 최신 시세 (e.g., `market:ticker:BTCUSDT`) |
 | `cache:balance:bybit` | String(JSON) | 60s | 실시간 잔고 |
 | `orchestrator:state` | String(JSON) | 600s | 오케스트레이터 상태 |
-| `strategy:saved_state:supertrend-01` | String(JSON) | 3600s | 포지션 복구용 (shutdown → restart recovery) |
+| `strategy:saved_state:supertrend-01` | — | — | 미사용. 쓰는 코드도 읽는 코드도 없다. 재시작 복구는 `on_start`의 REST 1000봉 백필, 거래소 포지션 동기화, `supertrend_signals` `MAX(bar_ts)`다 |
 | `ce:kill_switch:active` | String | — | Kill Switch 활성 상태 플래그 |
-| `stream:market_data` | Stream | — | Redis Pub/Sub (실시간 시세 브로드캐스트) |
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: docs — 문서 지도 & Doc-Sync 트리거 맵
-last_updated: 2026-08-31
+last_updated: 2026-10-06
 ---
 
 # docs/_index.md — 문서 지도 & Doc-Sync 트리거 맵
@@ -82,6 +82,12 @@ last_updated: 2026-08-31
 | 21 | 포트 · env 변수 변경 | `docs/cryptoengine/20-containers.md` · `README.md` | M |
 | 22 | `backtest/docs/**` | `docs/cryptoengine/70-policy/strategy.md` | C |
 | 23 | `dashboard/src/**` | `docs/dashboard/20-containers.md` · `docs/dashboard/50-api.md` | M |
+| 24 | `cryptoengine/services/market-data/**` | `docs/cryptoengine/20-containers.md` · `docs/cryptoengine/50-api.md` | M |
+| 25 | `cryptoengine/services/orchestrator/**` | `docs/cryptoengine/30-components.md` · `docs/cryptoengine/50-api.md` | M |
+| 26 | `cryptoengine/services/telegram-bot/**` | `docs/cryptoengine/30-components.md` · `docs/cryptoengine/50-api.md` | M |
+| 27 | `cryptoengine/services/*/requirements.txt` | `docs/cryptoengine/20-containers.md` | M |
+| 28 | `cryptoengine/config/prometheus/**` | `docs/cryptoengine/20-containers.md` | M |
+| 29 | `cryptoengine/config/exchanges/bybit.yaml` | `docs/cryptoengine/30-components.md` | M |
 
 ## §6. Code → Docs 역인덱스
 

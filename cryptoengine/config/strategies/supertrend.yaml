@@ -1,6 +1,11 @@
 # ============================================================
 # Supertrend Strategy Configuration
 # ============================================================
+# 라이브 권위는 strategy.py 상수(combo #7908)와 CANDLE_LOOKBACK=1000이다.
+# model.*, sizing.candle_lookback(300), phase5.*, risk.* 는 라이브에 적용되지 않는다.
+# 최상위 leverage, tick_interval, max_orders_per_* 만 라이브로 읽힌다.
+# 경고: 최상위에 st_factor, st_period, fast_ema_len, slow_ema_len,
+# dir_ema_len, atr_mult 를 두면 코드 상수를 덮어쓴다.
 
 strategy:
   name: supertrend
@@ -11,7 +16,8 @@ strategy:
     and multiple EMA filters. Suitable for 4h timeframe during
     trending market conditions.
 
-# ── Model Parameters ──────────────────────────────────────────
+# ── Model Parameters (라이브 미적용) ──────────────────────────
+# 코드가 이 블록을 읽지 않는다. 권위는 strategy.py 상수 #7908.
 model:
   # Supertrend calculation
   st_factor: 2.6        # ATR multiplier for Supertrend bands
@@ -29,6 +35,7 @@ symbol: "BTC/USDT:USDT"
 timeframe: "4h"
 
 # ── Leverage & Position Sizing ────────────────────────────────
+# 최상위 leverage 는 라이브다.
 leverage: 3.0
 
 sizing:
@@ -36,10 +43,11 @@ sizing:
   pct_equity: 95.0
   # Bybit minimum notional value (USD)
   min_notional_usd: 65
-  # Candlesticks to buffer history (avoid edge cases)
+  # 라이브 미적용. 권위는 strategy.py CANDLE_LOOKBACK=1000. 이 300은 쓰이지 않는다.
   candle_lookback: 300
 
-# ── Risk Management ───────────────────────────────────────────
+# ── Risk Management (라이브 미적용) ───────────────────────────
+# risk.* 는 코드가 읽지 않는다.
 risk:
   # Maximum portfolio drawdown before auto-disable (%)
   # Supertrend user accepted 100% (no managed stop)
@@ -47,12 +55,13 @@ risk:
   # Bars to wait after ATR exit before next entry
   cooldown_bars: 1
 
-# ── Execution Settings ────────────────────────────────────────
+# ── Execution Settings (최상위 키는 라이브) ───────────────────
 tick_interval: 60           # Check every 60s, but only act on confirmed 4h bars
 max_orders_per_second: 2
 max_orders_per_minute: 10
 
-# ── Phase 5 Overrides ─────────────────────────────────────────
+# ── Phase 5 Overrides (라이브 미적용) ─────────────────────────
+# phase5.* 는 코드가 읽지 않는다.
 # BYBIT_TESTNET=false or PHASE5_MODE=true activates these.
 # Supertrend in Phase 5 uses allocated_capital directly (no override needed).
 phase5:

@@ -1,9 +1,11 @@
 ---
 title: 70 Policy — 안전 정책 (Kill Switch · 레버리지 · BTC-only · 긴급 청산)
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # 70 Policy — 안전 정책
+
+> 오케스트레이터 루프 간격: `cryptoengine/config/orchestrator.yaml`의 `loop_interval_seconds: 300`.
 
 ## ⚠️ 불변 규칙 요약 (절대 위반 금지)
 
@@ -237,33 +239,29 @@ grep -r "ETH\|SOL\|BNB\|XRP" \
 
 ### 4.1 핵심 원칙
 
-**배포(재시작)는 포지션을 청산하지 않는다.**
+**배포(재시작)는 포지션을 청산하지 않는다.** `service_shutdown`만 청산 제외다.
 
-```
-배포 = 서비스 재시작
-포지션 유지 = Redis에 상태 저장 → 재시작 후 자동 복구
-```
+supertrend는 기동 직후 `is_running=False`다. orchestrator `start`(루프 ≤300초, `loop_interval_seconds`)가 `on_start`를 호출한다. Kill cooldown 중이면 orchestrator가 `start`를 건너뛴다.
+
+`on_start` 순서:
+
+1. REST로 확정봉 1000개(`CANDLE_LOOKBACK`)를 백필한다. 로그는 `candles_backfilled`.
+2. 거래소 포지션을 동기화한다. 어긋나면 `position_state_divergence`.
+3. `supertrend_signals`의 `MAX(bar_ts)`로 놓친 봉을 확인한다. 있으면 `missed_bar_on_start`.
+
+Redis 스냅샷(`strategy:saved_state`)은 쓰이지 않는다. 재시작이 1시간을 넘겨도 그 TTL로 복구가 끊기지 않는다. 봉 피드 워치독이 REST로 확정봉을 되살리면 `bar_watchdog_recovered`가 남는다.
 
 ### 4.2 종료 사유별 동작
 
-| 종료 사유 | 포지션 | 상태 저장 | 재시작 후 |
-|---------|--------|----------|----------|
-| `service_shutdown` (배포) | **유지** | Redis 저장 | 자동 복구 |
-| `kill_switch` | **즉시 청산** | 이벤트만 저장 | 청산됨 (긴급 상황) |
-| `signal_exit` | **즉시 청산** | 거래 기록만 저장 | 청산됨 (신호 기반) |
-| `strategy_stop` | **즉시 청산** | 이벤트만 저장 | 청산됨 (전략 정지) |
+| 종료 사유 | 포지션 | 재시작 후 |
+|---------|--------|----------|
+| `service_shutdown` (배포) | **유지** (청산 없음) | orchestrator `start` → `on_start` (위 순서) |
+| `kill_switch` | **청산** | cooldown 중에는 `start`가 나가지 않음 |
+| 그 밖 (`telegram_pause`, `orchestrator_stop` 등) | **청산** | `service_shutdown`만 청산 제외 |
 
-### 4.3 Redis TTL (Time To Live)
+### 4.3 스냅샷 TTL은 없다
 
-```python
-TTL = 3600 초 = 1시간
-
-배포 시 저장된 상태의 유효 기간
-→ 재시작 시 TTL 내면 자동 복구
-→ TTL 만료 시 포지션 소실 (수동 청산 필요)
-```
-
-⚠️ **1시간 이상 중단 후 재시작 시 포지션 복구 불가** → 수동 청산 필요
+`strategy:saved_state`를 쓰거나 읽는 코드는 없다. 1시간 초과를 복구 실패나 Dead Man 발동 조건으로 보지 않는다. Dead Man은 execution-engine 하트비트 미수신 5분이다.
 
 ### 4.4 안전한 배포 절차
 
@@ -274,8 +272,8 @@ docker compose build supertrend
 # 2. 서비스 재시작 (포지션 자동 유지)
 docker compose up -d --build --no-deps supertrend
 
-# 3. 복구 확인 (1-2분 소요)
-docker compose logs --tail=50 supertrend | grep -E "복구|recovered"
+# 3. 복구 확인 (orchestrator 루프 ≤300초)
+docker compose logs --tail=100 supertrend | grep -E "candles_backfilled|missed_bar_on_start|position_state_divergence|bar_watchdog_recovered"
 
 # shared/ 변경 시 모든 서비스 재빌드 필수
 docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
@@ -414,15 +412,9 @@ docker compose exec postgres psql -U cryptoengine -d cryptoengine -c \
    ORDER BY timestamp DESC LIMIT 20;"
 ```
 
-### 6.3 Grafana 대시보드
+### 6.3 알림
 
-http://localhost:3002 (로그인: admin / `$GRAFANA_ADMIN_PASSWORD`)
-
-대시보드 패널:
-- **Kill Switch Status**: 현재 활성 레벨
-- **Last Trigger Time**: 마지막 발동 시각
-- **Portfolio Drawdown**: 일간/주간/월간 낙폭 추이
-- **Margin Ratio**: 마진비율 실시간 모니터링
+Grafana는 없다. 대시보드 `alertEvaluator`가 `ce:alerts:grafana`를 발행한다.
 
 ---
 
@@ -459,9 +451,25 @@ execution-engine 재시작 시 Phase 5 잔고 게이트는 다음 순서로 기�
 EXPECTED_INITIAL_BALANCE_USD=238.88
 ```
 
-하트비트 단절로 Dead Man's Switch가 발동했다면 `strategy-orchestrator` 재시작으로 인메모리 Kill 상태를 초기화한다.
+하트비트 단절로 Dead Man's Switch가 발동해도, Kill 활성 또는 cooldown 중에는 `strategy-orchestrator`를 재시작하지 않는다. 재시작은 메모리의 Kill 상태를 지우고, 다음 루프(≤300초)에 전략 `start`를 다시 낸다. 아래 S2.
 
 ---
+
+## 알려진 공백
+
+이번 정정은 아래를 코드로 고치지 않는다. Kill Switch 임계값은 그대로다.
+
+### S1. 자동 Kill이 `ce:kill_switch:active`를 SET하지 않는다
+
+`ce:kill_switch:active`를 SET하는 곳은 텔레그램 `/emergency_close`와 `emergency_close_all.py`뿐이다. orchestrator의 자동 Kill(drawdown, dead-man)은 전략 stop과 알림만 낸다. 자동 Kill 뒤의 신규 주문 차단은 SafetyGuard 플래그가 아니라 전략이 멈춰 있음에 기대고 있다. 수동 Kill 뒤에는 사람이 그 키를 내려야 한다. active 플래그를 SET하는 코드는 이번 패스에 넣지 않는다.
+
+### S2. Kill 또는 cooldown 중 orchestrator를 재시작하지 않는다
+
+KillSwitch 상태는 orchestrator 메모리에만 있다. 그 사이에 orchestrator를 재시작하면 다음 루프(≤300초)에 `start`가 다시 나가 전략이 재개된다. Kill 활성 또는 cooldown 중에는 orchestrator를 재시작하지 않는다. Kill 상태를 영속화하는 코드는 이번 패스에 넣지 않는다.
+
+### S3. SafetyGuard가 아무도 쓰지 않는 `cache:ticker`를 읽는다
+
+SafetyGuard는 `cache:ticker:bybit:<symbol>`를 읽는다. 이 키를 쓰는 곳이 없다. 지정가의 가격 괴리 검사는 시세가 없으면 주문을 통과시킨다. 이번 패스에서 고치지 않는다.
 
 ## 관련 문서
 

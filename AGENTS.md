@@ -15,7 +15,7 @@ Kill Switch 임계값: `docs/cryptoengine/70-policy/safety.md`.
 2. **메인넷 신중 운영**: Phase 5 실전 중. 코드 변경 전 포지션 확인 (Telegram `/positions`)
 3. **단계별 검증**: Phase 3 → 4 → 5 순서, 절대 건너뛰지 않음 (이미 완료)
 4. **BTC 단일 운영**: 다중 심볼 금지 (변동성/신뢰)
-5. **포지션 보호**: 배포 시에도 청산하지 않음 (service_shutdown → Redis 복구)
+5. **포지션 보호**: 배포 시에도 청산하지 않음. `service_shutdown`은 포지션을 유지한다. 재시작 복구는 Redis 스냅샷이 아니라 orchestrator `start` → `on_start`다.
 
 ## 불변 규칙 ★ 위반 절대 금지
 
@@ -67,11 +67,11 @@ python3 scripts/lint_docs.py           # 4. 10개 검사 전부 PASS
 
 ## 배포 및 운영
 
-상세는 `docs/shared/70-policy.md`. 배포(재시작)는 포지션을 청산하지 않는다. `service_shutdown` 시 Redis 저장 후 1시간 내 재시작이면 자동 복구.
+상세는 `docs/shared/70-policy.md`. 배포(재시작)는 포지션을 청산하지 않는다. supertrend는 기동 직후 `is_running=False`다. orchestrator `start`(루프 ≤300초)가 `on_start`를 호출하면 REST로 확정봉 1000개를 백필하고, 거래소 포지션을 동기화한 뒤, `supertrend_signals`의 `MAX(bar_ts)`로 놓친 봉을 확인한다. Redis 스냅샷과 1시간 제한은 없다.
 
 ```bash
 docker compose up -d --build --no-deps supertrend
-docker compose logs --tail=20 supertrend | grep 복구
+docker compose logs --tail=100 supertrend | grep -E "candles_backfilled|missed_bar_on_start|position_state_divergence|bar_watchdog_recovered"
 docker compose build market-data execution-engine supertrend strategy-orchestrator telegram-bot
 ```
 

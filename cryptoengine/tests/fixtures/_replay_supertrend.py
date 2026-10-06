@@ -1,4 +1,4 @@
-"""Bybit-native 4h backtest of the LIVE Supertrend strategy — closes the grid gap.
+"""Binance spot 4h backtest of the LIVE Supertrend strategy — closes the grid gap.
 
 #7908 was backtested on Binance 1h→4h (Jesse's expand→re-aggregate produced a
 02계열 fill grid). The live system trades Bybit *native* 4h (00계열). This re-runs
@@ -496,14 +496,14 @@ def main():
         return
 
     title = args.label or "LIVE strategy (fixed indicators)"
-    print("=== Bybit native 4h (00계열) backtest — %s ===" % title)
+    print("=== Binance spot 4h (00계열) backtest — %s ===" % title)
     print("bars=%d  (%s ~ %s)" % (len(df), _u(ts[0]), _u(ts[-1])))
     print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f  final=$%.0f"
           % (len(trades), m["win_rate"], m["cagr"], m["mdd"], m["pf"], m["sharpe"], m["final"]))
     print("exit reasons:", dict(Counter(t[7] for t in trades)))
 
     if default_run:
-        print("\n=== prior ATR-TP series (Bybit native 4h, 2026-06-14) ===")
+        print("\n=== prior ATR-TP series (Binance spot 4h, 2026-06-14) ===")
         print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
               % (360, 48.61, 137.64, -73.29, 1.184, 1.349))
 
