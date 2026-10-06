@@ -543,14 +543,12 @@ python3 tests/fixtures/_replay_supertrend.py   # 198 / 219.06% / -66.70% / 1.667
 - 멀티 거래소·멀티 전략 추상화를 "나중에 대비"로 다시 키운다. `ExchangeConnector`의 Bybit 단일 레지스트리는 얇아서 이번에 지우지 않는다. 지우는 비용이 이득보다 크다.
 - 피처 브랜치를 만든다.
 
-## 사용자 결정 (구현 전에 답이 필요함)
+## 사용자 결정 (2026-10-06 확정)
 
-- **D1. S3 (SafetyGuard 시세 키).** 고칠까?
-  - 고치면 1A가 `tickers`를 남기고, 별도 커밋에서 `cache:ticker:bybit:BTCUSDT`를 쓴다. 슬리피지·명목가 검사가 실제로 켜져 주문 거절이 생길 수 있다.
-  - 안 고치면 `tickers`를 제거하고 S3를 "알려진 공백"으로 문서화한다.
-- **D2. S1·S2 (자동 Kill의 active 플래그, Kill 상태 영속화).** 별도 과제로 열까? 열지 않으면 문서화와 운영 규칙(Kill 중 orchestrator 재시작 금지)만 둔다.
-- **D3. `/pause_all` `/resume_all`.** 제거(기본) / "미지원" 응답 / 실제 동작 부여(청산 포함 stop, 재개 start) 중 하나를 고른다.
-- **D4. 1D.** A안(기본) / B안(대시보드 인프라 경보 포기).
+- **D1. S3 (SafetyGuard 시세 키). 고치지 않는다.** 1A는 `tickers` WS를 제거한다. S3는 safety.md의 알려진 공백으로만 적는다. `cache:ticker:bybit:BTCUSDT`를 쓰는 커밋은 만들지 않는다.
+- **D2. S1·S2. 별도 과제로 열지 않는다.** 문서화와 운영 규칙(Kill 활성·cooldown 중 orchestrator 재시작 금지)만 둔다. active 플래그 SET·Kill 상태 영속화 코드는 이번 1단계에 넣지 않는다.
+- **D3. `/pause_all` `/resume_all`은 미지원 응답.** Redis에 stop/start를 내지 않는다. 응답은 `미지원 — 긴급 중단은 /emergency_close`만 한다. 도움말 버튼은 제거하되, 이미 떠 있는 버튼과 직접 입력은 그 응답을 받는다. `/start`·`/stop`·`/weight`는 핸들러·등록·도움말에서 제거한다. 실제 동작(청산 포함 stop, 재개 start)은 이번 범위 밖이다.
+- **D4. 1D는 A안.** node-exporter 콜렉터 축소, scrape·evaluation 60초, Prometheus `127.0.0.1:9090`. profile `obs`는 만들지 않는다.
 
 ## 실행 순서 (이 문서가 승인되고 별도 구현 요청이 있을 때)
 
