@@ -45,6 +45,7 @@ docker compose ps
 | 대시보드 (모니터) | http://localhost:3000/monitor |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
+| Prometheus | 127.0.0.1:9090 |
 
 ---
 

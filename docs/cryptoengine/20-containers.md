@@ -21,8 +21,8 @@ flowchart TB
     subgraph infra["Infrastructure Layer"]
       postgres["<b>postgres:16-alpine</b><br/>:5432 · pgdata 볼륨<br/>cryptoengine DB<br/>replicas=256M"]
       redis["<b>redis:7-alpine</b><br/>:6379 · redisdata 볼륨<br/>AOF · 64MB maxmemory<br/>requirepass"]
-      prometheus["<b>prometheus:v2.51.0</b><br/>:9090 · prometheus-data 볼륨<br/>30d retention · tsdb"]
-      nexp["<b>node-exporter:v1.8.0</b><br/>:9100 expose only<br/>host metrics scraping"]
+      prometheus["<b>prometheus:v2.51.0</b><br/>127.0.0.1:9090 · prometheus-data 볼륨<br/>30d retention · scrape 60s"]
+      nexp["<b>node-exporter:v1.8.0</b><br/>:9100 expose only<br/>cpu · meminfo · filesystem"]
       rexp["<b>redis-exporter:latest</b><br/>:9121 expose only<br/>redis metrics scraping"]
       pgbak["<b>pg-backup</b><br/>pg_backup.sh<br/>cron: 0 17 * * *<br/>UTC=02:00 KST"]
       logret["<b>log-retention</b><br/>log_retention.sh<br/>cron: 0 18 * * *<br/>UTC=03:00 KST"]
@@ -76,7 +76,7 @@ flowchart TB
 **Infrastructure Layer** — 공유 기반 리소스:
 - `postgres`: 모든 서비스의 중앙 상태 저장소 (OHLCV, 포지션, 로그, 메트릭)
 - `redis`: Pub/Sub 신호 전파 채널 (시장 데이터 → 전략 → 실행)
-- `prometheus`: 메트릭 수집 (node-exporter, redis-exporter)
+- `prometheus`: 메트릭 수집 (node-exporter, redis-exporter). `scrape_interval`과 `evaluation_interval`은 60초. 호스트 바인딩은 `127.0.0.1:9090`. 대시보드는 docker 네트워크에서 `http://prometheus:9090`으로 조회한다. node-exporter 인자는 `--collector.disable-defaults --collector.cpu --collector.meminfo --collector.filesystem`.
 - 유지보수 작업: 백업, 로그 정리. **Bybit 운영 OHLCV는 4h만 수집·영구 보존.** 잔여 단기봉(구 Binance/OKX 수집분)은 7일 후 삭제.
 
 **Core + Strategy Layer** — 비즈니스 로직:
@@ -103,7 +103,7 @@ flowchart TB
 |--------|--------|-----------|----------|-----------|-----------|-------------|---------|
 | **postgres** | postgres:16-alpine | 127.0.0.1:5432 | 5432 | — | 1.0 | 512M | always |
 | **redis** | redis:7-alpine | 127.0.0.1:6379 | 6379 | — | 0.25 | 96M | always |
-| **prometheus** | prom/prometheus:v2.51.0 | 0.0.0.0:9090 | 9090 | redis-exp, node-exp | 0.5 | 512M | always |
+| **prometheus** | prom/prometheus:v2.51.0 | 127.0.0.1:9090 | 9090 | redis-exp, node-exp | 0.5 | 512M | always |
 | **node-exporter** | prom/node-exporter:v1.8.0 | expose | 9100 | — | 0.1 | 64M | always |
 | **redis-exporter** | oliver006/redis_exporter:latest | expose | 9121 | redis | 0.1 | 64M | always |
 | **pg-backup** | postgres:16-alpine | — | — | postgres | 0.5 | 128M | always |
@@ -127,7 +127,7 @@ flowchart TB
 |------|--------|-------------|------|--------|
 | **5432** | postgres | 127.0.0.1 | 운영 데이터베이스 | 로컬 (localhost) |
 | **6379** | redis | 127.0.0.1 | Pub/Sub 브로커 | 로컬 (컨테이너 내부) |
-| **9090** | prometheus | 0.0.0.0:9090 | 메트릭 쿼리 · UI | 호스트 접근 가능 |
+| **9090** | prometheus | 127.0.0.1:9090 | 메트릭 쿼리 · UI | 로컬 (localhost). 대시보드는 컨테이너 네트워크의 `http://prometheus:9090` |
 | **9100** | node-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
 | **9121** | redis-exporter | expose only | Prometheus 스크래핑 | 컨테이너 네트워크만 |
 | **3002** | grafana (future) | 0.0.0.0:3002 | Grafana UI | 호스트 접근 가능 |
@@ -135,7 +135,7 @@ flowchart TB
 ### 보안 주의
 
 - **localhost only** (`127.0.0.1`): postgres, redis (내부 통신)
-- **공개** (`0.0.0.0`): prometheus, dashboard (모니터링/인터페이스)
+- **공개** (`0.0.0.0`): dashboard (모니터링/인터페이스). prometheus는 `127.0.0.1:9090` |
 - **expose only**: node-exporter, redis-exporter (컨테이너 네트워크 내부 메트릭)
 
 ---

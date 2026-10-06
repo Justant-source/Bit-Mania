@@ -1,6 +1,6 @@
 ---
 title: L2 Containers — 세 서브시스템 토폴로지 · 네트워크 경계
-last_updated: 2026-08-29
+last_updated: 2026-10-06
 ---
 
 # L2 Containers — 세 서브시스템 관계 · 네트워크 경계
@@ -27,7 +27,7 @@ Backtest → CryptoEngine 반영은 자동화 없이 `cryptoengine/config/strate
 │     └─ cryptoengine_default (bridge, implicit)
 │        ├─ postgres :5432
 │        ├─ redis :6379
-│        ├─ prometheus :9090
+│        ├─ prometheus 127.0.0.1:9090 (scrape 60s, node-exporter cpu/mem/fs)
 │        ├─ market-data
 │        ├─ strategy-orchestrator
 │        ├─ execution-engine
