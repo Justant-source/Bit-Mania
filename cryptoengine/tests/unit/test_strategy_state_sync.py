@@ -175,6 +175,58 @@ class TestPositionSync:
 # 진입 사이징 — min(할당자본, 실시간 equity)
 # ------------------------------------------------------------------
 
+class TestOnStopReentry:
+    """Kill Switch 재발동으로 on_stop이 재진입해도 동기화가 끊긴 커넥터에 막히지 않는다."""
+
+    @staticmethod
+    def _disconnected_exchange(position):
+        ex = AsyncMock()
+        state = {"connected": False}
+
+        async def connect():
+            state["connected"] = True
+
+        async def disconnect():
+            state["connected"] = False
+
+        async def get_position(_symbol):
+            if not state["connected"]:
+                raise RuntimeError("BybitConnector is not connected — call connect() first")
+            return position
+
+        ex.connect = AsyncMock(side_effect=connect)
+        ex.disconnect = AsyncMock(side_effect=disconnect)
+        ex.get_position = AsyncMock(side_effect=get_position)
+        return ex
+
+    @pytest.mark.asyncio
+    async def test_on_stop_reconnects_before_sync(self, strategy):
+        strategy._exchange = self._disconnected_exchange(make_position(0.007))
+        strategy.submit_order = AsyncMock()
+
+        await strategy.on_stop("kill_switch")
+
+        strategy._exchange.connect.assert_awaited()
+        assert strategy._has_position is True  # 실포지션으로 교정
+        strategy.submit_order.assert_awaited_once()  # 청산 판단이 실제로 이뤄짐
+        strategy._exchange.disconnect.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_on_stop_reconnect_failure_keeps_belief(self, strategy):
+        strategy._exchange = self._disconnected_exchange(None)
+        strategy._exchange.connect = AsyncMock(side_effect=RuntimeError("net down"))
+        strategy.submit_order = AsyncMock()
+
+        await strategy.on_stop("kill_switch")  # 예외 전파 없이 종료
+
+        strategy._exchange.disconnect.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_service_shutdown_skips_sync(self, strategy):
+        await strategy.on_stop("service_shutdown")
+        strategy._exchange.get_position.assert_not_called()
+
+
 class TestEffectiveCapital:
     @pytest.mark.asyncio
     async def test_equity_below_allocation_reduces_capital(self, strategy):

@@ -278,6 +278,19 @@ class SupertrendLiveStrategy(BaseStrategy):
         # 청산 판단 전 거래소 진실 동기화 — pending 중 종료 등으로 내부 상태가
         # 실제와 다를 수 있다 (service_shutdown은 청산하지 않으므로 생략)
         if reason not in _SHUTDOWN_NO_LIQUIDATE:
+            # Kill Switch 쿨다운 만료→재발동으로 on_stop이 재진입하면 직전 on_stop이
+            # 커넥터를 disconnect한 상태다 (on_start는 다시 불리지 않음). connect()는
+            # 연결돼 있으면 no-op이므로 동기화 전에 항상 호출한다. 실패하면 동기화가
+            # position_sync_error로 기록하고 기존 내부 상태를 유지한다.
+            if self._exchange is not None:
+                try:
+                    await self._exchange.connect()
+                except Exception as exc:
+                    self._log.error(
+                        "on_stop_reconnect_failed",
+                        message=f"{type(exc).__name__}: {str(exc)[:300]}",
+                        error_type=type(exc).__name__,
+                    )
             await self._sync_position_from_exchange("on_stop")
 
         # Liquidate position if stopping for other reasons (not service shutdown)
