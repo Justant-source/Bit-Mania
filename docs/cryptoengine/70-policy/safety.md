@@ -1,6 +1,6 @@
 ---
 title: 70 Policy — 안전 정책 (Kill Switch · 레버리지 · BTC-only · 긴급 청산)
-last_updated: 2026-10-06
+last_updated: 2026-11-07
 ---
 
 # 70 Policy — 안전 정책
@@ -478,3 +478,11 @@ SafetyGuard는 `cache:ticker:bybit:<symbol>`를 읽는다. 이 키를 쓰는 곳
 - [strategy.md](strategy.md) — Supertrend 전략 사양 · 백테스트
 - [system-context.md](../../shared/10-context.md) — L1 외부 액터 · 서브시스템 경계
 - [0010-ops-cleanup-20260829.md](../../shared/90-adr/0010-ops-cleanup-20260829.md) — 2026-08-29 운영 창 결정
+
+## PORTFOLIO 발동 후 재발동 루프 방지 · flat 알림 전용 (2026-11-07)
+
+임계값(일 5%/10 USD, 주 10%/20 USD, 월 15%/30 USD)과 `shared/kill_switch.py`는 변경하지 않았다. 오케스트레이터(`services/orchestrator/core.py`, `portfolio_monitor.py`)가 다음을 처리한다.
+
+- **쿨다운 해제 시 고점 재설정**: PORTFOLIO(낙폭) 발동이 쿨다운(60분)을 넘기면 `check()` 호출 전에 일/주/월 고점을 현재 equity로 재설정하고 입력 낙폭을 0으로 준다. 해제 직후 같은 확정 손실로 다시 발동하지 않는다(2026-10-30~11-02 216회 재발동 사고). 재설정 이후의 새 손실은 임계값 전체를 다시 넘어야 발동한다. 재설정 시각은 Redis `orchestrator:peak_rebase_at`에 저장돼 재시작 후 고점 복원에도 적용된다.
+- **flat이면 알림만**: PORTFOLIO 발동 시 `ce:positions:all`이 확실히 `[]`이면 전략에 stop을 보내지 않고 텔레그램 알림(`알림만 (보유 포지션 없음 — 전략 유지)`)만 보낸다. 사이클은 쿨다운 중에도 배분(start)을 계속 낸다. 키 없음·파싱 실패는 flat으로 보지 않고 기존대로 stop한다. 알림 전용 상태에서 포지션이 감지되면 즉시 stop으로 승격한다. SYSTEM·MANUAL 레벨은 항상 stop한다.
+

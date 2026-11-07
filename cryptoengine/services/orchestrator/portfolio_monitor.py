@@ -23,6 +23,9 @@ log = structlog.get_logger(__name__)
 REDIS_KEY_PORTFOLIO = "cache:portfolio_state"
 REDIS_KEY_PORTFOLIO_CE = "ce:portfolio:state"  # telegram-bot / dashboard용 alias
 REDIS_KEY_EQUITY_HISTORY = "history:equity:daily"
+# 쿨다운 해제 시 낙폭 기준 고점을 재설정한 시각(ISO). 재시작 후 고점 복원이 이 시각
+# 이전 기록을 쓰지 않게 한다 (없으면 재시작 때 이미 처리한 낙폭이 되살아난다).
+REDIS_KEY_PEAK_REBASE_AT = "orchestrator:peak_rebase_at"
 SNAPSHOT_INTERVAL = 900  # 15 minutes
 
 
@@ -61,6 +64,8 @@ class PortfolioMonitor:
         self._weekly_peak: float = 0.0
         self._monthly_peak: float = 0.0
         self._last_peak_reset: datetime = datetime.now(timezone.utc)
+        # 이 시각 이전의 equity 기록은 기간 고점 계산에서 제외 (rebase_peaks 참고)
+        self._peak_floor: datetime | None = None
         # Cache last known wallet balance to avoid false drawdown on cache miss
         self._last_wallet_balance: float = 0.0
 
@@ -207,6 +212,29 @@ class PortfolioMonitor:
                 pass
         return 0.0
 
+    async def rebase_peaks(self, equity: float) -> None:
+        """기간(일/주/월) 낙폭 기준 고점을 현재 equity로 재설정한다.
+
+        Kill Switch 쿨다운이 끝났는데도 이미 처리한 동일 낙폭이 고점 기준으로 그대로
+        남아 있으면 해제 직후 같은 사유로 재발동한다 (2026-10-30~11-02 매시간 216회).
+        재설정 이후의 새로운 손실만 다시 임계값 판정 대상이 된다. 재설정 시각은 Redis에
+        저장해 재시작 후 고점 복원에도 적용한다.
+        """
+        now = datetime.now(timezone.utc)
+        self._daily_peak = equity
+        self._weekly_peak = equity
+        self._monthly_peak = equity
+        self._peak_floor = now
+        try:
+            await self._redis.set(REDIS_KEY_PEAK_REBASE_AT, now.isoformat())
+        except Exception:
+            log.exception(SERVICE_HEALTH_FAIL, message="peak rebase 시각 저장 실패")
+        log.warning(
+            SERVICE_HEALTH_OK,
+            message="drawdown peaks rebased after kill switch cooldown",
+            equity=equity,
+        )
+
     def _update_period_peaks(self, now: datetime, equity: float) -> None:
         """Reset period peaks when the period rolls over."""
         # Daily peak reset at UTC midnight
@@ -279,6 +307,13 @@ class PortfolioMonitor:
         re-triggers Kill Switch after every restart (Telegram alert spam).
         """
         raw = await self._redis.lrange(REDIS_KEY_EQUITY_HISTORY, 0, -1)
+        try:
+            floor_raw = await self._redis.get(REDIS_KEY_PEAK_REBASE_AT)
+            if isinstance(floor_raw, bytes):
+                floor_raw = floor_raw.decode()
+            self._peak_floor = datetime.fromisoformat(floor_raw) if floor_raw else None
+        except Exception:
+            self._peak_floor = None
         for entry in raw:
             try:
                 data = json.loads(entry)
@@ -295,11 +330,13 @@ class PortfolioMonitor:
             week_start = today - timedelta(days=today.weekday())  # Monday UTC
             month_start = today.replace(day=1)
 
-            daily_eqs = [eq for ts, eq in self._equity_history if ts.date() == today]
-            weekly_eqs = [eq for ts, eq in self._equity_history if ts.date() >= week_start]
-            monthly_eqs = [
-                eq for ts, eq in self._equity_history if ts.date() >= month_start
+            floor = self._peak_floor
+            since = [
+                (ts, eq) for ts, eq in self._equity_history if floor is None or ts >= floor
             ]
+            daily_eqs = [eq for ts, eq in since if ts.date() == today]
+            weekly_eqs = [eq for ts, eq in since if ts.date() >= week_start]
+            monthly_eqs = [eq for ts, eq in since if ts.date() >= month_start]
 
             # 0.0 → 첫 evaluate() 의 _update_period_peaks 가 현재 equity 로 설정
             self._daily_peak = max(daily_eqs) if daily_eqs else 0.0

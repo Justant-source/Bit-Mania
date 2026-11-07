@@ -1,6 +1,6 @@
 ---
 title: L5 API — Redis Pub/Sub 채널 카탈로그
-last_updated: 2026-10-06
+last_updated: 2026-11-07
 ---
 
 # L5 API — Redis Pub/Sub 채널 카탈로그
@@ -100,6 +100,7 @@ sequenceDiagram
 | `cache:wallet_balance` | 300s | execution-engine | orchestrator 포트폴리오 equity 조회 |
 | `cache:balance:{exchange}` | 300s | execution-engine | 거래소별 잔고 캐시 |
 | `heartbeat:execution-engine` | 300s | execution-engine | Dead Man's Switch 감시 |
+| `orchestrator:peak_rebase_at` | 없음 | orchestrator | 쿨다운 해제 시 낙폭 고점을 재설정한 시각(ISO). 재시작 후 고점 복원이 이 시각 이전 equity 기록을 제외 |
 
 ---
 

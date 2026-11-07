@@ -82,6 +82,9 @@ class StrategyOrchestrator:
         # _on_kill_switch_trigger에서 사용 (아래 해당 위치 주석 참고)
         self._last_daily_dd_pct: float = 0.0
         self._last_weekly_dd_pct: float = 0.0
+        # PORTFOLIO(낙폭) 발동 시 포지션이 없어 stop 없이 알림만 보낸 상태.
+        # 이 상태에선 사이클이 쿨다운 중에도 배분(start)을 계속 낸다.
+        self._ks_alert_only: bool = False
 
         self._running = False
         self._task: asyncio.Task[None] | None = None
@@ -205,6 +208,15 @@ class StrategyOrchestrator:
         # 2. Evaluate portfolio risk
         assert self._portfolio_monitor is not None
         portfolio_state = await self._portfolio_monitor.evaluate()
+        # 쿨다운이 끝난 PORTFOLIO(낙폭) 발동은 check()가 해제 직후 같은 낙폭으로 즉시
+        # 재발동하지 않게, check() 전에 낙폭 기준 고점을 현재 equity로 재설정한다.
+        # (shared/kill_switch.py는 수정하지 않는다 — 입력 낙폭만 새 기준으로 준다.)
+        if self._portfolio_cooldown_elapsed():
+            await self._portfolio_monitor.rebase_peaks(portfolio_state.total_equity)
+            portfolio_state = portfolio_state.model_copy(
+                update={"daily_drawdown": 0.0, "weekly_drawdown": 0.0, "monthly_drawdown": 0.0}
+            )
+            self._ks_alert_only = False
         self._total_equity = portfolio_state.total_equity
         # 킬스위치 알림용 캐시. portfolio_monitor는 드로우다운을 양수 분수로 반환하는데
         # (0.05 = 5% 손실) _format_kill_switch_alert는 그대로 {:.2f}%로 찍으므로
@@ -260,10 +272,21 @@ class StrategyOrchestrator:
                     triggered_at=self._kill_switch.triggered_at,
                 )
             # _on_kill_switch_trigger callback already fired inside KillSwitch.check()
-            return
+            alert_only = self._ks_alert_only and active_level == KillLevel.PORTFOLIO
+            if not alert_only:
+                return
+            # 알림 전용 상태에서 포지션이 생기면(진입 허용 중) 즉시 기존 정지 경로로 승격
+            if not await self._is_flat():
+                log.critical(
+                    KILL_SWITCH_TRIGGERED,
+                    message="kill switch 알림 전용 상태에서 포지션 감지 — 전략 정지",
+                )
+                self._ks_alert_only = False
+                await self._halt_strategies()
+                return
 
         # If kill switch is still cooling down, skip allocations
-        if self._kill_switch.is_triggered:
+        if self._kill_switch.is_triggered and not self._ks_alert_only:
             log.warning(KILL_SWITCH_COOLDOWN, message="kill switch cooldown", triggered_at=self._kill_switch.triggered_at)
             return
 
@@ -291,18 +314,9 @@ class StrategyOrchestrator:
         else:
             return 0.0
 
-    async def _on_kill_switch_trigger(self, level: KillLevel, reason: str) -> None:
-        """Callback fired by shared KillSwitch on every trigger.
-
-        Halts all strategies, sets emergency weights, and publishes
-        the kill-switch event to Redis so downstream services react.
-        """
-        if self._redis is None:
-            return
-
-        emergency_weights = {"supertrend": 0.0, "cash": 1.0}
-        self._current_weights = emergency_weights
-
+    async def _halt_strategies(self) -> None:
+        """모든 전략에 kill_switch 사유의 stop 명령을 발행한다."""
+        assert self._redis is not None
         for strategy_id, channel in STRATEGY_CHANNELS.items():
             cmd = StrategyCommand(
                 strategy_id=strategy_id,
@@ -313,6 +327,54 @@ class StrategyOrchestrator:
             await self._redis.publish(channel, cmd.model_dump_json())
             log.info(KILL_SWITCH_TRIGGERED, message="kill switch halt sent", strategy=strategy_id)
 
+    async def _is_flat(self) -> bool:
+        """거래소 동기화 포지션(ce:positions:all)이 확실히 비어 있을 때만 True.
+
+        키 없음·파싱 실패·조회 오류는 모두 False (보수적: 포지션이 있다고 본다).
+        """
+        if self._redis is None:
+            return False
+        try:
+            raw = await self._redis.get("ce:positions:all")
+            if raw is None:
+                return False
+            return json.loads(raw) == []
+        except Exception:
+            return False
+
+    def _portfolio_cooldown_elapsed(self) -> bool:
+        """PORTFOLIO(낙폭) 발동이 쿨다운을 넘겨 곧 자동 해제될 상태인가."""
+        ks = self._kill_switch
+        if not ks.is_triggered or ks.triggered_at is None or ks.level != KillLevel.PORTFOLIO:
+            return False
+        return datetime.now(timezone.utc) - ks.triggered_at >= ks.cooldown
+
+    async def _on_kill_switch_trigger(self, level: KillLevel, reason: str) -> None:
+        """Callback fired by shared KillSwitch on every trigger.
+
+        Halts all strategies, sets emergency weights, and publishes
+        the kill-switch event to Redis so downstream services react.
+        """
+        if self._redis is None:
+            return
+
+        # 낙폭(PORTFOLIO) 발동인데 거래소 포지션이 없으면 정지·청산할 대상이 없다.
+        # 이미 확정된 손실에 전략만 며칠 멈추게 되므로 알림만 보낸다 (2026-11-07 결정).
+        # 포지션 조회가 불확실하면 flat으로 보지 않고 기존대로 정지한다.
+        alert_only = level == KillLevel.PORTFOLIO and await self._is_flat()
+        self._ks_alert_only = alert_only
+        action_text = _KILL_LEVEL_ACTIONS.get(int(level), level.name)
+        if alert_only:
+            action_text = "알림만 (보유 포지션 없음 — 전략 유지)"
+            log.warning(
+                KILL_SWITCH_TRIGGERED,
+                message="kill switch alert-only: 보유 포지션 없음, stop 미전송",
+                reason=reason,
+            )
+        else:
+            self._current_weights = {"supertrend": 0.0, "cash": 1.0}
+            await self._halt_strategies()
+
         # Telegram 전용 리치 알림 (ce:alerts:kill_switch → _format_kill_switch_alert).
         # 발행이 실패해도 전략 stop과 ack_time 기록은 계속된다.
         try:
@@ -322,7 +384,7 @@ class StrategyOrchestrator:
                     {
                         "level": int(level),
                         "level_name": level.name,
-                        "action": _KILL_LEVEL_ACTIONS.get(int(level), level.name),
+                        "action": action_text,
                         "trigger_reason": reason,
                         "daily_drawdown": self._last_daily_dd_pct,
                         "weekly_drawdown": self._last_weekly_dd_pct,

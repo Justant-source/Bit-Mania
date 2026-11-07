@@ -1,6 +1,6 @@
 ---
 title: L6 Runtime — 상태 전이 · service_shutdown 복구
-last_updated: 2026-11-01
+last_updated: 2026-11-07
 ---
 
 # L6 Runtime — 상태 전이 · service_shutdown 복구
@@ -96,6 +96,10 @@ stateDiagram-v2
 ### PORTFOLIO/STRATEGY 발동 시 전략 `on_stop()` — position 진실 동기화 (2026-09-18~)
 
 Kill Switch가 전략에 stop을 보내면 `on_stop()`은 청산 여부를 정하기 전 `get_position()`으로 거래소 실포지션을 확인한다(§8 상세는 `strategy.md` §8). 2026-09-16 사고(PORTFOLIO 발동 2건, 09-07·09-15 — 상세는 `strategy.md` §8 사고 기록)에서 이 조회가 매번 실패했음에도 원인을 알 수 없었던 문제를 계기로, 1초·2초 간격 3회 재시도 + 실패 시 예외 종류·메시지 로깅을 추가했다(`cryptoengine/services/strategies/supertrend/strategy.py:_sync_position_from_exchange`). 2026-11-01: 쿨다운 만료→재발동으로 `on_stop()`이 재진입하면 직전 `on_stop()`이 커넥터를 `disconnect()`한 상태라 조회가 `BybitConnector is not connected`로 매시간 실패했다. 이제 동기화 전에 `connect()`(연결 시 no-op)를 호출한다; 재연결 실패는 `on_stop_reconnect_failed` ERROR로 남기고 동기화 실패 경로를 따른다. 재시도로도 실패하면 기존 내부 상태를 유지하는 기존 동작(§8 표)은 그대로다 — Kill Switch 로직·쿨다운·auto_resume은 무변경.
+
+### PORTFOLIO 발동 후 재발동 방지 (2026-11-07~)
+
+쿨다운 해제 시 낙폭 고점을 재설정하고, 보유 포지션이 없으면 stop 없이 알림만 보낸다. 상세·근거는 `docs/cryptoengine/70-policy/safety.md` 끝 절. `shared/kill_switch.py`는 무변경.
 
 ### 발동 시 텔레그램 리치 알림 (2026-09-19~)
 

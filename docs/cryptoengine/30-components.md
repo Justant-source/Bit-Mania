@@ -1,6 +1,6 @@
 ---
 title: L3 Components — 서비스 내부 모듈 책임
-last_updated: 2026-10-06
+last_updated: 2026-11-07
 ---
 
 # L3 Components — 서비스 내부 모듈 책임
@@ -256,3 +256,5 @@ class KillLevel(IntEnum):
 - **Data Flow (Redis Pub/Sub)**: `docs/cryptoengine/50-api.md`
 - **PostgreSQL 테이블**: `docs/cryptoengine/40-data.md`
 - **배포 가이드**: `docs/shared/70-policy.md`
+
+- **orchestrator Kill Switch 보조 (2026-11-07)**: `core.py`가 PORTFOLIO 쿨다운 해제 전 `PortfolioMonitor.rebase_peaks()`로 낙폭 고점을 재설정하고(Redis `orchestrator:peak_rebase_at`), 포지션 없음(`ce:positions:all == []`)이면 stop 없이 알림만 보낸다. 상세: `docs/cryptoengine/70-policy/safety.md`.
