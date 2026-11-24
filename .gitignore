@@ -1,4 +1,3 @@
-node_modules/
 .idea/
 /.request/
 /.result/
@@ -12,9 +11,8 @@ node_modules/
 # Claude Code runtime
 .claude/scheduled_tasks.lock
 
-# backtest raw data & runtime cache (large files, re-downloadable)
+# backtest raw data (large files, re-downloadable)
 backtest/data/
-backtest/runtime/
 # project-root data/ dir (wrong path artifacts, should be backtest/data/)
 /data/
 
@@ -24,25 +22,12 @@ cryptoengine/tests/fixtures/trades_7908.csv
 # 로컬 백업 (Binance #7908 결과 — 원본은 git 히스토리에 보존됨)
 backtest/results/**/*_binance_bak/
 
-# dashboard HTML (generated artifact)
-backtest/results/**/dashboard_v2.html
-
-# dashboard TypeScript build output
-dashboard/dist/
-
-# LLM Advisor data source runtime files
-cryptoengine/services/llm-advisor/alerts/*.md
-cryptoengine/services/llm-advisor/logs/*.log
-cryptoengine/services/llm-advisor/cache/
-!cryptoengine/services/llm-advisor/alerts/.gitkeep
-!cryptoengine/services/llm-advisor/logs/.gitkeep
-!cryptoengine/services/llm-advisor/cache/.gitkeep
+# host watchdog state (cryptoengine/scripts/watchdog.sh)
+cryptoengine/.watchdog/
 
 # 실제 자격증명 파일은 절대 추적하지 않는다 (2026-08-29 노출 사고 대응)
 # .env.example 만 추적하고, 실값이 든 .env 계열은 전부 제외한다
 **/.env
 !**/.env.example
-.result/
 .temp/
 .history/
-.request/

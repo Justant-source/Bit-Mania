@@ -1,109 +1,52 @@
-.PHONY: up down logs test test-unit status migrate emergency lint-docs
+.PHONY: help up down restart logs status test test-db emergency backup replay replay-sync
 
 COMPOSE := docker compose
-DEV_COMPOSE := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 
-# ── Lifecycle ─────────────────────────────────────────────────
-
-up: ## Start all services in production mode
+up: ## Build and start postgres + bot + pg-backup
 	$(COMPOSE) up -d --build --remove-orphans
-	@echo "CryptoEngine is running. (Dashboard is a separate compose project — see bitmania-dashboard.)"
 
-up-dev: ## Start all services in development mode with hot reload
-	$(DEV_COMPOSE) up -d --build --remove-orphans
-	@echo "CryptoEngine (dev) is running."
-
-down: ## Stop all services and remove containers
+down: ## Stop the stack (positions stay open on the exchange)
 	$(COMPOSE) down
 
-down-clean: ## Stop all services and remove volumes (DESTROYS DATA)
-	$(COMPOSE) down -v
+restart: ## Rebuild and restart only the bot (positions are never closed)
+	$(COMPOSE) up -d --build --no-deps bot
 
-restart: ## Restart all services
-	$(COMPOSE) restart
+logs: ## Tail bot logs
+	$(COMPOSE) logs -f --tail=100 bot
 
-# ── Logging ───────────────────────────────────────────────────
-
-logs: ## Tail logs for all services
-	$(COMPOSE) logs -f --tail=100
-
-logs-%: ## Tail logs for a specific service (e.g., make logs-market-data)
-	$(COMPOSE) logs -f --tail=100 $*
-
-# ── Testing ───────────────────────────────────────────────────
-
-test: ## Run the full test suite across all services
-	$(COMPOSE) run --rm --no-deps market-data pytest -v /app/tests/
-	$(COMPOSE) run --rm --no-deps strategy-orchestrator pytest -v /app/tests/
-	$(COMPOSE) run --rm --no-deps execution-engine pytest -v /app/tests/
-
-test-unit: ## Run unit tests only (no external dependencies)
-	$(COMPOSE) run --rm --no-deps market-data pytest -v -m unit /app/tests/
-	$(COMPOSE) run --rm --no-deps strategy-orchestrator pytest -v -m unit /app/tests/
-	$(COMPOSE) run --rm --no-deps execution-engine pytest -v -m unit /app/tests/
-
-# NOTE: The real backtest stack lives in backtest/docker/docker-compose.yml
-# (separate compose project, `cryptoengine-backtest`). Legacy targets that
-# invoked `fetch_real_ohlcv.py`, `seed_historical.py`, `run_scenarios.py`,
-# and `main.py --strategy combined` were removed 2026-08-29 — those scripts
-# no longer exist anywhere in the repo (deleted in a prior cleanup). To run
-# a backtest today:
-#   cd backtest/docker && docker compose --profile backtest run --rm backtester \
-#     python /app/scripts/runners/run_external_backtest.py
-
-# ── Operations ────────────────────────────────────────────────
-
-status: ## Show status of all services
-	@echo "=== Container Status ==="
+status: ## Container state, health and bot status (position, equity, halt, heartbeat age)
 	@$(COMPOSE) ps
 	@echo ""
-	@echo "=== Resource Usage ==="
-	@docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" $$($(COMPOSE) ps -q 2>/dev/null) 2>/dev/null || true
+	@$(COMPOSE) exec -T bot python -m bot.cli status 2>/dev/null || echo "(bot container not running)"
 
-migrate: ## Apply numbered SQL in shared/db/migrations/ (init_db.py; ADR-0006)
-	python3 scripts/init_db.py
+test-db: ## Throwaway Postgres for the tests (127.0.0.1:55432, never the production DB)
+	@docker inspect bot-test-pg >/dev/null 2>&1 || docker run -d --name bot-test-pg \
+	  -e POSTGRES_PASSWORD=test -p 127.0.0.1:55432:5432 postgres:16-alpine >/dev/null
+	@docker start bot-test-pg >/dev/null
+	@until docker exec bot-test-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 
-emergency: ## EMERGENCY: Close all positions and halt trading immediately
-	@echo "!!! EMERGENCY SHUTDOWN !!!"
-	@echo "긴급 청산 스크립트를 execution-engine 안에서 실행한다 (stdin 주입 — 재빌드 불필요)"
-	@echo "청산이 확인되어야만 서비스 정지 단계로 넘어간다. 미확인 시 여기서 중단된다."
-	$(COMPOSE) exec -T execution-engine python - < scripts/emergency_close_all.py
-	@echo "청산 확인됨. 전략·오케스트레이터를 정지한다 (execution-engine은 모니터링 위해 유지)."
-	$(COMPOSE) stop supertrend strategy-orchestrator
-	@echo "완료. 대시보드에서 확인: http://localhost:3000/supertrend"
-	@echo "재개하려면 ce:kill_switch:active 키를 삭제한 뒤 서비스를 기동할 것."
+test: test-db ## Unit and e2e tests on the host
+	python3 -m pytest tests/bot tests/e2e tests/unit/test_kill_switch.py -q
 
-resilience-test: ## Run automated resilience tests (kill+restart each core service, verify recovery)
-	@echo "=== CryptoEngine Resilience Test ==="
-	@echo "WARNING: This will briefly kill core services."
-	@read -p "Proceed? [y/N] " confirm; [ "$$confirm" = "y" ] || exit 0
-	python scripts/resilience_test.py
+emergency: ## EMERGENCY: halt entries and close the position (asks for confirmation)
+	@if [ -n "$$($(COMPOSE) ps -q --status running bot 2>/dev/null)" ]; then \
+	  $(COMPOSE) exec bot python -m bot.cli emergency-close; \
+	else \
+	  echo "bot container is not running - using a one-off container"; \
+	  $(COMPOSE) run --rm bot python -m bot.cli emergency-close; \
+	fi
 
-resilience-test-market-data: ## Test only market-data restart + gap backfill
-	python scripts/resilience_test.py --service market-data
-
-resilience-test-execution: ## Test only execution-engine restart + position preservation
-	python scripts/resilience_test.py --service execution-engine
-
-backup: ## Trigger manual PostgreSQL backup now
-	@echo "=== Manual backup triggered ==="
+backup: ## Run a PostgreSQL backup now (stored in the pg-backups volume)
 	$(COMPOSE) exec pg-backup sh /scripts/pg_backup.sh
-	@echo "=== Backup complete. Files in pg-backups volume ==="
 
-backup-list: ## List all existing PostgreSQL backups
-	$(COMPOSE) exec pg-backup sh -c "ls -lh /backups/cryptoengine_*.sql.gz 2>/dev/null || echo 'No backups found'"
+replay: ## Replay backtest on the Postgres data (extra args: make replay ARGS="--until 2026-04-30")
+	@DB_HOST=127.0.0.1 DB_PASSWORD="$$(grep '^DB_PASSWORD=' .env | cut -d= -f2-)" \
+	  python3 tests/fixtures/_replay_supertrend.py $(ARGS)
 
-backup-restore: ## Restore from latest backup (DESTRUCTIVE — confirm first)
-	@echo "!!! WARNING: This will overwrite the current database !!!"
-	@read -p "Latest backup to restore (filename only, e.g. cryptoengine_20260406_170000.sql.gz): " f; \
-	$(COMPOSE) exec pg-backup sh -c "gunzip -c /backups/$$f | psql -h postgres -U cryptoengine -d cryptoengine"
+replay-sync: ## Fetch missing closed Binance spot 4h bars into replay_ohlcv_4h
+	$(COMPOSE) exec bot python -m bot.replay_data sync
 
-lint-docs: ## Lint docs/ tree against C4 SSOT standard (6 checks, stdlib only)
-	cd .. && python3 scripts/lint_docs.py
-
-# ── Help ──────────────────────────────────────────────────────
-
-help: ## Show this help message
-	@grep -E '^[a-zA-Z_%-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "%-14s %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help

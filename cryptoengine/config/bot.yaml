@@ -1,0 +1,12 @@
+# Bot risk configuration (values from config/orchestrator.yaml kill_switch.phase5 and risk,
+# which are what production uses with BYBIT_TESTNET=false).
+kill_switch:
+  max_daily_drawdown_pct: 5.0
+  max_weekly_drawdown_pct: 10.0
+  max_monthly_drawdown_pct: 15.0
+  max_daily_loss_abs_usd: 10
+  max_weekly_loss_abs_usd: 20
+  max_monthly_loss_abs_usd: 30
+  cooldown_minutes: 60
+
+max_capital_usd: 1000

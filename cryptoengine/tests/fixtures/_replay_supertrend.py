@@ -1,10 +1,17 @@
 """Binance spot 4h backtest of the LIVE Supertrend strategy — closes the grid gap.
 
 #7908 was backtested on Binance 1h→4h (Jesse's expand→re-aggregate produced a
-02계열 fill grid). The live system trades Bybit *native* 4h (00계열). This re-runs
-the strategy on Bybit 4h with the LIVE (fixed) indicators and the #7908 entry/exit
-rules, producing the trade series + headline stats on the same exchange and grid
-the live system actually uses.
+02계열 fill grid). This re-runs the strategy on Binance SPOT native 4h (00계열)
+with the LIVE (fixed) indicators and the #7908 entry/exit rules. (The data is
+Binance spot, NOT Bybit; live trades the Bybit perpetual.)
+
+Data source: Postgres table `replay_ohlcv_4h` by default (env DB_HOST [127.0.0.1],
+DB_PORT, DB_NAME, DB_USER, DB_PASSWORD), kept current by `python -m bot.replay_data
+sync`. `--csv <path>` reads a CSV instead. `--until` truncates the data so the
+frozen baseline (data to 2026-04-30, 19057 bars) stays reproducible:
+  --until 2026-04-30   all bars up to and including that UTC day
+  --until <ms>         bars with open time <= ms
+Reference trades: table `replay_reference_trades`, CSV fallback trades_7908.csv.
 
 Indicators: full-history via the live functions (compute_ema / _atr_jesse) + the
 live supertrend algorithm (verified == Jesse in test_supertrend_parity). Fills at
@@ -17,12 +24,14 @@ Modes:
   --out <dir>       → also write dashboard-format stats.json / trades.csv /
                       monthly_returns.csv into <dir> (parity fixture 생성용)
 
-Run: docker run --rm -v "$PWD/cryptoengine:/work" -w /work \
-       --entrypoint python cryptoengine-supertrend:latest \
-       tests/fixtures/_replay_supertrend.py [--out /path/to/results_dir]
+Run (from cryptoengine/):
+  python3 tests/fixtures/_replay_supertrend.py --until 2026-04-30   # frozen baseline, DB
+  python3 tests/fixtures/_replay_supertrend.py --csv tests/fixtures/btc_4h.csv
+  python3 tests/fixtures/_replay_supertrend.py [--out /path/to/results_dir]
 
-Hold-out (S7): --csv / --params / --start / --end (end exclusive). No extra
-args still prints the canonical #7908 fixture (198 / 219.06 / −66.70 / 1.667).
+Hold-out (S7): --csv / --until / --params / --start / --end (end exclusive). The
+canonical #7908 fixture (198 / 219.06 / −66.70 / 1.667) is the data up to 2026-04-30
+(`--until 2026-04-30` or the btc_4h.csv file); a run on newer data is a different window.
 """
 
 from __future__ import annotations
@@ -43,7 +52,7 @@ import pandas as pd
 _CE = Path(__file__).resolve().parents[2]
 if str(_CE) not in sys.path:
     sys.path.insert(0, str(_CE))
-from services.strategies.supertrend.indicators import (  # noqa: E402
+from bot.indicators import (  # noqa: E402
     _atr_jesse,
     compute_ema,
     compute_supertrend,
@@ -59,7 +68,7 @@ START_BAL = 10_000.0
 _4H_MS = 4 * 3600 * 1000
 FX = Path(__file__).resolve().parent
 
-# #7908 (Bybit 네이티브 4h, ATR 손절만·익절 없음, 2026-08-20)
+# #7908 (Binance 현물 4h, ATR 손절만·익절 없음, 2026-08-20)
 REF = {"trades": 198, "winrate": 42.42, "cagr": 219.06, "mdd": -66.70,
        "pf": 1.507, "sharpe": 1.667}
 
@@ -135,19 +144,76 @@ def load_funding_csv(path: Path) -> dict[int, float]:
 from functools import lru_cache
 
 
+def until_ms(s: str | int | None) -> int | None:
+    """--until value → inclusive upper bound on bar open time (ms).
+    'YYYY-MM-DD' includes that whole UTC day; a bare integer is an epoch-ms bound."""
+    if s is None:
+        return None
+    s = str(s)
+    if s.isdigit():
+        return int(s)
+    return date_ms(s) + 86_400_000 - 1
+
+
+def _db_params() -> dict:
+    import os
+    return dict(host=os.environ.get("DB_HOST", "127.0.0.1"),
+                port=int(os.environ.get("DB_PORT", "5432")),
+                database=os.environ.get("DB_NAME", "cryptoengine"),
+                user=os.environ.get("DB_USER", "cryptoengine"),
+                password=os.environ.get("DB_PASSWORD", ""))
+
+
+def _db_fetch(query: str, *args):
+    import asyncio
+    import asyncpg
+
+    async def _go():
+        conn = await asyncpg.connect(**_db_params())
+        try:
+            return await conn.fetch(query, *args)
+        finally:
+            await conn.close()
+    return asyncio.run(_go())
+
+
 @lru_cache(maxsize=8)
-def _load_ohlcv(csv_path_str: str):
-    """Cached CSV → (ts,o,h,lo,c) numpy arrays. Combo-independent; a v12 grid run calls
-    run_backtest thousands of times against the same csv_path, so re-parsing the CSV
-    every call (the pre-v12 behaviour) would dominate runtime. Pure read of immutable
-    on-disk data — safe to cache across the whole process."""
-    rows = list(csv.DictReader(open(csv_path_str)))
+def _load_ohlcv(source: str, until: int | None = None):
+    """Cached source → (ts,o,h,lo,c) numpy arrays. `source` is a CSV path or "db".
+    Combo-independent; a v12 grid run calls run_backtest thousands of times against
+    the same source, so re-reading every call would dominate runtime. `until`
+    (inclusive open-time ms bound) truncates the series BEFORE indicators run."""
+    if source == "db":
+        recs = _db_fetch("SELECT ts, open, high, low, close FROM replay_ohlcv_4h "
+                         "WHERE ($1::bigint IS NULL OR ts <= $1) ORDER BY ts", until)
+        if not recs:
+            raise SystemExit("replay_ohlcv_4h is empty/unreachable — run `python -m bot.replay_data "
+                             "import-csv/sync`, or pass --csv <path>")
+        ts = np.array([r["ts"] for r in recs], dtype=np.int64)
+        o, h, lo, c = (np.array([r[k] for r in recs], dtype=float)
+                       for k in ("open", "high", "low", "close"))
+        return ts, o, h, lo, c
+    rows = list(csv.DictReader(open(source)))
+    if until is not None:
+        rows = [r for r in rows if int(r["timestamp"]) <= until]
     ts = np.array([int(r["timestamp"]) for r in rows])
     o = np.array([float(r["open"]) for r in rows])
     h = np.array([float(r["high"]) for r in rows])
     lo = np.array([float(r["low"]) for r in rows])
     c = np.array([float(r["close"]) for r in rows])
     return ts, o, h, lo, c
+
+
+def load_reference_open_times() -> list[int]:
+    """#7908 reference entry times: DB table first, CSV fallback."""
+    try:
+        recs = _db_fetch("SELECT opened_at FROM replay_reference_trades ORDER BY opened_at")
+        if recs:
+            return [int(r["opened_at"]) for r in recs]
+    except Exception:
+        pass
+    ref = list(csv.DictReader(open(FX / "trades_7908.csv")))
+    return sorted(int(float(r["opened_at"])) for r in ref)
 
 
 def run_backtest(
@@ -167,6 +233,7 @@ def run_backtest(
     fill: str = "close",
     funding: dict[int, float] | None = None,
     funding_log: list | None = None,
+    until: int | None = None,
 ):
     """Returns (trades, equity_4h, df, ts). Indicators on full CSV; fills in [start,end).
 
@@ -195,8 +262,8 @@ def run_backtest(
                       charge (cost > 0 = long paid; cost < 0 = long received). Reporting
                       only; does not affect the simulation.
     """
-    csv_path = Path(csv_path) if csv_path else FX / "btc_4h.csv"
-    ts, o, h, lo, c = _load_ohlcv(str(csv_path))
+    source = str(csv_path) if csv_path else "db"
+    ts, o, h, lo, c = _load_ohlcv(source, until)
     df = pd.DataFrame({"open": o, "high": h, "low": lo, "close": c})
     n = len(df)
 
@@ -408,7 +475,7 @@ def write_dashboard_results(out_dir: Path, trades, m, ts):
         "variant": "long_only",
         "timeframe": "4h",
         "strategy": "SupertrendStrategy",
-        "data_source": "bybit_native_4h_00grid_live_logic",
+        "data_source": "binance_spot_4h_00grid_live_logic",
         "start": _u(ts[0]),
         "end": _u(ts[-1]),
         "raw_metrics": {
@@ -426,7 +493,10 @@ def write_dashboard_results(out_dir: Path, trades, m, ts):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None, help="results dir for dashboard-format output")
-    ap.add_argument("--csv", default=None, help="OHLCV CSV (default: fixtures/btc_4h.csv)")
+    ap.add_argument("--csv", default=None, help="OHLCV CSV (default: Postgres replay_ohlcv_4h)")
+    ap.add_argument("--until", default=None,
+                    help="truncate data: YYYY-MM-DD (whole UTC day included) or epoch ms; "
+                         "frozen baseline = 2026-04-30")
     ap.add_argument("--params", default=None, help="JSON object or path (st_factor/st_period/fast_ema/…)")
     ap.add_argument("--start", default=None, help="trade window start YYYY-MM-DD inclusive UTC")
     ap.add_argument("--end", default=None, help="trade window end YYYY-MM-DD exclusive UTC")
@@ -448,10 +518,11 @@ def main():
     p = parse_params(args.params)
     start_ms = date_ms(args.start) if args.start else None
     end_ms = date_ms(args.end) if args.end else None
-    csv_path = Path(args.csv) if args.csv else FX / "btc_4h.csv"
+    csv_path = Path(args.csv) if args.csv else None
+    until = until_ms(args.until)
     funding = load_funding_csv(Path(args.funding_csv)) if args.funding_csv else None
     default_run = (
-        args.csv is None and args.params is None
+        args.params is None
         and args.start is None and args.end is None
         and args.warmup_bars is None and not args.safety_stop
         and args.fee is None and args.slip_bps == 0.0 and args.fill == "close"
@@ -474,6 +545,7 @@ def main():
         slip_bps=args.slip_bps,
         fill=args.fill,
         funding=funding,
+        until=until,
     )
     m = _metrics(trades, equity_4h)
 
@@ -481,7 +553,8 @@ def main():
         payload = {
             "label": args.label,
             "bars": int(len(df)),
-            "csv": str(csv_path),
+            "source": str(csv_path) if csv_path else "db:replay_ohlcv_4h",
+            "until": args.until,
             "params": p,
             "start": args.start,
             "end": args.end,
@@ -503,13 +576,13 @@ def main():
     print("exit reasons:", dict(Counter(t[7] for t in trades)))
 
     if default_run:
+        print("\n(reference figures below are valid only for the frozen window to 2026-04-30)")
         print("\n=== prior ATR-TP series (Binance spot 4h, 2026-06-14) ===")
         print("trades=%d  win=%.1f%%  CAGR=%.2f%%  MDD=%.2f%%  PF=%.3f  Sharpe=%.3f"
               % (360, 48.61, 137.64, -73.29, 1.184, 1.349))
 
         # entry-timing overlap vs #7908
-        ref = list(csv.DictReader(open(FX / "trades_7908.csv")))
-        ref_open = sorted(int(float(r["opened_at"])) for r in ref)
+        ref_open = load_reference_open_times()
         sim_open = sorted(t[0] for t in trades)
         tol = _4H_MS + 2 * 3600 * 1000
         matched = 0

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>BTC 봇 상태</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1b1f24;--mute:#6a7380;--line:#e3e6ea;--up:#0a7f4f;--down:#c0392b;--warn:#b45309;--warnbg:#fff4e0;--bad:#b42318;--badbg:#fdeceb;--accent:#2f5fd0;--grid:#eceff2}
+@media (prefers-color-scheme:dark){:root{--bg:#101316;--card:#181c20;--fg:#e6e9ec;--mute:#8b95a1;--line:#2a3036;--up:#3ecf8e;--down:#ff7a6b;--warn:#f5b04c;--warnbg:#33260f;--bad:#ff8a80;--badbg:#3a1714;--accent:#7aa2ff;--grid:#23282d}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Noto Sans KR","Malgun Gothic",sans-serif}
+main{max-width:960px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:17px;margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h1 small{font-weight:400;color:var(--mute);font-size:12px}
+h2{font-size:13px;margin:0 0 8px;color:var(--mute);font-weight:600}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.k{font-size:12px;color:var(--mute)}
+.v{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.v small{font-weight:400;color:var(--mute);font-size:12px}
+.banner{padding:8px 10px;border-radius:6px;font-size:14px;margin-bottom:12px}
+.banner.warn{background:var(--warnbg);color:var(--warn)}
+.banner.bad{background:var(--badbg);color:var(--bad);font-weight:600}
+.up{color:var(--up)}.down{color:var(--down)}.mute{color:var(--mute)}
+.chart{width:100%;position:relative}
+.chart svg{display:block;width:100%}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 6px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:500;font-size:12px}
+tfoot td{font-weight:600;border-bottom:0}
+.empty{color:var(--mute);font-size:13px;padding:8px 0}
+.err{color:var(--bad);font-size:13px}
+.legend{font-size:12px;color:var(--mute);margin-top:4px}
+</style>
+</head>
+<body>
+<main>
+  <h1>BTC 봇 상태 <small id="upd">불러오는 중…</small></h1>
+  <div id="err" class="err" hidden></div>
+
+  <section id="status"></section>
+
+  <section><h2>자산 곡선 (90일)</h2><div class="chart" id="eqChart"></div></section>
+  <section><h2>가격 (4h, 최근 200봉)</h2><div class="chart" id="pxChart"></div>
+    <div class="legend"><span class="up">▲ 진입</span> · <span class="down">▼ 청산</span></div></section>
+  <section><h2>최근 청산 거래 (30건)</h2><div class="scroll" id="trades"></div></section>
+  <section><h2>최근 신호 (60건)</h2><div class="scroll" id="signals"></div></section>
+</main>
+
+<script>
+"use strict";
+const KST = "Asia/Seoul";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDT = (iso, withYear) => {
+  if (!iso) return "-";
+  const p = {};
+  for (const x of new Intl.DateTimeFormat("en-GB", {timeZone: KST, month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}).formatToParts(new Date(iso)))
+    p[x.type] = x.value;
+  return p.month + "-" + p.day + " " + (p.hour === "24" ? "00" : p.hour) + ":" + p.minute;
+};
+const fmtD = iso => new Date(iso).toLocaleDateString("ko-KR", {timeZone: KST, month:"numeric", day:"numeric"});
+const num = (v, d=2) => v == null ? "-" : Number(v).toLocaleString("en-US", {minimumFractionDigits:d, maximumFractionDigits:d});
+const signed = (v, d=2) => v == null ? "-" : (v >= 0 ? "+" : "-") + num(Math.abs(v), d);
+const cls = v => v > 0 ? "up" : v < 0 ? "down" : "";
+const ago = sec => {
+  if (sec == null) return "-";
+  if (sec < 90) return sec + "초 전";
+  if (sec < 5400) return Math.round(sec/60) + "분 전";
+  if (sec < 172800) return (sec/3600).toFixed(1) + "시간 전";
+  return Math.round(sec/86400) + "일 전";
+};
+
+let DATA = null;
+const params = new URLSearchParams(location.search);
+const T = params.get("t");
+
+async function load() {
+  try {
+    const r = await fetch("api/summary" + (T ? "?t=" + encodeURIComponent(T) : ""), {credentials:"same-origin", cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    DATA = await r.json();
+    $("err").hidden = true;
+    render();
+  } catch (e) {
+    $("err").hidden = false;
+    $("err").textContent = "데이터를 불러오지 못했습니다: " + e.message;
+  }
+}
+
+function render() {
+  const d = DATA, s = d.status;
+  $("upd").textContent = "갱신 " + fmtDT(d.generated_at) + " KST";
+  renderStatus(s);
+  drawLine($("eqChart"), d.equity_curve.map(p => ({t:+new Date(p.t), v:p.v})), v => "$" + num(v, 0), true);
+  drawPrice($("pxChart"), d.candles, d.trades);
+  renderTrades(d.trades, d.trade_totals);
+  renderSignals(d.signals);
+}
+
+function renderStatus(s) {
+  let h = "";
+  const age = s.heartbeat_age_sec;
+  if (age == null) h += '<div class="banner bad">하트비트 기록 없음 - 봇이 동작 중인지 확인하세요</div>';
+  else if (age > 1200) h += '<div class="banner bad">하트비트 ' + ago(age) + ' - 20분 넘게 갱신되지 않았습니다</div>';
+  const k = s.kill_switch;
+  if (k && k.level && !/^(normal|none|ok|0)$/i.test(String(k.level)))
+    h += '<div class="banner warn">Kill Switch ' + esc(k.level) + (k.alert_only ? " (알림 전용)" : "") + ": " + esc(k.reason || "") + "</div>";
+  const p = s.position;
+  const posV = p ? num(p.size, 3) + " BTC <small>@ " + num(p.entry_price, 1) + "</small>" : '<span class="mute">포지션 없음</span>';
+  const posSub = p ? '<div class="k">' + fmtDT(p.opened_at) + " 진입</div>" : "";
+  const tr = s.trading;
+  const trV = tr.entries_blocked ? '<span class="down">진입 차단</span>' : '<span class="up">정상</span>';
+  const trSub = tr.entries_blocked ? '<div class="k">' + esc(tr.reason) + "</div>" : "";
+  const lb = s.last_bar;
+  const lbV = lb ? esc(lb.signal) + " <small>" + (lb.st_dir > 0 ? "상승" : "하락") + " · $" + num(lb.price, 1) + "</small>" : "-";
+  const lbSub = lb ? '<div class="k">' + fmtDT(lb.bar_ts) + " 봉" + (lb.exit_reason ? " · " + esc(lb.exit_reason) : "") + "</div>" : "";
+  h += '<div class="grid">' +
+    cell("자산", s.equity == null ? "-" : "$" + num(s.equity), s.equity_at ? '<div class="k">' + fmtDT(s.equity_at) + "</div>" : "") +
+    cell("포지션", posV, posSub) +
+    cell("거래 상태", trV, trSub) +
+    cell("하트비트", age == null ? "-" : '<span class="' + (age > 1200 ? "down" : "") + '">' + ago(age) + "</span>", "") +
+    cell("마지막 평가 봉", lbV, lbSub) +
+    "</div>";
+  $("status").innerHTML = h;
+}
+const cell = (k, v, sub) => '<div><div class="k">' + k + '</div><div class="v">' + v + "</div>" + (sub || "") + "</div>";
+
+function renderTrades(rows, tot) {
+  if (!rows.length) { $("trades").innerHTML = '<div class="empty">청산된 거래가 없습니다</div>'; return; }
+  let h = "<table><thead><tr><th>진입</th><th>청산</th><th>진입가</th><th>청산가</th><th>손익 $</th><th>손익 %</th><th>사유</th></tr></thead><tbody>";
+  for (const t of rows)
+    h += "<tr><td>" + fmtDT(t.opened_at) + "</td><td>" + fmtDT(t.closed_at) + "</td><td>" + num(t.entry_price, 1) +
+      "</td><td>" + num(t.exit_price, 1) + '</td><td class="' + cls(t.pnl) + '">' + signed(t.pnl) +
+      '</td><td class="' + cls(t.pnl) + '">' + signed(t.pnl_pct) + "%</td><td>" + esc(t.exit_reason) + "</td></tr>";
+  h += '</tbody><tfoot><tr><td colspan="4">합계 ' + tot.count + "건 (" + tot.wins + "승 " + tot.losses + "패)</td><td class=\"" + cls(tot.pnl) + '">' +
+    signed(tot.pnl) + '</td><td></td><td class="mute">수수료 ' + num(tot.fees) + "</td></tr></tfoot></table>";
+  $("trades").innerHTML = h;
+}
+
+function renderSignals(rows) {
+  if (!rows.length) { $("signals").innerHTML = '<div class="empty">신호 기록이 없습니다</div>'; return; }
+  let h = "<table><thead><tr><th>봉 (KST)</th><th>추세</th><th>가격</th><th>포지션</th><th>신호</th><th>사유</th></tr></thead><tbody>";
+  for (const r of rows) {
+    const sig = r.exit_signal ? "청산" : r.entry_ok ? "진입" : "-";
+    h += "<tr><td>" + fmtDT(r.bar_ts) + '</td><td class="' + (r.st_dir > 0 ? "up" : "down") + '">' + (r.st_dir > 0 ? "상승" : "하락") +
+      "</td><td>" + num(r.price, 1) + "</td><td>" + (r.had_position ? "보유" : "없음") + "</td><td>" + sig + "</td><td>" + esc(r.exit_reason || "") + "</td></tr>";
+  }
+  $("signals").innerHTML = h + "</tbody></table>";
+}
+
+/* ---- charts (inline SVG, sized to the container) ---- */
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function frame(el, h) {
+  const w = Math.max(240, el.clientWidth);
+  return {w, h, m: {l: 52, r: 8, t: 8, b: 20}};
+}
+function niceTicks(lo, hi, n) {
+  const step = (hi - lo) / n, out = [];
+  for (let i = 0; i <= n; i++) out.push(lo + step * i);
+  return out;
+}
+
+function drawLine(el, pts, yfmt) {
+  if (pts.length < 2) { el.innerHTML = '<div class="empty">데이터가 부족합니다</div>'; return; }
+  const {w, h, m} = frame(el, 200);
+  const xs = pts.map(p => p.t), ys = pts.map(p => p.v);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pad = (y1 - y0) * 0.08 || 1; y0 -= pad; y1 += pad;
+  const X = t => m.l + (t - x0) / (x1 - x0 || 1) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - y0) / (y1 - y0) * (h - m.t - m.b);
+  let s = '<svg viewBox="0 0 ' + w + " " + h + '" height="' + h + '" role="img" aria-label="자산 곡선">';
+  for (const v of niceTicks(y0, y1, 4))
+    s += '<line x1="' + m.l + '" x2="' + (w - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="' + cssv("--grid") + '"/>' +
+      '<text x="' + (m.l - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" font-size="11" fill="' + cssv("--mute") + '">' + yfmt(v) + "</text>";
+  s += xTicks(x0, x1, X, w, h, m);
+  s += '<polyline fill="none" stroke="' + cssv("--accent") + '" stroke-width="1.8" stroke-linejoin="round" points="' +
+    pts.map(p => X(p.t).toFixed(1) + "," + Y(p.v).toFixed(1)).join(" ") + '"/></svg>';
+  el.innerHTML = s;
+}
+
+function xTicks(x0, x1, X, w, h, m) {
+  let s = "";
+  const n = w < 420 ? 3 : 5;
+  for (let i = 0; i <= n; i++) {
+    const t = x0 + (x1 - x0) * i / n;
+    const anchor = i === 0 ? "start" : i === n ? "end" : "middle";
+    s += '<text x="' + X(t).toFixed(1) + '" y="' + (h - 5) + '" text-anchor="' + anchor + '" font-size="11" fill="' + cssv("--mute") + '">' + fmtD(new Date(t).toISOString()) + "</text>";
+  }
+  return s;
+}
+
+function drawPrice(el, candles, trades) {
+  if (candles.length < 2) { el.innerHTML = '<div class="empty">캔들 데이터가 없습니다</div>'; return; }
+  const {w, h, m} = frame(el, 240);
+  const ts = candles.map(c => +new Date(c.t));
+  const step = 4 * 3600e3;
+  const x0 = ts[0], x1 = ts[ts.length - 1] + step;
+  let y0 = Math.min(...candles.map(c => c.l)), y1 = Math.max(...candles.map(c => c.h));
+  const pad = (y1 - y0) * 0.05 || 1; y0 -= pad; y1 += pad;
+  const X = t => m.l + (t - x0) / (x1 - x0) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - y0) / (y1 - y0) * (h - m.t - m.b);
+  const bw = Math.max(1, (w - m.l - m.r) / candles.length * 0.7);
+  const up = cssv("--up"), dn = cssv("--down");
+  let s = '<svg viewBox="0 0 ' + w + " " + h + '" height="' + h + '" role="img" aria-label="4시간봉 가격 차트">';
+  for (const v of niceTicks(y0, y1, 4))
+    s += '<line x1="' + m.l + '" x2="' + (w - m.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="' + cssv("--grid") + '"/>' +
+      '<text x="' + (m.l - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" font-size="11" fill="' + cssv("--mute") + '">' + num(v, 0) + "</text>";
+  s += xTicks(x0, x1, X, w, h, m);
+  for (const c of candles) {
+    const x = X(+new Date(c.t) + step / 2), col = c.c >= c.o ? up : dn;
+    const top = Y(Math.max(c.o, c.c)), bot = Y(Math.min(c.o, c.c));
+    s += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + Y(c.h).toFixed(1) + '" y2="' + Y(c.l).toFixed(1) + '" stroke="' + col + '"/>' +
+      '<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(1, bot - top).toFixed(1) + '" fill="' + col + '"/>';
+  }
+  const inR = t => t >= x0 && t <= x1;
+  for (const t of trades) {
+    const ti = +new Date(t.opened_at), to = +new Date(t.closed_at);
+    if (inR(ti)) { const x = X(ti), y = Y(t.entry_price);
+      s += '<path d="M' + x.toFixed(1) + " " + (y - 2).toFixed(1) + " l-6 11 h12 z" + '" fill="' + up + '" stroke="var(--card)" stroke-width="1"><title>진입 ' + num(t.entry_price, 1) + "</title></path>"; }
+    if (inR(to) && t.exit_price != null) { const x = X(to), y = Y(t.exit_price);
+      s += '<path d="M' + x.toFixed(1) + " " + (y + 2).toFixed(1) + " l-6 -11 h12 z" + '" fill="' + dn + '" stroke="var(--card)" stroke-width="1"><title>청산 ' + num(t.exit_price, 1) + "</title></path>"; }
+  }
+  // open position: entry marker is not in closed trades; mark it from status
+  const p = DATA && DATA.status.position;
+  if (p && inR(+new Date(p.opened_at))) { const x = X(+new Date(p.opened_at)), y = Y(p.entry_price);
+    s += '<path d="M' + x.toFixed(1) + " " + (y - 2).toFixed(1) + " l-6 11 h12 z" + '" fill="' + up + '" stroke="var(--card)" stroke-width="1"><title>진입 (보유 중)</title></path>'; }
+  el.innerHTML = s + "</svg>";
+}
+
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => DATA && render(), 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => DATA && render());
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>

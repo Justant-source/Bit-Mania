@@ -1,15 +1,9 @@
-x-common-env: &common-env
-  DB_HOST: postgres
-  DB_PORT: 5432
-  DB_NAME: cryptoengine
-  DB_USER: cryptoengine
-  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
-  REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  ENVIRONMENT: ${ENVIRONMENT:-testnet}
+# Single-process stack: postgres + bot + pg-backup.
+# Rename over docker-compose.yml at cutover. Project name (directory name `cryptoengine`)
+# and the `pgdata` / `pg-backups` volumes are unchanged, so existing data is reused.
+# Build context is this directory (as in the old compose); the Dockerfile lives in bot/.
 
 services:
-  # ── Data Layer ──────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     restart: always
@@ -35,6 +29,31 @@ services:
         reservations:
           memory: 256M
 
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    # Longer than the order timeout (420 s) so an in-flight order finishes before exit.
+    stop_grace_period: 450s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
   pg-backup:
     image: postgres:16-alpine
     restart: always
@@ -59,311 +78,8 @@ services:
           cpus: "0.5"
           memory: 128M
 
-  log-retention:
-    image: postgres:16-alpine
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DB_HOST: postgres
-      DB_NAME: cryptoengine
-      DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
-      LOG_RETENTION_CRON: ${LOG_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
-      RETENTION_ON_STARTUP: ${RETENTION_ON_STARTUP:-false}
-    volumes:
-      - ./scripts/sh/log_retention.sh:/scripts/log_retention.sh:ro
-      - ./scripts/sh/log_retention_entrypoint.sh:/scripts/log_retention_entrypoint.sh:ro
-    entrypoint: ["sh", "/scripts/log_retention_entrypoint.sh"]
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          memory: 64M
-
-  ohlcv-retention:
-    image: postgres:16-alpine
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DB_HOST: postgres
-      DB_NAME: cryptoengine
-      DB_USER: cryptoengine
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required in .env}
-      OHLCV_RETENTION_CRON: ${OHLCV_RETENTION_CRON:-0 18 * * *}   # 매일 03:00 KST
-      OHLCV_RETENTION_DAYS: ${OHLCV_RETENTION_DAYS:-7}            # 잔여 비-4h 행만 정리
-      OHLCV_RETENTION_ON_STARTUP: ${OHLCV_RETENTION_ON_STARTUP:-false}
-    volumes:
-      - ./scripts/sh/ohlcv_retention.sh:/scripts/ohlcv_retention.sh:ro
-      - ./scripts/sh/ohlcv_retention_entrypoint.sh:/scripts/ohlcv_retention_entrypoint.sh:ro
-    entrypoint: ["sh", "/scripts/ohlcv_retention_entrypoint.sh"]
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: 32M
-
-  redis:
-    image: redis:7-alpine
-    restart: always
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}
-    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    ports:
-      - "127.0.0.1:6379:6379"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 96M
-        reservations:
-          memory: 32M
-
-  # ── Core Services ───────────────────────────────────────────
-  market-data:
-    build:
-      context: .
-      dockerfile: services/market-data/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      <<: *common-env
-      BYBIT_API_KEY: ${BYBIT_API_KEY}
-      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
-      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
-      COINGLASS_API_KEY: ${COINGLASS_API_KEY}
-    healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 128M
-        reservations:
-          memory: 48M
-
-  strategy-orchestrator:
-    build:
-      context: .
-      dockerfile: services/orchestrator/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      market-data:
-        condition: service_started
-    environment:
-      <<: *common-env
-      PHASE5_MODE: ${PHASE5_MODE:-false}
-      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
-      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 64M
-
-  execution-engine:
-    build:
-      context: .
-      dockerfile: services/execution/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      <<: *common-env
-      BYBIT_API_KEY: ${BYBIT_API_KEY}
-      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
-      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
-      PHASE5_MODE: ${PHASE5_MODE:-false}
-      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
-      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
-      STOP_LOSS_PCT: ${STOP_LOSS_PCT:-0.2333}
-      SAFETY_LEVERAGE_LIMIT: "3.0"
-    healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 64M
-
-  # ── Strategy Services ───────────────────────────────────────
-  supertrend:
-    build:
-      context: .
-      dockerfile: services/strategies/supertrend/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      market-data:
-        condition: service_started
-    environment:
-      <<: *common-env
-      STRATEGY_ID: supertrend-01
-      BYBIT_API_KEY: ${BYBIT_API_KEY}
-      BYBIT_API_SECRET: ${BYBIT_API_SECRET}
-      BYBIT_TESTNET: ${BYBIT_TESTNET:-true}
-      PHASE5_MODE: ${PHASE5_MODE:-false}
-      STRICT_MONITORING_HOURS: ${STRICT_MONITORING_HOURS:-0}
-      EXPECTED_INITIAL_BALANCE_USD: ${EXPECTED_INITIAL_BALANCE_USD:-}
-    healthcheck:
-      test: ["CMD", "test", "-f", "/tmp/heartbeat_ok"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    volumes:
-      - ./config:/app/config:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 256M
-        reservations:
-          memory: 64M
-
-  # ── Intelligence & Reporting ────────────────────────────────
-  telegram-bot:
-    build:
-      context: .
-      dockerfile: services/telegram-bot/Dockerfile
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      <<: *common-env
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      REQUEST_DIR: /app/request_dir
-      RESULT_DIR: /app/result_dir
-    volumes:
-      - ./config:/app/config:ro
-      - ../.request:/app/request_dir
-      - ../.result:/app/result_dir
-    deploy:
-      resources:
-        limits:
-          cpus: "0.2"
-          memory: 128M
-        reservations:
-          memory: 32M
-
-  # ── Observability Stack ─────────────────────────────────────
-  node-exporter:
-    image: prom/node-exporter:v1.8.0
-    restart: always
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--collector.disable-defaults'
-      - '--collector.cpu'
-      - '--collector.meminfo'
-      - '--collector.filesystem'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-    expose:
-      - "9100"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: 64M
-
-  redis-exporter:
-    image: oliver006/redis_exporter:latest
-    restart: always
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      REDIS_ADDR: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required in .env}@redis:6379
-    expose:
-      - "9121"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: 64M
-
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    restart: always
-    depends_on:
-      - redis-exporter
-      - node-exporter
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
-    volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:9090:9090"
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-        reservations:
-          memory: 128M
-
-
 volumes:
   pgdata:
-    driver: local
-  redisdata:
-    driver: local
-  prometheus-data:
     driver: local
   pg-backups:
     driver: local

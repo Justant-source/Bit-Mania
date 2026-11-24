@@ -2,13 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(*)",
-      "Edit(*)",
-      "Write(*)",
-      "Read(*)",
+      "Edit",
+      "Write",
+      "Read",
       "WebFetch(*)",
       "WebSearch(*)",
-      "Glob(*)",
-      "Grep(*)",
+      "Glob",
+      "Grep",
       "mcp__playwright__*",
       "Skill(update-config)"
     ],

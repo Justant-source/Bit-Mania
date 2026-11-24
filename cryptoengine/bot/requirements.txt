@@ -1,0 +1,13 @@
+# Runtime dependencies of bot/ and the parts of shared/ it imports
+# (shared.kill_switch, shared.models.*, shared/__init__ -> config_loader, logging_config).
+# pandas / numpy: versions the indicator parity test is green on in production.
+pandas==2.3.3
+numpy==1.26.4
+# ccxt: the version the execution-engine ran in production until the 2026-11 merge.
+ccxt==4.5.78
+asyncpg>=0.29,<1
+structlog>=24.1,<26
+pydantic>=2.6,<3
+pyyaml>=6.0,<7
+aiohttp>=3.9,<4
+python-telegram-bot>=22,<23

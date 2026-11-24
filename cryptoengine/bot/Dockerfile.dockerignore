@@ -1,0 +1,14 @@
+# Keeps secrets and bulk out of the build context for bot/Dockerfile
+# (BuildKit picks this file up for this Dockerfile only; the old services are unaffected).
+.env
+.env.*
+!.env.example
+.watchdog
+.pytest_cache
+**/__pycache__
+**/*.pyc
+tests
+services
+scripts
+docker-compose*.yml
+Makefile

@@ -10,7 +10,7 @@ Jesse (==2.1.2) used to produce combo #7908:
 
 It emits golden_supertrend.json: a deterministic OHLCV series plus the exact
 Jesse outputs (supertrend line/direction, EMA 7/29/240, ATR-14). The live
-indicators (cryptoengine/services/strategies/supertrend/indicators.py) are then
+indicators (cryptoengine/bot/indicators.py) are then
 asserted against these in test_supertrend_parity.py — with NO Jesse dependency
 at test time.
 

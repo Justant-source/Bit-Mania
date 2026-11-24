@@ -3,7 +3,6 @@ from pathlib import Path
 
 BT_ROOT = Path(__file__).parent.parent        # backtest/ (local) or /app (container)
 SCRIPTS_ROOT = BT_ROOT / "scripts"
-RUNTIME_ROOT = BT_ROOT / "runtime"
 
 # ── Env-overridable paths (Docker container uses different mount points) ───────
 # DATA_ROOT: local fallback checks backtest/data/, then ../data/ (project root)
@@ -15,7 +14,6 @@ DATA_ROOT = Path(
 )
 
 RESULTS_ROOT = Path(os.environ.get("BACKTEST_RESULTS_ROOT", str(BT_ROOT / "results")))
-DASHBOARDS_ROOT = Path(os.environ.get("BACKTEST_DASHBOARDS_ROOT", str(BT_ROOT / "dashboards")))
 
 OHLCV_ROOT       = DATA_ROOT / "ohlcv"
 FUNDING_ROOT     = DATA_ROOT / "funding"

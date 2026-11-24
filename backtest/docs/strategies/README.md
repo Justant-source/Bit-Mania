@@ -16,7 +16,7 @@ last_updated: 2026-08-29
 
 전략 001–016과 018–021(총 20개)은 R&D 단계에서 백테스트를 거쳐 전부 폐기·아카이브되었습니다. 각 전략의 개별 테스트 로그 파일은 삭제되었으며, 영구 기록은 다음 ADR 한 곳으로 통합되었습니다.
 
-**→ [`docs/90-adr/0009-legacy-strategy-retirement.md`](/docs/90-adr/0009-legacy-strategy-retirement.md)**
+**→ [`docs/adr/0009-legacy-strategy-retirement.md`](/docs/adr/0009-legacy-strategy-retirement.md)**
 
 이 ADR에는 폐기된 20개 전략 각각의 개요, 핵심 백테스트 결과, 폐기 사유가 정리되어 있습니다.
 
